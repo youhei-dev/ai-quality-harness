@@ -198,7 +198,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "startedAt": "2026-09-15T12:00:00.000Z",
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,
-  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null
+  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null。dirty は取得失敗時 null（unknown）
   "verdict": "PASSED",                                                 // "PASSED" | "FAILED"
   "exitCode": 0,
   "summary": { "total": 5, "passed": 5, "failed": 0, "skipped": 0, "requiredFailed": 0 },
@@ -244,25 +244,44 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 
 ## 9. セキュリティ設計
 
+### 9.1 信頼境界（trust boundary）
+
+`aiqh.config.jsonc` は**リポジトリ所有者が管理する信頼された入力**である。`package.json` の scripts と同じ
+信頼レベルであり、設定に書かれた `command` はそのまま shell で実行される。したがって aiqh が保証する
+fail closed は「現在読み込んだ設定に対して」のものであり、**改変された設定（必須チェックを常に成功する
+コマンドに差し替える等）や弱体化された scripts に対する独立性は提供しない**（独立レビュー R-006）。
+
+この境界を守るのは aiqh ではなく、リポジトリ側の統制（設定ファイルのコードレビュー、Branch Protection、
+CODEOWNERS 等）である。設定改変への対策候補（保護されたポリシー、設定ハッシュの固定、品質ポリシー変更時の
+別承認）は `docs/ROADMAP.md` の M3 / M4 に記載する。
+
+### 9.2 実装上の対策
+
 - **設定は秘密を持てない**: 設定ファイルには `command` / `cwd` / `timeoutSec` 等の構造化フィールドしかなく、
   秘密値を置く場所がない。環境変数は親プロセスから継承するのみで、設定から注入しない（M1 で名前の許可リスト方式を検討）。
-- **子プロセス**: `command` は設定ファイルの作者（＝リポジトリ所有者）が書く信頼データであり、
-  `package.json` の scripts と同じ信頼レベルとして shell 経由で実行する。タイムアウト時は
-  プロセスグループごと kill し、孫プロセスの取り残しを防ぐ（ADR-0005）。
+- **子プロセス**: `command` は 9.1 の信頼境界に基づき shell 経由で実行する。タイムアウト時は spawn 時に
+  保存したプロセスグループ id へ SIGTERM → 猶予後 SIGKILL を送り、group leader（shell）が先に終了していても
+  孫プロセスに到達させる（ADR-0005、R-004）。
+- **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
+  realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
 - **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
-- **未対応 OS**: Windows はプロセスグループ制御の差異により M0 では未検証。macOS / Linux を対象とする。
+- **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
+  Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **会社固有情報の排除**: コード・設定・docs・テストデータに実在の社名・製品名・IP・社内パス・人名を書かない。
 
 ---
 
 ## 10. 終了コードと失敗モード
 
-| 状況 | 終了コード | レポート |
-|---|---|---|
-| 全必須チェック PASS | 0 | 書く |
-| 必須チェックに FAIL / SKIPPED あり | 1 | 書く |
-| 設定ファイル不在・不正 | 2 | 書かない |
-| レポート書込失敗 | 2 | 部分的に書かれる可能性あり。標準エラーに理由を出す |
-| 予期しない例外 | 2 | 書かない |
+終了コードと最終行の文言は 1 対 1 に固定する（R-007）。`PASSED` という語は終了コード 0 のときにしか出力しない。
+
+| 状況 | 終了コード | 最終行の文言 | レポート |
+|---|---|---|---|
+| 全必須チェック PASS | 0 | `VERIFY PASSED — …` | 書く |
+| 必須チェックに FAIL / SKIPPED あり | 1 | `VERIFY FAILED — …` | 書く |
+| 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
+| レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
+| 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
 
 いずれの失敗でも終了コードは非ゼロであり、CI ではゲートを通過しない。
+この対応は `tests/cli.test.ts` の不変条件テストで固定している。

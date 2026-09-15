@@ -41,7 +41,22 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 ## 必要環境
 
 - Node.js 24 以上（開発時はネイティブ TypeScript 実行を使うため）
-- macOS / Linux（Windows はプロセスグループ制御の差異により未検証）
+
+## 対応プラットフォーム（Supported Platforms）
+
+| プラットフォーム | 状態 |
+|---|---|
+| macOS（POSIX） | 対応。M0 の検証環境 |
+| Linux（POSIX） | 対応（設計上）。CI での検証は M3 で追加 |
+| Windows | M0 対象外。プロセスグループ制御と realpath 判定が POSIX 前提のため |
+
+## 信頼境界（Trust Boundary）
+
+`aiqh.config.jsonc` は**リポジトリ所有者が管理する信頼された入力**です。設定に書いたコマンドはそのまま
+shell で実行されます（`package.json` の scripts と同じ信頼レベル）。aiqh が保証する fail closed は
+「現在読み込んだ設定に対して」のものであり、**改変された設定や弱体化されたスクリプトに対する独立性は
+提供しません**。設定ファイルの変更はコードレビューと Branch Protection で守ってください。
+設定改変への対策候補は `docs/ROADMAP.md`（M3 / M4）を参照してください。
 
 ## 使い方
 
@@ -105,7 +120,7 @@ aiqh verify [options]
   -v, --verbose            失敗チェックの出力を全文表示
 ```
 
-終了コード: `0` = VERIFY PASSED、`1` = VERIFY FAILED、`2` = 設定エラー・内部エラー。
+終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。
 
 ## 開発
 
