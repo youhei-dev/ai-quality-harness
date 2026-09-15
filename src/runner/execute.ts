@@ -16,13 +16,13 @@ export interface ExecuteOptions {
 const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KILL_GRACE_MS = 5_000;
 
-/** Children currently running. Used by the CLI to clean up on SIGINT / SIGTERM. */
-const activeChildren = new Set<ChildProcess>();
+/** Children currently running, with the process-group id saved at spawn time. */
+const activeChildren = new Map<ChildProcess, number | undefined>();
 
 /** Kill every running child (and its process group). Safe to call repeatedly. */
 export function killActiveChildren(signal: NodeJS.Signals = "SIGTERM"): void {
-  for (const child of activeChildren) {
-    killTree(child, signal);
+  for (const [child, pgid] of activeChildren) {
+    killTree(child, pgid, signal);
   }
 }
 
@@ -63,15 +63,18 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
       resolve(failedToStart(`spawn failed: ${(err as Error).message}`, startedAt));
       return;
     }
-    activeChildren.add(child);
+    // With `detached`, the child is the leader of a new process group whose id equals its pid.
+    // Save it now: the leader may exit before its descendants, and the group outlives it (R-004).
+    const pgid = child.pid;
+    activeChildren.set(child, pgid);
 
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
     const timeoutTimer = setTimeout(() => {
       timedOut = true;
-      killTree(child, "SIGTERM");
-      killTimer = setTimeout(() => killTree(child, "SIGKILL"), killGraceMs);
+      killTree(child, pgid, "SIGTERM");
+      killTimer = setTimeout(() => killTree(child, pgid, "SIGKILL"), killGraceMs);
       killTimer.unref();
     }, options.timeoutMs);
     timeoutTimer.unref();
@@ -140,18 +143,26 @@ function checkDirectory(dir: string): string | null {
   }
 }
 
-/** Kill the child's whole process group (POSIX). Falls back to killing the child alone. */
-function killTree(child: ChildProcess, signal: NodeJS.Signals): void {
+/**
+ * Kill the child's whole process group (POSIX), then fall back to the child alone.
+ * The group kill is attempted regardless of the leader's state: after SIGTERM the shell
+ * (group leader) may already be gone while TERM-ignoring descendants keep the group alive,
+ * and the SIGKILL escalation must still reach them (R-004).
+ */
+function killTree(child: ChildProcess, pgid: number | undefined, signal: NodeJS.Signals): void {
+  if (process.platform !== "win32" && pgid !== undefined) {
+    try {
+      process.kill(-pgid, signal);
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ESRCH") {
+        return; // no process left in the group
+      }
+      // EPERM or similar: fall through to a direct kill of the child.
+    }
+  }
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
     return;
-  }
-  if (process.platform !== "win32") {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // Process group already gone or not owned; fall through to direct kill.
-    }
   }
   try {
     child.kill(signal);
