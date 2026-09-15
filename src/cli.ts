@@ -65,6 +65,6 @@ program
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`aiqh: unexpected error: ${maskSecrets(message)}`);
-  console.error("VERIFY FAILED (internal error)");
+  console.error("VERIFY ERROR (internal error)");
   process.exitCode = EXIT_ERROR;
 });

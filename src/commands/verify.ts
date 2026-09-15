@@ -27,8 +27,8 @@ export interface VerifyOptions {
 const CONSOLE_TAIL_LINES = 20;
 
 /**
- * Run the verify pipeline. Returns the process exit code:
- * 0 = VERIFY PASSED, 1 = VERIFY FAILED, 2 = config / internal error.
+ * Run the verify pipeline. Returns the process exit code. The final console line is tied to
+ * the exit code: 0 = "VERIFY PASSED", 1 = "VERIFY FAILED", 2 = "VERIFY ERROR" (R-007).
  */
 export async function runVerify(options: VerifyOptions): Promise<number> {
   const log = options.log ?? ((line: string) => console.log(line));
@@ -44,7 +44,7 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   } catch (err) {
     if (err instanceof ConfigError) {
       logError(`aiqh: ${maskSecrets(err.message)}`);
-      logError("VERIFY FAILED (configuration error)");
+      logError("VERIFY ERROR (configuration error)");
       return EXIT_ERROR;
     }
     throw err;
@@ -59,7 +59,7 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   log(`config: ${config.configPath}`);
   log(
     git
-      ? `git: ${git.branch ?? "(detached)"} @ ${git.commit ? git.commit.slice(0, 12) : "(no commit)"}${git.dirty ? " (dirty)" : ""}`
+      ? `git: ${git.branch ?? "(detached)"} @ ${git.commit ? git.commit.slice(0, 12) : "(no commit)"}${git.dirty === null ? " (dirty: unknown)" : git.dirty ? " (dirty)" : ""}`
       : "git: not a git repository",
   );
   log("");
@@ -97,7 +97,8 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     paths = writeReports(report, config.outputDir);
   } catch (err) {
     logError(`aiqh: failed to write reports to ${config.outputDir}: ${maskSecrets((err as Error).message)}`);
-    logError(`VERIFY ${report.verdict} (report not written)`);
+    // Never echo the verdict here: the exit code is 2, so the wording must be ERROR (R-007).
+    logError("VERIFY ERROR (report write error)");
     return EXIT_ERROR;
   }
 

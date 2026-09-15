@@ -37,6 +37,21 @@ function project(config: unknown): string {
   return tmp.dir;
 }
 
+/**
+ * Invariant (R-007): the final wording is tied to the exit code.
+ * 0 -> "VERIFY PASSED", 1 -> "VERIFY FAILED", 2 -> "VERIFY ERROR"; never any other verdict word.
+ */
+function expectVerdictMatchesExit(r: CliRun): void {
+  const out = `${r.stdout}\n${r.stderr}`;
+  const expected = { 0: "VERIFY PASSED", 1: "VERIFY FAILED", 2: "VERIFY ERROR" }[r.code];
+  expect(expected, `unexpected exit code ${r.code}`).toBeDefined();
+  expect(out).toContain(expected);
+  for (const other of ["VERIFY PASSED", "VERIFY FAILED", "VERIFY ERROR"]) {
+    if (other !== expected) expect(out).not.toContain(other);
+  }
+  if (r.code !== 0) expect(out).not.toContain("PASSED");
+}
+
 function readReport(root: string): VerificationReport {
   return JSON.parse(
     readFileSync(path.join(root, "artifacts", "verification", "latest.json"), "utf8"),
@@ -55,6 +70,7 @@ describe("aiqh verify (end-to-end)", () => {
     });
     const r = await runCli(["verify"], root);
     expect(r.code).toBe(0);
+    expectVerdictMatchesExit(r);
     expect(r.stdout).toContain("VERIFY PASSED");
     expect(r.stdout).toContain("lint PASS");
     expect(r.stdout).toContain("e2e N/A");
@@ -80,6 +96,7 @@ describe("aiqh verify (end-to-end)", () => {
     });
     const r = await runCli(["verify"], root);
     expect(r.code).toBe(1);
+    expectVerdictMatchesExit(r);
     expect(r.stdout).toContain("VERIFY FAILED");
     expect(r.stdout).toContain("required failed: 1 (first)");
     expect(r.stdout).toContain("optional failed: 1 (opt)");
@@ -106,6 +123,7 @@ describe("aiqh verify (end-to-end)", () => {
     });
     const r = await runCli(["verify", "--fail-fast"], root);
     expect(r.code).toBe(1);
+    expectVerdictMatchesExit(r);
     const report = readReport(root);
     expect(report.checks.map((c) => c.status)).toEqual(["FAIL", "SKIPPED"]);
     expect(report.summary.requiredFailed).toBe(2);
@@ -115,8 +133,9 @@ describe("aiqh verify (end-to-end)", () => {
     const root = project({ version: 1, project: { name: "bad" }, checks: [] });
     const r = await runCli(["verify"], root);
     expect(r.code).toBe(2);
+    expectVerdictMatchesExit(r);
     expect(r.stderr).toContain("config is invalid");
-    expect(r.stderr).toContain("VERIFY FAILED");
+    expect(r.stderr).toContain("VERIFY ERROR");
     expect(existsSync(path.join(root, "artifacts"))).toBe(false);
   });
 
@@ -125,6 +144,7 @@ describe("aiqh verify (end-to-end)", () => {
     cleanups.push(tmp.cleanup);
     const r = await runCli(["verify"], tmp.dir);
     expect(r.code).toBe(2);
+    expectVerdictMatchesExit(r);
     expect(r.stderr).toContain("config file not found");
   });
 
@@ -141,6 +161,7 @@ describe("aiqh verify (end-to-end)", () => {
       elsewhere.dir,
     );
     expect(r.code).toBe(0);
+    expectVerdictMatchesExit(r);
     expect(existsSync(path.join(elsewhere.dir, "latest.json"))).toBe(true);
     expect(existsSync(path.join(root, "artifacts"))).toBe(false);
   });
