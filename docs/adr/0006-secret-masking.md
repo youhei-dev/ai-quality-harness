@@ -11,7 +11,7 @@ check の stdout / stderr には、誤ってログに出た API キーや `.env`
 - レポートオブジェクトの**全ての文字列値**を深い走査でマスク関数に通してから保存・表示する
   （個別フィールドの指定漏れを防ぐ）
 - マスクはパターンベース。検出した値は `[REDACTED:<分類>]` に置換し、元の値はどこにも保存しない
-- M0 の分類と代表パターン:
+- 分類と代表パターン（独立レビュー R1 の R-001 / R-002 / R-003 を反映済み）:
 
 | 分類 | パターン（要約） |
 |---|---|
@@ -24,9 +24,10 @@ check の stdout / stderr には、誤ってログに出た API キーや `.env`
 | `google` | `AIza` + 35 文字 |
 | `gitlab` | `glpat-` で始まる列 |
 | `jwt` | `eyJ` で始まる 3 セグメントの base64url |
-| `bearer` | `Authorization: Bearer <token>` / `Basic <token>` の token 部分 |
+| `bearer` | `Bearer <token>`（scheme は大文字小文字を区別しない。token は 16 文字以上） |
+| `basic` | `Basic <base64>`（scheme は大文字小文字を区別しない。base64 をデコードして `user:password` 形式のときだけマスク。短い資格情報も対象） |
 | `url-credential` | `scheme://user:password@host` の `user:password` 部分 |
-| `key-value` | `password` `passwd` `secret` `token` `api_key` `apikey` `access_key` `client_secret` 等のキーに続く `=` / `:` の値部分（キーは残す） |
+| `key-value` | `password` `passwd` `secret` `token` `api_key` `apikey` `access_key` `secret_key` `client_secret` `session_token` 等のキーに続く `=` / `:` の値部分（キーは残す）。`AWS_SECRET_ACCESS_KEY` `MY_API_KEY` のようにキー名が識別子の末尾にある場合も対象。引用符付きの値は閉じ引用符まで（空白を含めて）マスク |
 
 - マスク関数は純粋関数で、冪等（2 回適用しても結果が変わらない）
 - 誤検出（例: `token: null`、テスト用のダミー値）は許容する。**取りこぼしより誤検出を選ぶ**
