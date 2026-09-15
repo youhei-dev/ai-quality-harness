@@ -16,13 +16,43 @@ export interface ExecuteOptions {
 const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KILL_GRACE_MS = 5_000;
 
+export { DEFAULT_KILL_GRACE_MS };
+
 /** Children currently running, with the process-group id saved at spawn time. */
 const activeChildren = new Map<ChildProcess, number | undefined>();
 
-/** Kill every running child (and its process group). Safe to call repeatedly. */
-export function killActiveChildren(signal: NodeJS.Signals = "SIGTERM"): void {
-  for (const [child, pgid] of activeChildren) {
-    killTree(child, pgid, signal);
+/**
+ * Clean-up path shared by timeouts and the CLI signal handlers (R2-002):
+ * SIGTERM to every active process group → wait up to `graceMs` for the groups to disappear →
+ * SIGKILL whatever is left → wait (bounded) until no group member remains.
+ */
+export async function terminateActiveChildren(graceMs: number = DEFAULT_KILL_GRACE_MS): Promise<void> {
+  const targets = [...activeChildren.entries()];
+  if (targets.length === 0) return;
+  for (const [child, pgid] of targets) killTree(child, pgid, "SIGTERM");
+  const anyAlive = (): boolean => targets.some(([, pgid]) => groupAlive(pgid));
+  await waitUntil(() => !anyAlive(), graceMs);
+  if (anyAlive()) {
+    for (const [child, pgid] of targets) killTree(child, pgid, "SIGKILL");
+    await waitUntil(() => !anyAlive(), 2_000);
+  }
+}
+
+async function waitUntil(done: () => boolean, maxMs: number): Promise<void> {
+  const deadline = Date.now() + maxMs;
+  while (!done() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+/** True while any member of the process group exists (signal 0 probe; EPERM counts as alive). */
+function groupAlive(pgid: number | undefined): boolean {
+  if (process.platform === "win32" || pgid === undefined) return false;
+  try {
+    process.kill(-pgid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== "ESRCH";
   }
 }
 
@@ -47,8 +77,10 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     const stdout = new OutputBuffer(maxBytes);
     const stderr = new OutputBuffer(maxBytes);
     let timedOut = false;
+    let sigkillSent = false;
     let settled = false;
     let killTimer: NodeJS.Timeout | null = null;
+    let closeResult: Pick<ExecutionResult, "exitCode" | "signal"> | null = null;
 
     let child: ChildProcess;
     try {
@@ -71,13 +103,25 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
+    // R2-002 lifecycle after a timeout: SIGTERM → grace → SIGKILL → group gone. The promise
+    // does not settle on the leader's `close` alone while the group is still alive, and the
+    // timers are deliberately not unref()'d so the escalation cannot be skipped by an empty loop.
     const timeoutTimer = setTimeout(() => {
       timedOut = true;
       killTree(child, pgid, "SIGTERM");
-      killTimer = setTimeout(() => killTree(child, pgid, "SIGKILL"), killGraceMs);
-      killTimer.unref();
+      killTimer = setTimeout(() => {
+        killTree(child, pgid, "SIGKILL");
+        sigkillSent = true;
+        tryFinish();
+      }, killGraceMs);
     }, options.timeoutMs);
-    timeoutTimer.unref();
+
+    /** Settle once the process closed AND (no timeout | SIGKILL sent | group already gone). */
+    const tryFinish = (): void => {
+      if (closeResult === null) return;
+      if (timedOut && !sigkillSent && groupAlive(pgid)) return;
+      finish({ ...closeResult, timedOut, spawnError: null });
+    };
 
     const finish = (result: Omit<ExecutionResult, "stdout" | "stderr" | "stdoutTruncated" | "stderrTruncated" | "startedAt" | "durationMs">) => {
       if (settled) return;
@@ -105,14 +149,12 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
       });
     });
 
-    // "close" fires after stdio streams have ended, so all output has been captured.
+    // "close" fires after stdio streams have ended, so all output has been captured. After a
+    // timeout it may fire before the descendants are dead (they can close their stdio), so the
+    // escalation timer keeps running until the group is confirmed gone or SIGKILL was sent.
     child.on("close", (code, signal) => {
-      finish({
-        exitCode: code,
-        signal,
-        timedOut,
-        spawnError: null,
-      });
+      closeResult = { exitCode: code, signal };
+      tryFinish();
     });
   });
 }

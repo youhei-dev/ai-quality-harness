@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { runVerify } from "./commands/verify.ts";
-import { killActiveChildren } from "./runner/execute.ts";
+import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
 import { maskSecrets } from "./security/mask.ts";
 import { EXIT_ERROR } from "./types.ts";
 
@@ -19,12 +19,17 @@ function readVersion(): string {
 
 const VERSION = readVersion();
 
-// Children run in their own process group (ADR-0005), so forward termination explicitly.
+// Children run in their own process group (ADR-0005), so forward termination explicitly through
+// the shared clean-up path (SIGTERM → grace → SIGKILL → group gone, R2-002) and exit with the
+// conventional 128 + signal number.
+const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 } as const;
+let terminating = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    killActiveChildren("SIGTERM");
-    process.exitCode = 130;
-    setTimeout(() => process.exit(130), 200).unref();
+    if (terminating) return;
+    terminating = true;
+    console.error(`aiqh: received ${signal}, terminating running checks (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
+    void terminateActiveChildren(DEFAULT_KILL_GRACE_MS).finally(() => process.exit(SIGNAL_EXIT_CODES[signal]));
   });
 }
 
