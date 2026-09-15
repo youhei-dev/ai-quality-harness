@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { z } from "zod";
@@ -109,15 +109,47 @@ export function resolveConfig(raw: RawConfig, absoluteConfigPath: string): Resol
 /**
  * Resolve `relative` against `root` and reject anything that escapes the root.
  * Absolute paths are rejected outright so configs stay portable between machines.
+ * Containment is checked lexically and then on real paths, so a symlink inside the root
+ * that points outside is rejected as well (R-005). The returned value is the lexical
+ * absolute path (what the config author wrote), not the real path.
  */
 export function resolveInsideRoot(root: string, relative: string, label: string): string {
   if (path.isAbsolute(relative)) {
     throw new ConfigError(`${label} must be a relative path inside the project root: ${relative}`);
   }
   const absolute = path.resolve(root, relative);
-  const rel = path.relative(root, absolute);
-  if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+  if (escapes(root, absolute)) {
     throw new ConfigError(`${label} escapes the project root: ${relative}`);
   }
+  if (escapes(realpathNearest(root), realpathNearest(absolute))) {
+    throw new ConfigError(`${label} escapes the project root via a symlink: ${relative}`);
+  }
   return absolute;
+}
+
+function escapes(root: string, target: string): boolean {
+  const rel = path.relative(root, target);
+  return rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel);
+}
+
+/**
+ * Real path of `p`. When `p` does not exist yet (e.g. an output directory that verify will
+ * create), the nearest existing ancestor is resolved and the remaining segments appended.
+ */
+export function realpathNearest(p: string): string {
+  let existing = p;
+  const rest: string[] = [];
+  while (!existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break; // filesystem root
+    rest.unshift(path.basename(existing));
+    existing = parent;
+  }
+  let real: string;
+  try {
+    real = realpathSync(existing);
+  } catch {
+    real = existing;
+  }
+  return path.join(real, ...rest);
 }
