@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { z } from "zod";
@@ -121,7 +121,7 @@ export function resolveInsideRoot(root: string, relative: string, label: string)
   if (escapes(root, absolute)) {
     throw new ConfigError(`${label} escapes the project root: ${relative}`);
   }
-  if (escapes(realpathNearest(root), realpathNearest(absolute))) {
+  if (escapes(realpathNearest(root, "project root"), realpathNearest(absolute, label))) {
     throw new ConfigError(`${label} escapes the project root via a symlink: ${relative}`);
   }
   return absolute;
@@ -134,12 +134,14 @@ function escapes(root: string, target: string): boolean {
 
 /**
  * Real path of `p`. When `p` does not exist yet (e.g. an output directory that verify will
- * create), the nearest existing ancestor is resolved and the remaining segments appended.
+ * create), the nearest existing filesystem entry on the way up is resolved and the remaining
+ * segments appended. Entries are found with lstat, so a dangling symlink counts as an entry
+ * (R2-003); if it cannot be resolved, the config is rejected instead of trusting the lexical path.
  */
-export function realpathNearest(p: string): string {
+export function realpathNearest(p: string, label = "path"): string {
   let existing = p;
   const rest: string[] = [];
-  while (!existsSync(existing)) {
+  while (!entryExists(existing)) {
     const parent = path.dirname(existing);
     if (parent === existing) break; // filesystem root
     rest.unshift(path.basename(existing));
@@ -148,8 +150,22 @@ export function realpathNearest(p: string): string {
   let real: string;
   try {
     real = realpathSync(existing);
-  } catch {
-    real = existing;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "unknown";
+    throw new ConfigError(
+      `${label} cannot be resolved: ${p} — ${existing} is a symbolic link whose target does not exist (${code}). ` +
+        "Create the target first or change the setting.",
+    );
   }
   return path.join(real, ...rest);
+}
+
+/** lstat-based existence check: true for files, directories and (dangling) symlinks. */
+function entryExists(p: string): boolean {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
