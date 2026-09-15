@@ -22,6 +22,10 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - 自己適用: Lint / Type Check / Unit Test / Build / Dependency を実チェックとして登録。Security / E2E は NOT_APPLICABLE
 - 手動のレビューパケット `artifacts/ai-review/review-packet-m0.md`
 
+### 独立レビューの反映
+- R1（R-001〜R-013）: `docs/reviews/m0/response-r1.md`。R-001〜R-005 / R-007 / R-009 を修正、R-006 / R-011 前半は文書対応
+- R2（R2-001〜R2-005）: `docs/reviews/m0/response-r2.md`。5 件すべて修正（R2-005 は旧 R-008 の M0 受入テスト化）
+
 ### 完了条件
 - [ ] `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/CONFIG_SPEC.md`, `docs/adr/*.md` が存在する
 - [ ] `npm run verify` でこのリポジトリ自身の Lint / Type Check / Unit Test / Build / Dependency が実行される
@@ -55,9 +59,9 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - 設定の JSON Schema 出力（`aiqh schema` またはリポジトリ同梱）でエディタ補完・検証を可能にする
 
 - 独立レビュー R1 からの持ち越し（`docs/reviews/m0/response-r1.md`）:
-  - **R-008**（配布形態の検証）: 配布形態（git タグ参照 / Actions 内 checkout）の設計と一緒に、
-    `npm pack` → 一時ディレクトリへ install → `npx --no-install aiqh verify` の smoke test を追加する。
-    bin / shebang / `files` / dist 同梱をまとめて検証する
+  - ~~**R-008**（配布形態の検証）~~ → **M0 で対応済み（R2-005）**: `scripts/package-smoke.ts` を自己 verify の
+    必須チェック `package` として登録（`npm pack` → 一時ディレクトリへ install → `npx --no-install aiqh verify`）。
+    配布形態（git タグ参照 / Actions 内 checkout）の設計自体は M1 で行う
   - **R-012**（masker と secret scanner の検出仕様の整合）: Security Scan アダプタと masker で検出パターンを
     共有する設計にし、実行時生成した合成資格情報コーパスを両方に入力する互換テストを追加する。
     push 前 hook は共通設定のため対象外

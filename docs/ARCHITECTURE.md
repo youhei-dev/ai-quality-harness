@@ -259,11 +259,21 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 
 - **設定は秘密を持てない**: 設定ファイルには `command` / `cwd` / `timeoutSec` 等の構造化フィールドしかなく、
   秘密値を置く場所がない。環境変数は親プロセスから継承するのみで、設定から注入しない（M1 で名前の許可リスト方式を検討）。
-- **子プロセス**: `command` は 9.1 の信頼境界に基づき shell 経由で実行する。タイムアウト時は spawn 時に
-  保存したプロセスグループ id へ SIGTERM → 猶予後 SIGKILL を送り、group leader（shell）が先に終了していても
-  孫プロセスに到達させる（ADR-0005、R-004）。
+- **子プロセス**: `command` は 9.1 の信頼境界に基づき shell 経由で実行する（ADR-0005）。
+- **タイムアウト後の後始末ライフサイクル**（R-004、R2-002）:
+  1. spawn 時にプロセスグループ id（= leader の pid）を保存する
+  2. タイムアウト → グループへ SIGTERM（leader の生死にかかわらず `kill(-pgid)`）
+  3. 猶予（既定 5 秒、`killGraceMs`）→ グループへ SIGKILL
+  4. 「SIGKILL 送信済み」または `kill(-pgid, 0)` が ESRCH（グループ消滅）を返すまで、runner の Promise は解決しない。
+     leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、後始末が完了するまで待つ）
+  5. エスカレーション待ちのタイマーは `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
+- **CLI のシグナル処理**: SIGINT / SIGTERM を受けると同じ後始末経路（全 active グループへ SIGTERM → 猶予 5 秒 →
+  残っていれば SIGKILL → 消滅確認）を await してから、128 + シグナル番号で終了する（§10）。
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
+  祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。
+- **配布の受入テスト**: 自己 verify の `package` チェック（`scripts/package-smoke.ts`）が `npm pack` → 一時ディレクトリへ
+  install → `npx --no-install aiqh verify` を毎回実行し、bin / shebang / `files` / 実行時依存 / version を検証する（R2-005）。
 - **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
@@ -282,6 +292,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 | 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
+| SIGINT 受信（Ctrl+C） | 130（128 + 2） | `aiqh: received SIGINT, terminating running checks (grace 5000ms)` | 書かない。実行中のチェックのプロセスグループへ SIGTERM → 最大 5 秒待機 → SIGKILL → 消滅確認の後に終了 |
+| SIGTERM 受信 | 143（128 + 15） | `aiqh: received SIGTERM, …` | 同上 |
 
 いずれの失敗でも終了コードは非ゼロであり、CI ではゲートを通過しない。
 この対応は `tests/cli.test.ts` の不変条件テストで固定している。

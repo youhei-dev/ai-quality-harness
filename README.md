@@ -41,6 +41,10 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 ## 必要環境
 
 - Node.js 24 以上（開発時はネイティブ TypeScript 実行を使うため）
+- 自己 verify の `package` チェック（配布 smoke test）は `npm pack` した tarball を一時ディレクトリへ
+  `npm install --prefer-offline` するため、実行時依存 3 つ（commander / jsonc-parser / zod）が **npm キャッシュにあるか、
+  レジストリへ到達できる**必要があります。オフラインかつキャッシュなしの環境ではこのチェックは FAIL になります
+  （fail closed）。`npm audit` も同様にレジストリへの到達が必要です
 
 ## 対応プラットフォーム（Supported Platforms）
 
@@ -131,7 +135,16 @@ npm test            # Vitest
 npm run build       # tsc → dist/
 ```
 
-`npm run verify` は上記に `npm audit --audit-level=high` を加えた 5 つを順に実行します。
+`npm run verify` は上記に `npm run smoke:package`（配布 smoke test）と `npm audit --audit-level=high` を加えた
+6 つを順に実行します。
+
+```bash
+# 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）
+npm run smoke:package
+```
+
+Ctrl+C（SIGINT）/ SIGTERM で中断すると、実行中のチェックのプロセスグループへ SIGTERM → 最大 5 秒 → SIGKILL の順で
+後始末してから、それぞれ終了コード 130 / 143 で終了します。
 
 ## リポジトリ構成
 
