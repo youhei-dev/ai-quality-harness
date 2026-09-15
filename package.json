@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "smoke:package": "node scripts/package-smoke.ts",
     "verify": "node src/cli.ts verify",
     "verify:dist": "npm run build && node dist/cli.js verify"
   },

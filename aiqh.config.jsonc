@@ -13,6 +13,10 @@
       "description": "Vitest: config loading, fail-closed verdict, reports, masking, CLI end-to-end" },
     { "name": "build",     "kind": "build",     "command": "npm run build",     "timeoutSec": 300,
       "description": "tsc emits dist/ (the distributed artifact; bin points at dist/cli.js)" },
+    // R2-005 (formerly R-008): distribution acceptance test. npm pack -> temp consumer -> install the
+    // tarball (--prefer-offline) -> npx --no-install aiqh verify. Needs the npm cache or network.
+    { "name": "package",   "kind": "custom",    "command": "npm run smoke:package", "timeoutSec": 300,
+      "description": "Packaged CLI works from a consumer project (bin, shebang, files, deps, version)" },
     // npm audit exits non-zero when a vulnerability at or above the level is found.
     // Threshold "high": moderate and below are tolerated in M0 (see docs/reports/M0_REPORT.md).
     { "name": "dependency", "kind": "dependency", "command": "npm audit --audit-level=high", "timeoutSec": 300,
