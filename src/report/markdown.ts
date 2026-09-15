@@ -23,7 +23,7 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push(`| Duration | ${formatDuration(report.durationMs)} |`);
   lines.push(`| Git commit | ${report.git?.commit ?? "(not a git repository / no commit)"} |`);
   lines.push(`| Git branch | ${report.git?.branch ?? "-"} |`);
-  lines.push(`| Working tree | ${report.git ? (report.git.dirty ? "dirty" : "clean") : "-"} |`);
+  lines.push(`| Working tree | ${report.git ? describeDirty(report.git.dirty) : "-"} |`);
   lines.push(`| Exit code | ${report.exitCode} |`);
   lines.push(`| Config | ${escapeCell(report.configPath)} |`);
   lines.push(`| Tool | ${report.tool.name} ${report.tool.version} |`);
@@ -105,6 +105,11 @@ function renderFailure(c: CheckResult): string[] {
     lines.push("");
   }
   return lines;
+}
+
+function describeDirty(dirty: boolean | null): string {
+  if (dirty === null) return "unknown";
+  return dirty ? "dirty" : "clean";
 }
 
 export function formatDuration(ms: number): string {

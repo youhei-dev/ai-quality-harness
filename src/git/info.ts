@@ -28,6 +28,7 @@ export function getGitInfo(cwd: string): GitInfo | null {
   return {
     commit,
     branch,
-    dirty: status !== null && status.length > 0,
+    // A failed `git status` is "unknown", never "clean" (R-009).
+    dirty: status === null ? null : status.length > 0,
   };
 }

@@ -95,7 +95,8 @@ export interface CheckResult {
 export interface GitInfo {
   commit: string | null;
   branch: string | null;
-  dirty: boolean;
+  /** true = uncommitted changes, false = clean, null = could not be determined (R-009). */
+  dirty: boolean | null;
 }
 
 export interface ReportSummary {
