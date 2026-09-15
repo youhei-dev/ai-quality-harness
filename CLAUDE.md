@@ -22,6 +22,7 @@
 - 作業用の一時ファイルは `tmp/` 配下（git 管理外）。デスクトップやホーム直下に置かない
 - `artifacts/` は git 管理外（ADR-0007）。レビューパケットは `artifacts/ai-review/`、verify 出力は `artifacts/verification/`
 - 人間向けの報告書は `docs/reports/`（git 管理）
+- 停止ポイント・最終報告を Downloads に保存するときのファイル名は「claude提出」を含める（例: `claude提出_aiqh_<内容>_<YYYYMMDD-HHmmss>.md`）。ChatGPT 提出用 ZIP はレビューパケットのみを同梱し、自己評価を含む報告書は入れない
 - 他プロジェクト（trim-manager、ai-tutor-browser 等）は設計の参考として読み取りのみ。変更しない
 - **テスト用のダミー秘密値は、パターンに一致するリテラルをソースに置かず、実行時に文字列連結で組み立てる**（`tests/helpers.ts` の `fake(prefix, body)` を使う。例: `fake("AKIA", "ABCDEFGHIJKLMNOP")`）。push 前の secret ガード hook が合成値でも停止するため
 - `git add -A` / `git add .` は禁止。対象ファイルを明示して stage し、`git diff --cached --name-only` で確認してから commit
