@@ -11,7 +11,7 @@ check の stdout / stderr には、誤ってログに出た API キーや `.env`
 - レポートオブジェクトの**全ての文字列値**を深い走査でマスク関数に通してから保存・表示する
   （個別フィールドの指定漏れを防ぐ）
 - マスクはパターンベース。検出した値は `[REDACTED:<分類>]` に置換し、元の値はどこにも保存しない
-- 分類と代表パターン（独立レビュー R1 の R-001 / R-002 / R-003 を反映済み）:
+- 分類と代表パターン（独立レビュー R1 の R-001 / R-002 / R-003、R2 の R2-001 / R2-004 を反映済み）:
 
 | 分類 | パターン（要約） |
 |---|---|
@@ -24,10 +24,17 @@ check の stdout / stderr には、誤ってログに出た API キーや `.env`
 | `google` | `AIza` + 35 文字 |
 | `gitlab` | `glpat-` で始まる列 |
 | `jwt` | `eyJ` で始まる 3 セグメントの base64url |
-| `bearer` | `Bearer <token>`（scheme は大文字小文字を区別しない。token は 16 文字以上） |
-| `basic` | `Basic <base64>`（scheme は大文字小文字を区別しない。base64 をデコードして `user:password` 形式のときだけマスク。短い資格情報も対象） |
+| `bearer` | (a) `Authorization:` / `Proxy-Authorization:` ヘッダ文脈: `Bearer <token>` を長さ不問でマスク。(b) 一般文中の裸の `Bearer <token>`: 16 文字以上のみ（"bearer authentication" のような文を誤検出しないためのヒューリスティック）。scheme は大文字小文字を区別しない（R2-004） |
+| `basic` | (a) ヘッダ文脈: base64 構文を満たす payload をデコードせずマスク（非 UTF-8 の資格情報も対象）。(b) 一般文中の裸の `Basic <payload>`: デコードして `user:password` 形式のときだけマスク（"Basic auth is used" を誤検出しない）（R2-004） |
 | `url-credential` | `scheme://user:password@host` の `user:password` 部分 |
 | `key-value` | `password` `passwd` `secret` `token` `api_key` `apikey` `access_key` `secret_key` `client_secret` `session_token` 等のキーに続く `=` / `:` の値部分（キーは残す）。`AWS_SECRET_ACCESS_KEY` `MY_API_KEY` のようにキー名が識別子の末尾にある場合も対象。引用符付きの値は閉じ引用符まで（空白を含めて）マスク |
+
+引用符付き値の扱い（R-003 → R2-001 で確定）:
+
+- `"…"` と `'…'` は別の選択肢。二重引用符の値の中の `'`、単一引用符の値の中の `"` は通常文字
+- バックスラッシュでエスケープされた引用符（`\"` `\'`）は値の一部
+- 閉じ引用符が同じ行に無い場合は fail-safe として**行末までマスク**する（取りこぼしより誤検出を選ぶ）
+- 引用符なしの値は空白・引用符・`,` `;` で終わる（従来どおり）
 
 - マスク関数は純粋関数で、冪等（2 回適用しても結果が変わらない）
 - 誤検出（例: `token: null`、テスト用のダミー値）は許容する。**取りこぼしより誤検出を選ぶ**

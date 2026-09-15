@@ -48,14 +48,28 @@ const RULES: MaskRule[] = [
   },
   {
     category: "bearer",
-    // R-002: scheme is case-insensitive. Bearer tokens are long; keep the 16-char floor so
-    // prose like "bearer authentication" is not redacted.
+    // R2-004: inside an Authorization / Proxy-Authorization header the credential is explicit,
+    // so a Bearer token is redacted regardless of its length.
+    pattern: /\b((?:proxy-)?authorization\s*:\s*bearer\s+)([A-Za-z0-9\-._~+/]+=*)/gi,
+    replacement: `$1${redacted("bearer")}`,
+  },
+  {
+    category: "basic",
+    // R2-004: in a header, any syntactically valid base64 payload is redacted (no decoding).
+    pattern: /\b((?:proxy-)?authorization\s*:\s*basic\s+)([A-Za-z0-9+/]+={0,2})/gi,
+    replacement: `$1${redacted("basic")}`,
+  },
+  {
+    category: "bearer",
+    // R-002: bare "bearer <token>" in prose. Scheme is case-insensitive; keep the 16-char floor
+    // so text like "bearer authentication" is not redacted (heuristic applies to prose only).
     pattern: /\b(bearer)\s+([A-Za-z0-9\-._~+/]{16,}=*)/gi,
     replacement: `$1 ${redacted("bearer")}`,
   },
   {
     category: "basic",
-    // R-002: short Basic credentials ("dTpw" = base64("u:p")) are valid; validate by decoding.
+    // R-002: bare "basic <payload>" in prose. Short credentials ("dTpw" = base64("u:p")) are
+    // valid, so validate by decoding instead of by length (heuristic applies to prose only).
     pattern: /\b(basic)\s+([A-Za-z0-9+/]{2,}={0,2})(?![A-Za-z0-9+/=])/gi,
     replacement: (match, scheme, payload) =>
       payload !== undefined && looksLikeBasicCredential(payload)
@@ -108,14 +122,21 @@ const RULES: MaskRule[] = [
     // replace the value.
     // R-001: the key may be the tail of a longer identifier (AWS_SESSION_TOKEN, MY_API_KEY):
     //        a lookbehind for a non-alphanumeric char allows "_" before the key.
-    // R-003: a quoted value is replaced up to its closing quote (whitespace included);
-    //        an unquoted value stops at whitespace / quote / separator as before.
+    // R-003 / R2-001: a quoted value is replaced up to its closing quote (whitespace included).
+    //        "…" and '…' are separate alternatives, so the other kind of quote is an ordinary
+    //        character inside the value, and a backslash-escaped quote belongs to the value.
+    //        Fail-safe: a quote that is not closed on the same line masks to the end of the line
+    //        (ADR-0006: prefer over-masking to leaking).
+    //        An unquoted value stops at whitespace / quote / separator as before.
     pattern:
-      /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:(["'])((?!\[REDACTED:)[^"'\r\n]+?)\2|(["']?)((?!\[REDACTED:)[^\s"',;]+))/gi,
-    replacement: (_match, key, quote, _quotedValue, leadingQuote) =>
-      quote !== undefined
-        ? `${key}${quote}${redacted("key-value")}${quote}`
-        : `${key}${leadingQuote ?? ""}${redacted("key-value")}`,
+      /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:"((?!\[REDACTED:)(?:[^"\\\r\n]|\\.)*)"|'((?!\[REDACTED:)(?:[^'\\\r\n]|\\.)*)'|(["'])((?!\[REDACTED:)[^\r\n]+)|((?!\[REDACTED:)[^\s"',;]+))/gi,
+    replacement: (_match, key, dq, sq, openQuote, _unterminated, _bare) => {
+      const value = redacted("key-value");
+      if (dq !== undefined) return `${key}"${value}"`;
+      if (sq !== undefined) return `${key}'${value}'`;
+      if (openQuote !== undefined) return `${key}${openQuote}${value}`;
+      return `${key}${value}`;
+    },
   },
 ];
 
@@ -149,4 +170,4 @@ export function maskDeep<T>(value: T): T {
 }
 
 /** Categories known to the masker (for documentation and tests). */
-export const MASK_CATEGORIES: readonly string[] = RULES.map((r) => r.category);
+export const MASK_CATEGORIES: readonly string[] = [...new Set(RULES.map((r) => r.category))];
