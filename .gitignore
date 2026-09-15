@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# verify outputs, review packets (generated; see docs/adr/0007)
+artifacts/
+
+# scratch work
+tmp/
+
+# environment files (never commit)
+.env
+.env.*
+!.env.example
+
+# test / tooling caches
+coverage/
+.vitest/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+*.log

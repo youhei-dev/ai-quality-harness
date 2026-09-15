@@ -1,0 +1,10 @@
+// Fixture: valid config with comments and trailing commas.
+{
+  "version": 1,
+  "project": { "name": "fixture-project", "type": "node" },
+  "defaults": { "timeoutSec": 30 },
+  "checks": [
+    { "name": "lint", "kind": "lint", "command": "echo lint", },
+    { "name": "unit", "kind": "unit", "command": "echo unit", "required": false, "timeoutSec": 5, "cwd": "sub", },
+  ],
+}

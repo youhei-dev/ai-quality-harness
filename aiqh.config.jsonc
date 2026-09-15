@@ -1,0 +1,22 @@
+// ai-quality-harness — self-verification config (the harness is its own first target).
+// Spec: docs/CONFIG_SPEC.md. No secrets belong in this file.
+{
+  "version": 1,
+  "project": { "name": "ai-quality-harness", "type": "node" },
+  "defaults": { "timeoutSec": 600, "required": true },
+  "checks": [
+    { "name": "lint",      "kind": "lint",      "command": "npm run lint",      "timeoutSec": 300,
+      "description": "ESLint (flat config) over src/, tests/ and config files" },
+    { "name": "typecheck", "kind": "typecheck", "command": "npm run typecheck", "timeoutSec": 300,
+      "description": "tsc --noEmit over src/ and tests/" },
+    { "name": "unit",      "kind": "unit",      "command": "npm run test",      "timeoutSec": 600,
+      "description": "Vitest: config loading, fail-closed verdict, reports, masking, CLI end-to-end" },
+    { "name": "build",     "kind": "build",     "command": "npm run build",     "timeoutSec": 300,
+      "description": "tsc emits dist/ (the distributed artifact; bin points at dist/cli.js)" },
+    // npm audit exits non-zero when a vulnerability at or above the level is found.
+    // Threshold "high": moderate and below are tolerated in M0 (see docs/reports/M0_REPORT.md).
+    { "name": "dependency", "kind": "dependency", "command": "npm audit --audit-level=high", "timeoutSec": 300,
+      "description": "npm audit against the registry (requires network)" }
+    // "security" (secret / SAST scan) and "e2e" have no adapter yet (M1) -> reported as NOT_APPLICABLE.
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "ai-quality-harness",
+  "version": "0.1.0",
+  "description": "Fail-closed quality gate runner for AI-assisted development (aiqh)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "aiqh": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "verify": "node src/cli.ts verify",
+    "verify:dist": "npm run build && node dist/cli.js verify"
+  },
+  "dependencies": {
+    "commander": "~15.0.0",
+    "jsonc-parser": "~3.3.1",
+    "zod": "~4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "~10.0.1",
+    "@types/node": "~24.13.3",
+    "eslint": "~10.10.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.70.0",
+    "vitest": "~5.0.0"
+  }
+}

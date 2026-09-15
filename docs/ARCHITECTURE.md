@@ -1,0 +1,268 @@
+# ARCHITECTURE — ai-quality-harness（aiqh）
+
+最終更新: 2026-09-15（M0 設計時点）
+
+本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
+実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
+
+---
+
+## 1. 目的と思想
+
+ai-quality-harness は、AI 駆動開発において「AI の回答だけを品質保証の根拠にしない」ための
+**多層防御の Quality Gate 実行基盤**である。複数プロジェクトに横断適用できる専用ツールとして、
+本体を常に本リポジトリ（youhei-dev/ai-quality-harness）に置き、対象リポジトリには
+設定ファイルとワークフロー参照だけを置く。
+
+設計原則:
+
+| 原則 | 意味 |
+|---|---|
+| 機械的根拠 | Lint / 型 / テスト / ビルド / セキュリティ / 依存 / E2E の**再現可能な結果**を判定根拠にする。AI の「問題ありません」は根拠にしない |
+| fail closed | 必須チェックが 1 つでも失敗（タイムアウト・起動失敗・設定不正を含む）すれば VERIFY FAILED（終了コード非ゼロ）。全必須チェック成功時のみ VERIFY PASSED |
+| 自己適用 | ハーネス自身を最初の適用対象とし、自分の verify を通せない状態でマイルストーンを終えない |
+| 設定は秘密を持たない | 設定ファイルには秘密情報を書けない構造にし、レポートはパターンマスクを経由してのみ保存する |
+| 単純さ | チェックの実行経路は 1 本（設定 → 子プロセス → 終了コード）に固定し、アダプタは「検出と推奨」であって別の実行経路を作らない |
+
+---
+
+## 2. 開発プロセス全体像と aiqh の担当範囲
+
+```
+人間（依頼）
+  ↓
+実装AI（Claude Code / Fable 系）
+  ↓                       ┌──────────────────────────┐
+独立レビューAI（Astra / Codex） ←── │ aiqh review-packet（M2） │
+  ↓                       │ aiqh review-import（M2） │
+自動 Quality Gate ←────────── │ aiqh verify（M0〜M1）     │
+  Lint / Type / Unit / Build   │ aiqh init（M1）          │
+  Security / Dependency / E2E  │ GitHub Actions 再利用WF（M3）│
+  ↓                       │ aiqh history / dashboard（M4）│
+人間による実データ・業務確認     └──────────────────────────┘
+  ↓
+本番（Monitoring / Rollback — M4 で設計テンプレート）
+```
+
+aiqh が担うのは「独立レビューAI への入力生成」「Quality Gate の実行と判定」「履歴の記録」である。
+人間の業務確認と本番運用は aiqh の外側にあり、aiqh はそこへ**機械的な証拠**を渡す。
+
+---
+
+## 3. 配布モデル
+
+```
+youhei-dev/ai-quality-harness（本体・本リポジトリ）
+  ├─ src/        … CLI 本体（TypeScript）
+  ├─ .github/workflows/verify.yml   … 再利用可能ワークフロー（workflow_call, M3）
+  └─ tags: v0.1.0, v0.2.0, …        … 対象リポジトリはタグでバージョン固定
+
+対象リポジトリ（例: trim-manager, ai-tutor-browser, 将来の会社リポジトリ）
+  ├─ aiqh.config.jsonc              … 設定 1 枚（秘密情報なし）
+  ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@v0.3.0`
+  └─ artifacts/verification/        … verify の出力（git 管理外）
+```
+
+CLI の呼び出し方は次の 2 系統を想定する。
+
+- 本体リポジトリ内: `npm run verify`（Node 24 のネイティブ TypeScript 実行で `src/cli.ts` を直接起動）
+- 対象リポジトリ: `npx aiqh verify`（devDependency として `github:youhei-dev/ai-quality-harness#v0.x.y` を導入、または Actions 内で checkout して実行。M1 で確定）
+
+npm レジストリへの公開は行わない（`private: true`）。
+
+---
+
+## 4. CLI コマンド（最終形）
+
+| コマンド | マイルストーン | 入力 | 出力 | 終了コード |
+|---|---|---|---|---|
+| `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
+| `aiqh init` | M1 | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject 等） | `aiqh.config.jsonc`（提案）、ワークフロー参照ファイル | 0=生成, 2=エラー |
+| `aiqh review-packet` | M2 | 依頼文、`git diff`、設計判断（ADR / docs）、最新 verify 結果、既知の懸念 | `artifacts/ai-review/review-packet-<id>.md` | 0 / 2 |
+| `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
+| `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
+
+共通オプション（案）: `--config <path>`, `--cwd <dir>`, `--output-dir <dir>`, `--verbose`, `--json`（標準出力に JSON）。
+
+---
+
+## 5. モジュール分割
+
+```
+src/
+  cli.ts                  … エントリ（bin: aiqh）。サブコマンド登録と終了コード設定        [M0]
+  commands/
+    verify.ts             … verify のオーケストレーション                                 [M0]
+    init.ts               … 監査 → 設定提案 → 配置                                        [M1]
+    review-packet.ts      … レビューパケット生成                                           [M2]
+    review-import.ts      … 指摘の構造化保存                                               [M2]
+    history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
+  config/
+    schema.ts             … 設定スキーマ（zod）。型は zod から導出                          [M0]
+    load.ts               … JSONC 読込 → スキーマ検証 → パス正規化（cwd の逸脱検査）        [M0]
+  runner/
+    execute.ts            … 単一コマンドの子プロセス実行（タイムアウト、プロセスグループ kill）[M0]
+    run-checks.ts         … チェックの順次実行、fail-fast、所要時間計測                    [M0]
+  report/
+    verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
+    build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
+    markdown.ts           … レポート → Markdown                                            [M0]
+    write.ts              … latest.json / latest.md / history/<ts>.json の書込              [M0]
+  security/
+    mask.ts               … 秘密情報らしき文字列のパターンマスク                            [M0]
+  git/
+    info.ts               … commit / branch / dirty の取得（非 git でも動作）               [M0]
+  adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1]
+    lint.ts / typecheck.ts / unit.ts / build.ts / security.ts / dependency.ts / e2e.ts
+  review/                 … パケット生成、指摘パーサ、対応状況モデル                          [M2]
+  history/                … 履歴 DB（SQLite または JSONL）、集計、静的ダッシュボード          [M4]
+  types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
+tests/                    … Vitest（ユニット + CLI 結合）                                  [M0]
+docs/                     … 設計書、ADR、レポート
+```
+
+責務境界:
+
+- `config/` はファイルシステムと zod にのみ依存し、実行を行わない
+- `runner/` は設定の意味（kind / required）を知らず、コマンドを実行して生の結果を返すだけ
+- `report/` は結果を解釈して判定・整形するが、副作用は `write.ts` に閉じ込める
+- `security/mask.ts` は純粋関数。レポートに書かれる**全ての文字列値**は深い走査で必ずここを通す
+- `adapters/`（M1）は「このリポジトリにはこのツールがある → この check 定義を推奨する」を返す。
+  verify の実行はあくまで設定に書かれた command であり、アダプタ固有の実行経路は作らない
+
+---
+
+## 6. データの流れ
+
+### 6.1 `aiqh verify`（M0）
+
+```
+aiqh.config.jsonc
+   │ jsonc-parser で読込（コメント許容）
+   ▼
+zod スキーマ検証 ──失敗──▶ 終了コード 2（レポートは書かない。fail closed）
+   │ 成功
+   ▼
+git 情報取得（commit / branch / dirty。非 git なら null）
+   ▼
+checks[] を設定順に順次実行
+   ├─ spawn(command, { cwd, shell: true, detached: true })
+   ├─ stdout / stderr を蓄積（上限あり）
+   ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → status FAIL(timedOut)
+   ├─ 起動失敗（ENOENT 等）→ FAIL
+   └─ exit code 0 → PASS、それ以外 → FAIL
+   ▼
+verdict: 必須チェックが全て PASS → PASSED、それ以外 → FAILED
+         分類（lint/typecheck/unit/build/security/dependency/e2e）ごとのサマリ。
+         設定に存在しない分類は NOT_APPLICABLE
+   ▼
+レポートオブジェクト生成 → 全文字列値に mask() を適用
+   ▼
+artifacts/verification/latest.json
+artifacts/verification/latest.md
+artifacts/verification/history/<YYYYMMDDTHHmmssZ>.json
+   ▼
+終了コード 0（PASSED）/ 1（FAILED）
+```
+
+### 6.2 レビューループ（M2）
+
+```
+依頼文 + git diff + ADR + latest.json + 既知の懸念
+   ▼ aiqh review-packet
+artifacts/ai-review/review-packet-<id>.md ──▶ 人間が Astra / Codex に渡す
+                                                     ▼
+                                          レビュー結果（Markdown）
+   ▼ aiqh review-import
+artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
+   ▼ 実装AI が再修正 → aiqh verify → 再 review-packet …（status が全て resolved/accepted になるまで）
+```
+
+### 6.3 履歴（M4）
+
+`history/<ts>.json` を複数プロジェクト分取り込み、PASS/FAIL 推移・所要時間・失敗しやすいチェックを集計する。
+保存先は各プロジェクトの `artifacts/` ではなく、ユーザーローカルの 1 箇所（例: `~/.aiqh/history.db`）を想定する。
+
+---
+
+## 7. レポート仕様（M0 で確定する部分）
+
+### 7.1 JSON（`latest.json` / `history/<ts>.json`）
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "tool": { "name": "ai-quality-harness", "version": "0.1.0" },
+  "project": { "name": "ai-quality-harness", "root": "/abs/path" },
+  "configPath": "/abs/path/aiqh.config.jsonc",
+  "startedAt": "2026-09-15T12:00:00.000Z",
+  "finishedAt": "2026-09-15T12:03:10.000Z",
+  "durationMs": 190000,
+  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null
+  "verdict": "PASSED",                                                 // "PASSED" | "FAILED"
+  "exitCode": 0,
+  "summary": { "total": 5, "passed": 5, "failed": 0, "skipped": 0, "requiredFailed": 0 },
+  "categories": {                                                      // 7 分類の固定キー
+    "lint": "PASS", "typecheck": "PASS", "unit": "PASS", "build": "PASS",
+    "security": "NOT_APPLICABLE", "dependency": "PASS", "e2e": "NOT_APPLICABLE"
+  },
+  "checks": [
+    {
+      "name": "lint", "kind": "lint", "command": "npm run lint", "cwd": ".",
+      "required": true, "timeoutSec": 300,
+      "status": "PASS",                       // "PASS" | "FAIL" | "SKIPPED"
+      "exitCode": 0, "signal": null, "timedOut": false,
+      "startedAt": "…", "durationMs": 4200,
+      "errorSummary": null,                   // FAIL 時: 先頭行など短い要約
+      "stdoutTail": "…", "stderrTail": "…",   // マスク済み・末尾 N 行
+      "outputTruncated": false
+    }
+  ]
+}
+```
+
+### 7.2 Markdown（`latest.md`）
+
+見出し、最終判定、メタ情報（日時・commit・branch・dirty・所要時間）、チェック一覧表、
+分類別サマリ表、失敗チェックの詳細（errorSummary と出力末尾）。人間と独立レビューAI がそのまま読める形にする。
+
+---
+
+## 8. ディレクトリ規約
+
+| パス | 管理 | 用途 |
+|---|---|---|
+| `artifacts/verification/` | git 管理外 | verify の出力（latest / history） |
+| `artifacts/ai-review/` | git 管理外 | レビューパケット、取り込んだ指摘 |
+| `docs/reports/` | git 管理 | 人間向けのマイルストーン報告（M0_REPORT.md 等） |
+| `tmp/` | git 管理外 | 作業用一時ファイル |
+| `dist/` | git 管理外 | ビルド成果物 |
+
+`artifacts/` を管理外にする根拠は ADR-0007 を参照。
+
+---
+
+## 9. セキュリティ設計
+
+- **設定は秘密を持てない**: 設定ファイルには `command` / `cwd` / `timeoutSec` 等の構造化フィールドしかなく、
+  秘密値を置く場所がない。環境変数は親プロセスから継承するのみで、設定から注入しない（M1 で名前の許可リスト方式を検討）。
+- **子プロセス**: `command` は設定ファイルの作者（＝リポジトリ所有者）が書く信頼データであり、
+  `package.json` の scripts と同じ信頼レベルとして shell 経由で実行する。タイムアウト時は
+  プロセスグループごと kill し、孫プロセスの取り残しを防ぐ（ADR-0005）。
+- **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
+- **未対応 OS**: Windows はプロセスグループ制御の差異により M0 では未検証。macOS / Linux を対象とする。
+- **会社固有情報の排除**: コード・設定・docs・テストデータに実在の社名・製品名・IP・社内パス・人名を書かない。
+
+---
+
+## 10. 終了コードと失敗モード
+
+| 状況 | 終了コード | レポート |
+|---|---|---|
+| 全必須チェック PASS | 0 | 書く |
+| 必須チェックに FAIL / SKIPPED あり | 1 | 書く |
+| 設定ファイル不在・不正 | 2 | 書かない |
+| レポート書込失敗 | 2 | 部分的に書かれる可能性あり。標準エラーに理由を出す |
+| 予期しない例外 | 2 | 書かない |
+
+いずれの失敗でも終了コードは非ゼロであり、CI ではゲートを通過しない。
