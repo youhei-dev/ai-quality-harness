@@ -110,10 +110,10 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
 
   // Finalization point (R4-001, plan B): all exit codes are in, so nothing about the result is
   // uncertain any more — but a signal may have arrived during the last synchronous stretch and
-  // its callback cannot have run yet. Yield to the event loop exactly once so a pending
+  // its callback cannot have run yet. Yield a full event-loop iteration so a pending
   // interruption is recorded; after this point the result is fixed and later signals do not
   // change it (the CLI swaps its handlers in onFinalized).
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await yieldFullIteration();
   const interruptedBy = options.signal?.aborted ? describeAbort(options.signal) : null;
   if (interruptedBy === null) options.onFinalized?.();
   const finishedAt = new Date();
@@ -162,6 +162,21 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
 function describeAbort(signal: AbortSignal): string {
   const reason: unknown = signal.reason;
   return typeof reason === "string" ? reason : "abort";
+}
+
+/**
+ * Yield until the event loop has gone through at least one full iteration that includes a poll
+ * phase. libuv dispatches pending OS signals (SIGINT / SIGTERM handlers) in the poll phase. A single
+ * setImmediate is not enough: when the continuation comes from an I/O callback (e.g. the child's
+ * "close" event, which is what resolves runChecks), that immediate fires in the check phase of the
+ * *same* iteration, before the next poll — so a signal that arrived during the last synchronous
+ * stretch would still be unseen (v0.1.3 had exactly this gap; 4 of 10 runs missed the signal).
+ * The second setImmediate is scheduled from the check phase and therefore runs in the next
+ * iteration, after its poll phase. Measured: 20 of 20 runs recognise the pending signal.
+ */
+async function yieldFullIteration(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
 /** Exit code for an interrupted run: 128 + signal number when known, otherwise the generic error code. */
