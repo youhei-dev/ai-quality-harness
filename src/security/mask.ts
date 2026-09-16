@@ -129,8 +129,13 @@ const RULES: MaskRule[] = [
     //        (ADR-0006: prefer over-masking to leaking).
     //        An unquoted value stops at whitespace / quote / separator as before.
     pattern:
-      /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:"((?!\[REDACTED:)(?:[^"\\\r\n]|\\.)*)"|'((?!\[REDACTED:)(?:[^'\\\r\n]|\\.)*)'|(["'])((?!\[REDACTED:)[^\r\n]+)|((?!\[REDACTED:)[^\s"',;]+))/gi,
-    replacement: (_match, key, dq, sq, openQuote, _unterminated, _bare) => {
+      /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:"((?:[^"\\\r\n]|\\.)*)"|'((?:[^'\\\r\n]|\\.)*)'|(["'])([^\r\n]+)|([^\s"',;]+))/gi,
+    // R3-001: re-masking is prevented only when the whole value is one of aiqh's own canonical
+    //         markers "[REDACTED:<category>]"; any other value starting with "[REDACTED:" is a
+    //         secret like any other and is masked in full.
+    replacement: (match, key, dq, sq, openQuote, unterminated, bare) => {
+      const raw = dq ?? sq ?? unterminated ?? bare;
+      if (raw !== undefined && isCanonicalMarker(raw)) return match;
       const value = redacted("key-value");
       if (dq !== undefined) return `${key}"${value}"`;
       if (sq !== undefined) return `${key}'${value}'`;
@@ -139,6 +144,17 @@ const RULES: MaskRule[] = [
     },
   },
 ];
+
+/** Categories known to the masker, derived from the rule definitions (never hard-coded elsewhere). */
+export const MASK_CATEGORIES: readonly string[] = [...new Set(RULES.map((r) => r.category))];
+const CATEGORY_SET: ReadonlySet<string> = new Set(MASK_CATEGORIES);
+const CANONICAL_MARKER = /^\[REDACTED:([a-z-]+)\]$/;
+
+/** True only for an exact "[REDACTED:<category>]" produced by this masker (R3-001). */
+function isCanonicalMarker(value: string): boolean {
+  const m = CANONICAL_MARKER.exec(value);
+  return m !== null && m[1] !== undefined && CATEGORY_SET.has(m[1]);
+}
 
 export function maskSecrets(text: string): string {
   let out = text;
@@ -169,5 +185,3 @@ export function maskDeep<T>(value: T): T {
   return value;
 }
 
-/** Categories known to the masker (for documentation and tests). */
-export const MASK_CATEGORIES: readonly string[] = [...new Set(RULES.map((r) => r.category))];
