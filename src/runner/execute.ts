@@ -271,11 +271,19 @@ class OutputBuffer {
   push(chunk: Buffer): void {
     this.chunks.push(chunk);
     this.size += chunk.length;
+    // Trim from the front byte-wise so exactly the last `maxBytes` bytes survive. Dropping whole
+    // chunks would lose the entire output when a single chunk is larger than the cap.
     while (this.size > this.maxBytes && this.chunks.length > 0) {
-      const dropped = this.chunks.shift();
-      if (dropped) {
-        this.size -= dropped.length;
-        this.truncated = true;
+      const excess = this.size - this.maxBytes;
+      const head = this.chunks[0];
+      if (head === undefined) break;
+      this.truncated = true;
+      if (head.length <= excess) {
+        this.chunks.shift();
+        this.size -= head.length;
+      } else {
+        this.chunks[0] = head.subarray(excess);
+        this.size -= excess;
       }
     }
   }
