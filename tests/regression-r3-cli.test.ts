@@ -122,6 +122,9 @@ describe("R3-002 CLI signal handling cancels the pipeline", () => {
       expect(r.report?.interruptedBy).toBe(signal);
       expect(r.report?.exitCode).toBe(expectedCode);
       expect(r.report?.checks.map((c) => c.status)).toEqual(["SKIPPED", "SKIPPED"]);
+      // R4-003: the check that never started must not be shown as started (no "$ <command>" line for it)
+      expect(r.output).not.toMatch(/\$ .*two\.started/);
+      expect(r.output).toContain("SKIPPED");
     }, 20_000);
   }
 });

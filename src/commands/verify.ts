@@ -76,6 +76,11 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
       log(`[${index + 1}/${total}] ${check.name} (${check.kind}${check.required ? "" : ", optional"})`);
       log(`      $ ${maskSecrets(check.command)}`);
     },
+    // R4-003: a check that is not started is shown as SKIPPED only, never with its command line.
+    onCheckSkip: (check: ResolvedCheck, index: number, total: number, reason: string) => {
+      log(`[${index + 1}/${total}] ${check.name} (${check.kind}) — SKIPPED (${maskSecrets(reason)})`);
+      log("");
+    },
     onCheckFinish: (result: CheckResult) => {
       const tag = result.status === "PASS" ? "PASS" : result.status === "FAIL" ? "FAIL" : "SKIP";
       const detail = result.errorSummary ? ` — ${maskSecrets(result.errorSummary)}` : "";
