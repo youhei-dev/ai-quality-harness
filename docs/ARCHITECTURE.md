@@ -275,9 +275,21 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認。
      実行中の `executeCommand` 自身も abort を受けて同じエスカレーションを行う）
   3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
-     `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する
-  4. 通常の戻り値経路で 128 + シグナル番号（130 / 143）で終了する。ハンドラ内で即 `process.exit()` はしない
+     `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する。
+     未実行チェックは開始表示（`$ <command>`）を出さず `[n/total] name — SKIPPED (reason)` とだけ表示する（R4-003）
+  4. 通常の戻り値経路で 128 + シグナル番号（130 / 143）で終了する。ハンドラ内で即 `process.exit()` はしない。
+     ハンドラは受信時にバックアップとして `process.exitCode = 130 / 143` を即設定する（R4-001）
   5. 安全弁: 猶予 + 3 秒（既定 8 秒）以内に終了しなければ同じ終了コードで強制終了する
+- **確定点（finalization point、R4-001）**: 全チェックの終了コードが揃った後、`runVerify` は一度だけイベントループへ制御を
+  戻す（`setImmediate` を await）。その時点で保留中だったシグナルはここで反映される。
+  **全チェック完了後にイベントループへ一度制御を戻した時点で検証結果を確定する。それ以降に届いたシグナルは結果を変えない。
+  レポートは確定済みの結果を反映する。** 確定点通過時に CLI は `onFinalized` でシグナルハンドラを「確定済み」用に**差し替える**
+  （解除ではない。listener が 0 になると Node は既定動作に戻り、確定後にプロセスが強制終了されて結果が変わってしまうため）。
+  確定済みハンドラは stderr に `SIGINT received after verification was finalized; result unchanged` と出して何もしない。
+  確定点以降は同期処理（レポート生成・atomic rename による書込・最終出力）のみで、終了コードは確定結果の 0 / 1
+- **中断されたチェックのレポート項目（R4-002）**: 中断されたチェックは `status: "SKIPPED"` だが、実行の事実は保持する。
+  `timedOut` は「中断前にタイムアウトへ到達していたか」、`outputTruncated` は「取得済み出力が上限（メモリ 10MiB / 末尾 200 行 64KB）で
+  切り詰められたか」を表し、`stdoutTail` / `stderrTail` は中断時点までの末尾。`errorSummary` に中断理由（シグナル名）を書く
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
   祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。

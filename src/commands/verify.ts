@@ -24,6 +24,18 @@ export interface VerifyOptions {
    * returned exit code is 128 + signal number.
    */
   signal?: AbortSignal;
+  /**
+   * Called once the run has passed its finalization point (R4-001, plan B): every check has
+   * completed, control was yielded to the event loop once, and no interruption was recorded.
+   * From here on the result is fixed; the CLI uses this to swap its signal handlers.
+   */
+  onFinalized?: () => void;
+  /**
+   * Test hook: called synchronously right after every check has completed and before the run is
+   * finalized. Tests use it to deliver an OS signal into that window (R4-001). This is an internal
+   * option of runVerify only — it is not reachable from the config file or the CLI arguments.
+   */
+  afterChecksCompleted?: () => void;
   /** Line sink for progress output. Default: console.log */
   log?: (line: string) => void;
   /** Line sink for errors. Default: console.error */
@@ -94,8 +106,16 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   };
   if (options.signal) runOptions.signal = options.signal;
   const results = await runChecks(config, runOptions);
+  options.afterChecksCompleted?.();
 
+  // Finalization point (R4-001, plan B): all exit codes are in, so nothing about the result is
+  // uncertain any more — but a signal may have arrived during the last synchronous stretch and
+  // its callback cannot have run yet. Yield to the event loop exactly once so a pending
+  // interruption is recorded; after this point the result is fixed and later signals do not
+  // change it (the CLI swaps its handlers in onFinalized).
+  await new Promise<void>((resolve) => setImmediate(resolve));
   const interruptedBy = options.signal?.aborted ? describeAbort(options.signal) : null;
+  if (interruptedBy === null) options.onFinalized?.();
   const finishedAt = new Date();
   const report = buildReport({
     config,

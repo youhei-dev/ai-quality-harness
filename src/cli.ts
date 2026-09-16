@@ -26,19 +26,44 @@ const VERSION = readVersion();
 //   4. exit with 128 + signal number (the normal return path of the verify command).
 // A safety valve forces the exit after grace + 3 s in case something never settles.
 const SAFETY_VALVE_EXTRA_MS = 3_000;
+const SIGNALS = ["SIGINT", "SIGTERM"] as const;
 const interruption = new AbortController();
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    if (interruption.signal.aborted) return;
-    console.error(`aiqh: received ${signal}, stopping: no new checks, terminating running ones (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
-    interruption.abort(signal);
-    void terminateActiveChildren(DEFAULT_KILL_GRACE_MS);
-    const exitCode = SIGNAL_EXIT_CODES[signal] ?? EXIT_ERROR;
-    setTimeout(() => {
-      console.error(`aiqh: clean-up did not finish within ${DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS}ms, exiting ${exitCode}`);
-      process.exit(exitCode);
-    }, DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS).unref();
-  });
+
+/** Before the finalization point: interrupt the run (R3-002) and back up the exit code (R4-001). */
+function onSignalBeforeFinalization(signal: (typeof SIGNALS)[number]): void {
+  if (interruption.signal.aborted) return;
+  const exitCode = SIGNAL_EXIT_CODES[signal] ?? EXIT_ERROR;
+  // Backup: even if the run finished before the abort is observed, the process must not exit 0.
+  process.exitCode = exitCode;
+  console.error(`aiqh: received ${signal}, stopping: no new checks, terminating running ones (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
+  interruption.abort(signal);
+  void terminateActiveChildren(DEFAULT_KILL_GRACE_MS);
+  setTimeout(() => {
+    console.error(`aiqh: clean-up did not finish within ${DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS}ms, exiting ${exitCode}`);
+    process.exit(exitCode);
+  }, DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS).unref();
+}
+
+/**
+ * After the finalization point (R4-001, plan B): the result is fixed, only the synchronous report
+ * writing and the final output remain. Signals are acknowledged but change nothing. The handler is
+ * swapped rather than removed: with no listener Node would restore the default action and kill the
+ * process mid-finalization, which would change the outcome.
+ */
+function onSignalAfterFinalization(signal: (typeof SIGNALS)[number]): void {
+  console.error(`aiqh: ${signal} received after verification was finalized; result unchanged`);
+}
+
+const beforeHandlers = Object.fromEntries(
+  SIGNALS.map((signal) => [signal, () => onSignalBeforeFinalization(signal)] as const),
+) as Record<(typeof SIGNALS)[number], () => void>;
+for (const signal of SIGNALS) process.on(signal, beforeHandlers[signal]);
+
+function swapHandlersToFinalized(): void {
+  for (const signal of SIGNALS) {
+    process.off(signal, beforeHandlers[signal]);
+    process.on(signal, () => onSignalAfterFinalization(signal));
+  }
 }
 
 const program = new Command();
@@ -68,6 +93,7 @@ program
         verbose: opts.verbose,
         toolVersion: VERSION,
         signal: interruption.signal,
+        onFinalized: swapHandlersToFinalized,
       };
       if (opts.config !== undefined) args.config = opts.config;
       if (opts.cwd !== undefined) args.cwd = opts.cwd;
