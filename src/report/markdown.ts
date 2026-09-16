@@ -14,7 +14,9 @@ export function renderMarkdown(report: VerificationReport): string {
   const lines: string[] = [];
   lines.push(`# Verification Report — ${report.project.name}`);
   lines.push("");
-  lines.push(`## Verdict: **VERIFY ${report.verdict}**`);
+  lines.push(
+    `## Verdict: **VERIFY ${report.verdict}**${report.interruptedBy ? ` (interrupted by ${report.interruptedBy})` : ""}`,
+  );
   lines.push("");
   lines.push("| Item | Value |");
   lines.push("|---|---|");
@@ -25,6 +27,7 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push(`| Git branch | ${report.git?.branch ?? "-"} |`);
   lines.push(`| Working tree | ${report.git ? describeDirty(report.git.dirty) : "-"} |`);
   lines.push(`| Exit code | ${report.exitCode} |`);
+  if (report.interruptedBy) lines.push(`| Interrupted by | ${report.interruptedBy} (run did not complete; later checks SKIPPED) |`);
   lines.push(`| Config | ${escapeCell(report.configPath)} |`);
   lines.push(`| Tool | ${report.tool.name} ${report.tool.version} |`);
   lines.push("");

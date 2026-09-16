@@ -8,9 +8,15 @@ export interface ExecuteOptions {
   timeoutMs: number;
   /** Per-stream cap on retained output. Older output is dropped first. Default 10 MiB. */
   maxOutputBytes?: number;
-  /** Grace period between SIGTERM and SIGKILL on timeout. Default 5000 ms. */
+  /** Grace period between SIGTERM and SIGKILL on timeout / interruption. Default 5000 ms. */
   killGraceMs?: number;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Interruption signal (R3-002). When it is already aborted the command is not started; when it
+   * aborts while the command runs, the process group is terminated like on a timeout.
+   * `signal.reason` (e.g. "SIGINT") is recorded in the result.
+   */
+  signal?: AbortSignal;
 }
 
 const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
@@ -25,6 +31,8 @@ const activeChildren = new Map<ChildProcess, number | undefined>();
  * Clean-up path shared by timeouts and the CLI signal handlers (R2-002):
  * SIGTERM to every active process group → wait up to `graceMs` for the groups to disappear →
  * SIGKILL whatever is left → wait (bounded) until no group member remains.
+ * Note (R3-002): this acts on the children active at call time; preventing *new* children is the
+ * job of the AbortSignal passed to executeCommand / runChecks.
  */
 export async function terminateActiveChildren(graceMs: number = DEFAULT_KILL_GRACE_MS): Promise<void> {
   const targets = [...activeChildren.entries()];
@@ -56,6 +64,13 @@ function groupAlive(pgid: number | undefined): boolean {
   }
 }
 
+function abortReason(signal: AbortSignal | undefined): string {
+  const reason: unknown = signal?.reason;
+  if (typeof reason === "string") return reason;
+  if (reason instanceof Error) return reason.message;
+  return "aborted";
+}
+
 /**
  * Run one command through the platform shell, inside its own process group,
  * capturing stdout / stderr with a size cap and enforcing a timeout.
@@ -66,17 +81,21 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
   const maxBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
 
+  // R3-002: never start a new process once the run has been interrupted.
+  if (options.signal?.aborted) {
+    return Promise.resolve(notStarted(null, abortReason(options.signal), startedAt));
+  }
+
   const cwdProblem = checkDirectory(options.cwd);
   if (cwdProblem !== null) {
-    return Promise.resolve(
-      failedToStart(cwdProblem, startedAt),
-    );
+    return Promise.resolve(notStarted(cwdProblem, null, startedAt));
   }
 
   return new Promise<ExecutionResult>((resolve) => {
     const stdout = new OutputBuffer(maxBytes);
     const stderr = new OutputBuffer(maxBytes);
     let timedOut = false;
+    let interruptedBy: string | null = null;
     let sigkillSent = false;
     let settled = false;
     let killTimer: NodeJS.Timeout | null = null;
@@ -92,7 +111,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
         env: options.env ?? process.env,
       });
     } catch (err) {
-      resolve(failedToStart(`spawn failed: ${(err as Error).message}`, startedAt));
+      resolve(notStarted(`spawn failed: ${(err as Error).message}`, null, startedAt));
       return;
     }
     // With `detached`, the child is the leader of a new process group whose id equals its pid.
@@ -103,34 +122,56 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
-    // R2-002 lifecycle after a timeout: SIGTERM → grace → SIGKILL → group gone. The promise
-    // does not settle on the leader's `close` alone while the group is still alive, and the
-    // timers are deliberately not unref()'d so the escalation cannot be skipped by an empty loop.
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
+    /** Settle once the process closed AND (not terminated by us | SIGKILL sent | group gone). */
+    const tryFinish = (): void => {
+      if (closeResult === null) return;
+      if ((timedOut || interruptedBy !== null) && !sigkillSent && groupAlive(pgid)) return;
+      finish({ ...closeResult, timedOut, spawnError: null });
+    };
+
+    // Clean-up lifecycle (R2-002): SIGTERM → grace → SIGKILL → group gone. The promise does not
+    // settle on the leader's `close` alone while the group is still alive, and the timers are
+    // deliberately not unref()'d so the escalation cannot be skipped by an empty event loop.
+    const escalate = (): void => {
+      if (killTimer !== null) return;
       killTree(child, pgid, "SIGTERM");
       killTimer = setTimeout(() => {
         killTree(child, pgid, "SIGKILL");
         sigkillSent = true;
         tryFinish();
       }, killGraceMs);
-    }, options.timeoutMs);
-
-    /** Settle once the process closed AND (no timeout | SIGKILL sent | group already gone). */
-    const tryFinish = (): void => {
-      if (closeResult === null) return;
-      if (timedOut && !sigkillSent && groupAlive(pgid)) return;
-      finish({ ...closeResult, timedOut, spawnError: null });
     };
 
-    const finish = (result: Omit<ExecutionResult, "stdout" | "stderr" | "stdoutTruncated" | "stderrTruncated" | "startedAt" | "durationMs">) => {
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      escalate();
+    }, options.timeoutMs);
+
+    // R3-002: interruption while running uses the same escalation as a timeout.
+    const onAbort = (): void => {
+      if (interruptedBy !== null) return;
+      interruptedBy = abortReason(options.signal);
+      escalate();
+    };
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    // The signal may have aborted between the pre-spawn check and the listener registration.
+    if (options.signal?.aborted) onAbort();
+
+    const finish = (
+      result: Omit<
+        ExecutionResult,
+        "stdout" | "stderr" | "stdoutTruncated" | "stderrTruncated" | "startedAt" | "durationMs" | "interruptedBy"
+      >,
+    ): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
+      options.signal?.removeEventListener("abort", onAbort);
       activeChildren.delete(child);
       resolve({
         ...result,
+        interruptedBy,
         stdout: stdout.toString(),
         stderr: stderr.toString(),
         stdoutTruncated: stdout.truncated,
@@ -150,8 +191,9 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     });
 
     // "close" fires after stdio streams have ended, so all output has been captured. After a
-    // timeout it may fire before the descendants are dead (they can close their stdio), so the
-    // escalation timer keeps running until the group is confirmed gone or SIGKILL was sent.
+    // timeout / interruption it may fire before the descendants are dead (they can close their
+    // stdio), so the escalation timer keeps running until the group is confirmed gone or SIGKILL
+    // was sent.
     child.on("close", (code, signal) => {
       closeResult = { exitCode: code, signal };
       tryFinish();
@@ -159,12 +201,14 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
   });
 }
 
-function failedToStart(reason: string, startedAt: Date): ExecutionResult {
+/** Result for a command that never started: a spawn / cwd problem, or an interrupted run. */
+function notStarted(spawnError: string | null, interruptedBy: string | null, startedAt: Date): ExecutionResult {
   return {
     exitCode: null,
     signal: null,
     timedOut: false,
-    spawnError: reason,
+    interruptedBy,
+    spawnError,
     stdout: "",
     stderr: "",
     stdoutTruncated: false,

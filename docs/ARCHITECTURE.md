@@ -199,8 +199,9 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,
   "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null。dirty は取得失敗時 null（unknown）
-  "verdict": "PASSED",                                                 // "PASSED" | "FAILED"
-  "exitCode": 0,
+  "verdict": "PASSED",                                                 // "PASSED" | "FAILED" | "ERROR"（ERROR は中断時。R3-002）
+  "exitCode": 0,                                                       // 0 | 1 | 128+シグナル番号（中断時）
+  "interruptedBy": null,                                               // 中断時はシグナル名（"SIGINT" 等）。設定エラー由来の ERROR はレポート自体を書かない
   "summary": { "total": 5, "passed": 5, "failed": 0, "skipped": 0, "requiredFailed": 0 },
   "categories": {                                                      // 7 分類の固定キー
     "lint": "PASS", "typecheck": "PASS", "unit": "PASS", "build": "PASS",
@@ -267,8 +268,16 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   4. 「SIGKILL 送信済み」または `kill(-pgid, 0)` が ESRCH（グループ消滅）を返すまで、runner の Promise は解決しない。
      leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、後始末が完了するまで待つ）
   5. エスカレーション待ちのタイマーは `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
-- **CLI のシグナル処理**: SIGINT / SIGTERM を受けると同じ後始末経路（全 active グループへ SIGTERM → 猶予 5 秒 →
-  残っていれば SIGKILL → 消滅確認）を await してから、128 + シグナル番号で終了する（§10）。
+- **中断機構（R3-002）**: SIGINT / SIGTERM を受けた CLI は次の順で動く。
+  1. `AbortController.abort(<シグナル名>)` で中断状態を立てる。この `AbortSignal` は `runVerify → runChecks → executeCommand`
+     に渡されており、`runChecks` は各チェックの開始前に、`executeCommand` は spawn の直前と直後に中断を確認する。
+     中断後に新しいプロセスが起動することはない
+  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認。
+     実行中の `executeCommand` 自身も abort を受けて同じエスカレーションを行う）
+  3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
+     `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する
+  4. 通常の戻り値経路で 128 + シグナル番号（130 / 143）で終了する。ハンドラ内で即 `process.exit()` はしない
+  5. 安全弁: 猶予 + 3 秒（既定 8 秒）以内に終了しなければ同じ終了コードで強制終了する
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
   祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。
@@ -292,8 +301,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 | 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
-| SIGINT 受信（Ctrl+C） | 130（128 + 2） | `aiqh: received SIGINT, terminating running checks (grace 5000ms)` | 書かない。実行中のチェックのプロセスグループへ SIGTERM → 最大 5 秒待機 → SIGKILL → 消滅確認の後に終了 |
-| SIGTERM 受信 | 143（128 + 15） | `aiqh: received SIGTERM, …` | 同上 |
+| SIGINT 受信（Ctrl+C） | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了。安全弁 8 秒 |
+| SIGTERM 受信 | 143（128 + 15） | `VERIFY ERROR (interrupted by SIGTERM)` | 同上 |
 
 いずれの失敗でも終了コードは非ゼロであり、CI ではゲートを通過しない。
-この対応は `tests/cli.test.ts` の不変条件テストで固定している。
+この対応（130 / 143 でも `ERROR` 文言であること、`PASSED` は 0 のときだけであること）は `tests/cli.test.ts` と
+`tests/regression-r3-cli.test.ts` の不変条件テストで固定している。

@@ -24,7 +24,8 @@ export type CheckStatus = "PASS" | "FAIL" | "SKIPPED";
 
 export type CategoryStatus = CheckStatus | "NOT_APPLICABLE";
 
-export type Verdict = "PASSED" | "FAILED";
+/** PASSED / FAILED from the checks; ERROR when the run was interrupted (R3-002). */
+export type Verdict = "PASSED" | "FAILED" | "ERROR";
 
 export type ProjectType = "node" | "python" | "mixed" | "other";
 
@@ -61,6 +62,8 @@ export interface ExecutionResult {
   exitCode: number | null;
   signal: string | null;
   timedOut: boolean;
+  /** Signal name (e.g. "SIGINT") when the run was interrupted before or during this command (R3-002). */
+  interruptedBy: string | null;
   /** Set when the process could not be started at all (missing cwd, spawn error). */
   spawnError: string | null;
   stdout: string;
@@ -118,6 +121,8 @@ export interface VerificationReport {
   git: GitInfo | null;
   verdict: Verdict;
   exitCode: number;
+  /** Signal name when verdict is ERROR because the run was interrupted (R3-002); null otherwise. */
+  interruptedBy: string | null;
   summary: ReportSummary;
   categories: Record<CategoryKind, CategoryStatus>;
   checks: CheckResult[];
@@ -127,3 +132,5 @@ export interface VerificationReport {
 export const EXIT_PASSED = 0;
 export const EXIT_FAILED = 1;
 export const EXIT_ERROR = 2;
+/** 128 + signal number, used when a run is interrupted (R2-002 / R3-002). */
+export const SIGNAL_EXIT_CODES: Readonly<Record<string, number>> = { SIGINT: 130, SIGTERM: 143 };

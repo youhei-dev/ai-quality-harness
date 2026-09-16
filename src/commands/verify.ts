@@ -6,7 +6,7 @@ import { formatDuration } from "../report/markdown.ts";
 import { writeReports } from "../report/write.ts";
 import { runChecks } from "../runner/run-checks.ts";
 import { maskSecrets } from "../security/mask.ts";
-import { CATEGORY_KINDS, EXIT_ERROR, type CheckResult, type ResolvedCheck } from "../types.ts";
+import { CATEGORY_KINDS, EXIT_ERROR, SIGNAL_EXIT_CODES, type CheckResult, type ResolvedCheck } from "../types.ts";
 
 export interface VerifyOptions {
   /** Path to aiqh.config.jsonc. Default: <cwd>/aiqh.config.jsonc */
@@ -18,6 +18,12 @@ export interface VerifyOptions {
   failFast?: boolean;
   verbose?: boolean;
   toolVersion: string;
+  /**
+   * Interruption signal (R3-002). When it aborts (reason = signal name), no further check is
+   * started, running checks are terminated, the report is written with verdict ERROR and the
+   * returned exit code is 128 + signal number.
+   */
+  signal?: AbortSignal;
   /** Line sink for progress output. Default: console.log */
   log?: (line: string) => void;
   /** Line sink for errors. Default: console.error */
@@ -28,7 +34,7 @@ const CONSOLE_TAIL_LINES = 20;
 
 /**
  * Run the verify pipeline. Returns the process exit code. The final console line is tied to
- * the exit code: 0 = "VERIFY PASSED", 1 = "VERIFY FAILED", 2 = "VERIFY ERROR" (R-007).
+ * the exit code: 0 = "VERIFY PASSED", 1 = "VERIFY FAILED", 2 / 130 / 143 = "VERIFY ERROR" (R-007, R3-002).
  */
 export async function runVerify(options: VerifyOptions): Promise<number> {
   const log = options.log ?? ((line: string) => console.log(line));
@@ -64,7 +70,7 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   );
   log("");
 
-  const results = await runChecks(config, {
+  const runOptions: Parameters<typeof runChecks>[1] = {
     failFast: options.failFast ?? false,
     onCheckStart: (check: ResolvedCheck, index: number, total: number) => {
       log(`[${index + 1}/${total}] ${check.name} (${check.kind}${check.required ? "" : ", optional"})`);
@@ -80,8 +86,11 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
       }
       log("");
     },
-  });
+  };
+  if (options.signal) runOptions.signal = options.signal;
+  const results = await runChecks(config, runOptions);
 
+  const interruptedBy = options.signal?.aborted ? describeAbort(options.signal) : null;
   const finishedAt = new Date();
   const report = buildReport({
     config,
@@ -90,6 +99,7 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     startedAt,
     finishedAt,
     toolVersion: options.toolVersion,
+    interruptedBy,
   });
 
   let paths;
@@ -104,9 +114,16 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
 
   const failedNames = results.filter((r) => r.required && r.status !== "PASS").map((r) => r.name);
   const optionalFailed = results.filter((r) => !r.required && r.status === "FAIL").map((r) => r.name);
-  log(
-    `VERIFY ${report.verdict} — required failed: ${failedNames.length}${failedNames.length ? ` (${failedNames.join(", ")})` : ""}, optional failed: ${optionalFailed.length}${optionalFailed.length ? ` (${optionalFailed.join(", ")})` : ""}, duration: ${formatDuration(report.durationMs)}`,
-  );
+  if (interruptedBy !== null) {
+    // R3-002: never echo PASSED / FAILED here; the run did not complete.
+    log(
+      `VERIFY ERROR (interrupted by ${interruptedBy}) — completed: ${results.filter((r) => r.status !== "SKIPPED").length}, skipped: ${report.summary.skipped}, duration: ${formatDuration(report.durationMs)}`,
+    );
+  } else {
+    log(
+      `VERIFY ${report.verdict} — required failed: ${failedNames.length}${failedNames.length ? ` (${failedNames.join(", ")})` : ""}, optional failed: ${optionalFailed.length}${optionalFailed.length ? ` (${optionalFailed.join(", ")})` : ""}, duration: ${formatDuration(report.durationMs)}`,
+    );
+  }
   log(
     `categories: ${CATEGORY_KINDS.map((k) => `${k} ${report.categories[k] === "NOT_APPLICABLE" ? "N/A" : report.categories[k]}`).join(" | ")}`,
   );
@@ -115,6 +132,16 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   log(`        ${paths.history}`);
 
   return report.exitCode;
+}
+
+function describeAbort(signal: AbortSignal): string {
+  const reason: unknown = signal.reason;
+  return typeof reason === "string" ? reason : "abort";
+}
+
+/** Exit code for an interrupted run: 128 + signal number when known, otherwise the generic error code. */
+export function interruptionExitCode(interruptedBy: string): number {
+  return SIGNAL_EXIT_CODES[interruptedBy] ?? EXIT_ERROR;
 }
 
 function printTail(log: (line: string) => void, label: string, text: string, verbose: boolean): void {

@@ -4,7 +4,7 @@ import { Command } from "commander";
 import { runVerify } from "./commands/verify.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
 import { maskSecrets } from "./security/mask.ts";
-import { EXIT_ERROR } from "./types.ts";
+import { EXIT_ERROR, SIGNAL_EXIT_CODES } from "./types.ts";
 
 function readVersion(): string {
   try {
@@ -19,17 +19,25 @@ function readVersion(): string {
 
 const VERSION = readVersion();
 
-// Children run in their own process group (ADR-0005), so forward termination explicitly through
-// the shared clean-up path (SIGTERM → grace → SIGKILL → group gone, R2-002) and exit with the
-// conventional 128 + signal number.
-const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 } as const;
-let terminating = false;
+// Interruption (R2-002 / R3-002). Order matters:
+//   1. mark the run as interrupted (AbortController) so no further check is spawned,
+//   2. clean up the groups that are running (SIGTERM → grace → SIGKILL → group gone),
+//   3. let runVerify record the remaining checks as SKIPPED and write the report,
+//   4. exit with 128 + signal number (the normal return path of the verify command).
+// A safety valve forces the exit after grace + 3 s in case something never settles.
+const SAFETY_VALVE_EXTRA_MS = 3_000;
+const interruption = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    if (terminating) return;
-    terminating = true;
-    console.error(`aiqh: received ${signal}, terminating running checks (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
-    void terminateActiveChildren(DEFAULT_KILL_GRACE_MS).finally(() => process.exit(SIGNAL_EXIT_CODES[signal]));
+    if (interruption.signal.aborted) return;
+    console.error(`aiqh: received ${signal}, stopping: no new checks, terminating running ones (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
+    interruption.abort(signal);
+    void terminateActiveChildren(DEFAULT_KILL_GRACE_MS);
+    const exitCode = SIGNAL_EXIT_CODES[signal] ?? EXIT_ERROR;
+    setTimeout(() => {
+      console.error(`aiqh: clean-up did not finish within ${DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS}ms, exiting ${exitCode}`);
+      process.exit(exitCode);
+    }, DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS).unref();
   });
 }
 
@@ -59,6 +67,7 @@ program
         failFast: opts.failFast,
         verbose: opts.verbose,
         toolVersion: VERSION,
+        signal: interruption.signal,
       };
       if (opts.config !== undefined) args.config = opts.config;
       if (opts.cwd !== undefined) args.cwd = opts.cwd;

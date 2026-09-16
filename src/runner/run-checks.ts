@@ -4,6 +4,8 @@ import { executeCommand } from "./execute.ts";
 export interface RunChecksOptions {
   /** Stop executing after the first required failure; remaining checks become SKIPPED. */
   failFast?: boolean;
+  /** Interruption signal (R3-002): once aborted, no further check is started. */
+  signal?: AbortSignal;
   onCheckStart?: (check: ResolvedCheck, index: number, total: number) => void;
   onCheckFinish?: (result: CheckResult, index: number, total: number) => void;
 }
@@ -27,14 +29,18 @@ export async function runChecks(
     options.onCheckStart?.(check, index, total);
 
     let result: CheckResult;
-    if (options.failFast && requiredFailed) {
+    if (options.signal?.aborted) {
+      result = skippedResult(check, `skipped: run interrupted by ${describeAbort(options.signal)}`);
+    } else if (options.failFast && requiredFailed) {
       result = skippedResult(check, "skipped: an earlier required check failed (--fail-fast)");
     } else {
-      const execution = await executeCommand({
+      const execArgs: Parameters<typeof executeCommand>[0] = {
         command: check.command,
         cwd: check.cwdAbsolute,
         timeoutMs: check.timeoutSec * 1000,
-      });
+      };
+      if (options.signal) execArgs.signal = options.signal;
+      const execution = await executeCommand(execArgs);
       result = toCheckResult(check, execution);
     }
 
@@ -48,7 +54,23 @@ export async function runChecks(
   return results;
 }
 
+function describeAbort(signal: AbortSignal): string {
+  const reason: unknown = signal.reason;
+  return typeof reason === "string" ? reason : "abort";
+}
+
 export function toCheckResult(check: ResolvedCheck, exec: ExecutionResult): CheckResult {
+  if (exec.interruptedBy !== null) {
+    // R3-002: a check interrupted before or while running produced no result -> SKIPPED with the reason.
+    const ran = exec.startedAt !== null && (exec.stdout.length > 0 || exec.stderr.length > 0 || exec.signal !== null);
+    const skipped = skippedResult(
+      check,
+      ran
+        ? `interrupted by ${exec.interruptedBy} while running (process group terminated)`
+        : `skipped: run interrupted by ${exec.interruptedBy}`,
+    );
+    return { ...skipped, startedAt: exec.startedAt, durationMs: exec.durationMs, signal: exec.signal, stdoutTail: tail(exec.stdout).text, stderrTail: tail(exec.stderr).text };
+  }
   const failed = exec.spawnError !== null || exec.timedOut || exec.exitCode !== 0;
   const stdoutTail = tail(exec.stdout);
   const stderrTail = tail(exec.stderr);

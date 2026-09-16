@@ -51,6 +51,7 @@ describe("R-009 git info: unknown dirty state is not reported as clean", () => {
       git: { commit: "abc", branch: "main", dirty: null },
       verdict: "FAILED",
       exitCode: 1,
+      interruptedBy: null,
       summary: { total: 0, passed: 0, failed: 0, skipped: 0, requiredFailed: 0 },
       categories: {
         lint: "NOT_APPLICABLE",

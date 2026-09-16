@@ -38,12 +38,12 @@ function project(config: unknown): string {
 }
 
 /**
- * Invariant (R-007): the final wording is tied to the exit code.
- * 0 -> "VERIFY PASSED", 1 -> "VERIFY FAILED", 2 -> "VERIFY ERROR"; never any other verdict word.
+ * Invariant (R-007, extended by R3-002): the final wording is tied to the exit code.
+ * 0 -> "VERIFY PASSED", 1 -> "VERIFY FAILED", 2 / 130 / 143 -> "VERIFY ERROR"; never any other verdict word.
  */
-function expectVerdictMatchesExit(r: CliRun): void {
+export function expectVerdictMatchesExit(r: CliRun): void {
   const out = `${r.stdout}\n${r.stderr}`;
-  const expected = { 0: "VERIFY PASSED", 1: "VERIFY FAILED", 2: "VERIFY ERROR" }[r.code];
+  const expected = { 0: "VERIFY PASSED", 1: "VERIFY FAILED", 2: "VERIFY ERROR", 130: "VERIFY ERROR", 143: "VERIFY ERROR" }[r.code];
   expect(expected, `unexpected exit code ${r.code}`).toBeDefined();
   expect(out).toContain(expected);
   for (const other of ["VERIFY PASSED", "VERIFY FAILED", "VERIFY ERROR"]) {
