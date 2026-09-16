@@ -14,6 +14,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { checkBinTarget } from "./package-smoke-checks.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
@@ -65,6 +66,9 @@ try {
     check(existsSync(path.join(consumer, "node_modules", dep, "package.json")), `runtime dependency not installed: ${dep}`);
   }
   check(existsSync(path.join(consumer, "node_modules", ".bin", "aiqh")), "bin link node_modules/.bin/aiqh missing");
+  // R3-003: the M0 requirement is that bin points at the built dist/cli.js — assert the exact
+  // value in the installed package.json and the symlink target of node_modules/.bin/aiqh.
+  problems.push(...checkBinTarget(consumer, pkg.name, "aiqh", "dist/cli.js"));
 
   // 4. version comes from the installed package.json
   const version = execFileSync("npx", ["--no-install", "aiqh", "--version"], { cwd: consumer, encoding: "utf8" }).trim();
