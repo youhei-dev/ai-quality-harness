@@ -5,7 +5,12 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.1.6 — M0 maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.1.6` / `git rev-parse v0.1.6` で確認。最終報告と `docs/reports/M0_COMPLETION.md` §6 に記載）
+## v0.1.7 — M0 maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.1.7` / `git rev-parse v0.1.7` で確認。最終報告と `docs/reports/M0_COMPLETION.md` §7 に記載）
+
+- 最終独立レビュー（R7-001、Medium）を反映: `OutputBuffer` の UTF-8 境界揃えを、先頭チャンク 1 回の確認ではなく「先頭バイトが継続バイトである間、1 バイトずつ最大 3 回、チャンクをまたいで捨てる」に戻し、さらに切り詰め済み（`truncated`）の間は毎回揃える。R6-001 の共通ヘルパー化で入った退行と、その作業中に見つけた第 2 経路の修正。回帰テスト 5 件（固定チャンク境界 4 件、固定シード 500 回の網羅 1 件）
+- テスト 148 件、10 回連続 PASS。**M1 は v0.1.7 を基準に始める。これ以降の M0 レビューは行わない**
+
+## v0.1.6 — commit 8092f9f / tag object 10fd4d9 — M0 maintenance
 
 - 独立レビュー R6（3 件）を反映: レポート用 64KiB 末尾切り出しの UTF-8 境界揃え（R6-001、共通ヘルパー `src/runner/utf8-trim.ts`）、CHANGELOG のタグ横 SHA を peeled commit SHA に統一（R6-002）、ハンドラ差し替え中の Known Risk の説明精度（R6-003）
 - テスト 143 件、10 回連続 PASS。M1 は v0.1.6 を基準に始める。R7 は行わない
