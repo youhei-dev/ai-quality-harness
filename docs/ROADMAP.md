@@ -7,13 +7,13 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ---
 
-## M0 — 全体設計・リポジトリ基盤・verify の中核 — **完了（v0.1.5、2026-09-16）**
+## M0 — 全体設計・リポジトリ基盤・verify の中核 — **完了（v0.1.5、2026-09-16）／保守修正 v0.1.6（2026-09-18）**
 
-- 完了時のタグ: `v0.1.5`（M0 complete — verify core with independent reviews R1-R5 applied）
-- 独立レビューの指摘件数の推移: R1: 13 → R2: 5 → R3: 3 → R4: 3 → R5: 4（R5 は文書対応 2 件を含む）。R6 は行わない
-- 完了時の検証構成: 自己 verify 6 チェック（lint / typecheck / unit / build / package / dependency。security / e2e は NOT APPLICABLE）、テスト 141 件（10 回連続 PASS）
+- 完了時のタグ: `v0.1.5`（M0 complete — verify core with independent reviews R1-R5 applied）。その後の独立レビュー R6（3 件: レポート末尾の UTF-8 境界、CHANGELOG の SHA 表記、Known Risk の説明精度）を保守修正として反映し `v0.1.6` を付与。**M1 は v0.1.6 を基準に始める**
+- 独立レビューの指摘件数の推移: R1: 13 → R2: 5 → R3: 3 → R4: 3 → R5: 4 → R6: 3（R5 は文書対応 2 件、R6 は文書対応 2 件を含む）。R7 は行わない
+- v0.1.6 時点の検証構成: 自己 verify 6 チェック（lint / typecheck / unit / build / package / dependency。security / e2e は NOT APPLICABLE）、テスト 143 件（10 回連続 PASS）
 - M1 以降へ持ち越した項目: R-010（並行実行時の latest の整合、M4）、R-011 後半（Linux CI、M3）、R-012（masker と Security Scan の検出パターン共有、M1）、R-013（出力バッファの streaming 化、並列化時）。R5 で残った論点（OS 到着時刻基準のシグナル保証、安全弁の実発火、Windows）は M1 以降のレビューで扱う
-- 詳細: `docs/reports/M0_COMPLETION.md`、`CHANGELOG.md`
+- 詳細: `docs/reports/M0_COMPLETION.md`（保守修正 v0.1.6 の追記を含む）、`CHANGELOG.md`
 
 ### 内容
 - 全体設計（ARCHITECTURE / ROADMAP / CONFIG_SPEC / ADR）
@@ -34,6 +34,7 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - R3（R3-001〜R3-003）: `docs/reviews/m0/response-r3.md`。3 件すべて修正
 - R4（R4-001〜R4-003）: `docs/reviews/m0/response-r4.md`。3 件すべて修正（v0.1.3 は yield 不十分のため superseded、v0.1.4 で修正）
 - R5（R5-001〜R5-004）: `docs/reviews/m0/response-r5.md`。2 件修正、2 件文書対応。M0 完了
+- R6（R6-001〜R6-003）: `docs/reviews/m0/response-r6.md`。1 件修正、2 件文書対応。保守修正 v0.1.6
 
 ### 完了条件（すべて達成）
 - [x] `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/CONFIG_SPEC.md`, `docs/adr/*.md` が存在する

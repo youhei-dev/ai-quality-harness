@@ -54,3 +54,16 @@
 - テスト件数: 141（すべて PASS、10 回連続）
 - 自己 verify: lint / typecheck / unit / build / package / dependency の 6 チェック PASS。security / e2e は M1 でアダプタ化するまで NOT APPLICABLE
 - 持ち越し: R-010（M4）、R-011 後半（M3）、R-012（M1）、R-013（並列化時）。R5 で残った論点（OS 到着時刻基準のシグナル保証、安全弁の実発火、Linux / Windows）は M1 以降のレビューで扱う
+
+## 6. 保守修正 v0.1.6（R6、2026-09-18）
+
+M0 完了（v0.1.5）後に届いた独立レビュー R6 を保守修正として反映した。R7 は行わない。
+
+| ID | 内容 | 対応 |
+|---|---|---|
+| R6-001（Medium、バグ） | レポート用 64KiB 末尾切り出し `tail()` に UTF-8 境界揃えが無く、先頭が U+FFFD になり再エンコード長が上限を超え得た | 境界揃えを共通ヘルパー `src/runner/utf8-trim.ts` に切り出し、`OutputBuffer.push()` と `tail()` の両方で使用。回帰テスト 2 件（stdout / stderr、64KiB 超のマルチバイト） |
+| R6-002（Medium、文書） | CHANGELOG のタグ横 SHA が注釈付きタグのオブジェクト SHA だった | 主表記をタグが指す commit の SHA（`git rev-list -n1 <tag>`）に統一し、タグオブジェクト SHA を併記。ルールをプロジェクト CLAUDE.md に追記 |
+| R6-003（Low、文書） | ハンドラ差し替え中の Known Risk の説明が通常の OS シグナルについて不正確 | 「通常の OS シグナルは非同期配送のため差し替え完了後のリスナー集合で処理される。同期的な `process.emit()` の場合のみ両リスナーが実行され得る」に修正（ARCHITECTURE、`cli-signals.ts` のコメント、r5 パケット） |
+
+- v0.1.6 時点: テスト 143 件（10 回連続 PASS）、自己 verify 6 チェック PASS。commit SHA / タグオブジェクト SHA は最終報告と `CHANGELOG.md` に記載
+- **M1 開始時の基準タグは v0.1.6**（§5 の「基準タグ: v0.1.5」を置き換える）

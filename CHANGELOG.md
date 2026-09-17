@@ -5,6 +5,11 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.1.6 — M0 maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.1.6` / `git rev-parse v0.1.6` で確認。最終報告と `docs/reports/M0_COMPLETION.md` §6 に記載）
+
+- 独立レビュー R6（3 件）を反映: レポート用 64KiB 末尾切り出しの UTF-8 境界揃え（R6-001、共通ヘルパー `src/runner/utf8-trim.ts`）、CHANGELOG のタグ横 SHA を peeled commit SHA に統一（R6-002）、ハンドラ差し替え中の Known Risk の説明精度（R6-003）
+- テスト 143 件、10 回連続 PASS。M1 は v0.1.6 を基準に始める。R7 は行わない
+
 ## v0.1.5 — commit 55e2e0f / tag object df678ca — M0 complete
 
 - 独立レビュー R5（4 件）を反映: シグナルハンドラ差し替えの原子性（R5-001）、確定点の観測可能な意味論への表現変更（R5-002）、verdict の確定点と CLI 終了結果の分離（R5-003、案 A、`onFinalized` → `onVerdictFixed`）、出力末尾の UTF-8 境界揃え（R5-004）
