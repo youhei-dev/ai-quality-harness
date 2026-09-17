@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { statSync } from "node:fs";
 import type { ExecutionResult } from "../types.ts";
-import { utf8LeadingBytesToDrop } from "./utf8-trim.ts";
+import { isUtf8ContinuationByte } from "./utf8-trim.ts";
 
 export interface ExecuteOptions {
   command: string;
@@ -258,8 +258,8 @@ function killTree(child: ChildProcess, pgid: number | undefined, signal: NodeJS.
   }
 }
 
-/** Byte-capped buffer that keeps the *tail* of the output. */
-class OutputBuffer {
+/** Byte-capped buffer that keeps the *tail* of the output. Exported for unit tests with fixed chunk boundaries. */
+export class OutputBuffer {
   private readonly chunks: Buffer[] = [];
   private size = 0;
   truncated = false;
@@ -274,14 +274,23 @@ class OutputBuffer {
     this.size += chunk.length;
     // Trim from the front byte-wise so at most the last `maxBytes` bytes survive. Dropping whole
     // chunks would lose the entire output when a single chunk is larger than the cap.
-    if (this.size <= this.maxBytes) return;
-    this.truncated = true;
-    this.dropFront(this.size - this.maxBytes);
-    // R5-004 / R6-001: land on a UTF-8 code-point boundary (shared helper). Only the first chunk's
-    // leading bytes matter; a chunk boundary inside a character is handled because dropFront
-    // crosses chunks.
-    const head = this.chunks[0];
-    if (head !== undefined) this.dropFront(utf8LeadingBytesToDrop(head));
+    if (this.size > this.maxBytes) {
+      this.truncated = true;
+      this.dropFront(this.size - this.maxBytes);
+    }
+    // R5-004 / R7-001: once the start of the stream has been discarded, the buffer must begin on
+    // a UTF-8 code-point boundary. Re-check the *current* first byte after every single-byte drop:
+    // a code point may be split across chunks, so dropping the continuation bytes left in the first
+    // chunk can expose another continuation byte at the start of the next chunk (the R6 version
+    // looked at the first chunk only once). The check also runs when this push did not trim
+    // anything: after an earlier trim emptied the buffer, a chunk holding only continuation bytes
+    // of the split character can arrive within the cap and must not survive.
+    if (!this.truncated) return;
+    for (let i = 0; i < 3; i++) {
+      const first = this.chunks[0]?.[0];
+      if (first === undefined || !isUtf8ContinuationByte(first)) break;
+      this.dropFront(1);
+    }
   }
 
   private dropFront(bytes: number): void {
