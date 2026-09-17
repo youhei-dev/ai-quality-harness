@@ -27,7 +27,9 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-マイルストーン 0（M0）完了時点。実装済みなのは `aiqh verify` の中核です。
+**M0 完了（タグ `v0.1.5`）**。実装済みなのは `aiqh verify` の中核で、独立レビュー 5 ラウンド（R1〜R5）を反映しています。
+各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md) を参照してください。
+**v0.1.3 は superseded**（確定点の yield が不十分）で、v0.1.4 以降を使ってください。
 
 | 機能 | 状態 |
 |---|---|
