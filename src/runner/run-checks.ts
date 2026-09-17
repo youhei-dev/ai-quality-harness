@@ -1,5 +1,6 @@
 import type { CheckResult, ExecutionResult, ResolvedCheck, ResolvedConfig } from "../types.ts";
 import { executeCommand } from "./execute.ts";
+import { utf8SafeTail } from "./utf8-trim.ts";
 
 export interface RunChecksOptions {
   /** Stop executing after the first required failure; remaining checks become SKIPPED. */
@@ -180,8 +181,8 @@ export function tail(text: string): { text: string; truncated: boolean } {
   }
   let out = lines.join("\n");
   if (Buffer.byteLength(out, "utf8") > TAIL_BYTES) {
-    const buf = Buffer.from(out, "utf8");
-    out = buf.subarray(buf.length - TAIL_BYTES).toString("utf8");
+    // R6-001: byte cap aligned to a UTF-8 boundary (shared helper); may be up to 3 bytes shorter.
+    out = utf8SafeTail(Buffer.from(out, "utf8"), TAIL_BYTES).toString("utf8");
     truncated = true;
   }
   return { text: out, truncated };

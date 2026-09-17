@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { statSync } from "node:fs";
 import type { ExecutionResult } from "../types.ts";
+import { utf8LeadingBytesToDrop } from "./utf8-trim.ts";
 
 export interface ExecuteOptions {
   command: string;
@@ -276,14 +277,11 @@ class OutputBuffer {
     if (this.size <= this.maxBytes) return;
     this.truncated = true;
     this.dropFront(this.size - this.maxBytes);
-    // R5-004: land on a UTF-8 code-point boundary. After a byte-wise cut the first byte may be a
-    // continuation byte (0x80-0xBF); drop up to 3 more bytes until it is not, so the decoded text
-    // neither starts with U+FFFD nor re-encodes to more than `maxBytes`.
-    for (let i = 0; i < 3; i++) {
-      const first = this.chunks[0]?.[0];
-      if (first === undefined || (first & 0xc0) !== 0x80) break;
-      this.dropFront(1);
-    }
+    // R5-004 / R6-001: land on a UTF-8 code-point boundary (shared helper). Only the first chunk's
+    // leading bytes matter; a chunk boundary inside a character is handled because dropFront
+    // crosses chunks.
+    const head = this.chunks[0];
+    if (head !== undefined) this.dropFront(utf8LeadingBytesToDrop(head));
   }
 
   private dropFront(bytes: number): void {
