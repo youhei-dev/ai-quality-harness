@@ -280,20 +280,24 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   4. 通常の戻り値経路で 128 + シグナル番号（130 / 143）で終了する。ハンドラ内で即 `process.exit()` はしない。
      ハンドラは受信時にバックアップとして `process.exitCode = 130 / 143` を即設定する（R4-001）
   5. 安全弁: 猶予 + 3 秒（既定 8 秒）以内に終了しなければ同じ終了コードで強制終了する
-- **確定点（finalization point、R4-001）**: 全チェックの終了コードが揃った後、`runVerify` はイベントループへ制御を戻す
-  （`yieldFullIteration()`: `setImmediate` を 2 回 await）。libuv は保留中の OS シグナルを **poll フェーズ**で配送するため、
-  poll 由来の継続（子プロセスの `close`）から `setImmediate` を 1 回だけ待つと同じ反復の check フェーズで戻ってしまい、
-  次の poll を経ない。2 回目の immediate は次の反復（poll の後）で解決するので、**1 回の poll フェーズを必ず経る**。
-  v0.1.3 は 1 回だけだったため確定点直前のシグナルを取りこぼす経路が残り（10 回中 4 回）、v0.1.4 で修正した。
-  その時点で保留中だったシグナルはここで反映される。
-  **全チェック完了後にイベントループへ一度制御を戻した時点で検証結果を確定する。それ以降に届いたシグナルは結果を変えない。
-  レポートは確定済みの結果を反映する。** 確定点通過時に CLI は `onFinalized` でシグナルハンドラを「確定済み」用に**差し替える**
-  （解除ではない。listener が 0 になると Node は既定動作に戻り、確定後にプロセスが強制終了されて結果が変わってしまうため）。
-  確定済みハンドラは stderr に `SIGINT received after verification was finalized; result unchanged` と出して何もしない。
-  確定点以降は同期処理（レポート生成・atomic rename による書込・最終出力）のみで、終了コードは確定結果の 0 / 1
+- **検証結果（verdict）の確定点（R4-001 B 案、R5-002 / R5-003 で定義を整理）**: 全チェックの終了コードが揃った後、
+  `runVerify` はイベントループを 1 周回す（`yieldFullIteration()`: `setImmediate` を 2 回 await。libuv は保留中の OS シグナルを
+  **poll フェーズ**で配送するため、poll 由来の継続から 1 回だけ待つと同じ反復の check フェーズで戻り次の poll を経ない。
+  2 回目の immediate は次の反復の poll の後で解決する。v0.1.3 は 1 回だけで 10 回中 4 回取りこぼし、v0.1.4 で修正）。
+  **観測可能な意味論**: 全チェック完了後、イベントループを 1 周（poll フェーズを含む）回した時点までに Node が JS へ配送した
+  シグナルは中断として扱う。その時点より後に到着し、まだ配送されていないシグナルは確定後のシグナルとして扱い、検証結果を変えない。
+  **OS への到着時刻を基準とした完全な保証は JS のイベントループだけでは提供しない**（R5-002）。
+  verdict が確定した時点で CLI は `onVerdictFixed` でシグナルハンドラを「確定済み」用に**差し替える**（解除ではない。listener が
+  0 になると Node は既定動作に戻りプロセスが強制終了されるため）。差し替えは新ハンドラを `process.on()` で登録してから旧ハンドラを
+  `process.off()` する順で行い、listener が 0 件になる瞬間を作らない（R5-001）。確定済みハンドラは stderr に
+  `SIGINT received after the verdict was fixed; result unchanged` と出して何もしない
+- **CLI の終了結果（R5-003、案 A）**: verdict の確定点とは別。レポートの書込（atomic rename）に成功した後、verdict に対応して
+  終了コード 0 / 1 になる。書込に失敗した場合は R-007 どおり `VERIFY ERROR (report write error)`、終了コード 2。
+  つまり verdict は確定点で固定されるが、CLI の終了結果はレポート書込の成否を経て決まる
 - **出力の末尾保持**: 子プロセスの stdout / stderr はストリームごとにメモリ上限（既定 10MiB）まで保持し、超過分は**先頭からバイト単位**で
   切り詰める。上限より大きい単一チャンクでも末尾が残る（v0.1.3 まではチャンク単位で捨てていたため、単一の大きな write で
-  出力が空になる欠陥があった。v0.1.4 で修正）。
+  出力が空になる欠陥があった。v0.1.4 で修正）。切り詰め後の先頭が UTF-8 の継続バイトである間は最大 3 バイトまで追加で捨てて
+  コードポイント境界に揃えるため、保持量は上限より**最大 3 バイト少なくなる**ことがある（R5-004、v0.1.5）。
 - **中断されたチェックのレポート項目（R4-002）**: 中断されたチェックは `status: "SKIPPED"` だが、実行の事実は保持する。
   `timedOut` は「中断前にタイムアウトへ到達していたか」、`outputTruncated` は「取得済み出力が上限（メモリ 10MiB / 末尾 200 行 64KB）で
   切り詰められたか」を表し、`stdoutTail` / `stderrTail` は中断時点までの末尾。`errorSummary` に中断理由（シグナル名）を書く
@@ -320,7 +324,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 | 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
-| SIGINT 受信（Ctrl+C） | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了。安全弁 8 秒 |
+| SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了。安全弁 8 秒 |
+| SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
 | SIGTERM 受信 | 143（128 + 15） | `VERIFY ERROR (interrupted by SIGTERM)` | 同上 |
 
 いずれの失敗でも終了コードは非ゼロであり、CI ではゲートを通過しない。
