@@ -271,19 +271,34 @@ class OutputBuffer {
   push(chunk: Buffer): void {
     this.chunks.push(chunk);
     this.size += chunk.length;
-    // Trim from the front byte-wise so exactly the last `maxBytes` bytes survive. Dropping whole
+    // Trim from the front byte-wise so at most the last `maxBytes` bytes survive. Dropping whole
     // chunks would lose the entire output when a single chunk is larger than the cap.
-    while (this.size > this.maxBytes && this.chunks.length > 0) {
-      const excess = this.size - this.maxBytes;
+    if (this.size <= this.maxBytes) return;
+    this.truncated = true;
+    this.dropFront(this.size - this.maxBytes);
+    // R5-004: land on a UTF-8 code-point boundary. After a byte-wise cut the first byte may be a
+    // continuation byte (0x80-0xBF); drop up to 3 more bytes until it is not, so the decoded text
+    // neither starts with U+FFFD nor re-encodes to more than `maxBytes`.
+    for (let i = 0; i < 3; i++) {
+      const first = this.chunks[0]?.[0];
+      if (first === undefined || (first & 0xc0) !== 0x80) break;
+      this.dropFront(1);
+    }
+  }
+
+  private dropFront(bytes: number): void {
+    let remaining = bytes;
+    while (remaining > 0 && this.chunks.length > 0) {
       const head = this.chunks[0];
       if (head === undefined) break;
-      this.truncated = true;
-      if (head.length <= excess) {
+      if (head.length <= remaining) {
         this.chunks.shift();
         this.size -= head.length;
+        remaining -= head.length;
       } else {
-        this.chunks[0] = head.subarray(excess);
-        this.size -= excess;
+        this.chunks[0] = head.subarray(remaining);
+        this.size -= remaining;
+        remaining = 0;
       }
     }
   }

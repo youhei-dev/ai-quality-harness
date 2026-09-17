@@ -137,6 +137,12 @@
 
 ---
 
+### 5.4 出力の保持（設定項目ではない。M0 の固定値）
+
+各チェックの stdout / stderr は実行中にストリームごと最大 10MiB をメモリに保持し、超過分は先頭からバイト単位で捨てる。
+切り詰め後の先頭が UTF-8 の継続バイトである間は最大 3 バイトまで追加で捨ててコードポイント境界に揃えるため、保持量は上限より
+**最大 3 バイト少なくなる**ことがある。レポートにはさらに末尾 200 行 / 64KB だけを書く。上限を設定可能にする案は §6 に含める。
+
 ## 6. M1 以降の拡張案（未確定）
 
 | 項目 | 案 | 目的 |
@@ -145,6 +151,7 @@
 | `checks[].env` | `{ NAME: "value" }`（値に秘密は不可。`$VAR` 参照のみ許容する方式を検討） | CI 向けのフラグ（`CI=1` 等） |
 | `checks[].parser` | `"eslint-json"` / `"pytest"` 等 | 件数・失敗テスト名をレポートに構造化 |
 | `checks[].artifacts` | glob 配列 | Playwright のトレース等を verify 出力にコピー |
+| `checks[].maxOutputBytes` | integer | 実行時の出力保持上限（既定 10MiB）を check ごとに変更。境界揃えのため最大 3 バイト少なくなる |
 | `checks[].dependsOn` | name 配列 | 前段が FAIL のとき SKIPPED にする（例: typecheck 失敗時に build を飛ばす） |
 | `matrix` | Node / Python バージョン | Actions での並列実行（M3） |
 | `review` | パケット生成の入力パス、diff の上限 | M2 |
