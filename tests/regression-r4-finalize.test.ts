@@ -68,7 +68,7 @@ describe("R4-001 signal in the finalization window", () => {
     expect(report?.exitCode).toBe(130);
   });
 
-  it("guard (plan B): a signal after the finalization point leaves exit 0 / PASSED / the report unchanged", async () => {
+  it("guard (plan B): a signal after the verdict is fixed leaves exit 0 / PASSED / the report unchanged", async () => {
     const root = project();
     const controller = new AbortController();
     process.once("SIGUSR2", () => controller.abort("SIGINT"));
@@ -79,7 +79,7 @@ describe("R4-001 signal in the finalization window", () => {
       signal: controller.signal,
       log: (l) => lines.push(l),
       logError: (l) => lines.push(l),
-      onFinalized: () => process.kill(process.pid, "SIGUSR2"),
+      onVerdictFixed: () => process.kill(process.pid, "SIGUSR2"),
     });
     // let the pending signal callback run before asserting
     await new Promise((r) => setImmediate(r));

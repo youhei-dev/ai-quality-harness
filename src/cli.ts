@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
+import { CLI_SIGNALS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
 import { runVerify } from "./commands/verify.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
 import { maskSecrets } from "./security/mask.ts";
@@ -26,11 +27,10 @@ const VERSION = readVersion();
 //   4. exit with 128 + signal number (the normal return path of the verify command).
 // A safety valve forces the exit after grace + 3 s in case something never settles.
 const SAFETY_VALVE_EXTRA_MS = 3_000;
-const SIGNALS = ["SIGINT", "SIGTERM"] as const;
 const interruption = new AbortController();
 
-/** Before the finalization point: interrupt the run (R3-002) and back up the exit code (R4-001). */
-function onSignalBeforeFinalization(signal: (typeof SIGNALS)[number]): void {
+/** Before the verdict is fixed: interrupt the run (R3-002) and back up the exit code (R4-001). */
+function onSignalBeforeVerdictFixed(signal: CliSignal): void {
   if (interruption.signal.aborted) return;
   const exitCode = SIGNAL_EXIT_CODES[signal] ?? EXIT_ERROR;
   // Backup: even if the run finished before the abort is observed, the process must not exit 0.
@@ -45,25 +45,30 @@ function onSignalBeforeFinalization(signal: (typeof SIGNALS)[number]): void {
 }
 
 /**
- * After the finalization point (R4-001, plan B): the result is fixed, only the synchronous report
- * writing and the final output remain. Signals are acknowledged but change nothing. The handler is
- * swapped rather than removed: with no listener Node would restore the default action and kill the
- * process mid-finalization, which would change the outcome.
+ * After the verdict is fixed (R4-001, plan B): the verification result no longer changes; only the
+ * synchronous report writing and the final output remain (the CLI outcome is 0 / 1 after a
+ * successful write, or 2 if the report cannot be written — R-007 / R5-003). Signals are
+ * acknowledged but change nothing. The handlers are swapped rather than removed: with no listener
+ * Node would restore the default action and kill the process, which would change the outcome.
  */
-function onSignalAfterFinalization(signal: (typeof SIGNALS)[number]): void {
-  console.error(`aiqh: ${signal} received after verification was finalized; result unchanged`);
+function onSignalAfterVerdictFixed(signal: CliSignal): void {
+  console.error(`aiqh: ${signal} received after the verdict was fixed; result unchanged`);
 }
 
-const beforeHandlers = Object.fromEntries(
-  SIGNALS.map((signal) => [signal, () => onSignalBeforeFinalization(signal)] as const),
-) as Record<(typeof SIGNALS)[number], () => void>;
-for (const signal of SIGNALS) process.on(signal, beforeHandlers[signal]);
+// Handler references are kept so the swap can remove exactly these functions (R5-001).
+const beforeHandlers: SignalHandlers = {
+  SIGINT: () => onSignalBeforeVerdictFixed("SIGINT"),
+  SIGTERM: () => onSignalBeforeVerdictFixed("SIGTERM"),
+};
+const afterHandlers: SignalHandlers = {
+  SIGINT: () => onSignalAfterVerdictFixed("SIGINT"),
+  SIGTERM: () => onSignalAfterVerdictFixed("SIGTERM"),
+};
+for (const signal of CLI_SIGNALS) process.on(signal, beforeHandlers[signal]);
 
-function swapHandlersToFinalized(): void {
-  for (const signal of SIGNALS) {
-    process.off(signal, beforeHandlers[signal]);
-    process.on(signal, () => onSignalAfterFinalization(signal));
-  }
+/** Called by runVerify once the verdict is fixed: add the "after" handlers, then remove the "before" ones. */
+function onVerdictFixed(): void {
+  swapSignalHandlers(beforeHandlers, afterHandlers);
 }
 
 const program = new Command();
@@ -93,7 +98,7 @@ program
         verbose: opts.verbose,
         toolVersion: VERSION,
         signal: interruption.signal,
-        onFinalized: swapHandlersToFinalized,
+        onVerdictFixed,
       };
       if (opts.config !== undefined) args.config = opts.config;
       if (opts.cwd !== undefined) args.cwd = opts.cwd;

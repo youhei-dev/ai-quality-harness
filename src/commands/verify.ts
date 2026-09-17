@@ -25,11 +25,13 @@ export interface VerifyOptions {
    */
   signal?: AbortSignal;
   /**
-   * Called once the run has passed its finalization point (R4-001, plan B): every check has
-   * completed, control was yielded to the event loop once, and no interruption was recorded.
-   * From here on the result is fixed; the CLI uses this to swap its signal handlers.
+   * Called once the verdict is fixed (R4-001 plan B, R5-003): every check has completed, the event
+   * loop was run for one full iteration, and no interruption had been dispatched by then. From
+   * here on the verification result does not change; the CLI uses this to swap its signal
+   * handlers. Note that the CLI *outcome* is decided later: exit 0 / 1 after the report was
+   * written, or 2 if writing fails (R-007).
    */
-  onFinalized?: () => void;
+  onVerdictFixed?: () => void;
   /**
    * Test hook: called synchronously right after every check has completed and before the run is
    * finalized. Tests use it to deliver an OS signal into that window (R4-001). This is an internal
@@ -108,14 +110,15 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   const results = await runChecks(config, runOptions);
   options.afterChecksCompleted?.();
 
-  // Finalization point (R4-001, plan B): all exit codes are in, so nothing about the result is
-  // uncertain any more — but a signal may have arrived during the last synchronous stretch and
-  // its callback cannot have run yet. Yield a full event-loop iteration so a pending
-  // interruption is recorded; after this point the result is fixed and later signals do not
-  // change it (the CLI swaps its handlers in onFinalized).
+  // Verdict fixing point (R4-001 plan B, R5-002 semantics): all exit codes are in. The event loop
+  // is run for one full iteration (including a poll phase); every signal that Node has dispatched
+  // to JS by the end of that iteration is treated as an interruption. A signal that arrives later,
+  // or has arrived but has not been dispatched yet, is treated as a post-verdict signal and does not
+  // change the verification result. This is the observable semantics; a guarantee based on the
+  // OS arrival time is not provided by the JS event loop alone.
   await yieldFullIteration();
   const interruptedBy = options.signal?.aborted ? describeAbort(options.signal) : null;
-  if (interruptedBy === null) options.onFinalized?.();
+  if (interruptedBy === null) options.onVerdictFixed?.();
   const finishedAt = new Date();
   const report = buildReport({
     config,
@@ -169,10 +172,12 @@ function describeAbort(signal: AbortSignal): string {
  * phase. libuv dispatches pending OS signals (SIGINT / SIGTERM handlers) in the poll phase. A single
  * setImmediate is not enough: when the continuation comes from an I/O callback (e.g. the child's
  * "close" event, which is what resolves runChecks), that immediate fires in the check phase of the
- * *same* iteration, before the next poll — so a signal that arrived during the last synchronous
- * stretch would still be unseen (v0.1.3 had exactly this gap; 4 of 10 runs missed the signal).
- * The second setImmediate is scheduled from the check phase and therefore runs in the next
- * iteration, after its poll phase. Measured: 20 of 20 runs recognise the pending signal.
+ * *same* iteration, before the next poll — so a signal already pending in Node would still be
+ * unseen (v0.1.3 had exactly this gap; 4 of 10 runs missed the signal). The second setImmediate is
+ * scheduled from the check phase and therefore runs in the next iteration, after its poll phase.
+ * What this gives: signals dispatched by Node up to that poll are observed. What it does not give:
+ * a signal that reaches the OS after that poll (or is not yet dispatched) is a post-verdict signal
+ * (R5-002). Measured: 20 of 20 runs recognise a signal that was pending when the checks completed.
  */
 async function yieldFullIteration(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
