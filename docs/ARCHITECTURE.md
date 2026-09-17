@@ -289,7 +289,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   **OS への到着時刻を基準とした完全な保証は JS のイベントループだけでは提供しない**（R5-002）。
   verdict が確定した時点で CLI は `onVerdictFixed` でシグナルハンドラを「確定済み」用に**差し替える**（解除ではない。listener が
   0 になると Node は既定動作に戻りプロセスが強制終了されるため）。差し替えは新ハンドラを `process.on()` で登録してから旧ハンドラを
-  `process.off()` する順で行い、listener が 0 件になる瞬間を作らない（R5-001）。確定済みハンドラは stderr に
+  `process.off()` する順で行い、listener が 0 件になる瞬間を作らない（R5-001）。差し替え中は一時的に 2 リスナーが
+  登録されるが、通常の OS シグナルは非同期に配送されるため、同期的な差し替え完了後のリスナー集合（新ハンドラのみ）で
+  処理される。内部フック等から同期的に `process.emit()` した場合のみ両リスナーが実行され得る（R6-003）。確定済みハンドラは stderr に
   `SIGINT received after the verdict was fixed; result unchanged` と出して何もしない
 - **CLI の終了結果（R5-003、案 A）**: verdict の確定点とは別。レポートの書込（atomic rename）に成功した後、verdict に対応して
   終了コード 0 / 1 になる。書込に失敗した場合は R-007 どおり `VERIFY ERROR (report write error)`、終了コード 2。
