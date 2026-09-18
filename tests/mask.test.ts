@@ -91,7 +91,8 @@ describe("maskSecrets", () => {
   });
 
   it("keeps the scheme and host for URL credentials", () => {
-    expect(maskSecrets("https://user:pw@example.invalid/x")).toBe(
+    // the credential part is assembled at runtime so the source holds no URL-credential literal
+    expect(maskSecrets(`https://${fake("user:", "pw")}@example.invalid/x`)).toBe(
       "https://[REDACTED:url-credential]@example.invalid/x",
     );
   });

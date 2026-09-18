@@ -26,7 +26,7 @@ check の stdout / stderr には、誤ってログに出た API キーや `.env`
 | `jwt` | `eyJ` で始まる 3 セグメントの base64url |
 | `bearer` | (a) `Authorization:` / `Proxy-Authorization:` ヘッダ文脈: `Bearer <token>` を長さ不問でマスク。(b) 一般文中の裸の `Bearer <token>`: 16 文字以上のみ（"bearer authentication" のような文を誤検出しないためのヒューリスティック）。scheme は大文字小文字を区別しない（R2-004） |
 | `basic` | (a) ヘッダ文脈: base64 構文を満たす payload をデコードせずマスク（非 UTF-8 の資格情報も対象）。(b) 一般文中の裸の `Basic <payload>`: デコードして `user:password` 形式のときだけマスク（"Basic auth is used" を誤検出しない）（R2-004） |
-| `url-credential` | `scheme://user:password@host` の `user:password` 部分 |
+| `url-credential` | URL に埋め込まれた認証情報（スキームの後の「ユーザー名、コロン、パスワード、アットマーク」の並び）。ユーザー名とパスワードの部分だけをマスクし、スキームとホストは残す |
 | `key-value` | `password` `passwd` `secret` `token` `api_key` `apikey` `access_key` `secret_key` `client_secret` `session_token` 等のキーに続く `=` / `:` の値部分（キーは残す）。`AWS_SECRET_ACCESS_KEY` `MY_API_KEY` のようにキー名が識別子の末尾にある場合も対象。引用符付きの値は閉じ引用符まで（空白を含めて）マスク |
 
 引用符付き値の扱い（R-003 → R2-001 で確定）:

@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { CLI_SIGNALS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
+import { runSecurityScan } from "./commands/security-scan.ts";
 import { runVerify } from "./commands/verify.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
 import { maskSecrets } from "./security/mask.ts";
@@ -106,6 +107,17 @@ program
       process.exitCode = await runVerify(args);
     },
   );
+
+program
+  .command("security-scan")
+  .description("Scan git-tracked files for secret-shaped strings, tracked .env files and .gitignore gaps (values are never printed)")
+  .option("--cwd <dir>", "repository directory (default: current directory)")
+  .option("--json", "print the result as JSON", false)
+  .action(async (opts: { cwd?: string; json: boolean }) => {
+    const args: Parameters<typeof runSecurityScan>[0] = { json: opts.json };
+    if (opts.cwd !== undefined) args.cwd = opts.cwd;
+    process.exitCode = await runSecurityScan(args);
+  });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);

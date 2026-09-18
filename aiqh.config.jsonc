@@ -17,10 +17,14 @@
     // tarball (--prefer-offline) -> npx --no-install aiqh verify. Needs the npm cache or network.
     { "name": "package",   "kind": "custom",    "command": "npm run smoke:package", "timeoutSec": 300,
       "description": "Packaged CLI works from a consumer project (bin, shebang, files, deps, version)" },
+    // M1: built-in security scan (secret-shaped strings in tracked files, tracked .env files, .gitignore
+    // coverage; values are never printed). Uses the source entry so verify:dist does not need npm link.
+    { "name": "security",  "kind": "security",  "command": "npm run security",  "timeoutSec": 300,
+      "description": "Built-in security scan over git-tracked files (shared patterns with the masker, R-012)" },
     // npm audit exits non-zero when a vulnerability at or above the level is found.
     // Threshold "high": moderate and below are tolerated in M0 (see docs/reports/M0_REPORT.md).
     { "name": "dependency", "kind": "dependency", "command": "npm audit --audit-level=high", "timeoutSec": 300,
       "description": "npm audit against the registry (requires network)" }
-    // "security" (secret / SAST scan) and "e2e" have no adapter yet (M1) -> reported as NOT_APPLICABLE.
+    // "e2e" has no check here (Playwright not used in this repository) -> reported as NOT_APPLICABLE.
   ]
 }
