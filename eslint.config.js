@@ -3,7 +3,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["dist/", "node_modules/", "artifacts/", "tmp/", "coverage/"]),
+  globalIgnores(["dist/", "node_modules/", "artifacts/", "tmp/", "coverage/", "tests/fixtures/repos/"]),
   js.configs.recommended,
   tseslint.configs.recommended,
   {
