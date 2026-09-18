@@ -27,15 +27,17 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M0 完了（タグ `v0.1.5`）**。実装済みなのは `aiqh verify` の中核で、独立レビュー 5 ラウンド（R1〜R5）を反映しています。
+**M1 完了（タグ `v0.2.0`）**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
 各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md) を参照してください。
 **v0.1.3 は superseded**（確定点の yield が不十分）で、v0.1.4 以降を使ってください。
 
 | 機能 | 状態 |
 |---|---|
 | `aiqh verify`（設定読込・順次実行・fail closed・JSON/Markdown レポート・秘密情報マスク） | M0 実装済み |
-| チェックアダプタ（lint / typecheck / unit / build / security / dependency / e2e の検出と推奨設定） | M1 予定 |
-| `aiqh init`（対象リポジトリの監査と設定生成） | M1 予定 |
+| チェックアダプタ（lint / typecheck / unit / build / security / dependency / e2e の検出と推奨設定） | M1 実装済み |
+| `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
+| `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | `aiqh review-packet` / `aiqh review-import`（独立レビューAI とのループ） | M2 予定 |
 | GitHub Actions 再利用ワークフロー | M3 予定 |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
@@ -88,9 +90,26 @@ artifacts/verification/
   history/<UTC timestamp>.json
 ```
 
-### 対象リポジトリで使う（M1 で確定予定）
+### 対象リポジトリで使う（M1: `npm link` によるローカル配布）
 
-対象リポジトリのルートに `aiqh.config.jsonc` を 1 枚置きます。
+```bash
+# 本体で 1 回: ビルドしてグローバルにリンク（~/.local/bin/aiqh -> dist/cli.js）
+cd ~/claude-projects/ai-quality-harness && npm run build && npm link
+
+# 対象リポジトリで: 読み取り監査と設定案の表示（何も書かない）
+aiqh init
+
+# 承認したら書き込む（config のみ。既存があれば --force なしでは拒否）
+aiqh init --write
+# 追加で .gitignore に artifacts/、package.json に "verify": "aiqh verify" を入れる場合
+aiqh init --write --write-gitignore --write-scripts
+
+# 検証と、内蔵の秘密情報スキャン単体
+aiqh verify
+aiqh security-scan
+```
+
+`aiqh init` は `aiqh` を PATH のどこから解決したか（リンク先と version）を表示します。生成される `aiqh.config.jsonc` の例：
 
 ```jsonc
 {
@@ -108,12 +127,8 @@ artifacts/verification/
 }
 ```
 
-```bash
-# 配布物は dist/cli.js（package.json の bin）。導入方法は M1 で確定する
-npx aiqh verify
-```
-
-仕様は `docs/CONFIG_SPEC.md` を参照してください。
+仕様は `docs/CONFIG_SPEC.md`、配布方針は `docs/adr/0009-distribution-npm-link.md` を参照してください。
+Security Scan は git 管理下のファイルだけを対象にし、検出結果に値を含めません（分類・パス・行番号のみ）。
 
 ## CLI
 
@@ -124,6 +139,9 @@ aiqh verify [options]
   -o, --output-dir <dir>   レポート出力先の上書き
       --fail-fast          必須チェックの最初の失敗で停止（以降は SKIPPED）
   -v, --verbose            失敗チェックの出力を全文表示
+
+aiqh init [--cwd <dir>] [--write] [--force] [--write-gitignore] [--write-scripts] [--json]
+aiqh security-scan [--cwd <dir>] [--json]
 ```
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。
@@ -137,8 +155,8 @@ npm test            # Vitest
 npm run build       # tsc → dist/
 ```
 
-`npm run verify` は上記に `npm run smoke:package`（配布 smoke test）と `npm audit --audit-level=high` を加えた
-6 つを順に実行します。
+`npm run verify` は上記に `npm run smoke:package`（配布 smoke test）、`npm run security`（内蔵スキャン）、
+`npm audit --audit-level=high` を加えた 7 つを順に実行します。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）

@@ -52,7 +52,14 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ---
 
-## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用
+## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用 — **完了（v0.2.0、2026-09-18）**
+
+### 完了時の状態
+- タグ: `v0.2.0`（M1 — adapters, init, security scan, applied to two repositories）。基準は M0 最終版 v0.1.7
+- 実装: アダプタ（Node 7 / Python 7 / 内蔵 security 1。検出＋推奨のみ、実行経路は M0 の 1 本のまま）、`aiqh init`（監査 → 提案 → `--write` / `--force` / `--write-gitignore` / `--write-scripts`）、内蔵 Security Scan（`aiqh security-scan`。masker と共有するパターン定義、R-012 の互換テスト）、JSON Schema の同梱、`npm link` による配布（ADR-0009）
+- 自己 verify: **7 チェック**（lint / typecheck / unit / build / package / security / dependency）PASS。security は NOT APPLICABLE → PASS。テスト 197 件（10 回連続 PASS）
+- 適用: Node 系（React + Vite）と Python 系（FastAPI + venv）の対象 2 リポジトリに `aiqh init --write` を実施し `aiqh verify` を実行。検出できたチェックは PASS、security は両リポジトリとも既存由来（`.gitignore` の `.env.*` 欠落、テスト内のダミーキー）で FAIL、Node 側の dependency は既存由来の脆弱性で FAIL。いずれも報告のみで対象コードは変更していない（詳細は M1 の最終報告）
+- M1 でやらなかったこと: 出力パーサの実装（型定義のみ。M2）、対象リポジトリへの lint / test ツールの導入（案内のみ）、E2E（検出のみ）
 
 ### 内容
 - アダプタ（lint / typecheck / unit / build / security / dependency / e2e）
@@ -67,27 +74,28 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - trim-manager（React + TypeScript + Vite）と ai-tutor-browser（Python + FastAPI）への適用
   - 2026-09-15 時点の読み取り調査では、両リポジトリとも lint / typecheck / test の専用スクリプトや CI が未整備。
     init は「無いものは NOT_APPLICABLE」で設定を出し、導入は別依頼として提案にとどめる
-- 設定の JSON Schema 出力（`aiqh schema` またはリポジトリ同梱）でエディタ補完・検証を可能にする
+- 設定の JSON Schema 出力（`aiqh schema` またはリポジトリ同梱）でエディタ補完・検証を可能にする → `schema/aiqh.config.schema.json` を同梱（`npm run schema:gen`）。`init` は対象から解決できる場合だけ `$schema` を書く
 
 - 独立レビュー R1 からの持ち越し（`docs/reviews/m0/response-r1.md`）:
   - ~~**R-008**（配布形態の検証）~~ → **M0 で対応済み（R2-005）**: `scripts/package-smoke.ts` を自己 verify の
     必須チェック `package` として登録（`npm pack` → 一時ディレクトリへ install → `npx --no-install aiqh verify`）。
     配布形態（git タグ参照 / Actions 内 checkout）の設計自体は M1 で行う
-  - **R-012**（masker と secret scanner の検出仕様の整合）: Security Scan アダプタと masker で検出パターンを
-    共有する設計にし、実行時生成した合成資格情報コーパスを両方に入力する互換テストを追加する。
-    push 前 hook は共通設定のため対象外
+  - ~~**R-012**~~ → **M1 で対応済み**: `src/security/patterns.ts` に定義を一本化し、masker と scanner が同じ定義を使う。
+    合成資格情報コーパスを両方に入力する互換テスト `tests/security-compat.test.ts` を追加。push 前 hook は共通設定のため対象外
 
-### 完了条件
-- [ ] 7 分類すべてにアダプタがあり、検出不可時に NOT_APPLICABLE を返す
-- [ ] `aiqh init` が本体リポジトリ自身に対して既存の `aiqh.config.jsonc` と同等の提案を出す
-- [ ] trim-manager / ai-tutor-browser でそれぞれ `aiqh verify` が実行でき、レポートが生成される（PASS/FAIL は各リポジトリの現状による）
-- [ ] 本体の自己 verify PASS
+### 完了条件（すべて達成）
+- [x] 7 分類すべてにアダプタがあり、検出不可時に NOT_APPLICABLE を返す
+- [x] `aiqh init` が本体リポジトリ自身に対して既存の `aiqh.config.jsonc` と同等の提案を出す（テストで固定。security のコマンドは本体のみ `npm run security`）
+- [x] trim-manager / ai-tutor-browser でそれぞれ `aiqh verify` が実行でき、レポートが生成される（PASS/FAIL は各リポジトリの現状による）
+- [x] 本体の自己 verify PASS（7 チェック）
 
 ---
 
 ## M2 — 独立レビューループ
 
 ### 内容
+- Security Scan の拡張（M1 からの持ち越し）: key-value 分類の走査（ソースコード中の誤検出を抑える方式の設計が必要）と、`security.allow`（例外指定: パス / 行 / 分類）の設定項目。互換テストは維持
+- 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
 - `aiqh review-packet`: 依頼文（ファイルまたは標準入力）、変更ファイル一覧、`git diff`（サイズ上限あり）、ADR / docs の要約、最新 verify 結果、既知の懸念から Markdown パケットを生成。実装AI の「正しい」という結論は含めない
 - `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ
 - 再修正 → 再 verify → 再パケットのループ手順を docs に明文化

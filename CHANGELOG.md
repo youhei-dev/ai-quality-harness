@@ -5,6 +5,15 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.2.0 — M1（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.0` / `git rev-parse v0.2.0` で確認。最終報告に記載）
+
+- チェックアダプタ（Node 7 / Python 7 / 内蔵 security 1）: 検出＋推奨のみ、実行経路は M0 の 1 本のまま（ADR-0011）
+- `aiqh init`: 読み取り監査 → 監査表と `aiqh.config.jsonc` 案 → `--write`（既存は `--force` なしで拒否）/ `--write-gitignore` / `--write-scripts`。`aiqh` の PATH 解決元と version を表示、`$schema` は解決できる場合のみ
+- `aiqh security-scan`（内蔵、ADR-0010）: git 管理下ファイルの秘密情報パターン・追跡 `.env` 系・`.gitignore` 欠落。値は出力しない。masker とパターン定義を共有し互換テストを追加（R-012 解消）
+- 自己 verify が 7 チェック（security PASS）に。JSON Schema を同梱。配布は `npm link`（ADR-0009）
+- 対象 2 リポジトリ（Node 系 / Python 系）へ `aiqh init --write` と `aiqh verify` を適用（結果は最終報告）
+- テスト 197 件、10 回連続 PASS。`package.json` version 0.2.0
+
 ## v0.1.7 — M0 maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.1.7` / `git rev-parse v0.1.7` で確認。最終報告と `docs/reports/M0_COMPLETION.md` §7 に記載）
 
 - 最終独立レビュー（R7-001、Medium）を反映: `OutputBuffer` の UTF-8 境界揃えを、先頭チャンク 1 回の確認ではなく「先頭バイトが継続バイトである間、1 バイトずつ最大 3 回、チャンクをまたいで捨てる」に戻し、さらに切り詰め済み（`truncated`）の間は毎回揃える。R6-001 の共通ヘルパー化で入った退行と、その作業中に見つけた第 2 経路の修正。回帰テスト 5 件（固定チャンク境界 4 件、固定シード 500 回の網羅 1 件）

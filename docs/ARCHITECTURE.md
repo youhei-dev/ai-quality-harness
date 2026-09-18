@@ -63,10 +63,13 @@ youhei-dev/ai-quality-harness（本体・本リポジトリ）
   └─ artifacts/verification/        … verify の出力（git 管理外）
 ```
 
-CLI の呼び出し方は次の 2 系統を想定する。
+CLI の呼び出し方は次の 2 系統。
 
-- 本体リポジトリ内: `npm run verify`（Node 24 のネイティブ TypeScript 実行で `src/cli.ts` を直接起動）
-- 対象リポジトリ: `npx aiqh verify`（devDependency として `github:youhei-dev/ai-quality-harness#v0.x.y` を導入、または Actions 内で checkout して実行。M1 で確定）
+- 本体リポジトリ内: `npm run verify`（Node 24 のネイティブ TypeScript 実行で `src/cli.ts` を直接起動）、`npm run verify:dist`
+- 対象リポジトリ: **`npm link` で PATH に置いた `aiqh`**（M1 の方針、ADR-0009）。本体で `npm run build && npm link` →
+  対象で `aiqh init` / `aiqh verify`。対象の `package.json` に依存は追加しない（`security` チェックのコマンド `aiqh security-scan`
+  は PATH の `aiqh` に依存し、`init` の監査レポートが解決元（リンク先と version）を表示する）。git 依存（`allow-git=none`）や
+  公開配布（`min-release-age=7`）は M3 で Public 化と一緒に判断
 
 npm レジストリへの公開は行わない（`private: true`）。
 
@@ -77,7 +80,8 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1 | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject 等） | `aiqh.config.jsonc`（提案）、ワークフロー参照ファイル | 0=生成, 2=エラー |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。`--write` で config のみ書込、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 書込失敗 |
+| `aiqh security-scan` | M1（実装済み） | git 管理下のファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー |
 | `aiqh review-packet` | M2 | 依頼文、`git diff`、設計判断（ADR / docs）、最新 verify 結果、既知の懸念 | `artifacts/ai-review/review-packet-<id>.md` | 0 / 2 |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
@@ -93,7 +97,8 @@ src/
   cli.ts                  … エントリ（bin: aiqh）。サブコマンド登録と終了コード設定        [M0]
   commands/
     verify.ts             … verify のオーケストレーション                                 [M0]
-    init.ts               … 監査 → 設定提案 → 配置                                        [M1]
+    init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
+    security-scan.ts      … 内蔵 Security Scan の CLI                                      [M1 実装済み]
     review-packet.ts      … レビューパケット生成                                           [M2]
     review-import.ts      … 指摘の構造化保存                                               [M2]
     history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
@@ -112,8 +117,14 @@ src/
     mask.ts               … 秘密情報らしき文字列のパターンマスク                            [M0]
   git/
     info.ts               … commit / branch / dirty の取得（非 git でも動作）               [M0]
-  adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1]
-    lint.ts / typecheck.ts / unit.ts / build.ts / security.ts / dependency.ts / e2e.ts
+  adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1 実装済み]
+    types.ts              … Adapter / Detection / Suggestion / RepoContext / OutputParser（型のみ）
+    context.ts            … 読み取り専用の RepoContext（.env* は読まない）
+    node.ts / python.ts / builtin.ts / index.ts … Node 7 / Python 7 / 内蔵 security 1、分類ごとの解決
+  config/generate.ts      … 解決結果 → コメント付き JSONC                                   [M1]
+  config/json-schema.ts   … zod → JSON Schema（schema/ に同梱）                              [M1]
+  security/patterns.ts    … 秘密情報パターンの単一定義（masker / scanner で共有、R-012）      [M1]
+  security/scan.ts        … 内蔵 Security Scan（値を持たない結果型）                          [M1]
   review/                 … パケット生成、指摘パーサ、対応状況モデル                          [M2]
   history/                … 履歴 DB（SQLite または JSONL）、集計、静的ダッシュボード          [M4]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
@@ -164,6 +175,28 @@ artifacts/verification/history/<YYYYMMDDTHHmmssZ>.json
    ▼
 終了コード 0（PASSED）/ 1（FAILED）
 ```
+
+### 6.1b `aiqh init` と `aiqh security-scan`（M1）
+
+```
+aiqh init
+  RepoContext（読み取りのみ: package.json / lockfile / tsconfig / venv の bin / pyproject / requirements / .git。.env* は存在確認のみ）
+   ▼
+  全アダプタの detect() → 分類ごとに「採用（最初の available）/ 代替 / unavailable（理由・有効化案内）」
+   ▼
+  監査表 + aiqh.config.jsonc 案（コメント付き JSONC）+ 追加提案（.gitignore の artifacts/、scripts.verify）
+   ▼ --write（既存があれば exit 2、--force で上書き）/ --write-gitignore / --write-scripts
+  書込（config は 1 ファイル。scripts は未定義キーのみ追加）
+
+aiqh security-scan
+  git ls-files -z → 各ファイル（バイナリ / 1MiB 超はスキップ）→ 正規マーカー [REDACTED:<category>] を除去 → scan: true の分類で行走査
+   ▼
+  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、gitignore（.env / .env.* の欠落）
+   ▼
+  exit 0（検出なし）/ 1（検出あり）/ 2（非 git）。未走査分類（bearer / basic / key-value）と理由を必ず表示
+```
+
+アダプタは検出と推奨だけを行い、コマンドの実行・判定・書込はしない（ADR-0011）。verify の実行経路は M0 のまま。
 
 ### 6.2 レビューループ（M2）
 
