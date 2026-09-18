@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { CLI_SIGNALS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
+import { runInit } from "./commands/init.ts";
 import { runSecurityScan } from "./commands/security-scan.ts";
 import { runVerify } from "./commands/verify.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
@@ -107,6 +108,21 @@ program
       process.exitCode = await runVerify(args);
     },
   );
+
+program
+  .command("init")
+  .description("Audit a repository (read-only), propose aiqh.config.jsonc, and write it only with --write")
+  .option("--cwd <dir>", "repository directory (default: current directory)")
+  .option("--write", "write aiqh.config.jsonc (refuses to overwrite without --force)", false)
+  .option("--force", "overwrite an existing aiqh.config.jsonc", false)
+  .option("--write-gitignore", 'append "artifacts/" to .gitignore', false)
+  .option("--write-scripts", "add missing scripts (verify) to package.json", false)
+  .option("--json", "print the audit and proposal as JSON", false)
+  .action(async (opts: { cwd?: string; write: boolean; force: boolean; writeGitignore: boolean; writeScripts: boolean; json: boolean }) => {
+    const args: Parameters<typeof runInit>[0] = { write: opts.write, force: opts.force, writeGitignore: opts.writeGitignore, writeScripts: opts.writeScripts, json: opts.json, toolVersion: VERSION };
+    if (opts.cwd !== undefined) args.cwd = opts.cwd;
+    process.exitCode = await runInit(args);
+  });
 
 program
   .command("security-scan")
