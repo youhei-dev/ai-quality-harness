@@ -5,7 +5,26 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.2.0 — M1（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.0` / `git rev-parse v0.2.0` で確認。最終報告に記載）
+## v0.2.1 — M1 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.1` / `git rev-parse v0.2.1` で確認。最終報告に記載）
+
+- 独立レビュー R1（`docs/reviews/m1/independent-review-r1.md`、High 3 / Medium 6 / Low 1）の 10 件をすべて反映（`docs/reviews/m1/response-r1.md`）
+- M1-R1-001: v0.2.0 が自己 verify（security）で FAIL する状態でタグ付けされていた。`patterns.ts` の説明コメント修正、docs の訂正、
+  リリース手順の順序（commit → 各 commit の worktree 検証 → clean 確認 → push → タグ）を CLAUDE.md に固定。scanner は未追跡（非 ignore）ファイルも走査
+- M1-R1-002 / 004: scanner を逐次読み（サイズ上限なし）にし、private-key を BEGIN → END の状態機械で検出（開始行–終了行、END 無しも検出）
+- M1-R1-003: `init` が package.json のスクリプト本文を出力・複製しない。出力は全て mask
+- M1-R1-005: `.gitignore` 判定を `git check-ignore --no-index` に委ね、否定ルールを考慮
+- M1-R1-006: `init --write` は生成物を実行時パーサで検証してから書く（required 0 件を拒否）
+- M1-R1-007: Node アダプタはローカル証拠（依存 / `node_modules/.bin`）を必須にし、直接実行は `npx --no-install`
+- M1-R1-008: JSON Schema は構造検証用と明記し、`command` に `pattern` を追加。既知の差をテストで固定
+- M1-R1-009: `venvBin` の実行権限確認、Python Playwright は pytest 必須
+- M1-R1-010: `--write-gitignore` / `--write-scripts` の失敗を init 固有の exit 2 に
+- テスト 231 件（回帰 34 件を追加）、10 回連続 PASS。自己 verify 7 チェック PASS（security PASS、未追跡込みで 0 件）。`package.json` version 0.2.1
+
+## v0.2.0 — commit 680869d / tag object 2e2685f — M1 — **superseded / known-bad: self verify security FAIL**
+
+- **既知の不具合**: 自己 verify の必須チェック `security` が FAIL する状態でタグ付けされた（`src/security/patterns.ts` の説明コメントが
+  url-credential パターンに一致。タグ付与前の自己 verify は当該ファイルが未追跡で走査外だったため PASS していた）。**v0.2.1 以降を使う**。
+  タグは削除・付け替えしない（監査性のため）
 
 - チェックアダプタ（Node 7 / Python 7 / 内蔵 security 1）: 検出＋推奨のみ、実行経路は M0 の 1 本のまま（ADR-0011）
 - `aiqh init`: 読み取り監査 → 監査表と `aiqh.config.jsonc` 案 → `--write`（既存は `--force` なしで拒否）/ `--write-gitignore` / `--write-scripts`。`aiqh` の PATH 解決元と version を表示、`$schema` は解決できる場合のみ
