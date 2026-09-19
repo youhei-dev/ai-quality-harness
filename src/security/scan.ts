@@ -115,13 +115,22 @@ function listFiles(root: string, extra: string[]): string[] {
   return out.split("\0").filter((f) => f.length > 0);
 }
 
+/**
+ * Only ENOENT means "in the index but deleted from the work tree" (nothing to scan). Every other
+ * lstat failure (EACCES, EPERM, ELOOP, …) hides a file from the scan and is an error (M1-R2-002).
+ */
+export function classifyStatError(err: unknown): "skip" | "error" {
+  return (err as NodeJS.ErrnoException | null)?.code === "ENOENT" ? "skip" : "error";
+}
+
 function scanFile(absRoot: string, rel: string, lineScanners: LineScanner[], blockScanners: BlockScanner[], result: ScanResult): void {
   const abs = path.join(absRoot, rel);
   let stat;
   try {
     stat = lstatSync(abs);
-  } catch {
-    return; // in the index but deleted from the work tree: nothing to read
+  } catch (err) {
+    if (classifyStatError(err) === "skip") return;
+    throw new ScanError(`cannot stat ${rel}: ${(err as Error).message}`);
   }
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
   const open: Array<{ scanner: BlockScanner; beginLine: number }> = [];
