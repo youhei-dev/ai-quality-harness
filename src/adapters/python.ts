@@ -73,10 +73,12 @@ export const pythonPlaywright: Adapter = {
     if (python === null) return noVenv("e2e", this.id);
     const notes = ["browsers are not installed by aiqh: run `<venv>/bin/python -m playwright install` yourself", "the application server must be started by the test setup; external APIs need test keys or mocks"];
     const found = ctx.python.venvBin("playwright");
-    if (found !== null && ctx.exists("tests/e2e")) {
-      return { kind: "e2e", adapter: this.id, status: "available", reason: `${found} found; tests/e2e present`, suggestion: { ...suggestion("e2e", "e2e", `${python} -m pytest -q tests/e2e`, 1200, "Playwright end-to-end tests via pytest"), required: false }, notes };
+    const pytest = ctx.python.venvBin("pytest"); // the suggested command runs pytest (M1-R1-009)
+    if (found !== null && pytest !== null && ctx.exists("tests/e2e")) {
+      return { kind: "e2e", adapter: this.id, status: "available", reason: `${found} and ${pytest} found; tests/e2e present`, suggestion: { ...suggestion("e2e", "e2e", `${python} -m pytest -q tests/e2e`, 1200, "Playwright end-to-end tests via pytest"), required: false }, notes };
     }
-    return { kind: "e2e", adapter: this.id, status: "unavailable", reason: found !== null ? "playwright installed but no tests/e2e directory" : `playwright not installed in ${ctx.python.venvDir}`, enableHint: `${python} -m pip install playwright pytest-playwright and add tests/e2e — aiqh does not install it`, notes };
+    const missing = [found === null ? `playwright not installed in ${ctx.python.venvDir}` : null, pytest === null ? `pytest not installed in ${ctx.python.venvDir}` : null, !ctx.exists("tests/e2e") ? "no tests/e2e directory" : null].filter((m): m is string => m !== null);
+    return { kind: "e2e", adapter: this.id, status: "unavailable", reason: missing.join("; "), enableHint: `${python} -m pip install pytest playwright pytest-playwright and add tests/e2e — aiqh does not install it`, notes };
   },
 };
 

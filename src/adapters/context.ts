@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { accessSync, constants, lstatSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { NodeContext, PackageJsonLike, PythonContext, RepoContext } from "./types.ts";
 
@@ -96,7 +96,7 @@ function buildPython(absRoot: string, exists: RepoContext["exists"], readText: R
     venvBin: (name: string) => {
       if (venvDir === null) return null;
       const rel = path.join(venvDir, "bin", name);
-      return existsSync(path.join(absRoot, rel)) ? rel : null;
+      return isExecutable(path.join(absRoot, rel)) ? rel : null;
     },
     pyproject,
     requirementsFiles,
