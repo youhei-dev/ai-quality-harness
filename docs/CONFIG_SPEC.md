@@ -172,6 +172,11 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
   状態機械で検出し、`file:開始行-終了行` で表示。END 行が無い（途中で切れた）PEM も検出する
 - `.gitignore` の判定は `git check-ignore --no-index` の結果で、リポジトリ内の `.gitignore` の非否定ルールが `.env` / `.env.local` /
   `.env.production` / `.env.development` を ignore する場合だけ保護ありとする（否定で再包含されたものは報告。`!.env.example` は許容）
+- 未追跡で ignore されていない `.env*`（`config/.env.staging` のようなネストも含む）は、中身を読まずに `untracked-env` の finding にする
+  （M1-R2-001）。example / sample / template / dist は情報のみ
+- 1 行が 256 KiB を超える場合は窓走査に切り替わる（M1-R2-004）: 区間ごとに同じ行番号で照合し、末尾 4 KiB を重ねて次の区間へ接続する。
+  検出は維持されるが、**重なり（4 KiB）より長い単一トークンは検出できないことがある**。メモリはファイルサイズに比例しない
+- `lstat` / open / read の失敗は exit 2（fail closed）。例外は ENOENT（index にあるが作業ツリーに無い）だけで、これはスキップ
 - 値は出力しない（分類・パス・行番号のみ）
 
 ### 5.3c `aiqh init` の書込フラグと部分更新（M1-R1-010）
@@ -181,6 +186,11 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 複数フラグを同時に指定して一部だけ失敗した場合は、`git status` / `git diff` で書き込まれたものを確認して対処する。
 `--write` は生成した JSONC を `aiqh verify` と同じパーサ / リゾルバに通し、通らない場合（required 0 件、重複名、空コマンド等）は
 何も書かずに exit 2 になる（M1-R1-006）。
+
+`.gitignore` の `artifacts/` 提案は Security Scan と同じ `git check-ignore --no-index` の判定で決める（M1-R2-005）: 代表パス
+`artifacts/.aiqh-ignore-probe` がリポジトリ内 `.gitignore` の非否定ルールで ignore されていれば「already ignores」、そうでなければ
+追加を提案する（`artifacts/` + `!artifacts/` のような否定は追加提案になる）。git リポジトリでない場合や git が失敗した場合は
+確認できないため常に追加を提案し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）。
 
 ---
 

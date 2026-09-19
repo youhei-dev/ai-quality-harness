@@ -1,8 +1,9 @@
 # M1 報告 — チェックアダプタ、`aiqh init`、Security Scan、2 リポジトリへの適用
 
-- 日付: 2026-09-18（v0.2.0）、2026-09-19 訂正（v0.2.1、独立レビュー R1 反映）
+- 日付: 2026-09-18（v0.2.0）、2026-09-19 訂正（v0.2.1、独立レビュー R1 反映）、2026-09-19 追記（v0.2.2、独立レビュー R2 反映）
 - 基準: M0 最終版 v0.1.7（commit b49dddb）。M1 のタグは `v0.2.0`（commit 680869d / tag object 2e2685f）→ **superseded**。
-  M1 の完了ベースラインは **`v0.2.1`**（commit SHA はタグ付与後に `git rev-list -n1 v0.2.1` で確認し CHANGELOG / 最終報告に記載）
+  v0.2.1（commit 630f2e3 / tag object df8f41c）に R1 を反映。M1 の完了ベースラインは **`v0.2.2`**（R2 反映。commit SHA はタグ付与後に
+  `git rev-list -n1 v0.2.2` で確認し CHANGELOG / 最終報告に記載）。人間の判断: R3 で High が無ければ M1 完了、Medium 以下は M2 のリストへ
 - **訂正（M1-R1-001）**: v0.2.0 は自己 verify の必須チェック `security` が FAIL する状態でタグ付けされていた。本書の初版にあった
   「自己 verify PASSED（7 チェック）」「Security は NOT APPLICABLE → PASS」は、タグ付与前の作業ツリー（新規ファイル未追跡）での実測であり、
   commit 済み HEAD では成り立っていなかった。§2 と §5 を実測に合わせて訂正した
@@ -63,3 +64,19 @@
 
 教訓: 新規ファイルを含む変更の自己 verify は、追跡状態に依存しない形（commit 後の HEAD、または未追跡込みの走査）で行う。
 レビュー原文の例示（PEM の BEGIN 行等）は自己スキャンに一致するため、docs へのコピー時は分割表記に変えて注記する（`security.allow` は M2）。
+
+## 6. R2 で見つかった問題と対策（v0.2.2）
+
+独立レビュー R2（`docs/reviews/m1/independent-review-r2.md`）は High 1 / Medium 4 の 5 件で、すべて VALID と判定して修正した
+（判定と根拠は `docs/reviews/m1/response-r2.md`）。R1-005 / R1-009 のレビュアー再判定（PARTIAL）はそれぞれ 001 / 003 で解消。
+
+| 問題 | 対策 |
+|---|---|
+| 未追跡・未 ignore の `.env.staging` 等を読まずにスキップし、代表 4 パスのプローブしか見ないため finding 0 件で PASS し得る（001、High） | 未追跡 `.env*` は中身を読まずに `untracked-env` finding（example 系は情報のみ）。プローブは予防的確認として維持 |
+| `lstat` の例外を種別を問わず握りつぶす（002） | ENOENT だけスキップ、他は ScanError → exit 2。`classifyStatError()` を単体テスト |
+| venv の `python` 本体の実行権限を確認していない（003、R1-009 の残り） | venv 検出を「python が実行可能」基準にし `PythonContext.python` を全アダプタで使用 |
+| 改行のない巨大ファイルでメモリがファイルサイズに比例（004、R1-004 の派生） | `LineAssembler` の窓走査（上限 256 KiB、重なり 4 KiB、重複 finding は 1 件）。上限超過を ERROR にはしない |
+| `init` の `artifacts/` 提案が行一致で否定を見ない（005） | `git check-ignore` の判定を Security Scan と共用。非 git は追加提案、書込は冪等 |
+
+教訓: 「読まない」と決めたものは「存在しない」ではない。Git が確定した事実（未 ignore）はそのまま finding にする。走査の例外処理は
+経路ごとに揃える（lstat と read）。逐次読みは「行を必ず保持する」設計にせず、上限と重なりで有界にする。

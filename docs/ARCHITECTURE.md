@@ -189,17 +189,27 @@ aiqh init
   書込（config は 1 ファイル。scripts は未定義キーのみ追加）
 
 aiqh security-scan
-  git ls-files -z（追跡）+ git ls-files -z --others --exclude-standard（未追跡・非 ignore。.env* は読まない）
+  git ls-files -z（追跡）+ git ls-files -z --others --exclude-standard（未追跡・非 ignore）
+   ▼
+  未追跡の .env* は読まずに finding（untracked-env。Git が「ignore されていない」と確定済み。example 系は情報のみ）
+  lstat: ENOENT（作業ツリーから削除済み）だけスキップ、他の失敗（EACCES / EPERM / ELOOP …）は ScanError → exit 2
    ▼
   各ファイルを 64 KiB チャンクで逐次読み（サイズ上限なし。先頭 8 KiB に NUL があればバイナリとしてスキップ、読取エラーは exit 2）
    ▼
-  各行: 正規マーカー [REDACTED:<category>] を除去 → 行指向の分類は行単位で照合
+  LineAssembler: 改行で行を切り出す。1 行が MAX_LINE_BYTES（256 KiB）を超えたら窓走査（下記）
+  各行: 正規マーカー [REDACTED:<category>] を除去 → 行指向の分類は行単位で照合（同一ファイル・行・分類の重複は 1 件）
         private-key は BEGIN 行 → END 行の状態機械（開始行と終了行を記録。END が無ければファイル末尾までを検出 = fail closed）
    ▼
-  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、gitignore（下記）
+  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、untracked-env、gitignore（下記）
    ▼
-  exit 0（検出なし）/ 1（検出あり）/ 2（非 git / 読取エラー）。未走査分類（bearer / basic / key-value）と理由を必ず表示
+  exit 0（検出なし）/ 1（検出あり）/ 2（非 git / stat・読取エラー）。未走査分類（bearer / basic / key-value）と理由を必ず表示
 ```
+
+**窓走査（M1-R2-004）**: 改行のないまま溜めた文字列が `MAX_LINE_BYTES` を超えたら、その区間を同じ行番号で行指向パターンに掛け、
+末尾 `LINE_OVERLAP`（4 KiB）だけを残して次の区間に接続する。境界をまたぐ一致は重なり部分で次の区間に再度掛かるため検出され、
+重複は 1 件にまとめる。行番号は改行の数だけ進む。上限は **JS 文字列長（UTF-16 コード単位）で測る**ため、保持する文字列の実メモリは
+おおむね 2 ×（256 KiB + 4 KiB）バイトが上限で、ファイルサイズに比例しない。重なりより長い単一トークンは検出できないことがある（CONFIG_SPEC §5.3b）。
+PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
 
 `.gitignore` の判定（M1-R1-005）は自前の文字列一致ではなく Git 自身に委ねる: 代表パス `.env` / `.env.local` /
 `.env.production` / `.env.development` を `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、
@@ -210,6 +220,15 @@ example 系の否定は代表パスに含まれないため許容される。
 
 走査対象を「追跡 + 未追跡（非 ignore）」にするのは多層防御（M1-R1-001）: 新規ファイルを commit する前の自己 verify でも
 そのファイルが走査される。ただしリリース判定の根拠は commit 済み HEAD での verify（CLAUDE.md のリリース手順）。
+未追跡の `.env*` は代表パスのプローブに頼らず、存在そのものを finding にする（M1-R2-001。`git ls-files --others --exclude-standard`
+に出た時点で ignore されていないことは Git 自身が確定している）。代表 4 パスのプローブは予防的なカバレッジ確認として残す。
+
+`aiqh init` の `artifacts/` 提案も同じ判定関数（`gitIgnoredByRepoRules`）を共用し、代表パス `artifacts/.aiqh-ignore-probe` が
+リポジトリ内 `.gitignore` の非否定ルールで ignore されるかで決める（M1-R2-005）。git リポジトリでない場合や git が失敗した場合は
+安全側に「追加を提案」し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）。
+
+Python アダプタは venv を「`<venv>/bin/python` が実行可能」なときだけ認識し（`PythonContext.python`、M1-R2-003）、
+すべての推奨コマンドはその interpreter から始まる。ツールのバイナリも実行権限（X_OK）で確認する（M1-R1-009）。
 
 アダプタは検出と推奨だけを行い、コマンドの実行・判定・書込はしない（ADR-0011）。Node アダプタはローカルの証拠
 （dependencies / devDependencies、または `node_modules/.bin/<tool>`）がある場合だけ available とし、直接実行は

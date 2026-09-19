@@ -37,3 +37,11 @@ M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実�
   `aiqh init: failed to update <file>: …` と exit 2 を返す。書込は独立で、部分更新が起き得ることを CONFIG_SPEC §5.3c に明記
 - **Python の前提確認**（M1-R1-009）: `venvBin()` は POSIX で `accessSync(X_OK)` により実行権限を確認する。Playwright アダプタは推奨コマンドが
   pytest を実行するため、`pytest` の存在も必須にする
+
+## 改訂（v0.2.2、M1 独立レビュー R2）
+- **venv の interpreter 自体も実行可能であること**（M1-R2-003、R1-009 の残り）: venv の検出を「`<venv>/bin/python` が実行可能」基準にし、
+  `PythonContext.python`（実行可能な interpreter の相対パス）を全 Python アダプタが使う。python が非実行なら venv なしとして扱い、どのアダプタも
+  available にならない
+- **`artifacts/` 提案の判定を Git に委ねる**（M1-R2-005）: 行一致では `artifacts/` + `!artifacts/` の否定を見ない。Security Scan の
+  `gitIgnoredByRepoRules()` を共用し、代表パス `artifacts/.aiqh-ignore-probe` が ignore されるかで決める。git リポジトリでない・git が失敗した場合は
+  安全側に「追加を提案」し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）

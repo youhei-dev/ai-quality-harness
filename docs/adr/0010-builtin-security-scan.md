@@ -41,3 +41,15 @@ M0 の 7 分類のうち security は NOT APPLICABLE のままだった。外部
   `.env.example` 等の否定（`!.env.example`）は代表パスに含まれず許容される。`check-ignore` が exit 128 なら ScanError（exit 2）
 - docs や ADR に PEM の BEGIN 行や 「スキーム://ユーザー:パスワード@ホスト」 の形を文字どおり書くと自己スキャンに一致するため、例示は分割表記
   （`"-----BEGIN RSA " + "PRIVATE KEY-----"`）や `<scheme>://<user>:<password>@<host>` の言い換えにする（テストの連結方式と同じ扱い）
+
+## 改訂（v0.2.2、M1 独立レビュー R2）
+- **未追跡の `.env*` は存在そのものを finding にする**（M1-R2-001）: 代表 4 パスのプローブだけでは `.env.staging` 等の実在ファイルを見逃す fail open だった。
+  `git ls-files --others --exclude-standard` に出た時点で ignore されていないことは Git 自身が確定しているので、中身を読まずに `untracked-env`
+  （パスのみ）を報告する。example 系は情報のみ。代表プローブは予防的なカバレッジ確認として残す
+- **lstat の失敗は ENOENT だけスキップ**（M1-R2-002）: それ以外（EACCES / EPERM / ELOOP …）はファイルを走査から隠すので ScanError（exit 2）。
+  判定は `classifyStatError()` に切り出して単体テストする
+- **窓走査**（M1-R2-004）: 改行のない巨大ファイルで保持量がファイルサイズに比例していた。`LineAssembler` が 1 行の保持を `MAX_LINE_BYTES`（256 KiB）に
+  抑え、超過時は同じ行番号の区間として行指向パターンに掛け、末尾 `LINE_OVERLAP`（4 KiB。行指向パターンの最長一致を十分に収める）を残して接続する。
+  重複 finding は 1 件に統合。上限は JS 文字列長（UTF-16 コード単位）で測るため、実メモリはおおむね 2 ×（上限 + 重なり）バイト。
+  上限超過を ERROR にする案は採らない（同梱の minified バンドル等で門が閉じるのを避ける）。重なりより長い単一トークンは検出できないことがある
+- `gitIgnoredByRepoRules()` を export し、`aiqh init` の `artifacts/` 提案と判定を共用する（M1-R2-005、ADR-0011）
