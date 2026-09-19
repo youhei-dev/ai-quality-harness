@@ -81,7 +81,9 @@ function isExecutable(abs: string): boolean {
 }
 
 function buildPython(absRoot: string, exists: RepoContext["exists"], readText: RepoContext["readText"]): PythonContext | null {
-  const venvDir = [".venv", "venv"].find((d) => exists(path.join(d, "bin", "python"))) ?? null;
+  // A venv counts only when its interpreter is executable: every suggested command runs it (M1-R2-003).
+  const venvDir = [".venv", "venv"].find((d) => isExecutable(path.join(absRoot, d, "bin", "python"))) ?? null;
+  const venvPresentButUnusable = venvDir === null && [".venv", "venv"].some((d) => exists(path.join(d, "bin", "python")));
   const pyproject = readText("pyproject.toml");
   const requirementsFiles = (() => {
     try {
@@ -90,9 +92,10 @@ function buildPython(absRoot: string, exists: RepoContext["exists"], readText: R
       return [];
     }
   })();
-  if (venvDir === null && pyproject === null && requirementsFiles.length === 0) return null;
+  if (venvDir === null && !venvPresentButUnusable && pyproject === null && requirementsFiles.length === 0) return null;
   return {
     venvDir,
+    python: venvDir === null ? null : path.join(venvDir, "bin", "python"),
     venvBin: (name: string) => {
       if (venvDir === null) return null;
       const rel = path.join(venvDir, "bin", name);

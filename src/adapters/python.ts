@@ -5,11 +5,12 @@
  */
 import type { Adapter, Detection, RepoContext, Suggestion } from "./types.ts";
 
+/** The executable venv interpreter (M1-R2-003); null when there is no usable venv. */
 function py(ctx: RepoContext): string | null {
-  return ctx.python?.venvDir ? `${ctx.python.venvDir}/bin/python` : null;
+  return ctx.python?.python ?? null;
 }
 function noVenv(kind: Detection["kind"], id: string): Detection {
-  return { kind, adapter: id, status: "unavailable", reason: "no virtual environment (.venv or venv with bin/python)", enableHint: "create one: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" };
+  return { kind, adapter: id, status: "unavailable", reason: "no virtual environment with an executable bin/python (.venv or venv)", enableHint: "create one: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" };
 }
 function suggestion(kind: Suggestion["kind"], name: string, command: string, timeoutSec: number, description: string): Suggestion {
   return { name, kind, command, timeoutSec, description };

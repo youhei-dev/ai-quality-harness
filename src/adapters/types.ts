@@ -27,8 +27,10 @@ export interface NodeContext {
 }
 
 export interface PythonContext {
-  /** Relative venv directory (".venv" or "venv") or null when none was found. */
+  /** Relative venv directory (".venv" or "venv") whose bin/python is executable, or null (M1-R2-003). */
   venvDir: string | null;
+  /** Relative path of the executable venv interpreter ("<venv>/bin/python"), or null. Every suggested command starts with it. */
+  python: string | null;
   /** Relative path of an executable (X_OK on POSIX, M1-R1-009) in the venv's bin, or null. */
   venvBin(name: string): string | null;
   pyproject: string | null;
