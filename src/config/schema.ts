@@ -12,9 +12,8 @@ const checkSchema = z.strictObject({
     .string()
     .regex(CHECK_NAME_PATTERN, "name must match ^[a-z0-9][a-z0-9-]*$"),
   kind: z.enum(CHECK_KINDS),
-  command: z
-    .string()
-    .refine((s) => s.trim().length > 0, "command must not be blank"),
+  // A regex (not a refine) so the constraint also lands in the generated JSON Schema (M1-R1-008).
+  command: z.string().regex(/\S/, "command must not be blank"),
   cwd: z.string().optional(),
   required: z.boolean().optional(),
   timeoutSec: z.number().int().positive().optional(),

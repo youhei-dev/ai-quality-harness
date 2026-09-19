@@ -1,6 +1,7 @@
 {
   "$id": "https://github.com/youhei-dev/ai-quality-harness/schema/aiqh.config.schema.json",
   "title": "aiqh.config.jsonc",
+  "description": "Structural schema for aiqh.config.jsonc (editor completion and validation). The final validation is done by aiqh at run time: check names must be unique, at least one check must be required (defaults.required applies), and commands must not be blank.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
@@ -81,7 +82,8 @@
             ]
           },
           "command": {
-            "type": "string"
+            "type": "string",
+            "pattern": "\\S"
           },
           "cwd": {
             "type": "string"
