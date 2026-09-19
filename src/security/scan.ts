@@ -2,11 +2,11 @@
  * Built-in security scan (M1, ADR-0010; M1-R1 revisions). Scans the files git tracks plus the
  * untracked files git would not ignore, line by line (any size), for secret-shaped strings using the
  * shared pattern definitions (R-012); multi-line PEM private keys are found by a begin/end state
- * machine. Reports tracked .env files and missing .gitignore coverage.
+ * machine. Reports tracked .env files and missing .gitignore coverage (decided by git itself).
  * Findings carry category, path and line numbers only — never the matched value.
  */
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, lstatSync, openSync, readFileSync, readSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, openSync, readSync } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { SCANNED_CATEGORIES, SECRET_PATTERNS, UNSCANNED_CATEGORIES, stripCanonicalMarkers } from "./patterns.ts";
@@ -48,6 +48,9 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE_SUFFIXES = ["example", "sample", "template", "dist"];
+/** Representative .env paths whose ignore status is asked from git (M1-R1-005). */
+const GITIGNORE_PROBE_ENV = ".env";
+const GITIGNORE_PROBE_VARIANTS = [".env.local", ".env.production", ".env.development"];
 
 interface LineScanner {
   category: string;
@@ -205,19 +208,41 @@ function classifyEnvFile(rel: string, result: ScanResult): void {
   result.findings.push({ kind: "tracked-env", file: rel, message: "environment file is tracked by git" });
 }
 
+/**
+ * .gitignore coverage is decided by git itself (M1-R1-005): `git check-ignore --no-index -v -n` for
+ * representative paths. A path counts as protected only when the matching rule comes from a
+ * .gitignore file of the repository and is not a negation; matches from the user's global excludes
+ * file (disabled here) or from .git/info/exclude are clone-specific and do not count.
+ */
 function checkGitignore(root: string, result: ScanResult): void {
-  const file = path.join(root, ".gitignore");
-  if (!existsSync(file)) {
+  if (!existsSync(path.join(root, ".gitignore"))) {
     result.findings.push({ kind: "gitignore", file: ".gitignore", message: "no .gitignore: .env and .env.* are not ignored" });
     return;
   }
-  const lines = readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith("!"))
-    .map((l) => l.replace(/^\//, ""));
-  const coversEnv = lines.some((l) => l === ".env" || l === ".env*" || l === "*.env");
-  const coversEnvVariants = lines.some((l) => l === ".env.*" || l === ".env*");
-  if (!coversEnv) result.findings.push({ kind: "gitignore", file: ".gitignore", message: ".gitignore does not ignore .env" });
-  if (!coversEnvVariants) result.findings.push({ kind: "gitignore", file: ".gitignore", message: ".gitignore does not ignore .env.* (e.g. .env.local, .env.production)" });
+  const probes = [GITIGNORE_PROBE_ENV, ...GITIGNORE_PROBE_VARIANTS];
+  const protectedPaths = gitIgnoredByRepoRules(root, probes);
+  if (!protectedPaths.has(GITIGNORE_PROBE_ENV)) result.findings.push({ kind: "gitignore", file: ".gitignore", message: ".gitignore does not ignore .env" });
+  const unprotected = GITIGNORE_PROBE_VARIANTS.filter((p) => !protectedPaths.has(p));
+  if (unprotected.length > 0) result.findings.push({ kind: "gitignore", file: ".gitignore", message: `.gitignore does not ignore .env.* (not ignored: ${unprotected.join(", ")})` });
+}
+
+function gitIgnoredByRepoRules(root: string, paths: string[]): Set<string> {
+  const args = ["-c", "core.excludesFile=/dev/null", "check-ignore", "--no-index", "-v", "-n", "--stdin", "-z"];
+  let out: string;
+  try {
+    out = execFileSync("git", args, { cwd: root, encoding: "utf8", input: paths.map((p) => `${p}\0`).join(""), stdio: ["pipe", "pipe", "pipe"] });
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string; message: string };
+    if (e.status === 1 && typeof e.stdout === "string") out = e.stdout; // exit 1: no path is ignored
+    else throw new ScanError(`git check-ignore failed: ${e.message.split("\n")[0]}`);
+  }
+  const fields = out.split("\0");
+  const protectedPaths = new Set<string>();
+  for (let i = 0; i + 3 < fields.length; i += 4) {
+    const [source, , pattern, file] = [fields[i] ?? "", fields[i + 1] ?? "", fields[i + 2] ?? "", fields[i + 3] ?? ""];
+    if (source.length === 0 || pattern.startsWith("!")) continue;
+    if (path.basename(source) !== ".gitignore") continue; // .git/info/exclude etc. are clone-specific
+    protectedPaths.add(file);
+  }
+  return protectedPaths;
 }
