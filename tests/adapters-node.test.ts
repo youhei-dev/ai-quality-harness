@@ -19,7 +19,7 @@ describe("Node adapters on the Vite fixture (tsconfig references, no lint / test
   const d = detectAll("node-vite");
   it("typecheck: tsc -b for a project-references tsconfig", () => {
     expect(d["node-tsc"]?.status).toBe("available");
-    expect(d["node-tsc"]?.suggestion?.command).toBe("npx tsc -b");
+    expect(d["node-tsc"]?.suggestion?.command).toBe("npx --no-install tsc -b");
     expect(d["node-tsc"]?.suggestion?.kind).toBe("typecheck");
   });
   it("build: reuses the build script", () => {

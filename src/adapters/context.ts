@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { NodeContext, PackageJsonLike, PythonContext, RepoContext } from "./types.ts";
 
@@ -36,13 +36,13 @@ export function buildRepoContext(root: string): RepoContext {
     exists,
     readText,
     listTopLevel,
-    node: buildNode(readText, exists),
+    node: buildNode(absRoot, readText, exists),
     python: buildPython(absRoot, exists, readText),
     git: { isRepo: exists(".git") },
   };
 }
 
-function buildNode(readText: RepoContext["readText"], exists: RepoContext["exists"]): NodeContext | null {
+function buildNode(absRoot: string, readText: RepoContext["readText"], exists: RepoContext["exists"]): NodeContext | null {
   const text = readText("package.json");
   if (text === null) return null;
   let pkg: PackageJsonLike;
@@ -60,12 +60,24 @@ function buildNode(readText: RepoContext["readText"], exists: RepoContext["exist
         : exists("package-lock.json")
           ? "npm"
           : null;
+  const deps = new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})]);
   return {
     packageJson: pkg,
     scripts: pkg.scripts ?? {},
     lockfile,
-    deps: new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})]),
+    deps,
+    hasLocalTool: (packageName, bin = packageName) => deps.has(packageName) || isExecutable(path.join(absRoot, "node_modules", ".bin", bin)),
   };
+}
+
+/** True when `abs` exists and is executable (on Windows: exists). */
+function isExecutable(abs: string): boolean {
+  try {
+    accessSync(abs, process.platform === "win32" ? constants.F_OK : constants.X_OK);
+    return lstatSync(abs).isFile() || lstatSync(abs).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function buildPython(absRoot: string, exists: RepoContext["exists"], readText: RepoContext["readText"]): PythonContext | null {

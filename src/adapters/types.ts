@@ -19,6 +19,11 @@ export interface NodeContext {
   lockfile: "npm" | "pnpm" | "yarn" | "bun" | null;
   /** dependencies + devDependencies names */
   deps: Set<string>;
+  /**
+   * Local evidence that a tool can run without a network fetch (M1-R1-007): declared in
+   * dependencies / devDependencies, or present as node_modules/.bin/<bin>.
+   */
+  hasLocalTool(packageName: string, bin?: string): boolean;
 }
 
 export interface PythonContext {

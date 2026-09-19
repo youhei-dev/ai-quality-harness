@@ -32,7 +32,7 @@ describe("aiqh init (proposal only)", () => {
     expect(r.code).toBe(0);
     expect(existsSync(path.join(dir, "aiqh.config.jsonc"))).toBe(false);
     expect(r.output).toContain("typecheck");
-    expect(r.output).toContain("npx tsc -b");
+    expect(r.output).toContain("npx --no-install tsc -b");
     expect(r.output).toContain('"kind": "build"');
     // unavailable kinds are explained in comments, not configured
     expect(r.output).toMatch(/lint.*not detected|lint.*unavailable|NOT APPLICABLE/i);
@@ -61,7 +61,7 @@ describe("aiqh init --write", () => {
     const cfg = loadConfig(file);
     expect(cfg.project.type).toBe("node");
     expect(cfg.checks.map((c) => c.kind).sort()).toEqual(["build", "dependency", "typecheck"].sort());
-    expect(cfg.checks.find((c) => c.kind === "typecheck")?.command).toBe("npx tsc -b");
+    expect(cfg.checks.find((c) => c.kind === "typecheck")?.command).toBe("npx --no-install tsc -b");
     expect(readFileSync(file, "utf8")).toContain("//");
   });
 

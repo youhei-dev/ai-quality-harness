@@ -3,6 +3,7 @@
  */
 import { CATEGORY_KINDS, type CategoryKind } from "../types.ts";
 import type { Resolution, Suggestion } from "../adapters/types.ts";
+import { maskSecrets } from "../security/mask.ts";
 
 export interface GenerateOptions {
   projectName: string;
@@ -51,8 +52,9 @@ export function generateConfigJsonc(opts: GenerateOptions): string {
   checks.forEach((s, i) => {
     const kindRes = resolution.byKind[s.kind as CategoryKind];
     const chosen = kindRes?.chosen;
-    if (chosen) lines.push(`    // ${LABEL[s.kind as CategoryKind]}: ${chosen.adapter} — ${chosen.reason}`);
-    for (const note of chosen?.notes ?? []) lines.push(`    //   note: ${note}`);
+    // Adapter text is masked before it lands in a file (M1-R1-003, defence in depth).
+    if (chosen) lines.push(`    // ${LABEL[s.kind as CategoryKind]}: ${chosen.adapter} — ${maskSecrets(chosen.reason)}`);
+    for (const note of chosen?.notes ?? []) lines.push(`    //   note: ${maskSecrets(note)}`);
     const fields = [`"name": ${jsonString(s.name)}`, `"kind": ${jsonString(s.kind)}`, `"command": ${jsonString(s.command)}`, `"timeoutSec": ${s.timeoutSec}`];
     if (s.required === false) fields.push('"required": false');
     fields.push(`"description": ${jsonString(s.description)}`);
@@ -61,10 +63,10 @@ export function generateConfigJsonc(opts: GenerateOptions): string {
   for (const kind of CATEGORY_KINDS) {
     const r = resolution.byKind[kind];
     if (r.chosen) continue;
-    lines.push(`    // ${LABEL[kind]}: NOT APPLICABLE — ${r.unavailable.map((u) => u.reason).join(" / ") || "no adapter applies to this repository"}`);
+    lines.push(`    // ${LABEL[kind]}: NOT APPLICABLE — ${maskSecrets(r.unavailable.map((u) => u.reason).join(" / ") || "no adapter applies to this repository")}`);
     const hint = r.unavailable.find((u) => u.enableHint)?.enableHint;
-    if (hint) lines.push(`    //   to enable: ${hint}`);
-    for (const note of r.unavailable.flatMap((u) => u.notes ?? []).slice(0, 2)) lines.push(`    //   note: ${note}`);
+    if (hint) lines.push(`    //   to enable: ${maskSecrets(hint)}`);
+    for (const note of r.unavailable.flatMap((u) => u.notes ?? []).slice(0, 2)) lines.push(`    //   note: ${maskSecrets(note)}`);
   }
   lines.push("  ]");
   lines.push("}");

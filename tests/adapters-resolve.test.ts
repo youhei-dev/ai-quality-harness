@@ -13,7 +13,7 @@ describe("resolveDetections", () => {
   it("covers all seven categories and marks missing ones unavailable", () => {
     const r = resolveDetections(buildRepoContext(path.join(FIX, "node-vite")));
     for (const kind of CATEGORY_KINDS) expect(r.byKind[kind]).toBeDefined();
-    expect(r.byKind.typecheck.chosen?.suggestion?.command).toBe("npx tsc -b");
+    expect(r.byKind.typecheck.chosen?.suggestion?.command).toBe("npx --no-install tsc -b");
     expect(r.byKind.lint.chosen).toBeNull();
     expect(r.byKind.lint.unavailable.length).toBeGreaterThan(0);
     expect(r.byKind.e2e.chosen).toBeNull();

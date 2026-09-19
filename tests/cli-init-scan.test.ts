@@ -32,7 +32,7 @@ describe("aiqh init (CLI)", () => {
     cpSync(path.join(FIX, "node-vite"), t.dir, { recursive: true });
     const p = await cli(["init"], t.dir);
     expect(p.code).toBe(0);
-    expect(p.stdout).toContain("npx tsc -b");
+    expect(p.stdout).toContain("npx --no-install tsc -b");
     expect(existsSync(path.join(t.dir, "aiqh.config.jsonc"))).toBe(false);
     expect((await cli(["init", "--write"], t.dir)).code).toBe(0);
     expect(existsSync(path.join(t.dir, "aiqh.config.jsonc"))).toBe(true);

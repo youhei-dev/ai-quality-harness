@@ -14,6 +14,7 @@ import { resolveDetections } from "../adapters/index.ts";
 import type { Resolution } from "../adapters/types.ts";
 import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks } from "../config/generate.ts";
 import { DEFAULT_CONFIG_FILENAME } from "../config/load.ts";
+import { maskDeep, maskSecrets } from "../security/mask.ts";
 
 export interface InitOptions {
   cwd?: string;
@@ -67,8 +68,11 @@ function resolvableSchemaPath(root: string): string | undefined {
 }
 
 export async function runInit(options: InitOptions): Promise<number> {
-  const log = options.log ?? ((line: string) => console.log(line));
-  const logError = options.logError ?? ((line: string) => console.error(line));
+  const rawLog = options.log ?? ((line: string) => console.log(line));
+  const rawLogError = options.logError ?? ((line: string) => console.error(line));
+  // Every line printed and every JSON value passes through the secret masker (M1-R1-003).
+  const log = (line: string): void => rawLog(maskSecrets(line));
+  const logError = (line: string): void => rawLogError(maskSecrets(line));
   const root = path.resolve(options.cwd ?? process.cwd());
   if (!existsSync(root)) {
     logError(`aiqh init: directory not found: ${root}`);
@@ -88,9 +92,9 @@ export async function runInit(options: InitOptions): Promise<number> {
   const scriptsProposal = proposeScripts(ctx.node?.packageJson.scripts ?? null, ctx.node !== null);
 
   if (options.json) {
-    log(
+    rawLog(
       JSON.stringify(
-        {
+        maskDeep({
           root,
           projectName,
           projectType: resolution.projectType,
@@ -100,7 +104,7 @@ export async function runInit(options: InitOptions): Promise<number> {
           config: { checks },
           configText,
           proposals: { gitignore: gitignoreProposal, scripts: scriptsProposal },
-        },
+        }),
         null,
         2,
       ),
