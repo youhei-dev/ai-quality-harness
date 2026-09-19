@@ -15,7 +15,7 @@ export class ScanError extends Error {
   override readonly name = "ScanError";
 }
 
-export type FindingKind = "secret" | "tracked-env" | "gitignore";
+export type FindingKind = "secret" | "tracked-env" | "untracked-env" | "gitignore";
 
 export interface ScanFinding {
   kind: FindingKind;
@@ -38,7 +38,7 @@ export interface ScanResult {
   filesScanned: number;
   skippedBinary: number;
   findings: ScanFinding[];
-  /** Tracked .env-style files that are example / template files (informational). */
+  /** Tracked or untracked .env-style files that are example / template files (informational). */
   exampleEnvFiles: string[];
   scannedCategories: string[];
   unscannedCategories: Array<{ category: string; reason: string }>;
@@ -91,8 +91,14 @@ export function scanRepository(root: string): ScanResult {
     scanFile(absRoot, rel, lineScanners, blockScanners, result);
   }
   for (const rel of untracked) {
-    // An untracked environment file is never read; the .gitignore finding below covers it.
-    if (ENV_FILE.test(path.basename(rel))) continue;
+    // An untracked environment file is never read. Git itself has established that it is not
+    // ignored (it is listed by --others --exclude-standard), so its existence is the finding
+    // (M1-R2-001); example / sample / template / dist files stay informational.
+    if (ENV_FILE.test(path.basename(rel))) {
+      if (isExampleEnv(path.basename(rel))) result.exampleEnvFiles.push(rel);
+      else result.findings.push({ kind: "untracked-env", file: rel, message: "environment file exists but is not ignored by git" });
+      continue;
+    }
     scanFile(absRoot, rel, lineScanners, blockScanners, result);
   }
   checkGitignore(absRoot, result);
@@ -197,11 +203,17 @@ function readLines(abs: string, rel: string, onLine: (line: string) => void): bo
   }
 }
 
+/** ".env.example" / ".env.sample" / ".env.template" / ".env.dist" (and dotted variants) carry no secrets by convention. */
+function isExampleEnv(base: string): boolean {
+  if (base === ".env") return false;
+  const suffix = base.slice(".env.".length);
+  return ENV_EXAMPLE_SUFFIXES.some((s) => suffix === s || suffix.startsWith(`${s}.`) || suffix.endsWith(`.${s}`));
+}
+
 function classifyEnvFile(rel: string, result: ScanResult): void {
   const base = path.basename(rel);
   if (!ENV_FILE.test(base)) return;
-  const suffix = base.slice(".env.".length);
-  if (base !== ".env" && ENV_EXAMPLE_SUFFIXES.some((s) => suffix === s || suffix.startsWith(`${s}.`) || suffix.endsWith(`.${s}`))) {
+  if (isExampleEnv(base)) {
     result.exampleEnvFiles.push(rel);
     return;
   }

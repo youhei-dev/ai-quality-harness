@@ -43,10 +43,12 @@ function renderText(r: ScanResult, log: (line: string) => void): void {
   log("");
   const secrets = r.findings.filter((f) => f.kind === "secret");
   const envs = r.findings.filter((f) => f.kind === "tracked-env");
+  const untrackedEnvs = r.findings.filter((f) => f.kind === "untracked-env");
   const gi = r.findings.filter((f) => f.kind === "gitignore");
-  log(`findings: ${r.findings.length} (secret-shaped: ${secrets.length}, tracked .env: ${envs.length}, .gitignore: ${gi.length})`);
+  log(`findings: ${r.findings.length} (secret-shaped: ${secrets.length}, tracked .env: ${envs.length}, untracked .env not ignored: ${untrackedEnvs.length}, .gitignore: ${gi.length})`);
   for (const f of secrets) log(`  [secret] ${f.file}:${f.line}${f.endLine !== undefined && f.endLine !== f.line ? `-${f.endLine}` : ""} ${f.category} (value not shown)`);
   for (const f of envs) log(`  [tracked-env] ${f.file} — ${f.message}`);
+  for (const f of untrackedEnvs) log(`  [untracked-env] ${f.file} — ${f.message} (not read)`);
   for (const f of gi) log(`  [gitignore] ${f.message}`);
   log("");
   log(r.findings.length === 0 ? "SECURITY SCAN: no findings" : "SECURITY SCAN: findings present (see above)");
