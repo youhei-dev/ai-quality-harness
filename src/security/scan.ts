@@ -1,7 +1,8 @@
 /**
- * Built-in security scan (M1, ADR-0010). Scans the files tracked by git for secret-shaped
- * strings using the shared pattern definitions (R-012), reports committed .env files and missing
- * .gitignore coverage. Findings carry category, path and line only — never the matched value.
+ * Built-in security scan (M1, ADR-0010). Scans the files tracked by git plus the untracked files git
+ * would not ignore (M1-R1-001) for secret-shaped strings using the shared pattern definitions
+ * (R-012), reports committed .env files and missing .gitignore coverage. Findings carry category,
+ * path and line only — never the matched value.
  */
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, existsSync } from "node:fs";
@@ -28,6 +29,8 @@ export interface ScanFinding {
 export interface ScanResult {
   root: string;
   filesTracked: number;
+  /** Untracked files that git would not ignore (`git ls-files --others --exclude-standard`). */
+  filesUntracked: number;
   filesScanned: number;
   skippedBinary: number;
   skippedLarge: number;
@@ -40,15 +43,18 @@ export interface ScanResult {
 
 export const MAX_FILE_BYTES = 1024 * 1024;
 const BINARY_PROBE_BYTES = 8 * 1024;
+const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE_SUFFIXES = ["example", "sample", "template", "dist"];
 
 /** Scan the git repository at `root`. Throws ScanError when `root` is not inside a work tree. */
 export function scanRepository(root: string): ScanResult {
   const absRoot = path.resolve(root);
-  const tracked = listTrackedFiles(absRoot);
+  const tracked = listFiles(absRoot, []);
+  const untracked = listFiles(absRoot, ["--others", "--exclude-standard"]);
   const result: ScanResult = {
     root: absRoot,
     filesTracked: tracked.length,
+    filesUntracked: untracked.length,
     filesScanned: 0,
     skippedBinary: 0,
     skippedLarge: 0,
@@ -64,22 +70,35 @@ export function scanRepository(root: string): ScanResult {
 
   for (const rel of tracked) {
     classifyEnvFile(rel, result);
+    scanFile(absRoot, rel, scanners, result);
+  }
+  for (const rel of untracked) {
+    // An untracked environment file is never read; the .gitignore finding below covers it.
+    if (ENV_FILE.test(path.basename(rel))) continue;
+    scanFile(absRoot, rel, scanners, result);
+  }
+  checkGitignore(absRoot, result);
+  return result;
+}
+
+function scanFile(absRoot: string, rel: string, scanners: Array<{ category: string; regex: RegExp }>, result: ScanResult): void {
+  {
     const abs = path.join(absRoot, rel);
     let stat;
     try {
       stat = lstatSync(abs);
     } catch {
-      continue; // deleted but still in the index
+      return; // deleted but still in the index
     }
-    if (!stat.isFile()) continue; // symlinks / submodules are not scanned
+    if (!stat.isFile()) return; // symlinks / submodules are not scanned
     if (stat.size > MAX_FILE_BYTES) {
       result.skippedLarge += 1;
-      continue;
+      return;
     }
     const buf = readFileSync(abs);
     if (buf.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
       result.skippedBinary += 1;
-      continue;
+      return;
     }
     result.filesScanned += 1;
     const lines = buf.toString("utf8").split(/\r?\n/);
@@ -99,14 +118,12 @@ export function scanRepository(root: string): ScanResult {
       }
     }
   }
-  checkGitignore(absRoot, result);
-  return result;
 }
 
-function listTrackedFiles(root: string): string[] {
+function listFiles(root: string, extra: string[]): string[] {
   let out: string;
   try {
-    out = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
+    out = execFileSync("git", ["ls-files", "-z", ...extra], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
   } catch (err) {
     throw new ScanError(`not a git repository (or git failed): ${root} (${(err as Error).message.split("\n")[0]})`);
   }
@@ -115,7 +132,7 @@ function listTrackedFiles(root: string): string[] {
 
 function classifyEnvFile(rel: string, result: ScanResult): void {
   const base = path.basename(rel);
-  if (!/^\.env(\..+)?$/.test(base)) return;
+  if (!ENV_FILE.test(base)) return;
   const suffix = base.slice(".env.".length);
   if (base !== ".env" && ENV_EXAMPLE_SUFFIXES.some((s) => suffix === s || suffix.startsWith(`${s}.`) || suffix.endsWith(`.${s}`))) {
     result.exampleEnvFiles.push(rel);

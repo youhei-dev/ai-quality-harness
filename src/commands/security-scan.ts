@@ -35,7 +35,7 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
 
 function renderText(r: ScanResult, log: (line: string) => void): void {
   log(`aiqh security-scan — ${r.root}`);
-  log(`tracked files: ${r.filesTracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}, skipped >1MiB: ${r.skippedLarge}`);
+  log(`tracked files: ${r.filesTracked}, untracked (not ignored): ${r.filesUntracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}, skipped >1MiB: ${r.skippedLarge}`);
   log(`scanned categories: ${r.scannedCategories.join(", ")}`);
   log("not scanned (mask-only categories; values in reports are still redacted):");
   for (const u of r.unscannedCategories) log(`  - ${u.category}: ${u.reason}`);

@@ -1,6 +1,7 @@
 /**
- * M1 — built-in security scan: tracked files only, secret patterns (no values in the output),
- * tracked .env files, .gitignore coverage, binary / large-file skipping, fail-closed exit codes.
+ * M1 — built-in security scan: tracked + untracked (not ignored) files, secret patterns (no values
+ * in the output), tracked .env files, .gitignore coverage, binary skipping, fail-closed exit codes.
+ * (M1-R1: untracked files are scanned, no size limit — see the regression-m1r1-* tests.)
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -46,10 +47,13 @@ describe("scanRepository", () => {
     expect(r.filesScanned).toBe(3);
   });
 
-  it("ignores untracked files", () => {
-    const dir = repo({ "tracked.txt": "ok\n" });
-    writeFileSync(path.join(dir, "untracked.txt"), `${AWS}\n`);
-    expect(scanRepository(dir).findings.filter((f) => f.kind === "secret")).toEqual([]);
+  it("ignores files that git ignores, even when they are present in the work tree", () => {
+    const dir = repo({ "tracked.txt": "ok\n" }, { gitignore: ".env\n.env.*\nlocal/\n" });
+    mkdirSync(path.join(dir, "local"));
+    writeFileSync(path.join(dir, "local", "secrets.txt"), `${AWS}\n`);
+    const r = scanRepository(dir);
+    expect(r.findings.filter((f) => f.kind === "secret")).toEqual([]);
+    expect(r.filesUntracked).toBe(0);
   });
 
   it("flags tracked .env files but lists example files separately", () => {

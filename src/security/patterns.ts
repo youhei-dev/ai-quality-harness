@@ -58,7 +58,8 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
   },
   {
     category: "url-credential",
-    // scheme://user:password@host  ->  scheme://[REDACTED]@host
+    // <scheme>://<user>:<password>@<host>  ->  <scheme>://[REDACTED]@<host>
+    // (angle brackets keep this comment from matching the pattern below when the repository scans itself)
     pattern: /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,

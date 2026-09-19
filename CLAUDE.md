@@ -26,8 +26,11 @@
 - 他プロジェクト（trim-manager、ai-tutor-browser 等）は設計の参考として読み取りのみ。変更しない
 - **テスト用のダミー秘密値は、パターンに一致するリテラルをソースに置かず、実行時に文字列連結で組み立てる**（`tests/helpers.ts` の `fake(prefix, body)` を使う。例: `fake("AKIA", "ABCDEFGHIJKLMNOP")`）。push 前の secret ガード hook が合成値でも停止するため
 - タグを付けるときは `package.json` の `version` をタグと一致させる（例: v0.2.0 なら `"version": "0.2.0"`。`aiqh --version` と package smoke test の version 照合がその値になる）
+- **リリース手順の順序（M1-R1-001 で固定）**: commit（分割）→ **各 commit 単体の worktree 検証（typecheck / test / `npm run verify`）** → 作業ツリー clean の確認 → push → 注釈付きタグ → タグ push。
+  worktree 検証で 1 件でも FAIL なら push もタグもせず停止して報告する。commit 前の自己 verify は新規ファイルが未追跡でも走査される（v0.2.1 以降）が、リリース判定の根拠は commit 済み HEAD での verify とする
 - タグの SHA を文書（CHANGELOG・報告書）に書くときは `git rev-list -n1 <tag>` の commit SHA を主表記にする（`git rev-parse <tag>` は注釈付きタグのオブジェクト SHA。併記する場合は `/ tag object <SHA>` と明示）
 - `git add -A` / `git add .` は禁止。対象ファイルを明示して stage し、`git diff --cached --name-only` で確認してから commit
+- レビュー原文を `docs/reviews/` にコピーする際、Security Scan に一致する例示行（PEM の BEGIN / END 行、URL 認証情報の形など）は分割表記に変え、変更した原文の行番号と無改変の原文の SHA-256 をファイル先頭の注記に記録する（`security.allow` が M2 で入るまでの運用）
 
 ## 技術方針（要点）
 
