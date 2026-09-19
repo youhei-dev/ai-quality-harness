@@ -311,7 +311,11 @@ function checkGitignore(root: string, result: ScanResult): void {
   if (unprotected.length > 0) result.findings.push({ kind: "gitignore", file: ".gitignore", message: `.gitignore does not ignore .env.* (not ignored: ${unprotected.join(", ")})` });
 }
 
-function gitIgnoredByRepoRules(root: string, paths: string[]): Set<string> {
+/**
+ * Which of `paths` git ignores by a non-negated rule of a repository .gitignore (shared with
+ * `aiqh init` for the artifacts/ proposal, M1-R2-005). Throws ScanError when git fails.
+ */
+export function gitIgnoredByRepoRules(root: string, paths: string[]): Set<string> {
   const args = ["-c", "core.excludesFile=/dev/null", "check-ignore", "--no-index", "-v", "-n", "--stdin", "-z"];
   let out: string;
   try {

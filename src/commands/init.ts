@@ -17,6 +17,7 @@ import type { Resolution } from "../adapters/types.ts";
 import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks } from "../config/generate.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, parseConfigText, resolveConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
+import { gitIgnoredByRepoRules } from "../security/scan.ts";
 
 export interface InitOptions {
   cwd?: string;
@@ -130,7 +131,7 @@ export async function runInit(options: InitOptions): Promise<number> {
     log(configText.trimEnd());
     log("");
     log("additional proposals (not written unless the matching flag is given):");
-    log(gitignoreProposal.needed ? `  - .gitignore: add "${GITIGNORE_LINE}" (--write-gitignore)` : `  - .gitignore: already ignores ${GITIGNORE_LINE}`);
+    log(gitignoreProposal.needed ? `  - .gitignore: add "${GITIGNORE_LINE}" (--write-gitignore)${gitignoreProposal.reason ? ` — ${gitignoreProposal.reason}` : ""}` : `  - .gitignore: already ignores ${GITIGNORE_LINE} (confirmed with git check-ignore)`);
     if (scriptsProposal.applicable) {
       log(scriptsProposal.missing.length > 0 ? `  - package.json scripts: add ${scriptsProposal.missing.map((k) => `"${k}": ${JSON.stringify(PROPOSED_SCRIPTS[k])}`).join(", ")} (--write-scripts)` : "  - package.json scripts: nothing to add");
     }
@@ -171,9 +172,15 @@ export async function runInit(options: InitOptions): Promise<number> {
       const file = path.join(root, ".gitignore");
       try {
         const current = existsSync(file) ? readFileSync(file, "utf8") : "";
-        const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
-        writeFileSync(file, `${current}${sep}${GITIGNORE_LINE}\n`, "utf8");
-        log(`appended "${GITIGNORE_LINE}" to ${file}`);
+        // Idempotent append: outside a git repository the proposal is always made (cannot ask git),
+        // but the same line is never added twice (M1-R2-005).
+        if (hasGitignoreLine(current)) {
+          log(`.gitignore already contains "${GITIGNORE_LINE}"; nothing written`);
+        } else {
+          const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
+          writeFileSync(file, `${current}${sep}${GITIGNORE_LINE}\n`, "utf8");
+          log(`appended "${GITIGNORE_LINE}" to ${file}`);
+        }
       } catch (err) {
         logError(`aiqh init: failed to update ${file}: ${(err as Error).message}`);
         exit = EXIT_ERROR;
@@ -223,11 +230,26 @@ function auditRows(resolution: Resolution): AuditRow[] {
   });
 }
 
-function proposeGitignore(root: string): { needed: boolean } {
-  const file = path.join(root, ".gitignore");
-  if (!existsSync(file)) return { needed: true };
-  const lines = readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim());
-  return { needed: !lines.some((l) => l === GITIGNORE_LINE || l === `/${GITIGNORE_LINE}` || l === "artifacts") };
+/** Representative path under artifacts/ whose ignore status decides the proposal (M1-R2-005). */
+const GITIGNORE_PROBE = "artifacts/.aiqh-ignore-probe";
+
+/**
+ * Whether `artifacts/` should be proposed for .gitignore. Decided by git itself (check-ignore with
+ * the same rule as the security scan: a non-negated rule of a repository .gitignore). Outside a git
+ * repository, or when git fails, the proposal is made (safe side) with a reason.
+ */
+export function proposeGitignore(root: string): { needed: boolean; reason?: string } {
+  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore" };
+  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored" };
+  try {
+    return gitIgnoredByRepoRules(root, [GITIGNORE_PROBE]).has(GITIGNORE_PROBE) ? { needed: false } : { needed: true, reason: "git check-ignore: artifacts/ is not ignored by a .gitignore rule" };
+  } catch {
+    return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing" };
+  }
+}
+
+function hasGitignoreLine(text: string): boolean {
+  return text.split(/\r?\n/).some((l) => l.trim() === GITIGNORE_LINE);
 }
 
 function proposeScripts(scripts: Record<string, string> | null, applicable: boolean): { applicable: boolean; missing: string[] } {
