@@ -2,8 +2,11 @@
  * Built-in security scan (M1, ADR-0010; M1-R1 revisions). Scans the files git tracks plus the
  * untracked files git would not ignore, line by line (any size), for secret-shaped strings using the
  * shared pattern definitions (R-012); multi-line PEM private keys are found by a begin/end state
- * machine. Reports tracked .env files and missing .gitignore coverage (decided by git itself).
- * Findings carry category, path and line numbers only — never the matched value.
+ * machine; a single line longer than MAX_LINE_BYTES is scanned as a sliding window so memory stays
+ * bounded (M1-R2-004). Reports tracked .env files, untracked .env files that git does not ignore
+ * (M1-R2-001) and missing .gitignore coverage (decided by git itself). Findings carry category, path
+ * and line numbers only — never the matched value. Files that cannot be stat'ed or read are
+ * ScanErrors (exit 2, fail closed); only ENOENT (deleted from the work tree) is skipped (M1-R2-002).
  */
 import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, lstatSync, openSync, readSync } from "node:fs";
@@ -46,6 +49,18 @@ export interface ScanResult {
 
 const BINARY_PROBE_BYTES = 8 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
+/**
+ * Sliding window for over-long lines (M1-R2-004). Both limits are measured in JS string length
+ * (UTF-16 code units, at most one per input byte), so the retained text is at most
+ * MAX_LINE_BYTES + LINE_OVERLAP code units ≈ 2 × (256 KiB + 4 KiB) bytes of memory whatever the
+ * file size. LINE_OVERLAP must cover the longest match of a line-oriented pattern so that a match
+ * straddling a window boundary is seen again, whole, at the start of the next window: the longest
+ * scanned shapes are a JWT (three base64url segments, in practice well under 2 KiB) and a
+ * url-credential (user:password, bounded by whitespace / "@"); 4 KiB leaves ample margin. A single
+ * token longer than the overlap can be missed — documented in CONFIG_SPEC §5.3b.
+ */
+export const MAX_LINE_BYTES = 256 * 1024;
+export const LINE_OVERLAP = 4 * 1024;
 const ENV_FILE = /^\.env(\..+)?$/;
 const ENV_EXAMPLE_SUFFIXES = ["example", "sample", "template", "dist"];
 /** Representative .env paths whose ignore status is asked from git (M1-R1-005). */
@@ -134,13 +149,18 @@ function scanFile(absRoot: string, rel: string, lineScanners: LineScanner[], blo
   }
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
   const open: Array<{ scanner: BlockScanner; beginLine: number }> = [];
+  const seen = new Set<string>(); // (category, line) already reported: windows of one line overlap
   let lineNo = 0;
-  const binary = readLines(abs, rel, (rawLine) => {
-    lineNo += 1;
+  const binary = readLines(abs, rel, (rawLine, no) => {
+    lineNo = no;
     const line = stripCanonicalMarkers(rawLine);
     for (const s of lineScanners) {
       s.regex.lastIndex = 0;
-      if (s.regex.test(line)) result.findings.push({ kind: "secret", category: s.category, file: rel, line: lineNo, endLine: lineNo, message: `${s.category}-shaped string` });
+      const key = `${s.category}:${lineNo}`;
+      if (s.regex.test(line) && !seen.has(key)) {
+        seen.add(key);
+        result.findings.push({ kind: "secret", category: s.category, file: rel, line: lineNo, endLine: lineNo, message: `${s.category}-shaped string` });
+      }
     }
     for (const b of blockScanners) {
       const idx = open.findIndex((o) => o.scanner === b);
@@ -166,11 +186,63 @@ function scanFile(absRoot: string, rel: string, lineScanners: LineScanner[], blo
 }
 
 /**
- * Read `abs` in 64 KiB chunks and call `onLine` for every line (CR LF and LF endings, no trailing
- * newline required). Returns true — without calling `onLine` — when the first 8 KiB contain a NUL
- * byte (binary file). Read errors are ScanErrors (fail closed).
+ * Splits streamed text into lines for the scanners (pure, testable; M1-R2-004). A complete line is
+ * delivered once with its 1-based number. A line that grows past MAX_LINE_BYTES without a newline
+ * is delivered in windows: the retained text is emitted with the current line number, the last
+ * LINE_OVERLAP characters are kept and prefixed to the next window (so `continued` windows repeat
+ * that overlap), and the line number does not advance until a newline arrives. Memory held is at
+ * most MAX_LINE_BYTES + LINE_OVERLAP code units (see the constants above).
  */
-function readLines(abs: string, rel: string, onLine: (line: string) => void): boolean {
+export class LineAssembler {
+  private pending = "";
+  private lineNo = 1;
+  private continued = false;
+  private readonly onLine: (line: string, lineNo: number, continued: boolean) => void;
+  constructor(onLine: (line: string, lineNo: number, continued: boolean) => void) {
+    this.onLine = onLine; // no parameter properties: erasableSyntaxOnly
+  }
+
+  /** Characters currently retained (for tests: never above MAX_LINE_BYTES + LINE_OVERLAP after push). */
+  get pendingLength(): number {
+    return this.pending.length;
+  }
+
+  push(text: string): void {
+    this.pending += text;
+    let start = 0;
+    for (;;) {
+      const nl = this.pending.indexOf("\n", start);
+      if (nl === -1) break;
+      const line = this.pending.endsWith("\r", nl) ? this.pending.slice(start, nl - 1) : this.pending.slice(start, nl);
+      this.onLine(line, this.lineNo, this.continued);
+      this.continued = false;
+      this.lineNo += 1;
+      start = nl + 1;
+    }
+    this.pending = this.pending.slice(start);
+    while (this.pending.length > MAX_LINE_BYTES) {
+      // Over-long line: scan the window now, keep only the overlap, same line number.
+      this.onLine(this.pending, this.lineNo, this.continued);
+      this.continued = true;
+      this.pending = this.pending.slice(this.pending.length - LINE_OVERLAP);
+    }
+  }
+
+  end(): void {
+    if (this.pending.length > 0) {
+      const line = this.pending.endsWith("\r") ? this.pending.slice(0, -1) : this.pending;
+      this.onLine(line, this.lineNo, this.continued);
+    }
+    this.pending = "";
+  }
+}
+
+/**
+ * Read `abs` in 64 KiB chunks and feed a LineAssembler (CR LF and LF endings, no trailing newline
+ * required, windows for over-long lines). Returns true — without calling `onLine` — when the first
+ * 8 KiB contain a NUL byte (binary file). Read errors are ScanErrors (fail closed).
+ */
+function readLines(abs: string, rel: string, onLine: (line: string, lineNo: number, continued: boolean) => void): boolean {
   let fd: number;
   try {
     fd = openSync(abs, "r");
@@ -179,7 +251,7 @@ function readLines(abs: string, rel: string, onLine: (line: string) => void): bo
   }
   const decoder = new StringDecoder("utf8");
   const buf = Buffer.allocUnsafe(READ_CHUNK_BYTES);
-  let pending = "";
+  const lines = new LineAssembler(onLine);
   let first = true;
   try {
     for (;;) {
@@ -194,18 +266,10 @@ function readLines(abs: string, rel: string, onLine: (line: string) => void): bo
         first = false;
         if (buf.subarray(0, Math.min(n, BINARY_PROBE_BYTES)).includes(0)) return true;
       }
-      pending += decoder.write(buf.subarray(0, n));
-      let start = 0;
-      for (;;) {
-        const nl = pending.indexOf("\n", start);
-        if (nl === -1) break;
-        onLine(pending.endsWith("\r", nl) ? pending.slice(start, nl - 1) : pending.slice(start, nl));
-        start = nl + 1;
-      }
-      pending = pending.slice(start);
+      lines.push(decoder.write(buf.subarray(0, n)));
     }
-    pending += decoder.end();
-    if (pending.length > 0) onLine(pending.endsWith("\r") ? pending.slice(0, -1) : pending);
+    lines.push(decoder.end());
+    lines.end();
     return false;
   } finally {
     closeSync(fd);
