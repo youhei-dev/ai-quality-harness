@@ -13,7 +13,7 @@ import { buildRepoContext } from "../adapters/context.ts";
 import { resolveDetections } from "../adapters/index.ts";
 import type { Resolution } from "../adapters/types.ts";
 import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks } from "../config/generate.ts";
-import { DEFAULT_CONFIG_FILENAME } from "../config/load.ts";
+import { ConfigError, DEFAULT_CONFIG_FILENAME, parseConfigText, resolveConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 
 export interface InitOptions {
@@ -144,6 +144,15 @@ export async function runInit(options: InitOptions): Promise<number> {
     }
     if (existsSync(configFile) && !options.force) {
       logError(`aiqh init: ${DEFAULT_CONFIG_FILENAME} already exists (use --force to overwrite; git diff can restore it)`);
+      return EXIT_ERROR;
+    }
+    // The generated text must pass the same parser / resolver `aiqh verify` uses (M1-R1-006):
+    // zero required checks, duplicate names or a blank command are refused here, never written.
+    try {
+      resolveConfig(parseConfigText(configText, DEFAULT_CONFIG_FILENAME), configFile);
+    } catch (err) {
+      const message = err instanceof ConfigError ? err.message : (err as Error).message;
+      logError(`aiqh init: refusing to write a config that aiqh verify would reject: ${message}`);
       return EXIT_ERROR;
     }
     try {
