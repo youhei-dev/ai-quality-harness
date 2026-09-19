@@ -21,6 +21,14 @@ export interface SecretPattern {
   scan: boolean;
   /** Why the scanner skips this category (required when scan is false). */
   scanNote?: string;
+  /**
+   * How the scanner searches for this category (M1-R1-002). "line" (default): `pattern` is tested
+   * against each line. "block": the scanner reads line by line and runs a state machine from a line
+   * matching `block.begin` to a line matching `block.end` (or the end of the file, fail closed); the
+   * finding carries the begin and end lines. The masker always uses `pattern` on whole text.
+   */
+  scanMode?: "line" | "block";
+  block?: { begin: RegExp; end: RegExp };
 }
 
 const redacted = (category: string): string => `[REDACTED:${category}]`;
@@ -55,6 +63,9 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
     replacement: redacted("private-key"),
     scan: true,
+    // A real PEM spans several lines; the line-oriented scanner detects it as a block (M1-R1-002).
+    scanMode: "block",
+    block: { begin: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/, end: /-----END [A-Z0-9 ]*PRIVATE KEY-----/ },
   },
   {
     category: "url-credential",

@@ -18,9 +18,18 @@ afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.();
 });
 
-/** category -> synthetic samples (value that must disappear, full line) */
+/** Multi-line PEM (M1-R1-002): the masker sees the whole text, the scanner sees one line at a time. */
+function pem(kind: string): string {
+  const label = kind.length > 0 ? `${kind} ` : "";
+  return [fake(`-----BEGIN ${label}`, "PRIVATE KEY-----"), "MIIEfakekey", "MIIEfakekey2", fake(`-----END ${label}`, "PRIVATE KEY-----")].join("\n");
+}
+/** category -> synthetic samples (value that must disappear, full text — may span several lines) */
 const CORPUS: Record<string, Array<{ secret: string; line: string }>> = {
-  "private-key": [{ secret: "MIIEfakekey", line: `${fake("-----BEGIN RSA ", "PRIVATE KEY-----")} MIIEfakekey ${fake("-----END RSA ", "PRIVATE KEY-----")}` }],
+  "private-key": [
+    { secret: "MIIEfakekey", line: pem("RSA") },
+    { secret: "MIIEfakekey", line: pem("EC") },
+    { secret: "MIIEfakekey", line: pem("") },
+  ],
   "url-credential": [{ secret: "hunter2pass", line: `git clone https://${fake("alice:", "hunter2pass")}@example.invalid/repo.git` }],
   anthropic: [{ secret: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef", line: `key=${fake("sk-", "ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef")}` }],
   openai: [{ secret: "abcdefghijklmnopqrstuvwxyz012345", line: `OPENAI ${fake("sk-", "proj-abcdefghijklmnopqrstuvwxyz012345")}` }],
@@ -77,8 +86,9 @@ describe("R-012: one pattern definition for masker and scanner", () => {
     const expected: Array<[string, number]> = [];
     for (const [category, samples] of Object.entries(CORPUS)) {
       for (const s of samples) {
-        lines.push(s.line);
-        if (scanCats.includes(category)) expected.push([category, lines.length]);
+        const startLine = lines.length + 1;
+        lines.push(...s.line.split("\n"));
+        if (scanCats.includes(category)) expected.push([category, startLine]);
       }
     }
     for (const p of PLAIN) lines.push(p);

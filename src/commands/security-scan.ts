@@ -9,7 +9,7 @@ export interface SecurityScanOptions {
 }
 
 /**
- * `aiqh security-scan`: 0 = no findings, 1 = findings, 2 = not a git repository / read error.
+ * `aiqh security-scan`: 0 = no findings, 1 = findings, 2 = not a git repository / read error (fail closed).
  * Never prints a matched value.
  */
 export async function runSecurityScan(options: SecurityScanOptions): Promise<number> {
@@ -35,7 +35,7 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
 
 function renderText(r: ScanResult, log: (line: string) => void): void {
   log(`aiqh security-scan — ${r.root}`);
-  log(`tracked files: ${r.filesTracked}, untracked (not ignored): ${r.filesUntracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}, skipped >1MiB: ${r.skippedLarge}`);
+  log(`tracked files: ${r.filesTracked}, untracked (not ignored): ${r.filesUntracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}`);
   log(`scanned categories: ${r.scannedCategories.join(", ")}`);
   log("not scanned (mask-only categories; values in reports are still redacted):");
   for (const u of r.unscannedCategories) log(`  - ${u.category}: ${u.reason}`);
@@ -45,7 +45,7 @@ function renderText(r: ScanResult, log: (line: string) => void): void {
   const envs = r.findings.filter((f) => f.kind === "tracked-env");
   const gi = r.findings.filter((f) => f.kind === "gitignore");
   log(`findings: ${r.findings.length} (secret-shaped: ${secrets.length}, tracked .env: ${envs.length}, .gitignore: ${gi.length})`);
-  for (const f of secrets) log(`  [secret] ${f.file}:${f.line} ${f.category} (value not shown)`);
+  for (const f of secrets) log(`  [secret] ${f.file}:${f.line}${f.endLine !== undefined && f.endLine !== f.line ? `-${f.endLine}` : ""} ${f.category} (value not shown)`);
   for (const f of envs) log(`  [tracked-env] ${f.file} — ${f.message}`);
   for (const f of gi) log(`  [gitignore] ${f.message}`);
   log("");

@@ -74,13 +74,13 @@ describe("scanRepository", () => {
     expect(missing.findings.filter((f) => f.kind === "gitignore").length).toBeGreaterThan(0);
   });
 
-  it("skips binary and oversized files (counted, not scanned)", () => {
+  it("skips binary files (counted, not scanned); large text files are scanned", () => {
     const bin = Buffer.concat([Buffer.from("PNG\0\0\0"), Buffer.from(AWS)]);
     const big = Buffer.alloc(1024 * 1024 + 1, 0x41);
     const dir = repo({ "img.bin": bin, "big.txt": big, "ok.txt": "fine\n" });
     const r = scanRepository(dir);
     expect(r.skippedBinary).toBe(1);
-    expect(r.skippedLarge).toBe(1);
+    expect(r.filesScanned).toBe(3);
     expect(r.findings.filter((f) => f.kind === "secret")).toEqual([]);
   });
 
