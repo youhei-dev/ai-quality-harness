@@ -52,12 +52,15 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ---
 
-## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用 — **完了（v0.2.0、2026-09-18）**
+## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用 — **完了（v0.2.1、2026-09-19。v0.2.0 は superseded）**
 
 ### 完了時の状態
-- タグ: `v0.2.0`（M1 — adapters, init, security scan, applied to two repositories）。基準は M0 最終版 v0.1.7
+- タグ: `v0.2.0`（2026-09-18、M1 — adapters, init, security scan, applied to two repositories）は**自己 verify の security チェックが FAIL する状態で
+  タグ付けされたため superseded**（CHANGELOG）。独立レビュー R1（10 件）を反映した **`v0.2.1`（M1 — independent review R1 applied）が M1 の完了ベースライン**。
+  基準は M0 最終版 v0.1.7
 - 実装: アダプタ（Node 7 / Python 7 / 内蔵 security 1。検出＋推奨のみ、実行経路は M0 の 1 本のまま）、`aiqh init`（監査 → 提案 → `--write` / `--force` / `--write-gitignore` / `--write-scripts`）、内蔵 Security Scan（`aiqh security-scan`。masker と共有するパターン定義、R-012 の互換テスト）、JSON Schema の同梱、`npm link` による配布（ADR-0009）
-- 自己 verify: **7 チェック**（lint / typecheck / unit / build / package / security / dependency）PASS。security は NOT APPLICABLE → PASS。テスト 197 件（10 回連続 PASS）
+- 自己 verify: **7 チェック**（lint / typecheck / unit / build / package / security / dependency）。v0.2.0 では security が FAIL（M1-R1-001）、
+  v0.2.1 で全 PASS（security は未追跡ファイル込みで検出 0 件）。テスト 231 件（v0.2.0 の 197 件 + R1 回帰 34 件、10 回連続 PASS）
 - 適用: Node 系（React + Vite）と Python 系（FastAPI + venv）の対象 2 リポジトリに `aiqh init --write` を実施し `aiqh verify` を実行。検出できたチェックは PASS、security は両リポジトリとも既存由来（`.gitignore` の `.env.*` 欠落、テスト内のダミーキー）で FAIL、Node 側の dependency は既存由来の脆弱性で FAIL。いずれも報告のみで対象コードは変更していない（詳細は M1 の最終報告）
 - M1 でやらなかったこと: 出力パーサの実装（型定義のみ。M2）、対象リポジトリへの lint / test ツールの導入（案内のみ）、E2E（検出のみ）
 
@@ -87,7 +90,7 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - [x] 7 分類すべてにアダプタがあり、検出不可時に NOT_APPLICABLE を返す
 - [x] `aiqh init` が本体リポジトリ自身に対して既存の `aiqh.config.jsonc` と同等の提案を出す（テストで固定。security のコマンドは本体のみ `npm run security`）
 - [x] trim-manager / ai-tutor-browser でそれぞれ `aiqh verify` が実行でき、レポートが生成される（PASS/FAIL は各リポジトリの現状による）
-- [x] 本体の自己 verify PASS（7 チェック）
+- [x] 本体の自己 verify PASS（7 チェック）— v0.2.0 では未達（security FAIL）、v0.2.1 で達成
 
 ---
 

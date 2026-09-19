@@ -80,8 +80,8 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。`--write` で config のみ書込、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 書込失敗 |
-| `aiqh security-scan` | M1（実装済み） | git 管理下のファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 |
+| `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed） |
 | `aiqh review-packet` | M2 | 依頼文、`git diff`、設計判断（ADR / docs）、最新 verify 結果、既知の懸念 | `artifacts/ai-review/review-packet-<id>.md` | 0 / 2 |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
@@ -189,14 +189,32 @@ aiqh init
   書込（config は 1 ファイル。scripts は未定義キーのみ追加）
 
 aiqh security-scan
-  git ls-files -z → 各ファイル（バイナリ / 1MiB 超はスキップ）→ 正規マーカー [REDACTED:<category>] を除去 → scan: true の分類で行走査
+  git ls-files -z（追跡）+ git ls-files -z --others --exclude-standard（未追跡・非 ignore。.env* は読まない）
    ▼
-  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、gitignore（.env / .env.* の欠落）
+  各ファイルを 64 KiB チャンクで逐次読み（サイズ上限なし。先頭 8 KiB に NUL があればバイナリとしてスキップ、読取エラーは exit 2）
    ▼
-  exit 0（検出なし）/ 1（検出あり）/ 2（非 git）。未走査分類（bearer / basic / key-value）と理由を必ず表示
+  各行: 正規マーカー [REDACTED:<category>] を除去 → 行指向の分類は行単位で照合
+        private-key は BEGIN 行 → END 行の状態機械（開始行と終了行を記録。END が無ければファイル末尾までを検出 = fail closed）
+   ▼
+  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、gitignore（下記）
+   ▼
+  exit 0（検出なし）/ 1（検出あり）/ 2（非 git / 読取エラー）。未走査分類（bearer / basic / key-value）と理由を必ず表示
 ```
 
-アダプタは検出と推奨だけを行い、コマンドの実行・判定・書込はしない（ADR-0011）。verify の実行経路は M0 のまま。
+`.gitignore` の判定（M1-R1-005）は自前の文字列一致ではなく Git 自身に委ねる: 代表パス `.env` / `.env.local` /
+`.env.production` / `.env.development` を `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、
+**「一致したルールの出所がリポジトリ内の `.gitignore` で、かつ否定パターン（`!` 始まり）でない」場合だけ保護あり**と見なす。
+否定で再包含された `.env.production` は未保護として報告する。利用者のグローバル除外（`core.excludesFile`）は `-c` で無効化し、
+`.git/info/exclude` 由来の一致は出所で除外する（どちらもクローン固有で、push 先を守らない）。`!.env.example` のような
+example 系の否定は代表パスに含まれないため許容される。
+
+走査対象を「追跡 + 未追跡（非 ignore）」にするのは多層防御（M1-R1-001）: 新規ファイルを commit する前の自己 verify でも
+そのファイルが走査される。ただしリリース判定の根拠は commit 済み HEAD での verify（CLAUDE.md のリリース手順）。
+
+アダプタは検出と推奨だけを行い、コマンドの実行・判定・書込はしない（ADR-0011）。Node アダプタはローカルの証拠
+（dependencies / devDependencies、または `node_modules/.bin/<tool>`）がある場合だけ available とし、直接実行は
+`npx --no-install <tool>` の形で提案してネットワーク取得を起こさない（M1-R1-007）。Detection の `reason` に
+package.json のスクリプト本文を入れない（M1-R1-003）。verify の実行経路は M0 のまま。
 
 ### 6.2 レビューループ（M2）
 

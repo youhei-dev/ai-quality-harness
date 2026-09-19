@@ -22,3 +22,18 @@ M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実�
 
 ## 影響
 - verify は M1 以降も設定に書かれた command だけを実行する。アダプタの追加は verify に影響しない
+
+## 改訂（v0.2.1、M1 独立レビュー R1）
+- **ローカル証拠と `npx --no-install`**（M1-R1-007）: 設定ファイルの存在だけでは available にしない。`NodeContext.hasLocalTool(package, bin)`
+  （dependencies / devDependencies に名前がある、または実行可能な `node_modules/.bin/<bin>` がある）を必須とし、証拠が無ければ unavailable
+  と導入案内を返す。既存 scripts があればそれを推奨し、無い場合の直接実行は `npx --no-install <tool> …` にしてネットワーク取得を起こさない
+  （npm 11 で受理を確認）
+- **Detection にスクリプト本文を入れない**（M1-R1-003）: `reason` は「`package.json scripts.lint found`」のような存在の記述だけにする。
+  本文は秘密を含み得て、`init` の console / `--json` / 生成 config のコメントへ複製されるため。多層防御として `init` の全出力を `maskSecrets`、
+  `--json` を `maskDeep`、生成 config のコメント（reason / note / hint）を `maskSecrets` に通す
+- **書込前の実行時検証**（M1-R1-006）: `--write` は生成した JSONC を `parseConfigText` → `resolveConfig`（verify と同じ）に通し、通らなければ
+  何も書かずに exit 2。required 0 件（Playwright のみ等）を書けた欠陥の修正
+- **任意書込の例外処理**（M1-R1-010）: `--write-gitignore` / `--write-scripts` の read / parse / write を try/catch し、
+  `aiqh init: failed to update <file>: …` と exit 2 を返す。書込は独立で、部分更新が起き得ることを CONFIG_SPEC §5.3c に明記
+- **Python の前提確認**（M1-R1-009）: `venvBin()` は POSIX で `accessSync(X_OK)` により実行権限を確認する。Playwright アダプタは推奨コマンドが
+  pytest を実行するため、`pytest` の存在も必須にする

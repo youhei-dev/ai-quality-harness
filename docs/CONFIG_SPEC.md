@@ -85,6 +85,15 @@
 9. `required: true` の check が 1 件以上あること（必須チェックが 0 件の設定は「常に PASS」になり fail closed に反するため）
 10. 未知のフィールドがないこと
 
+### 4b. JSON Schema と実行時検証の関係（M1-R1-008、案 B）
+
+同梱の `schema/aiqh.config.schema.json` はエディタの補完・検証のための**構造スキーマ**で、zod 定義から生成する
+（`npm run schema:gen`、テストで同期を固定）。上記のうち JSON Schema で表現できるもの（型・列挙・`name` のパターン・
+`command` が空白のみでないこと = `pattern: "\\S"`）は表現し、**表現できない横断規則（5 の一意性、9 の required 1 件以上）は
+`aiqh` の実行時検証だけが担う**。スキーマの `description` にこの旨を明記し、既知の差（required 0 件、重複名）は
+「JSON Schema では通り、`aiqh` では拒否される」ことをテストで固定している。エディタで valid でも `aiqh verify` /
+`aiqh init --write` が拒否することがある。
+
 ---
 
 ## 5. 例
@@ -118,7 +127,7 @@
   "defaults": { "timeoutSec": 600, "required": true },
   "checks": [
     // typecheck: node-tsc — tsconfig.json uses project references
-    { "name": "typecheck", "kind": "typecheck", "command": "npx tsc -b", "timeoutSec": 300, "description": "Type check all referenced projects (noEmit is taken from the tsconfigs)" },
+    { "name": "typecheck", "kind": "typecheck", "command": "npx --no-install tsc -b", "timeoutSec": 300, "description": "Type check all referenced projects (noEmit is taken from the tsconfigs)" },
     // build: node-build — package.json scripts.build = "tsc -b && vite build" (Vite)
     { "name": "build", "kind": "build", "command": "npm run build", "timeoutSec": 900, "description": "Production build via the existing build script (Vite)" },
     // security: builtin-security — git repository; built-in scanner (no external tool)
@@ -155,6 +164,23 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 ### 5.3b `kind: "security"` の標準コマンド
 
 内蔵の `aiqh security-scan`（外部ツール不要）。PATH の `aiqh`（`npm link`）に依存する。本体リポジトリ自身は `npm run security`（ソース実行）を使う。
+
+走査仕様（M1-R1 で改訂。詳細は ARCHITECTURE §6.1b と ADR-0010）:
+- 対象: git 追跡ファイル + 未追跡で ignore されないファイル（`git ls-files --others --exclude-standard`）。未追跡の `.env*` は読まない
+- サイズ上限なし（64 KiB チャンクの逐次読み）。先頭 8 KiB に NUL を含むファイルはバイナリとしてスキップし件数を表示。読取エラーは exit 2
+- 行指向の分類（url-credential / anthropic / openai / aws / github / slack / google / gitlab / jwt）は行単位。private-key は BEGIN 行 → END 行の
+  状態機械で検出し、`file:開始行-終了行` で表示。END 行が無い（途中で切れた）PEM も検出する
+- `.gitignore` の判定は `git check-ignore --no-index` の結果で、リポジトリ内の `.gitignore` の非否定ルールが `.env` / `.env.local` /
+  `.env.production` / `.env.development` を ignore する場合だけ保護ありとする（否定で再包含されたものは報告。`!.env.example` は許容）
+- 値は出力しない（分類・パス・行番号のみ）
+
+### 5.3c `aiqh init` の書込フラグと部分更新（M1-R1-010）
+
+`--write`（config）、`--write-gitignore`、`--write-scripts` の書込は互いに独立で、いずれかが失敗すると
+`aiqh init: failed to update <file>: <理由>` を表示して exit 2 になるが、**他のファイルの書込は取り消されない**。
+複数フラグを同時に指定して一部だけ失敗した場合は、`git status` / `git diff` で書き込まれたものを確認して対処する。
+`--write` は生成した JSONC を `aiqh verify` と同じパーサ / リゾルバに通し、通らない場合（required 0 件、重複名、空コマンド等）は
+何も書かずに exit 2 になる（M1-R1-006）。
 
 ---
 

@@ -27,10 +27,13 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M1 完了（タグ `v0.2.0`）**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+**M1 完了（タグ `v0.2.1`）**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
 チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
-各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md) を参照してください。
-**v0.1.3 は superseded**（確定点の yield が不十分）で、v0.1.4 以降を使ってください。
+M1 の独立レビュー R1（10 件）を v0.2.1 で反映しました。
+各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md)、
+M1 の記録は [`docs/reports/M1_REPORT.md`](docs/reports/M1_REPORT.md) を参照してください。
+**v0.1.3 と v0.2.0 は superseded**（v0.1.3: 確定点の yield が不十分。v0.2.0: 自己 verify の security チェックが FAIL する状態でタグ付けされた）で、
+それぞれ v0.1.4 以降 / v0.2.1 以降を使ってください。
 
 | 機能 | 状態 |
 |---|---|
@@ -118,7 +121,7 @@ aiqh security-scan
   "defaults": { "timeoutSec": 600 },
   "checks": [
     { "name": "lint",       "kind": "lint",       "command": "npm run lint" },
-    { "name": "typecheck",  "kind": "typecheck",  "command": "npx tsc --noEmit" },
+    { "name": "typecheck",  "kind": "typecheck",  "command": "npx --no-install tsc --noEmit" },
     { "name": "unit",       "kind": "unit",       "command": "npm test" },
     { "name": "build",      "kind": "build",      "command": "npm run build", "timeoutSec": 900 },
     { "name": "dependency", "kind": "dependency", "command": "npm audit --audit-level=high" }
@@ -128,7 +131,17 @@ aiqh security-scan
 ```
 
 仕様は `docs/CONFIG_SPEC.md`、配布方針は `docs/adr/0009-distribution-npm-link.md` を参照してください。
-Security Scan は git 管理下のファイルだけを対象にし、検出結果に値を含めません（分類・パス・行番号のみ）。
+
+- `aiqh init` はツールの設定ファイルだけでは check を提案しません。ローカルに依存（`package.json` の dependencies /
+  devDependencies、または `node_modules/.bin`）がある場合だけ提案し、直接実行は `npx --no-install <tool>` の形にして
+  ネットワーク取得を起こしません。監査表・設定案・`--json` には package.json のスクリプト本文を出しません
+- `aiqh init --write` は生成した設定を `aiqh verify` と同じ検証に通し、通らない設定（必須チェック 0 件等）は書きません。
+  `--write-gitignore` / `--write-scripts` の失敗は exit 2 で報告されますが、他の書込は取り消されません（`git status` で確認）
+- Security Scan は git 追跡ファイルに加えて、未追跡で ignore されないファイルも走査します（サイズ上限なし）。複数行の
+  PEM 秘密鍵は開始行–終了行で報告し、`.gitignore` の判定は `git check-ignore` に委ねます（否定ルールを考慮）。
+  検出結果に値は含めません（分類・パス・行番号のみ）
+- 同梱の JSON Schema は構造の検証・補完用です。チェック名の一意性や必須チェック 1 件以上といった横断規則は `aiqh` が
+  実行時に検証します（エディタで valid でも `aiqh` が拒否することがあります）
 
 ## CLI
 

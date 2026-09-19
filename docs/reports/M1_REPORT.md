@@ -1,7 +1,11 @@
 # M1 報告 — チェックアダプタ、`aiqh init`、Security Scan、2 リポジトリへの適用
 
-- 日付: 2026-09-18
-- 基準: M0 最終版 v0.1.7（commit b49dddb）。M1 のタグは `v0.2.0`（commit SHA はタグ付与後に `git rev-list -n1 v0.2.0` で確認し CHANGELOG / 最終報告に記載）
+- 日付: 2026-09-18（v0.2.0）、2026-09-19 訂正（v0.2.1、独立レビュー R1 反映）
+- 基準: M0 最終版 v0.1.7（commit b49dddb）。M1 のタグは `v0.2.0`（commit 680869d / tag object 2e2685f）→ **superseded**。
+  M1 の完了ベースラインは **`v0.2.1`**（commit SHA はタグ付与後に `git rev-list -n1 v0.2.1` で確認し CHANGELOG / 最終報告に記載）
+- **訂正（M1-R1-001）**: v0.2.0 は自己 verify の必須チェック `security` が FAIL する状態でタグ付けされていた。本書の初版にあった
+  「自己 verify PASSED（7 チェック）」「Security は NOT APPLICABLE → PASS」は、タグ付与前の作業ツリー（新規ファイル未追跡）での実測であり、
+  commit 済み HEAD では成り立っていなかった。§2 と §5 を実測に合わせて訂正した
 - 対象リポジトリの固有情報（パス・行番号・設定値・脆弱性の詳細）は本書に書かない。件数と分類のみ。詳細は Downloads に保存した最終報告
 
 ## 1. M1 で作ったもの
@@ -14,15 +18,16 @@
 | パターン共有（R-012） | `src/security/patterns.ts` に一本化。masker は導出、scanner は `scan: true` の分類。合成コーパスを両方に入力する互換テスト |
 | JSON Schema | `schema/aiqh.config.schema.json`（zod から生成、`npm run schema:gen`、テストで同期を固定、`files` に同梱） |
 | 配布 | `npm link`（ADR-0009）。本体 `npm run build && npm link` → 対象で `aiqh` |
-| 自己適用 | `aiqh.config.jsonc` に `security`（`npm run security`）を追加 → 7 チェック。Security は NOT APPLICABLE → PASS |
+| 自己適用 | `aiqh.config.jsonc` に `security`（`npm run security`）を追加 → 7 チェック。v0.2.0 では security が FAIL（§5）。v0.2.1 で PASS |
 | docs / ADR | ROADMAP（M1 完了、M2 に key-value 走査＋`security.allow`）、ARCHITECTURE、CONFIG_SPEC、README、ADR-0009 / 0010 / 0011、CHANGELOG v0.2.0、CLAUDE.md（version とタグの一致ルール） |
 
 ## 2. 検証
 
 - テスト先行: fixtures 5 種と 8 テストファイルを先に書き、現状コードで全 FAIL を記録してから実装。実装後の自己スキャンで見つけた「マーカーが URL 認証情報の形に一致する」問題も、テスト → FAIL → 修正の順で対応
-- テスト: 33 ファイル 197 件（M0 の 148 件に退行なし）、10 回連続 PASS
-- 自己 verify: `npm run verify` / `npm run verify:dist` とも VERIFY PASSED（7 チェック）。リンク済み `aiqh verify` も PASSED
-- `package.json` version 0.2.0（`aiqh --version`、package smoke test の照合とも 0.2.0）
+- テスト: v0.2.0 時点 33 ファイル 197 件（M0 の 148 件に退行なし）、10 回連続 PASS。v0.2.1 で 44 ファイル 231 件（R1 の回帰 34 件を追加）、10 回連続 PASS
+- 自己 verify: **v0.2.0 は VERIFY FAILED**（security 1 件。commit 済み HEAD と 5 commit すべての worktree 検証で再現）。
+  **v0.2.1 は `npm run verify` / `npm run verify:dist` とも VERIFY PASSED（7 チェック、security PASS、未追跡ファイル込みで検出 0 件）**。リンク済み `aiqh verify` も PASSED
+- `package.json` version は v0.2.0 で 0.2.0、v0.2.1 で 0.2.1（`aiqh --version`、package smoke test の照合と一致）
 
 ## 3. 対象 2 リポジトリへの適用（件数のみ。対象では commit / push をしていない）
 
@@ -35,6 +40,26 @@
 
 ## 4. M2 への持ち帰り
 
-- key-value 分類の走査（誤検出抑制の設計）と `security.allow`（例外指定）
+- key-value 分類の走査（誤検出抑制の設計）と `security.allow`（例外指定。レビュー原文などにある例示を許容する用途も含む）
 - 出力パーサの実装（vitest / pytest / eslint / npm audit）
 - 配布のローカル導入化（ADR-0009 の論点）は M3
+
+## 5. R1 で見つかった問題と対策（v0.2.1）
+
+独立レビュー R1（`docs/reviews/m1/independent-review-r1.md`）は High 3 / Medium 6 / Low 1 の 10 件で、すべて VALID と判定して修正した
+（判定と根拠は `docs/reviews/m1/response-r1.md`）。
+
+| 問題 | 対策 |
+|---|---|
+| v0.2.0 が自己 verify（security）FAIL のままタグ付けされた（M1-R1-001） | コメント修正。リリース手順を「commit → 各 commit 単体の worktree 検証 → clean 確認 → push → タグ」に固定（CLAUDE.md）。scanner は未追跡（非 ignore）ファイルも走査 |
+| 複数行 PEM を検出できない（002）、1 MiB 超を黙ってスキップ（004） | 逐次読み・サイズ上限廃止、private-key の状態機械 |
+| `init` が package.json のスクリプト本文を出力・複製（003） | reason から本文を除去、出力を全て mask |
+| `.gitignore` の否定ルール無視（005） | `git check-ignore --no-index` に委ね、リポジトリの `.gitignore` の非否定ルールだけを保護と見なす |
+| required 0 件の config を書ける（006） | 書込前に実行時パーサ / リゾルバで検証 |
+| 設定ファイルだけで available、`npx` がネットワーク取得し得る（007） | ローカル証拠必須、`npx --no-install`。**Node 系対象の typecheck 提案が `npx tsc -b` → `npx --no-install tsc -b` に変わる** |
+| JSON Schema と実行時検証の差（008） | 構造スキーマと明記、`command` に `pattern`、既知の差をテストで固定 |
+| Python Playwright が pytest 無しで available、実行権限未確認（009） | pytest 必須、`accessSync(X_OK)` |
+| `--write-gitignore` / `--write-scripts` の例外が内部エラー扱い（010） | try/catch と init 固有の exit 2、部分更新の注意を明記 |
+
+教訓: 新規ファイルを含む変更の自己 verify は、追跡状態に依存しない形（commit 後の HEAD、または未追跡込みの走査）で行う。
+レビュー原文の例示（PEM の BEGIN 行等）は自己スキャンに一致するため、docs へのコピー時は分割表記に変えて注記する（`security.allow` は M2）。

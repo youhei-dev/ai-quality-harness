@@ -25,3 +25,19 @@ M0 の 7 分類のうち security は NOT APPLICABLE のままだった。外部
 ## 影響
 - push 前 hook（共通設定）とは別の実装であり、一致は保証しない（hook は変更しない）
 - 対象リポジトリのテスト内ダミーキーは検出される。連結方式へ直すか、M2 の `security.allow` で許容する
+
+## 改訂（v0.2.1、M1 独立レビュー R1）
+- **走査対象**（M1-R1-001、多層防御）: 追跡ファイルに加えて、未追跡で ignore されないファイル（`git ls-files --others --exclude-standard`）も走査する。
+  未追跡の `.env*` は読まない（`.gitignore` の判定で扱う）。リリース判定の根拠は commit 済み HEAD での verify であり、走査対象の拡張はその代替ではない
+- **逐次読み・サイズ上限の廃止**（M1-R1-004）: 1 MiB 超のスキップは fail open だった。64 KiB チャンクの逐次読み（`StringDecoder` で UTF-8 境界を保持）に変え、
+  テキストはサイズに関係なく走査する。バイナリ判定（先頭 8 KiB の NUL）は維持し件数を表示。読取エラーは ScanError → exit 2（fail closed）
+- **private-key の状態機械**（M1-R1-002）: 行単位の走査では複数行 PEM の `[\s\S]*?` パターンが一致しなかった。定義（`patterns.ts`）に
+  `scanMode: "block"` と BEGIN / END 行のパターンを持たせ、scanner は BEGIN 行から END 行までを 1 件の finding（開始行・終了行）として記録する。
+  END 行が無いまま EOF に達した場合も検出する。masker は従来どおり全文に `pattern` を適用し、互換テストのコーパスは実際の複数行 PEM
+  3 種（RSA / EC / 無印）に変更した
+- **`.gitignore` 判定を Git に委ねる**（M1-R1-005）: 代表パス（`.env`、`.env.local`、`.env.production`、`.env.development`）を
+  `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、**一致ルールの出所がリポジトリ内の `.gitignore` で、
+  かつ否定パターンでない**ときだけ保護ありとする。グローバル除外と `.git/info/exclude` はクローン固有のため保護と見なさない。
+  `.env.example` 等の否定（`!.env.example`）は代表パスに含まれず許容される。`check-ignore` が exit 128 なら ScanError（exit 2）
+- docs や ADR に PEM の BEGIN 行や 「スキーム://ユーザー:パスワード@ホスト」 の形を文字どおり書くと自己スキャンに一致するため、例示は分割表記
+  （`"-----BEGIN RSA " + "PRIVATE KEY-----"`）や `<scheme>://<user>:<password>@<host>` の言い換えにする（テストの連結方式と同じ扱い）
