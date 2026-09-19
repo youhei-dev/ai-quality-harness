@@ -4,7 +4,9 @@
  *   --force            overwrite an existing aiqh.config.jsonc
  *   --write-gitignore  append "artifacts/" to .gitignore (once)
  *   --write-scripts    add missing scripts (verify) to package.json, existing keys untouched
- * Exit codes: 0 done, 2 audit impossible / refused overwrite / nothing to configure / write error.
+ * Exit codes: 0 done, 2 audit impossible / refused overwrite / nothing to configure / generated
+ * config rejected by the runtime validator / write error (any of the three files, M1-R1-010).
+ * Every line printed and every JSON value passes through the secret masker (M1-R1-003).
  */
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -70,7 +72,6 @@ function resolvableSchemaPath(root: string): string | undefined {
 export async function runInit(options: InitOptions): Promise<number> {
   const rawLog = options.log ?? ((line: string) => console.log(line));
   const rawLogError = options.logError ?? ((line: string) => console.error(line));
-  // Every line printed and every JSON value passes through the secret masker (M1-R1-003).
   const log = (line: string): void => rawLog(maskSecrets(line));
   const logError = (line: string): void => rawLogError(maskSecrets(line));
   const root = path.resolve(options.cwd ?? process.cwd());
@@ -163,27 +164,39 @@ export async function runInit(options: InitOptions): Promise<number> {
       exit = EXIT_ERROR;
     }
   }
+  // The optional writes are independent: a failure in one is reported (exit 2) and does not undo
+  // the others, so a run with several flags can leave a partial update (documented in CONFIG_SPEC).
   if (options.writeGitignore) {
     if (gitignoreProposal.needed) {
       const file = path.join(root, ".gitignore");
-      const current = existsSync(file) ? readFileSync(file, "utf8") : "";
-      const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
-      writeFileSync(file, `${current}${sep}${GITIGNORE_LINE}\n`, "utf8");
-      log(`appended "${GITIGNORE_LINE}" to ${file}`);
+      try {
+        const current = existsSync(file) ? readFileSync(file, "utf8") : "";
+        const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
+        writeFileSync(file, `${current}${sep}${GITIGNORE_LINE}\n`, "utf8");
+        log(`appended "${GITIGNORE_LINE}" to ${file}`);
+      } catch (err) {
+        logError(`aiqh init: failed to update ${file}: ${(err as Error).message}`);
+        exit = EXIT_ERROR;
+      }
     } else {
       log(`.gitignore already ignores ${GITIGNORE_LINE}; nothing written`);
     }
   }
   if (options.writeScripts && scriptsProposal.applicable && scriptsProposal.missing.length > 0) {
     const file = path.join(root, "package.json");
-    const text = readFileSync(file, "utf8");
-    const indent = /^(\s+)"/m.exec(text)?.[1] ?? "  ";
-    const pkg = JSON.parse(text) as Record<string, unknown>;
-    const scripts = { ...((pkg.scripts as Record<string, string> | undefined) ?? {}) };
-    for (const key of scriptsProposal.missing) scripts[key] = PROPOSED_SCRIPTS[key] ?? "";
-    pkg.scripts = scripts;
-    writeFileSync(file, `${JSON.stringify(pkg, null, indent)}\n`, "utf8");
-    log(`added scripts ${scriptsProposal.missing.join(", ")} to ${file}`);
+    try {
+      const text = readFileSync(file, "utf8");
+      const indent = /^(\s+)"/m.exec(text)?.[1] ?? "  ";
+      const pkg = JSON.parse(text) as Record<string, unknown>;
+      const scripts = { ...((pkg.scripts as Record<string, string> | undefined) ?? {}) };
+      for (const key of scriptsProposal.missing) scripts[key] = PROPOSED_SCRIPTS[key] ?? "";
+      pkg.scripts = scripts;
+      writeFileSync(file, `${JSON.stringify(pkg, null, indent)}\n`, "utf8");
+      log(`added scripts ${scriptsProposal.missing.join(", ")} to ${file}`);
+    } catch (err) {
+      logError(`aiqh init: failed to update ${file}: ${(err as Error).message}`);
+      exit = EXIT_ERROR;
+    }
   }
   return exit;
 }
