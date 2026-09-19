@@ -5,7 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.2.1 — M1 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.1` / `git rev-parse v0.2.1` で確認。最終報告に記載）
+## v0.2.2 — M1 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.2` / `git rev-parse v0.2.2` で確認。最終報告に記載）
+
+- 独立レビュー R2（`docs/reviews/m1/independent-review-r2.md`、High 1 / Medium 4）の 5 件をすべて反映（`docs/reviews/m1/response-r2.md`）。R1-005 / R1-009 の PARTIAL を解消
+- M1-R2-001: 未追跡で ignore されていない `.env*` を中身を読まずに finding（`untracked-env`）にする
+- M1-R2-002: `lstat` の失敗は ENOENT だけスキップ、他は exit 2（`classifyStatError`）
+- M1-R2-003: venv の interpreter が実行可能なときだけ venv と認識（`PythonContext.python`）
+- M1-R2-004: 1 行が 256 KiB を超えるファイルは窓走査（`LineAssembler`、重なり 4 KiB）でメモリを抑える
+- M1-R2-005: `init` の `artifacts/` 提案を `git check-ignore` で判定。非 git は追加提案、書込は冪等
+- テスト 252 件（回帰 21 件を追加）、10 回連続 PASS。自己 verify 7 チェック PASS。`package.json` version 0.2.2
+
+## v0.2.1 — commit 630f2e3 / tag object df8f41c — M1 independent review R1 applied
 
 - 独立レビュー R1（`docs/reviews/m1/independent-review-r1.md`、High 3 / Medium 6 / Low 1）の 10 件をすべて反映（`docs/reviews/m1/response-r1.md`）
 - M1-R1-001: v0.2.0 が自己 verify（security）で FAIL する状態でタグ付けされていた。`patterns.ts` の説明コメント修正、docs の訂正、
