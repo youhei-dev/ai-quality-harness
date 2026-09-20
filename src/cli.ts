@@ -126,12 +126,14 @@ program
 
 program
   .command("security-scan")
-  .description("Scan git-tracked files for secret-shaped strings, tracked .env files and .gitignore gaps (values are never printed)")
+  .description("Scan tracked and untracked files for secret-shaped strings, .env files and .gitignore gaps (values are never printed)")
   .option("--cwd <dir>", "repository directory (default: current directory)")
+  .option("-c, --config <path>", "config file for the security section (default: ./aiqh.config.jsonc if present)")
   .option("--json", "print the result as JSON", false)
-  .action(async (opts: { cwd?: string; json: boolean }) => {
+  .action(async (opts: { cwd?: string; config?: string; json: boolean }) => {
     const args: Parameters<typeof runSecurityScan>[0] = { json: opts.json };
     if (opts.cwd !== undefined) args.cwd = opts.cwd;
+    if (opts.config !== undefined) args.configPath = opts.config;
     process.exitCode = await runSecurityScan(args);
   });
 

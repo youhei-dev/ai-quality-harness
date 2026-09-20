@@ -5,14 +5,16 @@
  * begin/end state machine; a single line longer than maxLineBytes is scanned as a sliding window
  * whose candidate prefixes are carried over (M2-0 / M1-R3-001) so memory stays bounded. Reports
  * tracked .env files, untracked .env files git does not ignore and missing .gitignore coverage
- * (decided by git itself, counting only tracked .gitignore rules). Findings carry category, path
- * and line numbers only — never the matched value. Files that cannot be stat'ed or
+ * (decided by git itself, counting only tracked .gitignore rules). `security.allow` rules suppress
+ * secret-shaped findings only, and every suppression is recorded (M2-0 §7). Findings carry
+ * category, path and line numbers only — never the matched value. Files that cannot be stat'ed or
  * read are ScanErrors (exit 2, fail closed); only ENOENT is skipped.
  */
 import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, lstatSync, openSync, readSync } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import type { AllowRule, ResolvedSecurity } from "../types.ts";
 import { SCANNED_CATEGORIES, SECRET_PATTERNS, UNSCANNED_CATEGORIES, stripCanonicalMarkers, type SecretPattern } from "./patterns.ts";
 
 export class ScanError extends Error {
@@ -34,6 +36,11 @@ export interface ScanFinding {
   message: string;
 }
 
+/** A finding suppressed by `security.allow`; `rule` is the 0-based index into the allow list. */
+export interface SuppressedFinding extends ScanFinding {
+  rule: number;
+}
+
 export interface ScanResult {
   root: string;
   filesTracked: number;
@@ -41,7 +48,16 @@ export interface ScanResult {
   filesUntracked: number;
   filesScanned: number;
   skippedBinary: number;
+  /** Findings that remain after `security.allow` (decide the exit code). */
   findings: ScanFinding[];
+  /** Findings suppressed by an active allow rule (never hidden). */
+  suppressed: SuppressedFinding[];
+  /** Allow rules as configured, with how often each one was used. */
+  allowUsage: Array<{ rule: number; path: string; category: string | null; line: number | null; reason: string; expires: string | null; count: number; expired: boolean }>;
+  /** Indices of active rules that suppressed nothing (config rot). */
+  unusedAllows: number[];
+  /** Indices of rules whose `expires` date has passed (inactive). */
+  expiredAllows: number[];
   /** Tracked or untracked .env-style files that are example / template files (informational). */
   exampleEnvFiles: string[];
   scannedCategories: string[];
@@ -66,9 +82,16 @@ export const MAX_LINE_BYTES = 256 * 1024;
 export const LINE_OVERLAP = 4 * 1024;
 export const MAX_CARRY_BYTES = 64 * 1024;
 const ENV_FILE = /^\.env(\..+)?$/;
-const ENV_EXAMPLE_SUFFIXES = ["example", "sample", "template", "dist"];
-/** Representative .env paths whose ignore status is asked from git (M1-R1-005). */
-const GITIGNORE_PROBES = [".env", ".env.local", ".env.production", ".env.development"];
+
+/** Defaults of the `security` config section = the M1 behaviour (M2-0 §8). */
+export const DEFAULT_SECURITY: Readonly<ResolvedSecurity> = Object.freeze({
+  allow: [],
+  envProbePaths: [".env", ".env.local", ".env.production", ".env.development"],
+  exampleEnvSuffixes: ["example", "sample", "template", "dist"],
+  maxLineBytes: MAX_LINE_BYTES,
+  lineOverlapBytes: LINE_OVERLAP,
+  maxCarryBytes: MAX_CARRY_BYTES,
+});
 
 interface LineScanner {
   category: string;
@@ -87,7 +110,7 @@ export interface CarryDecision {
 }
 
 /** Scan the git repository at `root`. Throws ScanError when `root` is not inside a work tree or a file cannot be read. */
-export function scanRepository(root: string): ScanResult {
+export function scanRepository(root: string, security: ResolvedSecurity = DEFAULT_SECURITY): ScanResult {
   const absRoot = path.resolve(root);
   const tracked = listFiles(absRoot, []);
   const untracked = listFiles(absRoot, ["--others", "--exclude-standard"]);
@@ -98,6 +121,10 @@ export function scanRepository(root: string): ScanResult {
     filesScanned: 0,
     skippedBinary: 0,
     findings: [],
+    suppressed: [],
+    allowUsage: [],
+    unusedAllows: [],
+    expiredAllows: [],
     exampleEnvFiles: [],
     scannedCategories: [...SCANNED_CATEGORIES],
     unscannedCategories: UNSCANNED_CATEGORIES.map((u) => ({ ...u })),
@@ -109,10 +136,10 @@ export function scanRepository(root: string): ScanResult {
     if (p.scanMode === "block" && p.block) blockScanners.push({ category: p.category, begin: p.block.begin, end: p.block.end });
     else lineScanners.push({ category: p.category, pattern: p, regex: new RegExp(p.pattern.source, p.pattern.flags.includes("g") ? p.pattern.flags : `${p.pattern.flags}g`) });
   }
-  const ctx: FileScanContext = { lineScanners, blockScanners, result };
+  const ctx: FileScanContext = { lineScanners, blockScanners, security, result };
 
   for (const rel of tracked) {
-    classifyEnvFile(rel, result, ENV_EXAMPLE_SUFFIXES);
+    classifyEnvFile(rel, result, security.exampleEnvSuffixes);
     scanFile(absRoot, rel, ctx);
   }
   for (const rel of untracked) {
@@ -120,13 +147,14 @@ export function scanRepository(root: string): ScanResult {
     // ignored (it is listed by --others --exclude-standard), so its existence is the finding
     // (M1-R2-001); example / sample / template / dist files stay informational.
     if (ENV_FILE.test(path.basename(rel))) {
-      if (isExampleEnv(path.basename(rel), ENV_EXAMPLE_SUFFIXES)) result.exampleEnvFiles.push(rel);
+      if (isExampleEnv(path.basename(rel), security.exampleEnvSuffixes)) result.exampleEnvFiles.push(rel);
       else result.findings.push({ kind: "untracked-env", file: rel, message: "environment file exists but is not ignored by git" });
       continue;
     }
     scanFile(absRoot, rel, ctx);
   }
-  checkGitignore(absRoot, result, GITIGNORE_PROBES);
+  checkGitignore(absRoot, result, security.envProbePaths);
+  applyAllow(result, security.allow);
   return result;
 }
 
@@ -151,6 +179,7 @@ export function classifyStatError(err: unknown): "skip" | "error" {
 interface FileScanContext {
   lineScanners: LineScanner[];
   blockScanners: BlockScanner[];
+  security: ResolvedSecurity;
   result: ScanResult;
 }
 
@@ -207,7 +236,7 @@ export function carryCandidate(window: string, scanners: readonly LineScanner[])
 }
 
 function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
-  const { lineScanners, blockScanners, result } = ctx;
+  const { lineScanners, blockScanners, security, result } = ctx;
   const abs = path.join(absRoot, rel);
   let stat;
   try {
@@ -248,6 +277,9 @@ function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
     }
   };
   const binary = readLines(abs, rel, onLine, {
+    maxLineBytes: security.maxLineBytes,
+    lineOverlap: security.lineOverlapBytes,
+    maxCarryBytes: security.maxCarryBytes,
     carryFrom: (window) => carryCandidate(window, lineScanners) ?? { start: window.length, category: null },
     onOversizedCandidate: (category, no) => push({ kind: "oversized-candidate", category, file: rel, line: no, endLine: no, message: `${category} candidate longer than maxCarryBytes could not be scanned completely` }, `oversized:${category}:${no}`),
   });
@@ -452,4 +484,41 @@ function trackedPaths(root: string, paths: string[]): Set<string> {
     throw new ScanError(`git ls-files failed: ${(err as Error).message.split("\n")[0]}`);
   }
   return new Set(out.split("\0").filter((f) => f.length > 0));
+}
+
+/** Local calendar date as YYYY-MM-DD (expiry comparisons are string comparisons of ISO dates). */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Apply `security.allow` (M2-0 §7): only secret-shaped findings ("secret", "oversized-candidate")
+ * can be suppressed; env / gitignore hygiene findings never are. The first active matching rule
+ * wins; suppressed findings, rule usage, unused and expired rules are all recorded.
+ */
+function applyAllow(result: ScanResult, rules: readonly AllowRule[]): void {
+  const today = todayIso();
+  const usage = rules.map((r, i) => ({ rule: i, path: r.path, category: r.category ?? null, line: r.line ?? null, reason: r.reason, expires: r.expires ?? null, count: 0, expired: r.expires !== undefined && r.expires < today }));
+  const kept: ScanFinding[] = [];
+  for (const f of result.findings) {
+    const idx = f.kind === "secret" || f.kind === "oversized-candidate" ? rules.findIndex((r, i) => !usage[i]?.expired && allowMatches(r, f)) : -1;
+    if (idx === -1) {
+      kept.push(f);
+      continue;
+    }
+    const u = usage[idx];
+    if (u) u.count += 1;
+    result.suppressed.push({ ...f, rule: idx });
+  }
+  result.findings = kept;
+  result.allowUsage = usage;
+  result.expiredAllows = usage.filter((u) => u.expired).map((u) => u.rule);
+  result.unusedAllows = usage.filter((u) => !u.expired && u.count === 0).map((u) => u.rule);
+}
+
+function allowMatches(rule: AllowRule, f: ScanFinding): boolean {
+  if (rule.category !== undefined && rule.category !== f.category) return false;
+  if (rule.line !== undefined && rule.line !== f.line) return false;
+  return path.matchesGlob(f.file, rule.path);
 }

@@ -2,7 +2,8 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { z } from "zod";
-import type { ResolvedCheck, ResolvedConfig } from "../types.ts";
+import type { AllowRule, ResolvedCheck, ResolvedConfig, ResolvedSecurity } from "../types.ts";
+import { DEFAULT_SECURITY } from "../security/scan.ts";
 import {
   configSchema,
   DEFAULT_OUTPUT_DIR,
@@ -99,11 +100,31 @@ export function resolveConfig(raw: RawConfig, absoluteConfigPath: string): Resol
     project: { name: raw.project.name },
     outputDir,
     checks,
+    security: resolveSecurity(raw.security),
   };
   if (raw.project.type !== undefined) {
     config.project.type = raw.project.type;
   }
   return config;
+}
+
+/** Fill the `security` section with the M1 defaults (M2-0 §8). Exported for tests. */
+export function resolveSecurity(raw: RawConfig["security"]): ResolvedSecurity {
+  const allow: AllowRule[] = (raw?.allow ?? []).map((r) => {
+    const rule: AllowRule = { path: r.path, reason: r.reason };
+    if (r.category !== undefined) rule.category = r.category;
+    if (r.line !== undefined) rule.line = r.line;
+    if (r.expires !== undefined) rule.expires = r.expires;
+    return rule;
+  });
+  return {
+    allow,
+    envProbePaths: raw?.envProbePaths ?? [...DEFAULT_SECURITY.envProbePaths],
+    exampleEnvSuffixes: raw?.exampleEnvSuffixes ?? [...DEFAULT_SECURITY.exampleEnvSuffixes],
+    maxLineBytes: raw?.maxLineBytes ?? DEFAULT_SECURITY.maxLineBytes,
+    lineOverlapBytes: raw?.lineOverlapBytes ?? DEFAULT_SECURITY.lineOverlapBytes,
+    maxCarryBytes: raw?.maxCarryBytes ?? DEFAULT_SECURITY.maxCarryBytes,
+  };
 }
 
 /**

@@ -43,6 +43,30 @@ export interface ResolvedCheck {
   description?: string;
 }
 
+/** One `security.allow` rule (M2-0 §7). Suppresses secret-shaped findings only. */
+export interface AllowRule {
+  /** Glob (path.matchesGlob) over the repository-relative path. */
+  path: string;
+  /** Secret category; every category when omitted. */
+  category?: string;
+  /** 1-based line; every line when omitted. */
+  line?: number;
+  /** Mandatory justification (shown in reports). */
+  reason: string;
+  /** ISO date (YYYY-MM-DD); the rule is inactive after that day. */
+  expires?: string;
+}
+
+/** `security` section with defaults applied (M2-0 §7 / §8). */
+export interface ResolvedSecurity {
+  allow: AllowRule[];
+  envProbePaths: string[];
+  exampleEnvSuffixes: string[];
+  maxLineBytes: number;
+  lineOverlapBytes: number;
+  maxCarryBytes: number;
+}
+
 export interface ResolvedConfig {
   /** Directory containing the config file. All relative paths resolve against it. */
   projectRoot: string;
@@ -55,6 +79,7 @@ export interface ResolvedConfig {
   /** Absolute output directory for reports. */
   outputDir: string;
   checks: ResolvedCheck[];
+  security: ResolvedSecurity;
 }
 
 /** Raw result of running one command. Produced by runner/execute.ts. */

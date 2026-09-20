@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { DEFAULT_SECURITY } from "../src/security/scan.ts";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildReport } from "../src/report/build-report.ts";
@@ -22,6 +23,7 @@ function config(root: string): ResolvedConfig {
     configPath: path.join(root, "aiqh.config.jsonc"),
     project: { name: "demo" },
     outputDir: path.join(root, "artifacts", "verification"),
+    security: DEFAULT_SECURITY,
     checks: [],
   };
 }

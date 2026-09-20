@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CHECK_KINDS } from "../types.ts";
+import { SECRET_CATEGORIES } from "../security/patterns.ts";
 
 export const CHECK_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -18,6 +19,31 @@ const checkSchema = z.strictObject({
   required: z.boolean().optional(),
   timeoutSec: z.number().int().positive().optional(),
   description: z.string().optional(),
+});
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function isRealDate(s: string): boolean {
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/** `security.allow[]` entry (M2-0 §7): path glob, optional category / line, mandatory reason, optional expiry. */
+const allowRuleSchema = z.strictObject({
+  path: z.string().regex(/\S/, "allow.path must not be blank"),
+  category: z.enum(SECRET_CATEGORIES as [string, ...string[]]).optional(),
+  line: z.number().int().positive().optional(),
+  reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank"),
+  expires: z.string().regex(ISO_DATE, "allow.expires must be YYYY-MM-DD").refine(isRealDate, "allow.expires must be a real date").optional(),
+});
+
+/** `security` section (M2-0 §7 / §8). Every field is optional; defaults live in src/security/scan.ts. */
+const securitySchema = z.strictObject({
+  allow: z.array(allowRuleSchema).optional(),
+  envProbePaths: z.array(z.string().min(1)).min(1).optional(),
+  exampleEnvSuffixes: z.array(z.string().min(1)).optional(),
+  maxLineBytes: z.number().int().positive().optional(),
+  lineOverlapBytes: z.number().int().positive().optional(),
+  maxCarryBytes: z.number().int().positive().optional(),
 });
 
 export const configSchema = z
@@ -40,6 +66,7 @@ export const configSchema = z
       })
       .optional(),
     checks: z.array(checkSchema).min(1, "checks must contain at least one check"),
+    security: securitySchema.optional(),
   })
   .superRefine((cfg, ctx) => {
     const seen = new Set<string>();

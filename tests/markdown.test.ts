@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReport } from "../src/report/build-report.ts";
 import { formatDuration, renderMarkdown } from "../src/report/markdown.ts";
+import { DEFAULT_SECURITY } from "../src/security/scan.ts";
 import { checkResult } from "./helpers.ts";
 
 describe("renderMarkdown", () => {
@@ -10,6 +11,7 @@ describe("renderMarkdown", () => {
       configPath: "/proj/aiqh.config.jsonc",
       project: { name: "demo" },
       outputDir: "/proj/artifacts/verification",
+      security: DEFAULT_SECURITY,
       checks: [],
     },
     results: [
