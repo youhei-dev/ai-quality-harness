@@ -5,7 +5,16 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.0 — M2-0 scanner maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.0` / `git rev-parse v0.3.0` で確認。最終報告に記載）
+## v0.3.1 — M2-0 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.1` / `git rev-parse v0.3.1` で確認。最終報告に記載）
+
+- 独立レビュー R1（`docs/reviews/m2-0/independent-review-r1.md`、High 1 / Medium 2）の 3 件をすべて反映（`docs/reviews/m2-0/response-r1.md`）
+- M2-0-R1-001（High）: 窓設定の相互制約 `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を `resolveSecurity()`（ConfigError）と `LineAssembler` の
+  コンストラクタ（ScanError）で検証し、長行ループに進捗不変条件（ScanError）を追加。無効な組み合わせで走査が終わらなくなる問題の修正
+- M2-0-R1-002: `security-scan` の text / JSON 出力を `maskSecrets` / `maskDeep` に通す。`allow[].reason` / `path` の改行を禁止（JSON Schema 更新）
+- M2-0-R1-003: `--write-gitignore` を未追跡 `.gitignore` でも冪等に（追記せず `git add .gitignore` を案内。追跡済みの否定修復は維持）
+- テスト 294 件（回帰 14 件を追加）、10 回連続 PASS。自己 verify 7 チェック PASS。`package.json` version 0.3.1
+
+## v0.3.0 — commit 8e81d15 / tag object 3e54718 — M2-0 scanner maintenance
 
 - M1 独立レビュー R3 の持ち越し 5 件をすべて修正: M1-R3-001（候補プレフィックスの持ち越し、`oversized-candidate` finding）、002（`--write-gitignore` が否定ルールを修復）、
   003（`artifacts/` 提案は実生成物 4 パスで判定）、004（追跡済み `.gitignore` だけを保護と数える）、005（PEM ブロック finding の重複統合）
