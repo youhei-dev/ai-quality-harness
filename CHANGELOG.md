@@ -5,7 +5,16 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.2.3 — M1 complete — completion record, R3 carried over to M2-0（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.3` / `git rev-parse v0.2.3` で確認。最終報告に記載）
+## v0.3.0 — M2-0 scanner maintenance（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.0` / `git rev-parse v0.3.0` で確認。最終報告に記載）
+
+- M1 独立レビュー R3 の持ち越し 5 件をすべて修正: M1-R3-001（候補プレフィックスの持ち越し、`oversized-candidate` finding）、002（`--write-gitignore` が否定ルールを修復）、
+  003（`artifacts/` 提案は実生成物 4 パスで判定）、004（追跡済み `.gitignore` だけを保護と数える）、005（PEM ブロック finding の重複統合）
+- key-value 分類を走査対象に（`looksLikeSecretValue` で値が秘密らしいときだけ finding。masker は不変）
+- `security` セクション: `allow`（path / category / line / 必須 reason / expires。抑制は必ず出力に残す、衛生 finding は抑制不可）、`envProbePaths`、`exampleEnvSuffixes`、
+  `maxLineBytes` / `lineOverlapBytes` / `maxCarryBytes`。`aiqh security-scan --config <path>`。JSON Schema 更新。ADR-0012、ADR-0010 改訂
+- テスト 280 件（回帰 28 件を追加）、10 回連続 PASS。自己 verify 7 チェック PASS（key-value 走査込みで検出 0 件）。`package.json` version 0.3.0
+
+## v0.2.3 — commit 2da4c76 / tag object 474fc27 — M1 complete — completion record, R3 carried over to M2-0
 
 - コード変更なし。独立レビュー R3（`docs/reviews/m1/independent-review-r3.md`、High 0 / Medium 4 / Low 1）を受領し、5 件すべてを VALID と判定したうえで
   **M2-0「スキャナ保守」へ持ち越し**（`docs/reviews/m1/response-r3.md`）。事前の基準「R3 で High が無ければ M1 完了」により **M1 の完了ベースラインは v0.2.2**
