@@ -48,9 +48,49 @@
   },
 
   // 必須。1 件以上。設定順に実行する
-  "checks": [ /* §3 */ ]
+  "checks": [ /* §3 */ ],
+
+  // 任意（M2-0）。内蔵 Security Scan の設定。§3b
+  "security": {
+    "allow": [
+      { "path": "tests/**", "category": "anthropic", "reason": "synthetic test keys built at runtime", "expires": "2027-03-31" }
+    ],
+    "envProbePaths": [".env", ".env.local", ".env.production", ".env.development"],
+    "exampleEnvSuffixes": ["example", "sample", "template", "dist"],
+    "maxLineBytes": 262144,
+    "lineOverlapBytes": 4096,
+    "maxCarryBytes": 65536
+  }
 }
 ```
+
+### 3b. `security` セクション（M2-0、ADR-0012）
+
+`aiqh security-scan` は既定で cwd の `aiqh.config.jsonc` を読み（`--config <path>` で変更可。既定ファイルが無ければ既定値、あるが不正なら exit 2）、
+`security` セクションの設定で走査する。config は信頼された入力（R-006 の trust boundary）であり、allow はレビューで見える形で記録される。
+
+| キー | 型 | 既定 | 意味 |
+|---|---|---|---|
+| `allow[]` | 配列 | `[]` | 秘密の形の finding（`secret` / `oversized-candidate`）の例外指定。**`tracked-env` / `untracked-env` / `gitignore` は抑制できない** |
+| `allow[].path` | string（必須） | — | リポジトリ相対パスの glob（`path.matchesGlob`。`tests/**`、`src/*.py`、`**` 等） |
+| `allow[].category` | string | 全分類 | 抑制する分類（`anthropic` / `aws` / `key-value` …。既知の分類名のみ） |
+| `allow[].line` | 正の整数 | 全行 | その行だけを抑制 |
+| `allow[].reason` | string（必須、空白のみ不可） | — | 理由。scan の出力とレポートにそのまま表示される |
+| `allow[].expires` | `YYYY-MM-DD` | 無期限 | この日を過ぎた規則は無効（該当 finding は残り、警告を出す） |
+| `envProbePaths` | string[] | `.env`, `.env.local`, `.env.production`, `.env.development` | `.gitignore` のカバレッジ確認に使う代表パス（先頭が `.env` 本体扱い） |
+| `exampleEnvSuffixes` | string[] | `example`, `sample`, `template`, `dist` | `.env.<suffix>` を情報扱い（finding にしない）にする接尾辞 |
+| `maxLineBytes` | 正の整数 | 262144 | 1 行の保持上限（超えると窓走査）。JS 文字列長で測る |
+| `lineOverlapBytes` | 正の整数 | 4096 | 窓の重なりの下限 |
+| `maxCarryBytes` | 正の整数 | 65536 | 候補プレフィックスの持ち越し上限。超える候補は `oversized-candidate` finding |
+
+抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
+scan の出力（text / `--json`）に必ず出る。verify のレポートには security チェックの出力として残る（実行経路は M0 のまま）。
+
+**key-value 走査（M2-0 §6）の既知の制限**: 候補になるのは引用符付きのリテラルと、dotenv / shell 形式の裸の値（`()[]{}` や `.` / `->` / `::` の
+識別子連結を含まないもの）だけで、値が 8 文字以上かつ英字と数字を両方含む（または小文字 / 大文字 / 数字 / 記号のうち 3 種以上）ときに finding になる。
+補間・参照（`${…}`、`process.env.X`、`os.environ[…]`、`%(…)s`、`{{…}}`）、プレースホルダ（`<…>`、`xxx`、`changeme`、`example`、`dummy`、
+`placeholder`、`your-…`、`***`、`REDACTED`）、真偽値・`null` / `None`、数値のみは finding にならない。**英字のみの長いパスフレーズは検出できない**。
+masker（レポートのマスク）はこの判定を使わず、従来どおり広くマスクする。
 
 ---
 
@@ -174,8 +214,11 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
   `.env.production` / `.env.development` を ignore する場合だけ保護ありとする（否定で再包含されたものは報告。`!.env.example` は許容）
 - 未追跡で ignore されていない `.env*`（`config/.env.staging` のようなネストも含む）は、中身を読まずに `untracked-env` の finding にする
   （M1-R2-001）。example / sample / template / dist は情報のみ
-- 1 行が 256 KiB を超える場合は窓走査に切り替わる（M1-R2-004）: 区間ごとに同じ行番号で照合し、末尾 4 KiB を重ねて次の区間へ接続する。
-  検出は維持されるが、**重なり（4 KiB）より長い単一トークンは検出できないことがある**。メモリはファイルサイズに比例しない
+- 1 行が `security.maxLineBytes`（既定 256 KiB）を超える場合は窓走査に切り替わる（M1-R2-004 → M2-0）: 区間ごとに同じ行番号で照合し、
+  候補プレフィックス（アンカーは見つかったが完全一致が無い最後の位置。下限は重なり 4 KiB、上限は `maxCarryBytes` 64 KiB）を次の区間へ持ち越す。
+  上限を超える候補は `oversized-candidate` finding（fail closed）。メモリはファイルサイズに比例しない
+- key-value 分類も走査する（値が秘密らしい場合だけ。§3b の既知の制限を参照）。未走査は bearer / basic
+- `security.allow` による抑制は必ず出力に残る（§3b）
 - `lstat` / open / read の失敗は exit 2（fail closed）。例外は ENOENT（index にあるが作業ツリーに無い）だけで、これはスキップ
 - 値は出力しない（分類・パス・行番号のみ）
 
@@ -214,7 +257,7 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 | `review` | パケット生成の入力パス、diff の上限 | M2 |
 | `history` | 保存先 | M4 |
 | ~~JSON Schema~~ | M1 で同梱済み（`schema/aiqh.config.schema.json`） | — |
-| `security.allow` | パス / 行 / 分類の例外指定（M2） | Security Scan の誤検出（テスト用ダミー等）を設定側で明示的に許容する |
-| `security.scanKeyValue` | boolean（M2） | key-value 分類（`password=` 等）を走査に含める。誤検出抑制の設計が前提 |
+| ~~`security.allow`~~ | M2-0 で実装済み（§3b） | — |
+| ~~`security.scanKeyValue`~~ | M2-0 で key-value 走査を既定で有効化（値のヒューリスティック付き、§3b）。無効化フラグは設けていない | — |
 
 これらは仕様確定前に ADR を追加する。

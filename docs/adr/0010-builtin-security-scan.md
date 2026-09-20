@@ -53,3 +53,14 @@ M0 の 7 分類のうち security は NOT APPLICABLE のままだった。外部
   重複 finding は 1 件に統合。上限は JS 文字列長（UTF-16 コード単位）で測るため、実メモリはおおむね 2 ×（上限 + 重なり）バイト。
   上限超過を ERROR にする案は採らない（同梱の minified バンドル等で門が閉じるのを避ける）。重なりより長い単一トークンは検出できないことがある
 - `gitIgnoredByRepoRules()` を export し、`aiqh init` の `artifacts/` 提案と判定を共用する（M1-R2-005、ADR-0011）
+
+## 改訂（v0.3.0、M2-0 スキャナ保守）
+- **候補プレフィックスの持ち越し**（M1-R3-001）: 固定の重なりでは重なりより長いトークンが窓境界で見逃された。各走査パターンに開始アンカーと継続文字を持たせ
+  （`patterns.ts` に一本化）、窓末尾で「完全一致に含まれないアンカー + 継続文字だけで末尾まで続く」候補、または末尾に達した一致の開始位置から次の窓へ持ち越す。
+  持ち越しの上限 `maxCarryBytes`（64 KiB）を超える候補は捨てずに `oversized-candidate` finding にする（fail closed。実物でなければ `security.allow` で許容）
+- **追跡済み `.gitignore` だけを保護と数える**（M1-R3-004）: 出所の `.gitignore` を `git ls-files` で確認し、未追跡ならクローン固有として無効
+- **PEM ブロック finding の重複統合**（M1-R3-005）: `block:<category>:<begin>:<end>` のキー
+- **key-value 分類の走査**（§6）: 一致した値が `looksLikeSecretValue` を通るときだけ finding。候補は引用符付きリテラルと dotenv / shell 形式の裸の値のみ、
+  式（`getPassword()`、`config.get(...)`、`this.password`）や補間・プレースホルダ・真偽値・数値は除外。英字のみのパスフレーズは検出できない（既知の制限）。
+  masker の挙動は変えない（R-012 の定義共有は維持: 同じ `SECRET_PATTERNS` エントリに `valueFilter` を付けただけ）
+- **`security.allow` と設定化**（§7 / §8）: ADR-0012 を参照。抑制は秘密の形の finding だけで、衛生 finding（env / gitignore）は抑制できない

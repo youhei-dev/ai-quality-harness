@@ -196,24 +196,35 @@ aiqh security-scan
    ▼
   各ファイルを 64 KiB チャンクで逐次読み（サイズ上限なし。先頭 8 KiB に NUL があればバイナリとしてスキップ、読取エラーは exit 2）
    ▼
-  LineAssembler: 改行で行を切り出す。1 行が MAX_LINE_BYTES（256 KiB）を超えたら窓走査（下記）
+  LineAssembler: 改行で行を切り出す。1 行が security.maxLineBytes（既定 256 KiB）を超えたら窓走査（下記）
   各行: 正規マーカー [REDACTED:<category>] を除去 → 行指向の分類は行単位で照合（同一ファイル・行・分類の重複は 1 件）
-        private-key は BEGIN 行 → END 行の状態機械（開始行と終了行を記録。END が無ければファイル末尾までを検出 = fail closed）
+        key-value は一致した値が looksLikeSecretValue を通るときだけ finding（M2-0 §6）
+        private-key は BEGIN 行 → END 行の状態機械（開始行と終了行を記録。END が無ければファイル末尾までを検出 = fail closed。
+        ブロック finding も block:<category>:<begin>:<end> のキーで重複統合、M1-R3-005）
    ▼
-  findings: secret（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、untracked-env、gitignore（下記）
+  findings: secret / oversized-candidate（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、untracked-env、gitignore（下記）
    ▼
-  exit 0（検出なし）/ 1（検出あり）/ 2（非 git / stat・読取エラー）。未走査分類（bearer / basic / key-value）と理由を必ず表示
+  security.allow（M2-0 §7）: secret / oversized-candidate だけを抑制。抑制した finding・使った規則・未使用 / 期限切れの規則を必ず出力
+   ▼
+  exit 0（残る finding なし）/ 1（あり）/ 2（非 git / stat・読取エラー / 設定エラー）。未走査分類（bearer / basic）と理由を必ず表示
 ```
 
-**窓走査（M1-R2-004）**: 改行のないまま溜めた文字列が `MAX_LINE_BYTES` を超えたら、その区間を同じ行番号で行指向パターンに掛け、
-末尾 `LINE_OVERLAP`（4 KiB）だけを残して次の区間に接続する。境界をまたぐ一致は重なり部分で次の区間に再度掛かるため検出され、
-重複は 1 件にまとめる。行番号は改行の数だけ進む。上限は **JS 文字列長（UTF-16 コード単位）で測る**ため、保持する文字列の実メモリは
-おおむね 2 ×（256 KiB + 4 KiB）バイトが上限で、ファイルサイズに比例しない。重なりより長い単一トークンは検出できないことがある（CONFIG_SPEC §5.3b）。
-PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
+**窓走査と候補の持ち越し（M1-R2-004 → M2-0 / M1-R3-001）**: 改行のないまま溜めた文字列が `maxLineBytes` を超えたら、その区間を同じ行番号で
+行指向パターンに掛ける。次の区間へ持ち越すのは固定の重なりではなく**候補プレフィックス**: 各パターンの開始アンカー（`patterns.ts` の `anchor.start`。
+url-credential は `scheme://user:`、anthropic は `sk-ant-`、aws は `AKIA` / `ASIA`、jwt は `eyJ`、key-value はキー名と区切り、など）のうち
+完全一致に含まれず、かつ区間末尾までがそのパターンの継続文字（`anchor.continues`）だけで続くもの、または区間末尾に達した一致の開始位置。
+複数パターンでは最も前の位置を採り、下限は従来の重なり `lineOverlapBytes`（4 KiB）、上限は `maxCarryBytes`（64 KiB）。上限を超える候補は
+「長すぎて完全走査できない」として **`oversized-candidate` finding（分類・行番号のみ）にし、捨てない（fail closed）**。読み取りチャンク
+（64 KiB）≤ `maxCarryBytes` なので、区間の最大長は `maxLineBytes + maxCarryBytes` に収まる（`LineAssembler.maxRetained` を単体テストで固定）。
+上限は **JS 文字列長（UTF-16 コード単位）で測る**ため、実メモリはおおむね 2 ×（256 KiB + 64 KiB）バイトが上限で、ファイルサイズに比例しない。
+行番号は改行の数だけ進む。PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
+既知の副作用: minified バンドルのような改行のない長行で、区間末尾までアンカーの継続文字だけが 64 KiB 超続く場合（例: `eyJ` で始まる巨大な
+base64 文字列）は oversized-candidate になる。実物でないと分かっているなら `security.allow` で理由つきで許容する。
 
-`.gitignore` の判定（M1-R1-005）は自前の文字列一致ではなく Git 自身に委ねる: 代表パス `.env` / `.env.local` /
-`.env.production` / `.env.development` を `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、
-**「一致したルールの出所がリポジトリ内の `.gitignore` で、かつ否定パターン（`!` 始まり）でない」場合だけ保護あり**と見なす。
+`.gitignore` の判定（M1-R1-005）は自前の文字列一致ではなく Git 自身に委ねる: 代表パス（`security.envProbePaths`、既定 `.env` / `.env.local` /
+`.env.production` / `.env.development`）を `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、
+**「一致したルールの出所がリポジトリ内の追跡済み `.gitignore`（`git ls-files` で確認、M2-0 / M1-R3-004。ネストは出所ごと）で、かつ否定パターン
+（`!` 始まり）でない」場合だけ保護あり**と見なす。未追跡の `.gitignore` はクローン先に存在しないため保護と数えない。
 否定で再包含された `.env.production` は未保護として報告する。利用者のグローバル除外（`core.excludesFile`）は `-c` で無効化し、
 `.git/info/exclude` 由来の一致は出所で除外する（どちらもクローン固有で、push 先を守らない）。`!.env.example` のような
 example 系の否定は代表パスに含まれないため許容される。
@@ -223,9 +234,11 @@ example 系の否定は代表パスに含まれないため許容される。
 未追跡の `.env*` は代表パスのプローブに頼らず、存在そのものを finding にする（M1-R2-001。`git ls-files --others --exclude-standard`
 に出た時点で ignore されていないことは Git 自身が確定している）。代表 4 パスのプローブは予防的なカバレッジ確認として残す。
 
-`aiqh init` の `artifacts/` 提案も同じ判定関数（`gitIgnoredByRepoRules`）を共用し、代表パス `artifacts/.aiqh-ignore-probe` が
-リポジトリ内 `.gitignore` の非否定ルールで ignore されるかで決める（M1-R2-005）。git リポジトリでない場合や git が失敗した場合は
-安全側に「追加を提案」し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）。
+`aiqh init` の `artifacts/` 提案も同じ判定関数（`gitIgnoredByRepoRules`）を共用し、**実際の生成物のパス**（`artifacts/verification/latest.json` /
+`latest.md` / `history/probe.json`、`artifacts/ai-review/probe.md`）が**すべて**追跡済み `.gitignore` の非否定ルールで ignore されるときだけ
+「already ignores」とする（M1-R2-005 → M2-0 / M1-R3-003。sentinel 1 個を狙ったルールでは保護と見なさない）。git が「未 ignore」と答えた場合は、
+同じ行が既にあっても末尾に `artifacts/` を追記して後段の否定を無効にする（M1-R3-002。追記後は git が保護を確認するので 2 回目は追記しない）。
+git リポジトリでない場合や git が失敗した場合は安全側に「追加を提案」し、その場合だけ同じ行があれば追記しない（冪等）。
 
 Python アダプタは venv を「`<venv>/bin/python` が実行可能」なときだけ認識し（`PythonContext.python`、M1-R2-003）、
 すべての推奨コマンドはその interpreter から始まる。ツールのバイナリも実行権限（X_OK）で確認する（M1-R1-009）。

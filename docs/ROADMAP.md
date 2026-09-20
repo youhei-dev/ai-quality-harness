@@ -12,7 +12,7 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 - 完了時のタグ: `v0.1.5`（M0 complete — verify core with independent reviews R1-R5 applied）。その後の独立レビュー R6（3 件）を `v0.1.6`、最終レビュー R7（1 件: `OutputBuffer` のチャンク横断 UTF-8 境界揃え）を `v0.1.7` として保守修正。**M1 は v0.1.7 を基準に始める。これ以降の M0 レビューは行わない**
 - 独立レビューの指摘件数の推移: R1: 13 → R2: 5 → R3: 3 → R4: 3 → R5: 4 → R6: 3 → R7: 1（R5 は文書対応 2 件、R6 は文書対応 2 件を含む）
 - v0.1.7 時点の検証構成: 自己 verify 6 チェック（lint / typecheck / unit / build / package / dependency。security / e2e は NOT APPLICABLE）、テスト 148 件（10 回連続 PASS）
-- M1 以降へ持ち越した項目: R-010（並行実行時の latest の整合、M4）、R-011 後半（Linux CI、M3）、R-012（masker と Security Scan の検出パターン共有、M1）、R-013（出力バッファの streaming 化、並列化時）。R5 で残った論点（OS 到着時刻基準のシグナル保証、安全弁の実発火、Windows）は M1 以降のレビューで扱う
+- M1 以降へ持ち越した項目: R-010（並行実行時の latest の整合、M4）、R-011 後半（Linux CI、M3）、R-012（masker と Security Scan の検出パターン共有、M1 で共有・M2-0 の `security.allow` で完了）、R-013（出力バッファの streaming 化、並列化時）。R5 で残った論点（OS 到着時刻基準のシグナル保証、安全弁の実発火、Windows）は M1 以降のレビューで扱う
 - 詳細: `docs/reports/M0_COMPLETION.md`（保守修正 v0.1.6 / v0.1.7 の追記を含む）、`CHANGELOG.md`
 
 ### 内容
@@ -102,8 +102,10 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ## M2 — 独立レビューループ
 
-### M2-0 — スキャナ保守（M2 の最初のマイルストーン。M1 の独立レビュー R3 の持ち越しと Security Scan の拡張）
-M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、key-value 走査・`security.allow` と同じ塊で扱う。各件は M2-0 で回帰テストを先に書き「修正前 FAIL」を記録してから修正する（R3 では修正もテスト追加もしていない）。
+### M2-0 — スキャナ保守 — **完了（v0.3.0、2026-09-20）**
+M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、key-value 走査・`security.allow` と同じ塊で扱った。各件は回帰テストを先に書き「修正前 FAIL」を記録してから修正した
+（28 件の回帰テスト、`tests/regression-m2-0-*`）。完了時: テスト 280 件（10 回連続 PASS）、自己 verify 7 チェック PASS（key-value 走査込みで検出 0 件）。
+仕様は CONFIG_SPEC §3b、ADR-0010 改訂、ADR-0012。
 1. **M1-R3-001**（Medium）: 窓境界をまたぐ長いトークン（`LINE_OVERLAP` 4 KiB より長い url-credential / JWT が区間境界にまたがると検出できない）。候補プレフィックスを次の窓へ持ち越す状態機械、または候補が安全上限を超えたときの fail closed（finding / ERROR）
 2. **M1-R3-002**（Medium）: `--write-gitignore` が否定ルール（`artifacts/` + `!artifacts/`）を実際に修復する（needed なら末尾へ追記。needed が false になれば追記しない = 冪等）
 3. **M1-R3-004**（Medium）: カバレッジに使う `.gitignore` が追跡済みであること（未追跡のローカル `.gitignore` はクローン先に存在しないため保護と数えない。ネストも各 source を確認）
@@ -111,7 +113,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 5. **M1-R3-005**（Low）: PEM ブロック finding の重複統合（`block:<category>:<beginLine>:<endLine>`）
 6. key-value 分類の走査（ソースコード中の誤検出を抑える方式の設計が必要）と `security.allow`（例外指定: パス / 行 / 分類。レビュー原文の例示、対象リポジトリのテスト内ダミー値の許容）。互換テストは維持
 7. `.env` 判定の代表パス・example サフィックスの設定化、窓走査の上限 / 重なりの設定化
-8. 持ち越し済みの整理: R-012 は masker と scanner の定義共有まで済み（残りは 6 の `security.allow`）。R-010（M4）/ R-011 後半（M3）/ R-013（並列化時）は従来の行き先のまま
+8. 持ち越し済みの整理: **R-012 は完了**（masker と scanner の定義共有 + `security.allow`）。R-010（M4）/ R-011 後半（M3）/ R-013（並列化時）は従来の行き先のまま
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化

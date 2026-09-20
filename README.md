@@ -27,7 +27,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M1 完了（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）。次は M2-0「スキャナ保守」**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+**M2-0「スキャナ保守」完了（タグ `v0.3.0`）。次は M2-1（review-packet コマンド）**。M1（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）では`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
 チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
 M1 の独立レビュー R1（10 件、High 3）を v0.2.1、R2（5 件、High 1）を v0.2.2 で反映し、R3（5 件、High 0）は M2-0 へ持ち越しました。
 各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md)、
@@ -41,7 +41,7 @@ M1 の総括は [`docs/reports/M1_COMPLETION.md`](docs/reports/M1_COMPLETION.md)
 | チェックアダプタ（lint / typecheck / unit / build / security / dependency / e2e の検出と推奨設定） | M1 実装済み |
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
-| Security Scan の保守（窓境界の長いトークン、`.gitignore` 判定の強化、`security.allow`、key-value 走査） | M2-0 予定 |
+| Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
 | `aiqh review-packet` / `aiqh review-import`（独立レビューAI とのループ） | M2-1 以降予定 |
 | GitHub Actions 再利用ワークフロー | M3 予定 |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
@@ -146,6 +146,9 @@ aiqh security-scan
   `--write-gitignore` は同じ行を二度追記しません
 - 同梱の JSON Schema は構造の検証・補完用です。チェック名の一意性や必須チェック 1 件以上といった横断規則は `aiqh` が
   実行時に検証します（エディタで valid でも `aiqh` が拒否することがあります）
+- `security.allow`（M2-0）で秘密の形の finding を理由つきで許容できます（`path` glob、`category`、`line`、必須の `reason`、任意の `expires`）。
+  抑制した finding は件数と一覧が必ず出力され、未使用・期限切れの規則は警告されます。`.env` や `.gitignore` の衛生 finding は抑制できません。
+  key-value 分類（`password=…` 等）も走査しますが、値が秘密らしい場合だけ finding になります（英字のみのパスフレーズは検出できません）
 
 ## CLI
 
