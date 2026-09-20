@@ -221,6 +221,12 @@ url-credential は `scheme://user:`、anthropic は `sk-ant-`、aws は `AKIA` /
 既知の副作用: minified バンドルのような改行のない長行で、区間末尾までアンカーの継続文字だけが 64 KiB 超続く場合（例: `eyJ` で始まる巨大な
 base64 文字列）は oversized-candidate になる。実物でないと分かっているなら `security.allow` で理由つきで許容する。
 
+**窓設定の制約と進捗不変条件（M2-0-R1-001）**: 3 値は `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさなければならない
+（そうでないと窓の buffer が縮まず走査が終わらない）。3 層で守る: (1) `resolveSecurity()` が既定値を埋めた後に検証し `ConfigError`（exit 2）、
+(2) `LineAssembler` のコンストラクタが同じ関係を検証し `ScanError`（設定を経由しない直接構築も対象。判定は `config/window-limits.ts` に一本化）、
+(3) 長行ループの各反復で `pending` が必ず短くなる不変条件を置き、短くならなければ `ScanError`（exit 2。将来の変更に対する保険）。
+同期ループ中は CLI のシグナルハンドラも走らないため、「終了しない」状態を作らないことが fail closed の前提になる。
+
 `.gitignore` の判定（M1-R1-005）は自前の文字列一致ではなく Git 自身に委ねる: 代表パス（`security.envProbePaths`、既定 `.env` / `.env.local` /
 `.env.production` / `.env.development`）を `git -c core.excludesFile=/dev/null check-ignore --no-index -v -n --stdin -z` に渡し、
 **「一致したルールの出所がリポジトリ内の追跡済み `.gitignore`（`git ls-files` で確認、M2-0 / M1-R3-004。ネストは出所ごと）で、かつ否定パターン
@@ -236,9 +242,15 @@ example 系の否定は代表パスに含まれないため許容される。
 
 `aiqh init` の `artifacts/` 提案も同じ判定関数（`gitIgnoredByRepoRules`）を共用し、**実際の生成物のパス**（`artifacts/verification/latest.json` /
 `latest.md` / `history/probe.json`、`artifacts/ai-review/probe.md`）が**すべて**追跡済み `.gitignore` の非否定ルールで ignore されるときだけ
-「already ignores」とする（M1-R2-005 → M2-0 / M1-R3-003。sentinel 1 個を狙ったルールでは保護と見なさない）。git が「未 ignore」と答えた場合は、
-同じ行が既にあっても末尾に `artifacts/` を追記して後段の否定を無効にする（M1-R3-002。追記後は git が保護を確認するので 2 回目は追記しない）。
-git リポジトリでない場合や git が失敗した場合は安全側に「追加を提案」し、その場合だけ同じ行があれば追記しない（冪等）。
+「already ignores」とする（M1-R2-005 → M2-0 / M1-R3-003。sentinel 1 個を狙ったルールでは保護と見なさない）。`--write-gitignore` の書込は 3 分岐
+（M1-R3-002 → M2-0-R1-003）: (a) `.gitignore` が追跡済みで git が「未 ignore」と答えた（後段の否定など）→ 同じ行が既にあっても末尾に `artifacts/` を
+追記して修復（追記後は git が保護を確認するので 2 回目は追記しない）、(b) `.gitignore` が未追跡で正規行が既にある → 追記せず
+「contains artifacts/ but is not tracked; `git add .gitignore` …」と案内（未追跡のルールはクローン先に無いため保護と数えないが、重複追記は無意味）、
+(c) `.gitignore` が無い、または git に聞けない → 作成 / 追記を 1 回だけ（同じ行は二度と追記しない）。
+
+`aiqh security-scan` の出力は他コマンドと同じマスク境界を通る（M2-0-R1-002）: text は全行 `maskSecrets`、`--json` は `maskDeep(result)`。
+config 由来の自由文（`allow[].reason` / `path`）に秘密の形があってもそのまま再出力しない。`reason` / `path` はスキーマで改行を禁止する
+（監査ログへの複数行注入の防止）。
 
 Python アダプタは venv を「`<venv>/bin/python` が実行可能」なときだけ認識し（`PythonContext.python`、M1-R2-003）、
 すべての推奨コマンドはその interpreter から始まる。ツールのバイナリも実行権限（X_OK）で確認する（M1-R1-009）。

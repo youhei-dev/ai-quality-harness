@@ -33,3 +33,13 @@ M1 ではこれを連結方式や分割表記で回避してきたが、対象�
 - 既知の制限: 英字のみの長いパスフレーズは key-value で検出できない。`eyJ` 等の継続文字だけが 64 KiB 超続く長行は oversized-candidate になる
 - 対象リポジトリのテスト内ダミー値は、連結方式化か `security.allow`（理由・期限つき）のどちらかで扱う。判断は人間
 - レビュー原文コピーの分割表記（CLAUDE.md の規約）は、allow が入っても当面維持する（docs には値を置かない方針のため）
+
+## 追記（v0.3.1、M2-0 独立レビュー R1）
+- **窓設定の相互制約**（M2-0-R1-001、High）: `maxLineBytes` / `lineOverlapBytes` / `maxCarryBytes` を個別に正の整数と検証するだけでは、
+  `lineOverlapBytes > maxLineBytes` や `maxCarryBytes > maxLineBytes` の組み合わせで `LineAssembler` の窓が縮まず走査が終わらなかった
+  （fail closed ではなく「終了しない」。同期ループ中は CLI のシグナルハンドラも走らない）。`0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を
+  既定値適用後に検証して `ConfigError`、`LineAssembler` のコンストラクタでも `ScanError`、長行ループには進捗不変条件（`ScanError`）の 3 層で守る
+- **出力のマスク境界**（M2-0-R1-002）: `security-scan` の text / JSON 出力も `maskSecrets` / `maskDeep` を通す。config が信頼された入力であることと、
+  秘密の形を生で出力してよいことは別。`reason` / `path` の改行を禁止
+- **未追跡 `.gitignore` での冪等性**（M2-0-R1-003）: 「未追跡のルールは保護と数えない」は維持しつつ、書込側は追跡状態で分岐し、未追跡で正規行がある場合は
+  追記せず `git add .gitignore` を案内する

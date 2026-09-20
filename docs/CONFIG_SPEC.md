@@ -83,6 +83,11 @@
 | `lineOverlapBytes` | 正の整数 | 4096 | 窓の重なりの下限 |
 | `maxCarryBytes` | 正の整数 | 65536 | 候補プレフィックスの持ち越し上限。超える候補は `oversized-candidate` finding |
 
+**制約（M2-0-R1-001）**: 既定値を適用した後の 3 値が `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさない config は
+読込時エラー（exit 2）。1 つのキーだけを指定して既定値との関係が壊れる場合も同じ（例: `lineOverlapBytes: 100000` は既定の `maxCarryBytes` 65536 を超える）。
+境界（`lineOverlapBytes == maxCarryBytes`、`maxCarryBytes == maxLineBytes`）は有効。
+`allow[].reason` と `allow[].path` は改行（`\r` / `\n`）を含めない（スキーマエラー。M2-0-R1-002）。
+
 抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
 scan の出力（text / `--json`）に必ず出る。verify のレポートには security チェックの出力として残る（実行経路は M0 のまま）。
 
