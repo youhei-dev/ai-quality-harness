@@ -149,29 +149,30 @@ function scanFile(absRoot: string, rel: string, lineScanners: LineScanner[], blo
   }
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
   const open: Array<{ scanner: BlockScanner; beginLine: number }> = [];
-  const seen = new Set<string>(); // (category, line) already reported: windows of one line overlap
+  const seen = new Set<string>(); // findings already reported (windows of one line overlap)
   let lineNo = 0;
+  const push = (f: ScanFinding, key: string): void => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.findings.push(f);
+  };
   const binary = readLines(abs, rel, (rawLine, no) => {
     lineNo = no;
     const line = stripCanonicalMarkers(rawLine);
     for (const s of lineScanners) {
       s.regex.lastIndex = 0;
-      const key = `${s.category}:${lineNo}`;
-      if (s.regex.test(line) && !seen.has(key)) {
-        seen.add(key);
-        result.findings.push({ kind: "secret", category: s.category, file: rel, line: lineNo, endLine: lineNo, message: `${s.category}-shaped string` });
-      }
+      if (s.regex.test(line)) push({ kind: "secret", category: s.category, file: rel, line: lineNo, endLine: lineNo, message: `${s.category}-shaped string` }, `${s.category}:${lineNo}`);
     }
     for (const b of blockScanners) {
       const idx = open.findIndex((o) => o.scanner === b);
       if (idx === -1) {
         if (b.begin.test(line)) {
-          if (b.end.test(line)) result.findings.push({ kind: "secret", category: b.category, file: rel, line: lineNo, endLine: lineNo, message: `${b.category} block` });
+          if (b.end.test(line)) push({ kind: "secret", category: b.category, file: rel, line: lineNo, endLine: lineNo, message: `${b.category} block` }, `block:${b.category}:${lineNo}:${lineNo}`);
           else open.push({ scanner: b, beginLine: lineNo });
         }
       } else if (b.end.test(line)) {
         const o = open[idx];
-        if (o) result.findings.push({ kind: "secret", category: b.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${b.category} block` });
+        if (o) push({ kind: "secret", category: b.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${b.category} block` }, `block:${b.category}:${o.beginLine}:${lineNo}`);
         open.splice(idx, 1);
       }
     }
@@ -182,7 +183,7 @@ function scanFile(absRoot: string, rel: string, lineScanners: LineScanner[], blo
   }
   result.filesScanned += 1;
   // A block that never ended (truncated PEM) is still a finding: fail closed.
-  for (const o of open) result.findings.push({ kind: "secret", category: o.scanner.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${o.scanner.category} block (no end marker)` });
+  for (const o of open) push({ kind: "secret", category: o.scanner.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${o.scanner.category} block (no end marker)` }, `block:${o.scanner.category}:${o.beginLine}:${lineNo}`);
 }
 
 /**
