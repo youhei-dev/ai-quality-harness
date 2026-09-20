@@ -29,6 +29,22 @@ export interface SecretPattern {
    */
   scanMode?: "line" | "block";
   block?: { begin: RegExp; end: RegExp };
+  /**
+   * Candidate anchor for the sliding window (M2-0 / M1-R3-001). `start` finds where a match of
+   * this category could begin; `continues` is the character class a match may run on with. At the
+   * end of a window, an anchor that is not covered by a complete match and whose remainder up to
+   * the window end consists only of `continues` characters is a candidate that may finish in the
+   * next window, so the text from that anchor is carried over (bounded by maxCarryBytes).
+   */
+  anchor?: { start: RegExp; continues: RegExp | ((anchorMatch: RegExpExecArray) => RegExp) };
+  /**
+   * For scanned categories whose regex matches ordinary code too (key-value): a match is a finding
+   * only when its value passes the filter. `valueGroups` lists the capture groups that carry the
+   * value (quoted first, bare last); `quotedGroups` names the ones that are string literals.
+   */
+  valueFilter?: (value: string, quoted: boolean) => boolean;
+  valueGroups?: number[];
+  quotedGroups?: number[];
 }
 
 const redacted = (category: string): string => `[REDACTED:${category}]`;
@@ -74,6 +90,8 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,
+    // Anchor = scheme, user and the colon; a plain URL (no "user:") is not a candidate.
+    anchor: { start: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:/gi, continues: /[^\s/@]/ },
   },
   {
     category: "bearer",
@@ -116,48 +134,56 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /\bsk-ant-[A-Za-z0-9_-]{8,}/g,
     replacement: redacted("anthropic"),
     scan: true,
+    anchor: { start: /\bsk-ant-/g, continues: /[A-Za-z0-9_-]/ },
   },
   {
     category: "openai",
     pattern: /\bsk-(?!ant-)[A-Za-z0-9_-]{16,}/g,
     replacement: redacted("openai"),
     scan: true,
+    anchor: { start: /\bsk-/g, continues: /[A-Za-z0-9_-]/ },
   },
   {
     category: "aws",
     pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
     replacement: redacted("aws"),
     scan: true,
+    anchor: { start: /\b(?:AKIA|ASIA)/g, continues: /[A-Z0-9]/ },
   },
   {
     category: "github",
     pattern: /\b(?:gh[poust]_[A-Za-z0-9]{20,}|ghr_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
     replacement: redacted("github"),
     scan: true,
+    anchor: { start: /\b(?:gh[poustr]_|github_pat_)/g, continues: /[A-Za-z0-9_]/ },
   },
   {
     category: "slack",
     pattern: /\bxox[abpors]-[A-Za-z0-9-]{10,}/g,
     replacement: redacted("slack"),
     scan: true,
+    anchor: { start: /\bxox[abpors]-/g, continues: /[A-Za-z0-9-]/ },
   },
   {
     category: "google",
     pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g,
     replacement: redacted("google"),
     scan: true,
+    anchor: { start: /\bAIza/g, continues: /[0-9A-Za-z_-]/ },
   },
   {
     category: "gitlab",
     pattern: /\bglpat-[A-Za-z0-9_-]{16,}\b/g,
     replacement: redacted("gitlab"),
     scan: true,
+    anchor: { start: /\bglpat-/g, continues: /[A-Za-z0-9_-]/ },
   },
   {
     category: "jwt",
     pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
     replacement: redacted("jwt"),
     scan: true,
+    anchor: { start: /\beyJ/g, continues: /[A-Za-z0-9_.-]/ },
   },
   {
     category: "key-value",
