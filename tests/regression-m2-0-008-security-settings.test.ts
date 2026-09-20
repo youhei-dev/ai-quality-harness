@@ -51,8 +51,9 @@ describe("M2-0 §8: security settings", () => {
     expect(custom.exampleEnvFiles.sort()).toEqual([".env.example", ".env.fixture"]);
   });
   it("window limits are validated (positive integers) and carried into the resolved config", () => {
-    const cfg = resolveConfig(parseConfigText(`{ ${BASE}, "security": { "maxLineBytes": 1024, "lineOverlapBytes": 128, "maxCarryBytes": 2048 } }`), "/tmp/aiqh.config.jsonc");
-    expect([cfg.security.maxLineBytes, cfg.security.lineOverlapBytes, cfg.security.maxCarryBytes]).toEqual([1024, 128, 2048]);
+    // 4096 / 128 / 2048 satisfies overlap <= carry <= line (M2-0-R1-001; 1024 / 128 / 2048 no longer does)
+    const cfg = resolveConfig(parseConfigText(`{ ${BASE}, "security": { "maxLineBytes": 4096, "lineOverlapBytes": 128, "maxCarryBytes": 2048 } }`), "/tmp/aiqh.config.jsonc");
+    expect([cfg.security.maxLineBytes, cfg.security.lineOverlapBytes, cfg.security.maxCarryBytes]).toEqual([4096, 128, 2048]);
     expect(() => parseConfigText(`{ ${BASE}, "security": { "maxLineBytes": 0 } }`)).toThrow();
   });
 });

@@ -15,6 +15,7 @@ import { closeSync, existsSync, lstatSync, openSync, readSync } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { AllowRule, ResolvedSecurity } from "../types.ts";
+import { windowLimitsProblem } from "../config/window-limits.ts";
 import { SCANNED_CATEGORIES, SECRET_PATTERNS, UNSCANNED_CATEGORIES, stripCanonicalMarkers, type SecretPattern } from "./patterns.ts";
 
 export class ScanError extends Error {
@@ -302,6 +303,11 @@ export interface LineAssemblerOptions {
   maxLineBytes?: number;
   lineOverlap?: number;
   maxCarryBytes?: number;
+  /**
+   * Internal, for the regression test of the progress invariant only: skips the constructor's
+   * check of the limits. Not reachable from the config or the CLI.
+   */
+  skipOptionValidation?: boolean;
   /** Decides where the next window starts; the assembler applies the overlap floor and the carry cap. */
   carryFrom?: (window: string) => CarryDecision;
   /** Called when a candidate would exceed maxCarryBytes (it is then cut to the overlap). */
@@ -326,6 +332,12 @@ export class LineAssembler {
   constructor(onLine: (line: string, lineNo: number, continued: boolean) => void, opts: LineAssemblerOptions = {}) {
     this.onLine = onLine; // no parameter properties: erasableSyntaxOnly
     this.opts = { ...opts, maxLineBytes: opts.maxLineBytes ?? MAX_LINE_BYTES, lineOverlap: opts.lineOverlap ?? LINE_OVERLAP, maxCarryBytes: opts.maxCarryBytes ?? MAX_CARRY_BYTES };
+    // M2-0-R1-001, second layer: the config resolver rejects these limits already; a direct caller
+    // gets the same rule enforced here, before any window is processed.
+    if (!opts.skipOptionValidation) {
+      const problem = windowLimitsProblem({ maxLineBytes: this.opts.maxLineBytes, lineOverlapBytes: this.opts.lineOverlap, maxCarryBytes: this.opts.maxCarryBytes });
+      if (problem !== null) throw new ScanError(`invalid window limits: ${problem}`);
+    }
   }
 
   /** Characters currently retained. */
@@ -364,6 +376,11 @@ export class LineAssembler {
       }
       this.continued = true;
       this.pending = window.slice(from);
+      // M2-0-R1-001, third layer: every iteration must shrink the buffer; otherwise fail closed
+      // (ScanError → exit 2) instead of looping forever.
+      if (this.pending.length >= window.length) {
+        throw new ScanError(`sliding window made no progress (line ${this.lineNo}: kept ${this.pending.length} of ${window.length} characters; limits line=${this.opts.maxLineBytes} overlap=${this.opts.lineOverlap} carry=${this.opts.maxCarryBytes})`);
+      }
     }
   }
 

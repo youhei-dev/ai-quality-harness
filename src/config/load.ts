@@ -4,6 +4,7 @@ import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc
 import { z } from "zod";
 import type { AllowRule, ResolvedCheck, ResolvedConfig, ResolvedSecurity } from "../types.ts";
 import { DEFAULT_SECURITY } from "../security/scan.ts";
+import { windowLimitsProblem } from "./window-limits.ts";
 import {
   configSchema,
   DEFAULT_OUTPUT_DIR,
@@ -117,7 +118,7 @@ export function resolveSecurity(raw: RawConfig["security"]): ResolvedSecurity {
     if (r.expires !== undefined) rule.expires = r.expires;
     return rule;
   });
-  return {
+  const resolved: ResolvedSecurity = {
     allow,
     envProbePaths: raw?.envProbePaths ?? [...DEFAULT_SECURITY.envProbePaths],
     exampleEnvSuffixes: raw?.exampleEnvSuffixes ?? [...DEFAULT_SECURITY.exampleEnvSuffixes],
@@ -125,6 +126,12 @@ export function resolveSecurity(raw: RawConfig["security"]): ResolvedSecurity {
     lineOverlapBytes: raw?.lineOverlapBytes ?? DEFAULT_SECURITY.lineOverlapBytes,
     maxCarryBytes: raw?.maxCarryBytes ?? DEFAULT_SECURITY.maxCarryBytes,
   };
+  // M2-0-R1-001: the window limits only make sense as 0 < overlap <= carry <= line; otherwise the
+  // sliding window cannot shrink its buffer and the scanner would never return. Checked after the
+  // defaults are applied so that a single overridden field cannot break the relation either.
+  const problem = windowLimitsProblem(resolved);
+  if (problem !== null) throw new ConfigError(`config is invalid: security.${problem}`);
+  return resolved;
 }
 
 /**
