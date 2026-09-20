@@ -8,6 +8,7 @@
  * config rejected by the runtime validator / write error (any of the three files, M1-R1-010).
  * Every line printed and every JSON value passes through the secret masker (M1-R1-003).
  */
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CATEGORY_KINDS, EXIT_ERROR, EXIT_PASSED } from "../types.ts";
@@ -172,12 +173,19 @@ export async function runInit(options: InitOptions): Promise<number> {
       const file = path.join(root, ".gitignore");
       try {
         const current = existsSync(file) ? readFileSync(file, "utf8") : "";
-        // When git confirmed that the artifact paths are not ignored, appending the line at the end
-        // is the repair even if the same line exists earlier (a later negation wins otherwise;
-        // M2-0 / M1-R3-002) — and the next run sees coverage, so nothing is appended twice.
-        // Outside a git repository the proposal is always made (cannot ask git), so there the same
-        // line is never added twice (M1-R2-005).
-        if (!gitignoreProposal.canAskGit && hasGitignoreLine(current)) {
+        // Three cases (M1-R3-002 → M2-0-R1-003):
+        //  (a) tracked .gitignore and git says the artifact paths are not ignored (a later negation
+        //      wins): append the line at the end — the repair — even if the same line exists earlier;
+        //      the next run sees coverage, so nothing is appended twice;
+        //  (b) untracked .gitignore that already has the canonical line: its rules do not count as
+        //      coverage (they do not exist in a clone), but appending again would only duplicate the
+        //      line — tell the user to track the file instead;
+        //  (c) no .gitignore (or a git repository that cannot be asked): create / append once; the
+        //      same line is never added twice.
+        const lineExists = hasGitignoreLine(current);
+        if (gitignoreProposal.canAskGit && !gitignoreProposal.gitignoreTracked && lineExists) {
+          log(`.gitignore contains "${GITIGNORE_LINE}" but is not tracked; git add .gitignore to make the policy reproducible (nothing written)`);
+        } else if (!gitignoreProposal.canAskGit && lineExists) {
           log(`.gitignore already contains "${GITIGNORE_LINE}"; nothing written`);
         } else {
           const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
@@ -242,15 +250,27 @@ export const GITIGNORE_PROBES = ["artifacts/verification/latest.json", "artifact
  * every real artifact path. Outside a git repository, or when git fails, the proposal is made
  * (safe side) with a reason; `canAskGit` tells the writer whether appending is the repair.
  */
-export function proposeGitignore(root: string): { needed: boolean; reason?: string; canAskGit: boolean } {
-  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore", canAskGit: false };
-  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored", canAskGit: false };
+export function proposeGitignore(root: string): { needed: boolean; reason?: string; canAskGit: boolean; gitignoreTracked: boolean } {
+  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore", canAskGit: false, gitignoreTracked: false };
+  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored", canAskGit: false, gitignoreTracked: false };
   try {
     const ignored = gitIgnoredByRepoRules(root, GITIGNORE_PROBES);
     const missing = GITIGNORE_PROBES.filter((p) => !ignored.has(p));
-    return missing.length === 0 ? { needed: false, canAskGit: true } : { needed: true, reason: `git check-ignore: not ignored by a tracked .gitignore rule: ${missing.join(", ")}`, canAskGit: true };
+    const gitignoreTracked = isTracked(root, ".gitignore");
+    if (missing.length === 0) return { needed: false, canAskGit: true, gitignoreTracked };
+    const reason = gitignoreTracked ? `git check-ignore: not ignored by a tracked .gitignore rule: ${missing.join(", ")}` : ".gitignore is not tracked by git, so its rules do not exist in a clone";
+    return { needed: true, reason, canAskGit: true, gitignoreTracked };
   } catch {
-    return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing", canAskGit: false };
+    return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing", canAskGit: false, gitignoreTracked: false };
+  }
+}
+
+/** Whether `rel` is in the git index (an untracked .gitignore does not exist in a clone). */
+function isTracked(root: string, rel: string): boolean {
+  try {
+    return execFileSync("git", ["ls-files", "-z", "--", rel], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).split("\0").includes(rel);
+  } catch {
+    return false;
   }
 }
 
