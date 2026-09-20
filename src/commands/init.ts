@@ -230,21 +230,24 @@ function auditRows(resolution: Resolution): AuditRow[] {
   });
 }
 
-/** Representative path under artifacts/ whose ignore status decides the proposal (M1-R2-005). */
-const GITIGNORE_PROBE = "artifacts/.aiqh-ignore-probe";
+/** The artifact paths aiqh actually writes; all of them must be ignored (M2-0 / M1-R3-003). */
+export const GITIGNORE_PROBES = ["artifacts/verification/latest.json", "artifacts/verification/latest.md", "artifacts/verification/history/probe.json", "artifacts/ai-review/probe.md"];
 
 /**
  * Whether `artifacts/` should be proposed for .gitignore. Decided by git itself (check-ignore with
- * the same rule as the security scan: a non-negated rule of a repository .gitignore). Outside a git
- * repository, or when git fails, the proposal is made (safe side) with a reason.
+ * the same rule as the security scan: a non-negated rule of a *tracked* repository .gitignore) for
+ * every real artifact path. Outside a git repository, or when git fails, the proposal is made
+ * (safe side) with a reason; `canAskGit` tells the writer whether appending is the repair.
  */
-export function proposeGitignore(root: string): { needed: boolean; reason?: string } {
-  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore" };
-  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored" };
+export function proposeGitignore(root: string): { needed: boolean; reason?: string; canAskGit: boolean } {
+  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore", canAskGit: false };
+  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored", canAskGit: false };
   try {
-    return gitIgnoredByRepoRules(root, [GITIGNORE_PROBE]).has(GITIGNORE_PROBE) ? { needed: false } : { needed: true, reason: "git check-ignore: artifacts/ is not ignored by a .gitignore rule" };
+    const ignored = gitIgnoredByRepoRules(root, GITIGNORE_PROBES);
+    const missing = GITIGNORE_PROBES.filter((p) => !ignored.has(p));
+    return missing.length === 0 ? { needed: false, canAskGit: true } : { needed: true, reason: `git check-ignore: not ignored by a tracked .gitignore rule: ${missing.join(", ")}`, canAskGit: true };
   } catch {
-    return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing" };
+    return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing", canAskGit: false };
   }
 }
 
