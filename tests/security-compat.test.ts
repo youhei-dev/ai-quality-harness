@@ -23,29 +23,30 @@ function pem(kind: string): string {
   const label = kind.length > 0 ? `${kind} ` : "";
   return [fake(`-----BEGIN ${label}`, "PRIVATE KEY-----"), "MIIEfakekey", "MIIEfakekey2", fake(`-----END ${label}`, "PRIVATE KEY-----")].join("\n");
 }
-/** category -> synthetic samples (value that must disappear, full text — may span several lines) */
-const CORPUS: Record<string, Array<{ secret: string; line: string }>> = {
+/** category -> synthetic samples (needle = the value that must disappear; the field is not named "secret" so the
+ *  harness's own key-value scan does not flag these literals; full text — may span several lines) */
+const CORPUS: Record<string, Array<{ needle: string; line: string }>> = {
   "private-key": [
-    { secret: "MIIEfakekey", line: pem("RSA") },
-    { secret: "MIIEfakekey", line: pem("EC") },
-    { secret: "MIIEfakekey", line: pem("") },
+    { needle: "MIIEfakekey", line: pem("RSA") },
+    { needle: "MIIEfakekey", line: pem("EC") },
+    { needle: "MIIEfakekey", line: pem("") },
   ],
-  "url-credential": [{ secret: "hunter2pass", line: `git clone https://${fake("alice:", "hunter2pass")}@example.invalid/repo.git` }],
-  anthropic: [{ secret: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef", line: `key=${fake("sk-", "ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef")}` }],
-  openai: [{ secret: "abcdefghijklmnopqrstuvwxyz012345", line: `OPENAI ${fake("sk-", "proj-abcdefghijklmnopqrstuvwxyz012345")}` }],
-  aws: [{ secret: "ABCDEFGHIJKLMNOP", line: `aws_access_key_id = ${fake("AKIA", "ABCDEFGHIJKLMNOP")}` }],
+  "url-credential": [{ needle: "hunter2pass", line: `git clone https://${fake("alice:", "hunter2pass")}@example.invalid/repo.git` }],
+  anthropic: [{ needle: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef", line: `key=${fake("sk-", "ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef")}` }],
+  openai: [{ needle: "abcdefghijklmnopqrstuvwxyz012345", line: `OPENAI ${fake("sk-", "proj-abcdefghijklmnopqrstuvwxyz012345")}` }],
+  aws: [{ needle: "ABCDEFGHIJKLMNOP", line: `aws_access_key_id = ${fake("AKIA", "ABCDEFGHIJKLMNOP")}` }],
   github: [
-    { secret: "abcdefghijklmnopqrstuvwxyz0123456789", line: `token ${fake("ghp", "_abcdefghijklmnopqrstuvwxyz0123456789")}` },
-    { secret: "abcdefghijklmnopqrstuvwxyz0123456789_ABC", line: `pat ${fake("github_", "pat_abcdefghijklmnopqrstuvwxyz0123456789_ABC")}` },
+    { needle: "abcdefghijklmnopqrstuvwxyz0123456789", line: `token ${fake("ghp", "_abcdefghijklmnopqrstuvwxyz0123456789")}` },
+    { needle: "abcdefghijklmnopqrstuvwxyz0123456789_ABC", line: `pat ${fake("github_", "pat_abcdefghijklmnopqrstuvwxyz0123456789_ABC")}` },
   ],
-  slack: [{ secret: "1234567890-abcdefghijklmnop", line: `SLACK=${fake("xoxb", "-1234567890-abcdefghijklmnop")}` }],
-  google: [{ secret: "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678", line: `maps ${fake("AIza", "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678")}` }],
-  gitlab: [{ secret: "abcdefghijklmnopqrstuvwxyz", line: `GL=${fake("glpat", "-abcdefghijklmnopqrstuvwxyz")}` }],
-  jwt: [{ secret: "eyJzdWIiOiIxMjM0NTY3ODkwIn0", line: `jwt ${fake("eyJ", "hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz")}` }],
+  slack: [{ needle: "1234567890-abcdefghijklmnop", line: `SLACK=${fake("xoxb", "-1234567890-abcdefghijklmnop")}` }],
+  google: [{ needle: "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678", line: `maps ${fake("AIza", "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678")}` }],
+  gitlab: [{ needle: "abcdefghijklmnopqrstuvwxyz", line: `GL=${fake("glpat", "-abcdefghijklmnopqrstuvwxyz")}` }],
+  jwt: [{ needle: "eyJzdWIiOiIxMjM0NTY3ODkwIn0", line: `jwt ${fake("eyJ", "hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz")}` }],
   // mask-only categories
-  bearer: [{ secret: "abcdefghijklmnopqrstuvwxyz0123", line: `Authorization: Bearer ${fake("abcdefghijklm", "nopqrstuvwxyz0123")}` }],
-  basic: [{ secret: fake("dXNlcjpw", "YXNz"), line: `Authorization: Basic ${fake("dXNlcjpw", "YXNz")}` }],
-  "key-value": [{ secret: "SuperSecretValue1", line: `password=${fake("Super", "SecretValue1")}` }],
+  bearer: [{ needle: "abcdefghijklmnopqrstuvwxyz0123", line: `Authorization: Bearer ${fake("abcdefghijklm", "nopqrstuvwxyz0123")}` }],
+  basic: [{ needle: fake("dXNlcjpw", "YXNz"), line: `Authorization: Basic ${fake("dXNlcjpw", "YXNz")}` }],
+  "key-value": [{ needle: "SuperSecretValue1", line: `password=${fake("Super", "SecretValue1")}` }],
 };
 const PLAIN = [
   "commit 3f2a9c1d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a39 on main",
@@ -62,7 +63,7 @@ describe("R-012: one pattern definition for masker and scanner", () => {
     const defined = [...new Set(SECRET_PATTERNS.map((p) => p.category))].sort();
     expect(Object.keys(CORPUS).sort()).toEqual(defined);
     expect(scanCats).toEqual(expect.arrayContaining(["aws", "github", "anthropic", "private-key"]));
-    expect(maskOnly.sort()).toEqual(["basic", "bearer", "key-value"]);
+    expect(maskOnly.sort()).toEqual(["basic", "bearer"]); // key-value is scanned since M2-0
     for (const p of SECRET_PATTERNS.filter((q) => !q.scan)) expect(p.scanNote?.length ?? 0).toBeGreaterThan(0);
   });
 
@@ -70,7 +71,7 @@ describe("R-012: one pattern definition for masker and scanner", () => {
     for (const [category, samples] of Object.entries(CORPUS)) {
       for (const s of samples) {
         const out = maskSecrets(s.line);
-        expect(out, `${category}: ${s.line}`).not.toContain(s.secret);
+        expect(out, `${category}: ${s.line}`).not.toContain(s.needle);
         expect(out, category).toContain(`[REDACTED:${category}]`);
       }
     }
@@ -106,6 +107,6 @@ describe("R-012: one pattern definition for masker and scanner", () => {
     expect(got.map(([c]) => c)).not.toEqual(expect.arrayContaining(maskOnly));
     // the result carries no secret values
     const serialized = JSON.stringify(r);
-    for (const samples of Object.values(CORPUS)) for (const s of samples) expect(serialized).not.toContain(s.secret);
+    for (const samples of Object.values(CORPUS)) for (const s of samples) expect(serialized).not.toContain(s.needle);
   });
 });

@@ -183,7 +183,7 @@ interface FileScanContext {
   result: ScanResult;
 }
 
-/** Complete matches of a line scanner in `text`. */
+/** Complete matches of a line scanner in `text`, with the value check applied for key-value style patterns. */
 function findMatches(s: LineScanner, text: string): Array<{ start: number; end: number; finding: boolean }> {
   const out: Array<{ start: number; end: number; finding: boolean }> = [];
   s.regex.lastIndex = 0;
@@ -194,7 +194,13 @@ function findMatches(s: LineScanner, text: string): Array<{ start: number; end: 
       s.regex.lastIndex += 1;
       continue;
     }
-    out.push({ start: m.index, end: m.index + m[0].length, finding: true });
+    let finding = true;
+    if (s.pattern.valueFilter && s.pattern.valueGroups) {
+      const g = s.pattern.valueGroups.find((i) => m[i] !== undefined);
+      const value = g === undefined ? undefined : m[g];
+      finding = value !== undefined && g !== undefined && s.pattern.valueFilter(value, s.pattern.quotedGroups?.includes(g) ?? false);
+    }
+    out.push({ start: m.index, end: m.index + m[0].length, finding });
   }
   return out;
 }

@@ -87,7 +87,7 @@ describe("scanRepository", () => {
   it("lists the mask-only categories as unscanned with a reason", () => {
     const r = scanRepository(repo({ "a.txt": "x\n" }));
     const names = r.unscannedCategories.map((u) => u.category).sort();
-    expect(names).toEqual(["basic", "bearer", "key-value"]);
+    expect(names).toEqual(["basic", "bearer"]); // key-value is scanned since M2-0 (value heuristic)
     for (const u of r.unscannedCategories) expect(u.reason.length).toBeGreaterThan(0);
   });
 
@@ -117,7 +117,7 @@ describe("runSecurityScan (command)", () => {
   it("exit 0 on a clean repository and prints the unscanned categories", async () => {
     const r = await run(repo({ "a.txt": "x\n" }));
     expect(r.code).toBe(0);
-    expect(r.output).toMatch(/key-value/);
+    expect(r.output).toMatch(/bearer/);
     expect(r.output).toMatch(/not scanned|unscanned|未走査/i);
   });
   it("exit 1 with findings and never prints the matched value", async () => {

@@ -211,11 +211,46 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
       if (openQuote !== undefined) return `${key}${openQuote}${value}`;
       return `${key}${value}`;
     },
-    scan: false,
-    scanNote:
-      "mask-only: assignments of password / token / api-key style names are everywhere in source code; committed .env files are reported separately, and values in reports are still redacted",
+    // M2-0: scanned, but only values that look like secrets are findings (looksLikeSecretValue);
+    // the masker keeps redacting every assignment (ADR-0006: over-masking is fine in reports).
+    scan: true,
+    valueFilter: (value, quoted) => looksLikeSecretValue(value, { quoted }),
+    valueGroups: [2, 3, 5, 6],
+    quotedGroups: [2, 3, 5],
+    anchor: {
+      start: /(?<![A-Za-z0-9])(?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*(["']?)/gi,
+      continues: (m) => (m[1] === '"' ? /[^"\r\n]/ : m[1] === "'" ? /[^'\r\n]/ : /[^\s"',;]/),
+    },
   },
 ];
+
+/**
+ * Value heuristic for the key-value category (M2-0 §6). A value is a candidate secret only when it
+ * is a quoted literal, or a bare dotenv / shell style value without code-like characters; then it
+ * must be at least 8 characters and mix letters with digits (or three of: lower, upper, digit,
+ * symbol). Interpolations and references, placeholders, booleans / null and pure numbers are never
+ * secrets. Known limitation (documented in CONFIG_SPEC / ADR-0012): a long passphrase made of
+ * letters only is not detected. The masker does not use this function.
+ */
+const VALUE_REFERENCE = [/\$\{/, /\bprocess\.env\b/, /\bos\.environ\b/, /%\([^)]*\)s/, /\{\{/, /^\$[A-Za-z_]/];
+const VALUE_PLACEHOLDER = [/^<[^>]*>$/, /^x{3,}$/i, /changeme/i, /example/i, /dummy/i, /placeholder/i, /^your[-_]/i, /^\*{3,}$/, /REDACTED/, /^(?:true|false|null|none|nil|undefined)$/i];
+const CODE_LIKE_BARE = /[()[\]{}]|\w(?:\.|->|::)\w/;
+
+export function looksLikeSecretValue(value: string, opts: { quoted?: boolean } = {}): boolean {
+  const v = value.trim();
+  if (v.length < 8) return false;
+  if (VALUE_REFERENCE.some((re) => re.test(v))) return false;
+  if (VALUE_PLACEHOLDER.some((re) => re.test(v))) return false;
+  if (/^[0-9.+\-eE_]+$/.test(v)) return false; // numeric
+  if (!opts.quoted && CODE_LIKE_BARE.test(v)) return false; // getPassword(), config.get(...), this.password
+  const lower = /[a-z]/.test(v);
+  const upper = /[A-Z]/.test(v);
+  const digit = /[0-9]/.test(v);
+  const symbol = /[^A-Za-z0-9\s]/.test(v);
+  const letter = lower || upper;
+  const classes = [lower, upper, digit, symbol].filter(Boolean).length;
+  return (letter && digit) || classes >= 3;
+}
 
 /**
  * Remove aiqh's own canonical markers "[REDACTED:<category>]" from `text` (scanner pre-processing):
