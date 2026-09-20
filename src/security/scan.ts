@@ -297,8 +297,9 @@ function classifyEnvFile(rel: string, result: ScanResult): void {
 /**
  * .gitignore coverage is decided by git itself (M1-R1-005): `git check-ignore --no-index -v -n` for
  * representative paths. A path counts as protected only when the matching rule comes from a
- * .gitignore file of the repository and is not a negation; matches from the user's global excludes
- * file (disabled here) or from .git/info/exclude are clone-specific and do not count.
+ * *tracked* .gitignore file of the repository (M2-0 / M1-R3-004) and is not a negation; matches
+ * from the user's global excludes file (disabled here), from .git/info/exclude or from an untracked
+ * .gitignore are clone-specific and do not count.
  */
 function checkGitignore(root: string, result: ScanResult): void {
   if (!existsSync(path.join(root, ".gitignore"))) {
@@ -313,8 +314,8 @@ function checkGitignore(root: string, result: ScanResult): void {
 }
 
 /**
- * Which of `paths` git ignores by a non-negated rule of a repository .gitignore (shared with
- * `aiqh init` for the artifacts/ proposal, M1-R2-005). Throws ScanError when git fails.
+ * Which of `paths` git ignores by a non-negated rule of a *tracked* repository .gitignore (shared
+ * with `aiqh init` for the artifacts/ proposal, M1-R2-005). Throws ScanError when git fails.
  */
 export function gitIgnoredByRepoRules(root: string, paths: string[]): Set<string> {
   const args = ["-c", "core.excludesFile=/dev/null", "check-ignore", "--no-index", "-v", "-n", "--stdin", "-z"];
@@ -327,12 +328,28 @@ export function gitIgnoredByRepoRules(root: string, paths: string[]): Set<string
     else throw new ScanError(`git check-ignore failed: ${e.message.split("\n")[0]}`);
   }
   const fields = out.split("\0");
-  const protectedPaths = new Set<string>();
+  const rows: Array<{ source: string; file: string }> = [];
   for (let i = 0; i + 3 < fields.length; i += 4) {
     const [source, , pattern, file] = [fields[i] ?? "", fields[i + 1] ?? "", fields[i + 2] ?? "", fields[i + 3] ?? ""];
     if (source.length === 0 || pattern.startsWith("!")) continue;
     if (path.basename(source) !== ".gitignore") continue; // .git/info/exclude etc. are clone-specific
-    protectedPaths.add(file);
+    rows.push({ source, file });
   }
+  const sources = [...new Set(rows.map((r) => r.source))];
+  const tracked = trackedPaths(root, sources);
+  const protectedPaths = new Set<string>();
+  for (const r of rows) if (tracked.has(r.source)) protectedPaths.add(r.file);
   return protectedPaths;
+}
+
+/** Which of `paths` are tracked by git (an untracked .gitignore does not exist in a clone). */
+function trackedPaths(root: string, paths: string[]): Set<string> {
+  if (paths.length === 0) return new Set();
+  let out: string;
+  try {
+    out = execFileSync("git", ["ls-files", "-z", "--", ...paths], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (err) {
+    throw new ScanError(`git ls-files failed: ${(err as Error).message.split("\n")[0]}`);
+  }
+  return new Set(out.split("\0").filter((f) => f.length > 0));
 }

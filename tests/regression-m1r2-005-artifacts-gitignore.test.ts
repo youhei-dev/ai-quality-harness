@@ -18,6 +18,7 @@ function repo(gitignore: string | null, git = true): string {
   cleanups.push(t.cleanup);
   if (git) execFileSync("git", ["init", "-q"], { cwd: t.dir });
   if (gitignore !== null) writeFileSync(path.join(t.dir, ".gitignore"), gitignore);
+  if (git && gitignore !== null) execFileSync("git", ["add", "--", ".gitignore"], { cwd: t.dir }); // M2-0: only tracked .gitignore rules count
   return t.dir;
 }
 
