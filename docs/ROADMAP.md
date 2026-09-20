@@ -52,9 +52,15 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ---
 
-## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用 — **完了（v0.2.2、2026-09-19。v0.2.0 は superseded、v0.2.1 に R1、v0.2.2 に R2 を反映）**
+## M1 — チェックアダプタ・`aiqh init`・2 リポジトリへの適用 — **完了（ベースライン v0.2.2、2026-09-20 確定。記録タグ v0.2.3）**
 
-### 完了時の状態
+- 完了ベースライン: `v0.2.2`（commit f958ac7、M1 — independent review R2 applied）。完了記録のタグ: `v0.2.3`（M1 complete — adapters, init, security scan; independent reviews R1-R3 recorded。コード変更なし、M0 の v0.1.5 と同じ扱い）
+- 独立レビューの指摘件数の推移: **R1: 10（High 3）→ R2: 5（High 1）→ R3: 5（High 0）**。事前の基準「R3 で High が無ければ M1 完了」により完了。R3 の 5 件（Medium 4 / Low 1）は修正せず **M2-0「スキャナ保守」へ持ち越し**（`docs/reviews/m1/response-r3.md`）
+- `v0.2.0` は **superseded / known-bad**（自己 verify の security チェックが FAIL する状態でタグ付けされた。原因と対策は `docs/reports/M1_COMPLETION.md`）。`v0.2.1` に R1、`v0.2.2` に R2 を反映
+- v0.2.2 時点の検証構成: 自己 verify 7 チェック（lint / typecheck / unit / build / package / security / dependency。e2e は NOT APPLICABLE）、テスト 252 件（10 回連続 PASS）、各 commit 単体の worktree 検証を push 前に実施
+- 詳細: `docs/reports/M1_COMPLETION.md`、`docs/reports/M1_REPORT.md`、`CHANGELOG.md`
+
+### 完了時の状態（v0.2.2 までの経緯）
 - タグ: `v0.2.0`（2026-09-18、M1 — adapters, init, security scan, applied to two repositories）は**自己 verify の security チェックが FAIL する状態で
   タグ付けされたため superseded**（CHANGELOG）。独立レビュー R1（10 件）を `v0.2.1`、R2（5 件）を **`v0.2.2`（M1 — independent review R2 applied）** に反映し、
   v0.2.2 が M1 の完了ベースライン（人間の判断: R3 で High が無ければ M1 完了、Medium 以下は M2 のリストへ）。基準は M0 最終版 v0.1.7
@@ -96,8 +102,18 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ## M2 — 独立レビューループ
 
-### 内容
-- Security Scan の拡張（M1 からの持ち越し）: key-value 分類の走査（ソースコード中の誤検出を抑える方式の設計が必要）と、`security.allow`（例外指定: パス / 行 / 分類）の設定項目。互換テストは維持
+### M2-0 — スキャナ保守（M2 の最初のマイルストーン。M1 の独立レビュー R3 の持ち越しと Security Scan の拡張）
+M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、key-value 走査・`security.allow` と同じ塊で扱う。各件は M2-0 で回帰テストを先に書き「修正前 FAIL」を記録してから修正する（R3 では修正もテスト追加もしていない）。
+1. **M1-R3-001**（Medium）: 窓境界をまたぐ長いトークン（`LINE_OVERLAP` 4 KiB より長い url-credential / JWT が区間境界にまたがると検出できない）。候補プレフィックスを次の窓へ持ち越す状態機械、または候補が安全上限を超えたときの fail closed（finding / ERROR）
+2. **M1-R3-002**（Medium）: `--write-gitignore` が否定ルール（`artifacts/` + `!artifacts/`）を実際に修復する（needed なら末尾へ追記。needed が false になれば追記しない = 冪等）
+3. **M1-R3-004**（Medium）: カバレッジに使う `.gitignore` が追跡済みであること（未追跡のローカル `.gitignore` はクローン先に存在しないため保護と数えない。ネストも各 source を確認）
+4. **M1-R3-003**（Medium）: 固定 sentinel 1 個（`artifacts/.aiqh-ignore-probe`）をディレクトリ全体のカバレッジと同一視しない。実生成パス複数（`artifacts/verification/latest.json` / `latest.md`、`artifacts/ai-review/…`）で判定
+5. **M1-R3-005**（Low）: PEM ブロック finding の重複統合（`block:<category>:<beginLine>:<endLine>`）
+6. key-value 分類の走査（ソースコード中の誤検出を抑える方式の設計が必要）と `security.allow`（例外指定: パス / 行 / 分類。レビュー原文の例示、対象リポジトリのテスト内ダミー値の許容）。互換テストは維持
+7. `.env` 判定の代表パス・example サフィックスの設定化、窓走査の上限 / 重なりの設定化
+8. 持ち越し済みの整理: R-012 は masker と scanner の定義共有まで済み（残りは 6 の `security.allow`）。R-010（M4）/ R-011 後半（M3）/ R-013（並列化時）は従来の行き先のまま
+
+### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
 - `aiqh review-packet`: 依頼文（ファイルまたは標準入力）、変更ファイル一覧、`git diff`（サイズ上限あり）、ADR / docs の要約、最新 verify 結果、既知の懸念から Markdown パケットを生成。実装AI の「正しい」という結論は含めない
 - `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ

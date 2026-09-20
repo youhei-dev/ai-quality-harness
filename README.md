@@ -27,11 +27,11 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M1 完了（タグ `v0.2.2`）**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+**M1 完了（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）。次は M2-0「スキャナ保守」**。`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
 チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
-M1 の独立レビュー R1（10 件）を v0.2.1、R2（5 件）を v0.2.2 で反映しました。
+M1 の独立レビュー R1（10 件、High 3）を v0.2.1、R2（5 件、High 1）を v0.2.2 で反映し、R3（5 件、High 0）は M2-0 へ持ち越しました。
 各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md)、
-M1 の記録は [`docs/reports/M1_REPORT.md`](docs/reports/M1_REPORT.md) を参照してください。
+M1 の総括は [`docs/reports/M1_COMPLETION.md`](docs/reports/M1_COMPLETION.md)（経緯は [`docs/reports/M1_REPORT.md`](docs/reports/M1_REPORT.md)）を参照してください。
 **v0.1.3 と v0.2.0 は superseded**（v0.1.3: 確定点の yield が不十分。v0.2.0: 自己 verify の security チェックが FAIL する状態でタグ付けされた）で、
 それぞれ v0.1.4 以降 / v0.2.1 以降を使ってください。
 
@@ -41,7 +41,8 @@ M1 の記録は [`docs/reports/M1_REPORT.md`](docs/reports/M1_REPORT.md) を参�
 | チェックアダプタ（lint / typecheck / unit / build / security / dependency / e2e の検出と推奨設定） | M1 実装済み |
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
-| `aiqh review-packet` / `aiqh review-import`（独立レビューAI とのループ） | M2 予定 |
+| Security Scan の保守（窓境界の長いトークン、`.gitignore` 判定の強化、`security.allow`、key-value 走査） | M2-0 予定 |
+| `aiqh review-packet` / `aiqh review-import`（独立レビューAI とのループ） | M2-1 以降予定 |
 | GitHub Actions 再利用ワークフロー | M3 予定 |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
 

@@ -5,7 +5,13 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.2.2 — M1 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.2` / `git rev-parse v0.2.2` で確認。最終報告に記載）
+## v0.2.3 — M1 complete — completion record, R3 carried over to M2-0（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.2.3` / `git rev-parse v0.2.3` で確認。最終報告に記載）
+
+- コード変更なし。独立レビュー R3（`docs/reviews/m1/independent-review-r3.md`、High 0 / Medium 4 / Low 1）を受領し、5 件すべてを VALID と判定したうえで
+  **M2-0「スキャナ保守」へ持ち越し**（`docs/reviews/m1/response-r3.md`）。事前の基準「R3 で High が無ければ M1 完了」により **M1 の完了ベースラインは v0.2.2**
+- `docs/reports/M1_COMPLETION.md` を新設、ROADMAP に M1 完了と M2-0 を記載、README を更新。`package.json` version 0.2.3。テスト 252 件・自己 verify 7 チェック PASS は v0.2.2 と同じ
+
+## v0.2.2 — commit f958ac7 / tag object 9506eed — M1 independent review R2 applied
 
 - 独立レビュー R2（`docs/reviews/m1/independent-review-r2.md`、High 1 / Medium 4）の 5 件をすべて反映（`docs/reviews/m1/response-r2.md`）。R1-005 / R1-009 の PARTIAL を解消
 - M1-R2-001: 未追跡で ignore されていない `.env*` を中身を読まずに finding（`untracked-env`）にする
