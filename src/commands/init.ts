@@ -172,9 +172,12 @@ export async function runInit(options: InitOptions): Promise<number> {
       const file = path.join(root, ".gitignore");
       try {
         const current = existsSync(file) ? readFileSync(file, "utf8") : "";
-        // Idempotent append: outside a git repository the proposal is always made (cannot ask git),
-        // but the same line is never added twice (M1-R2-005).
-        if (hasGitignoreLine(current)) {
+        // When git confirmed that the artifact paths are not ignored, appending the line at the end
+        // is the repair even if the same line exists earlier (a later negation wins otherwise;
+        // M2-0 / M1-R3-002) — and the next run sees coverage, so nothing is appended twice.
+        // Outside a git repository the proposal is always made (cannot ask git), so there the same
+        // line is never added twice (M1-R2-005).
+        if (!gitignoreProposal.canAskGit && hasGitignoreLine(current)) {
           log(`.gitignore already contains "${GITIGNORE_LINE}"; nothing written`);
         } else {
           const sep = current.length === 0 || current.endsWith("\n") ? "" : "\n";
