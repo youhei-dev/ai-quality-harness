@@ -3,6 +3,7 @@ import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
+import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { DEFAULT_SECURITY, ScanError, scanRepository, type ScanResult } from "../security/scan.ts";
 
 export interface SecurityScanOptions {
@@ -20,8 +21,12 @@ export interface SecurityScanOptions {
  * always listed (M2-0 §7).
  */
 export async function runSecurityScan(options: SecurityScanOptions): Promise<number> {
-  const log = options.log ?? ((line: string) => console.log(line));
-  const logError = options.logError ?? ((line: string) => console.error(line));
+  // Same mask boundary as init / verify (M2-0-R1-002): every printed line and every JSON value goes
+  // through the masker, so config-provided free text (allow reasons, paths) cannot re-emit a secret.
+  const rawLog = options.log ?? ((line: string) => console.log(line));
+  const rawLogError = options.logError ?? ((line: string) => console.error(line));
+  const log = (line: string): void => rawLog(maskSecrets(line));
+  const logError = (line: string): void => rawLogError(maskSecrets(line));
   const cwd = path.resolve(options.cwd ?? process.cwd());
   let security: ResolvedSecurity;
   try {
@@ -44,7 +49,7 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
     throw err;
   }
   if (options.json) {
-    log(JSON.stringify(result, null, 2));
+    rawLog(JSON.stringify(maskDeep(result), null, 2));
     return result.findings.length === 0 ? EXIT_PASSED : EXIT_FAILED;
   }
   renderText(result, log);

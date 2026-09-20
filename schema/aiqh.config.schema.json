@@ -118,7 +118,14 @@
             "properties": {
               "path": {
                 "type": "string",
-                "pattern": "\\S"
+                "allOf": [
+                  {
+                    "pattern": "\\S"
+                  },
+                  {
+                    "pattern": "^[^\\r\\n]*$"
+                  }
+                ]
               },
               "category": {
                 "type": "string",
@@ -145,7 +152,14 @@
               },
               "reason": {
                 "type": "string",
-                "pattern": "\\S"
+                "allOf": [
+                  {
+                    "pattern": "\\S"
+                  },
+                  {
+                    "pattern": "^[^\\r\\n]*$"
+                  }
+                ]
               },
               "expires": {
                 "type": "string",

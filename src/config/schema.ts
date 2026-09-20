@@ -29,10 +29,10 @@ function isRealDate(s: string): boolean {
 
 /** `security.allow[]` entry (M2-0 §7): path glob, optional category / line, mandatory reason, optional expiry. */
 const allowRuleSchema = z.strictObject({
-  path: z.string().regex(/\S/, "allow.path must not be blank"),
+  path: z.string().regex(/\S/, "allow.path must not be blank").regex(/^[^\r\n]*$/, "allow.path must not contain line breaks"),
   category: z.enum(SECRET_CATEGORIES as [string, ...string[]]).optional(),
   line: z.number().int().positive().optional(),
-  reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank"),
+  reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank").regex(/^[^\r\n]*$/, "allow.reason must not contain line breaks"),
   expires: z.string().regex(ISO_DATE, "allow.expires must be YYYY-MM-DD").refine(isRealDate, "allow.expires must be a real date").optional(),
 });
 
