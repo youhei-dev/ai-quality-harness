@@ -5,7 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.1 — M2-0 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.1` / `git rev-parse v0.3.1` で確認。最終報告に記載）
+## v0.3.2 — M2-0 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.2` / `git rev-parse v0.3.2` で確認。最終報告に記載）
+
+- 独立レビュー R2（`docs/reviews/m2-0/independent-review-r2.md`、High 1 / Low 2）の 3 件をすべて反映（`docs/reviews/m2-0/response-r2.md`）
+- M2-0-R2-001（High）: 窓走査の完全性不変条件（ADR-0013）。アンカーを有界な接頭辞に（url-credential は `scheme://`、key-value はキー名のみ、private-key に BEGIN マーカー）、
+  `MIN_LINE_OVERLAP_BYTES` = 256、最も早い未解決アンカーからの持ち越し、`partial` による解決。既定設定で見逃していた URL 認証情報を検出
+- M2-0-R2-002: `allow[].reason` / `path` に C0 / DEL / C1 / U+2028 / U+2029 を禁止（JSON Schema 更新）
+- M2-0-R2-003: response-r1 の回帰テスト件数を訂正（修正前 13、最終 14）
+- テスト: ソース上の `it(` 18 件（`grep -cE '^\s*it(\.skipIf\([^)]*\))?\(' tests/regression-m2-0r2-*.test.ts`）、vitest の実行数 25 件（固定アンカーのループが 1 つの `it(` から 8 件を生成）を追加 → 294 + 25 = 319 件、10 回連続 PASS。
+  自己 verify 7 チェック PASS。`package.json` version 0.3.2
+
+## v0.3.1 — commit e25f59f / tag object c2c6985 — M2-0 independent review R1 applied
 
 - 独立レビュー R1（`docs/reviews/m2-0/independent-review-r1.md`、High 1 / Medium 2）の 3 件をすべて反映（`docs/reviews/m2-0/response-r1.md`）
 - M2-0-R1-001（High）: 窓設定の相互制約 `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を `resolveSecurity()`（ConfigError）と `LineAssembler` の
