@@ -223,7 +223,9 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 - 1 行が `security.maxLineBytes`（既定 256 KiB）を超える場合は窓走査に切り替わる（M1-R2-004 → M2-0 → M2-0-R2-001）: 区間ごとに同じ行番号で照合し、
   候補プレフィックス（有界なアンカーが見つかり、区間末尾まで「一致の途中の形」（`partial`）が続く**最も早い**位置。下限は重なり `lineOverlapBytes`
   （最小 256）、上限は `maxCarryBytes` 64 KiB）を次の区間へ持ち越す。上限を超える候補は `oversized-candidate` finding（fail closed）。
-  完全性の不変条件「窓なしの finding ⊆ 窓ありの finding ∪ oversized-candidate」は ADR-0013 と性質テストで固定。メモリはファイルサイズに比例しない
+  完全性の不変条件「窓なしの finding ⊆ 窓ありの finding ∪ oversized-candidate」は ADR-0013 と性質テスト・構造テスト（M2-0-R3-001）で固定。メモリはファイルサイズに比例しない
+- **既知の制限（M2-0-R3-002）**: url-credential は scheme（`://` の前）が 64 文字以下のものだけを scanner が検出する（窓走査のアンカーを有界にするため）。
+  レポートのマスク（masker）は scheme の長さによらず redact する（v0.3.1 と同じ範囲）
 - key-value 分類も走査する（値が秘密らしい場合だけ。§3b の既知の制限を参照）。未走査は bearer / basic
 - `security.allow` による抑制は必ず出力に残る（§3b）
 - `lstat` / open / read の失敗は exit 2（fail closed）。例外は ENOENT（index にあるが作業ツリーに無い）だけで、これはスキップ

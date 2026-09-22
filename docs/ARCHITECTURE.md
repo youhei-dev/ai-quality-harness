@@ -209,10 +209,10 @@ aiqh security-scan
   exit 0（残る finding なし）/ 1（あり）/ 2（非 git / stat・読取エラー / 設定エラー）。未走査分類（bearer / basic）と理由を必ず表示
 ```
 
-**窓走査と候補の持ち越し（M1-R2-004 → M2-0 / M1-R3-001 → M2-0-R2-001、ADR-0013）**: 改行のないまま溜めた文字列が `maxLineBytes` を超えたら、
+**窓走査と候補の持ち越し（M1-R2-004 → M2-0 / M1-R3-001 → M2-0-R2-001 → M2-0-R3-001、ADR-0013）**: 改行のないまま溜めた文字列が `maxLineBytes` を超えたら、
 その区間を同じ行番号で行指向パターンに掛ける。次の区間へ持ち越すのは固定の重なりではなく**候補プレフィックス**: 各パターンの**有界な開始アンカー**
-（`patterns.ts` の `anchor.start`。url-credential は `scheme://`（scheme は 64 文字以内）、anthropic は `sk-ant-`、aws は `AKIA` / `ASIA`、jwt は `eyJ`、
-key-value はキー名のみ、private-key は BEGIN マーカー。最長一致は `anchorMaxBytes` で宣言）のうち、完全一致に含まれず、かつアンカー位置から区間末尾までが
+（`patterns.ts` の `anchor.start`。url-credential は `scheme://`（scheme は 64 文字以内。scanner 用の `scanPattern` の上限で、masker は無制限）、anthropic は `sk-ant-`、aws は `AKIA` / `ASIA`、jwt は `eyJ`、
+key-value はキー名のみ、private-key は固定文字列 `-----BEGIN `（M2-0-R3-001。ラベルは本体と同じく無制限なのでアンカーに含めない）。最長一致は `anchorMaxBytes` で宣言）のうち、完全一致に含まれず、かつアンカー位置から区間末尾までが
 「一致の途中で切れた形」（`anchor.partial`、`^…$` 固定）に一致するもの、または区間末尾に達した一致の開始位置。**最も早い**位置を採る
 （後ろのアンカーから持ち越すと、それより前から始まる秘密値を落とす）。`partial` に一致しない候補（例: 普通の URL `https://host/path` は `/` で解決）は捨てる。
 下限は重なり `lineOverlapBytes`（既定 4 KiB、最小 `MIN_LINE_OVERLAP_BYTES` = 256）、上限は `maxCarryBytes`（64 KiB）。上限を超える候補は
@@ -227,10 +227,20 @@ key-value はキー名のみ、private-key は BEGIN マーカー。最長一致
 埋め草がアンカーに一致しない中立な文字のときは、秘密値が `maxCarryBytes` 以下なら同じ分類の finding（oversized ではない）になることも固定する
 （すべてを oversized に逃がす実装を排除）。private-key は BEGIN マーカーが完全一致した時点で候補を解決済みにし（ブロック状態機械が鍵本体を持つ）、
 1 行内の鍵で finding が重複しない。
+(1) は構造でも固定する（M2-0-R3-001）: scanner の本体（と private-key の block begin）は「アンカー部分式 + 残り」の連結で組み立て、
+全パターンで本体の source がアンカーの source で始まること（アンカー直後に量化子なし、トップレベルの `|` なし、フラグ同一。例外リストは空）をテストする。
+文字列として接頭辞なので、アンカー側の量化子の上限だけが本体より狭くなることは構造上起きない。性質テストの生成器は、各可変部分の長さを
+0、1、`anchorMaxBytes`±1、`lineOverlapBytes`±1、`maxCarryBytes`±1 と（上限のない部分は）`maxCarryBytes` 超から選ぶ。書き換えた正規表現が
+以前と同じ言語であることは、凍結した v0.3.2 の参照との差分テスト（一致位置・一致文字列が同一）で固定する。
 上限は **JS 文字列長（UTF-16 コード単位）で測る**ため、実メモリはおおむね 2 ×（256 KiB + 64 KiB）バイトが上限で、ファイルサイズに比例しない。
 行番号は改行の数だけ進む。PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
 既知の副作用: minified バンドルのような改行のない長行で、区間末尾までアンカーの継続文字だけが 64 KiB 超続く場合（例: `eyJ` で始まる巨大な
 base64 文字列）は oversized-candidate になる。実物でないと分かっているなら `security.allow` で理由つきで許容する。
+
+**masker と scanner のパターンの関係（M2-0-R3-002）**: `SECRET_PATTERNS` は検出方針の単一の定義で、masker は各エントリの `pattern` を、
+scanner は `scanPattern ?? pattern` を使う。`scanPattern` を持つのは url-credential だけ（scheme を 64 文字までに限った scanner 用。窓のアンカーを
+有界にするため）で、テストで固定する。scanner の都合で共有の `pattern` を狭めない（masker の検出範囲が狭まる退行になる。v0.3.2 で実際に起きた）。
+masker の出力は代表入力の完全一致テストで固定する。**既知の制限**: scheme が 64 文字を超える URL 認証情報は scanner では検出しない（masker は redact する）。
 
 **窓設定の制約と進捗不変条件（M2-0-R1-001、M2-0-R2-001）**: 3 値は `MIN_LINE_OVERLAP_BYTES (256) <= lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさなければならない
 （そうでないと窓の buffer が縮まず走査が終わらない）。3 層で守る: (1) `resolveSecurity()` が既定値を埋めた後に検証し `ConfigError`（exit 2）、

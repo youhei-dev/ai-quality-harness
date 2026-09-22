@@ -39,3 +39,18 @@ key-value の `キー名\s*[:=]\s*`）が無制限長で、アンカーが窓境
 - `lineOverlapBytes = 1` などは無効になる（ConfigError / コンストラクタ ScanError）。既定 4096 は有効
 - `partial` の判定はアンカー位置から窓末尾に対して sticky regex で行う（部分文字列を作らない）。合成の長い 1 行での実行時間は response-r2 に記録
 - 性質テストの生成器は本体 regex の文字クラスから文字を引く。`partial` の文字クラスが本体より狭い誤りはここで捕捉される
+
+## 追記（v0.3.3、M2-0 独立レビュー R3）
+- **private-key のアンカー（M2-0-R3-001）**: v0.3.2 のアンカー `-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----` は、ラベルが無制限の本体・block begin の
+  接頭辞ではなかった（性質 1 の違反）。BEGIN マーカーが重なりより長く窓境界をまたぐと 0 件になった（最小重なりでラベル 260 文字、既定設定で 5,000 文字）。
+  アンカーを固定文字列 `-----BEGIN `（`anchorMaxBytes` 11）にし、`partial` は「`-----BEGIN ` の接頭辞」「`-----BEGIN ` + ラベル + `PRIVATE KEY-----` の接頭辞」
+  「完成した BEGIN マーカー + 任意」。本体と block begin の正規表現は変えない（ラベル長を狭めない）。ラベルが `maxCarryBytes` を超える候補は oversized-candidate
+- **構造による固定**: 性質 1 を生成テストだけに頼ったことが漏れの原因（R2 の生成器はラベルを 20 文字以下でしか作らなかった）。scanner の本体を
+  「アンカー部分式 + 残り」の連結で組み立て、全パターンで本体の source がアンカーの source で始まることをテストする（アンカー直後に量化子なし、
+  トップレベルの `|` なし、フラグ同一、例外リストは空）。この形にするため github（後読みで本体の文字クラスを書き分ける）と key-value（捕捉グループ 1 を
+  区切りだけにする）も書き換えた。一致する言語が変わらないことは、凍結した v0.3.2 の参照との差分テストで固定する
+- **生成器の長さ**: 各可変部分の長さを 0、1、`anchorMaxBytes`±1、`lineOverlapBytes`±1、`maxCarryBytes`±1、（上限のない部分は）`maxCarryBytes` 超から選ぶ
+- **masker と scanner のパターンの関係（M2-0-R3-002）**: v0.3.2 は url-credential の scheme 上限を masker と共有の `pattern` に入れたため、masker の検出範囲が
+  v0.3.1 より狭まった（scheme 65 文字以上を redact しない）。masker の `pattern` は scheme 無制限に戻し、scanner だけが `scanPattern`（scheme 64 文字まで）を使う。
+  不変条件は scanner 用のパターンについて成り立てばよい。**既知の制限**: scheme が 64 文字を超える URL 認証情報は scanner では検出しない（masker は redact する）。
+  採らなかった案: scanner も無制限にして scheme 部分から持ち越す（アンカーが有界にならず、窓末尾の英数字の連続がすべて候補になり oversized の誤検出が増える）
