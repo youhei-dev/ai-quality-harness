@@ -289,9 +289,11 @@ describe("M2-0-R2-001 / 追加1–4: properties behind the invariant", () => {
     for (const p of SECRET_PATTERNS.filter((q) => q.scan && q.anchor)) expect(p.anchor!.anchorMaxBytes, p.category).toBeLessThanOrEqual(MIN_LINE_OVERLAP_BYTES);
     expect(LINE_OVERLAP).toBeGreaterThanOrEqual(MIN_LINE_OVERLAP_BYTES);
   });
-  it("追加2 — the URL scheme is bounded in the main pattern too (64+ chars never match); key-value main / anchor / partial share KEY_VALUE_KEYS", () => {
+  it("追加2 — the URL scheme is bounded in the scanner pattern too (65+ chars never match); key-value main / anchor / partial share KEY_VALUE_KEYS", () => {
+    // M2-0-R3-002: the bound applies to the scanner's scanPattern only; the masker's pattern is unbounded again.
     const url = byCat["url-credential"]!;
-    const main = new RegExp(url.pattern.source, url.pattern.flags.replace("g", ""));
+    const scanner = url.scanPattern ?? url.pattern;
+    const main = new RegExp(scanner.source, scanner.flags.replace("g", ""));
     expect(main.test(`${"a".repeat(64)}://${fake("u:", "p")}@h`)).toBe(true);
     expect(main.test(`${"a".repeat(65)}://${fake("u:", "p")}@h`)).toBe(false);
     const kv = byCat["key-value"]!;

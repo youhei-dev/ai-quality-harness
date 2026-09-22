@@ -1,9 +1,11 @@
 /**
  * M2-0-R3-001 / 追加1–2: the regexes rewritten as anchor + rest match the same language as before.
  * Frozen references (regex sources copied from `git show v0.3.2:src/security/patterns.ts`,
- * v0.3.2 = commit cfadf18):
+ * v0.3.2 = commit cfadf18; the url-credential masker reference from v0.3.1 = commit e25f59f):
  * for every generated input the old and the new regex give the same match positions and match
- * strings (key-value: also the value groups 2–6).
+ * strings (key-value: also the value groups 2–6). The url-credential scanner pattern equals v0.3.2
+ * everywhere and v0.3.1 for schemes of at most 64 characters; with a longer scheme it differs from
+ * v0.3.1 (the documented scanner limitation, M2-0-R3-002).
  */
 import { describe, expect, it } from "vitest";
 import { SECRET_PATTERNS } from "../src/security/patterns.ts";
@@ -15,6 +17,8 @@ const V032_PRIVATE_KEY_BEGIN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g;
 const V032_GITHUB = /\b(?:gh[poust]_[A-Za-z0-9]{20,}|ghr_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g;
 const V032_KEY_VALUE =
   /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:"((?:[^"\\\r\n]|\\.)*)"|'((?:[^'\\\r\n]|\\.)*)'|(["'])([^\r\n]+)|([^\s"',;]+))/gi;
+const V032_URL_SHARED = /(\b[a-z][a-z0-9+.-]{0,63}:\/\/)([^\s/:@]+):([^\s/@]+)@/gi;
+const V031_URL_MASKER = /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi;
 
 const byCat = (category: string) => SECRET_PATTERNS.find((p) => p.category === category)!;
 /** All matches as "index:text" (plus the given groups), so two regexes can be compared exactly. */
@@ -44,5 +48,23 @@ describe("M2-0-R3-001 / 追加1–2: rewritten regexes match the same language a
     const groups = [2, 3, 4, 5, 6];
     const diffs = INPUTS["key-value"].filter((t) => JSON.stringify(matches(V032_KEY_VALUE, t, groups)) !== JSON.stringify(matches(byCat("key-value").pattern, t, groups)));
     expect(diffs.slice(0, 3)).toEqual([]);
+  });
+  it("url-credential: the masker pattern equals v0.3.1; the scanner pattern equals v0.3.2 everywhere, and v0.3.1 for schemes up to 64 characters", () => {
+    const url = byCat("url-credential");
+    const scanner = url.scanPattern!;
+    const longestSchemeRun = (t: string): number => Math.max(0, ...[...t.matchAll(/[a-z0-9+.-]*(?=:\/\/)/gi)].map((m) => m[0].length));
+    const diffs: string[] = [];
+    let longSchemeDiffersFromV031 = 0;
+    for (const t of INPUTS["url-credential"]) {
+      const scan = JSON.stringify(matches(scanner, t));
+      if (JSON.stringify(matches(V031_URL_MASKER, t)) !== JSON.stringify(matches(url.pattern, t))) diffs.push(`masker ≠ v0.3.1: ${t.slice(0, 30)}`);
+      if (JSON.stringify(matches(V032_URL_SHARED, t)) !== scan) diffs.push(`scanner ≠ v0.3.2: ${t.slice(0, 30)}`);
+      const v031 = JSON.stringify(matches(V031_URL_MASKER, t));
+      if (longestSchemeRun(t) <= 64) {
+        if (v031 !== scan) diffs.push(`scanner ≠ v0.3.1 with a short scheme: ${t.slice(0, 30)}`);
+      } else if (v031 !== scan) longSchemeDiffersFromV031 += 1;
+    }
+    expect(diffs.slice(0, 3)).toEqual([]);
+    expect(longSchemeDiffersFromV031, "schemes over 64 characters: the scanner differs from v0.3.1 (documented limitation)").toBeGreaterThan(0);
   });
 });

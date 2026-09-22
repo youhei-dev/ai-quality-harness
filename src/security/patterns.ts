@@ -16,8 +16,9 @@ export interface SecretPattern {
   /** Global regex (with the flags the masker needs). The scanner recompiles from source/flags. */
   pattern: RegExp;
   /**
-   * Scanner-only regex written as anchor + rest when the masker's `pattern` has another shape
-   * (capture groups for the replacement) — M2-0-R3-001, ADR-0013. Default: `pattern`.
+   * Scanner-only regex, for the rare case where the window anchor needs a bound the masker must not
+   * inherit (M2-0-R3-002, ADR-0013). The shared `pattern` is never narrowed for the scanner; a test
+   * fixes which categories are split (url-credential only). Default: `pattern`.
    */
   scanPattern?: RegExp;
   /** Replacement template (`$1` …) or replacer function for the masker. */
@@ -115,7 +116,7 @@ const PK_BEGIN = "-----BEGIN ";
 const PK_LABEL = "[A-Z0-9 ]*";
 const PK_MARKER_TAIL = "PRIVATE KEY-----";
 const PK_BEGIN_MARKER = `${PK_BEGIN}${PK_LABEL}${PK_MARKER_TAIL}`;
-/** The scheme bound (64) keeps the window anchor bounded (M2-0-R2-001). */
+/** The scheme is bounded for the scanner only (a bounded window anchor); the masker's scheme is not (R3-002). */
 const URL_ANCHOR = String.raw`\b[a-z][a-z0-9+.-]{0,63}:\/\/`;
 const GITHUB_ANCHOR = String.raw`\b(?:gh[poustr]_|github_pat_)`;
 const KEY_VALUE_ANCHOR = `(?<![A-Za-z0-9])(?:${KEY_VALUE_KEYS})\\b`;
@@ -144,12 +145,13 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     category: "url-credential",
     // <scheme>://<user>:<password>@<host>  ->  <scheme>://[REDACTED]@<host>
     // (angle brackets keep this comment from matching the pattern below when the repository scans itself)
-    // The scheme is bounded to 64 characters so that the anchor (the scheme) is a prefix of every
-    // match (M2-0-R2-001 / 追加2); RFC 3986 schemes are far shorter.
-    pattern: /(\b[a-z][a-z0-9+.-]{0,63}:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
+    // Masker: the scheme is unbounded (RFC 3986 sets no maximum; same as v0.3.1 — M2-0-R3-002).
+    pattern: /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,
-    // Scanner body written as anchor + rest without the replacement's capture groups (M2-0-R3-001).
+    // Scanner: the scheme is bounded to 64 characters so that the window anchor (the scheme) is bounded
+    // and a prefix of every scanner match (ADR-0013). Known limitation: a credential URL with a longer
+    // scheme is not detected by the scanner (it is still redacted by the masker).
     scanPattern: new RegExp(String.raw`${URL_ANCHOR}[^\s/:@]+:[^\s/@]+@`, "gi"),
     // Anchor = the scheme and "://". partial = a match cut anywhere: scheme, "://", user, ":", password, "@".
     anchor: {
