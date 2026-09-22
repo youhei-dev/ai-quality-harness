@@ -5,7 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.2 — M2-0 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.2` / `git rev-parse v0.3.2` で確認。最終報告に記載）
+## v0.3.3 — M2-0 independent review R3 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.3` / `git rev-parse v0.3.3` で確認。最終報告に記載）
+
+- 独立レビュー R3（`docs/reviews/m2-0/independent-review-r3.md`、High 1 / Medium 1 / Low 1）の 3 件をすべて反映（`docs/reviews/m2-0/response-r3.md`）
+- M2-0-R3-001（High）: private-key のアンカーを固定文字列 `-----BEGIN ` に（本体の真の接頭辞）。長い BEGIN ラベルが窓境界をまたぐと 0 件になる見逃しを修正。
+  scanner の本体を「アンカー + 残り」で組み立てる構造テスト（全パターン、例外なし）、上限から導いた長さの性質テスト、凍結した v0.3.2 の参照との正規表現の差分テストを追加
+- M2-0-R3-002（Medium）: masker の url-credential を scheme 無制限に戻した（v0.3.1 と同じ範囲を redact）。scanner は `scanPattern` で scheme 64 文字まで。
+  **既知の制限: scheme が 64 文字を超える URL 認証情報は scanner では検出しない**（masker は redact する）。v0.3.2 の masker は scheme 65 文字以上を redact しなかった
+- M2-0-R3-003（Low）: response-r2 の生の U+2028 / U+2029 をエスケープ表記に訂正。追跡中の Markdown に生の区切り文字・C1 制御文字が無いことをテストで確認
+- テストを追加 → 338 件、10 回連続 PASS。自己 verify 7 チェック PASS。`package.json` version 0.3.3
+
+## v0.3.2 — commit cfadf18 / tag object c9be6e1 — M2-0 independent review R2 applied
 
 - 独立レビュー R2（`docs/reviews/m2-0/independent-review-r2.md`、High 1 / Low 2）の 3 件をすべて反映（`docs/reviews/m2-0/response-r2.md`）
 - M2-0-R2-001（High）: 窓走査の完全性不変条件（ADR-0013）。アンカーを有界な接頭辞に（url-credential は `scheme://`、key-value はキー名のみ、private-key に BEGIN マーカー）、
