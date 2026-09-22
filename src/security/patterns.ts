@@ -15,6 +15,11 @@ export interface SecretPattern {
   category: string;
   /** Global regex (with the flags the masker needs). The scanner recompiles from source/flags. */
   pattern: RegExp;
+  /**
+   * Scanner-only regex written as anchor + rest when the masker's `pattern` has another shape
+   * (capture groups for the replacement) — M2-0-R3-001, ADR-0013. Default: `pattern`.
+   */
+  scanPattern?: RegExp;
   /** Replacement template (`$1` …) or replacer function for the masker. */
   replacement: string | Replacer;
   /** Whether the security scanner searches tracked files for this category. */
@@ -101,22 +106,38 @@ const KEY_VALUE_KEY_PREFIXES = KEY_VALUE_KEYS.split("|").map(prefixClosedKey).jo
 /** Longest key ("refresh_token" / "session-token" = 13) rounded up. */
 const KEY_VALUE_ANCHOR_MAX = 16;
 
+/*
+ * Anchor sub-expressions (M2-0-R3-001, ADR-0013). Every scanner body is written as anchor source +
+ * rest, so the anchor is a textual prefix of the body with the same quantifier bounds; a structural
+ * test checks this for every scanned pattern.
+ */
+const PK_BEGIN = "-----BEGIN ";
+const PK_LABEL = "[A-Z0-9 ]*";
+const PK_MARKER_TAIL = "PRIVATE KEY-----";
+const PK_BEGIN_MARKER = `${PK_BEGIN}${PK_LABEL}${PK_MARKER_TAIL}`;
+/** The scheme bound (64) keeps the window anchor bounded (M2-0-R2-001). */
+const URL_ANCHOR = String.raw`\b[a-z][a-z0-9+.-]{0,63}:\/\/`;
+const GITHUB_ANCHOR = String.raw`\b(?:gh[poustr]_|github_pat_)`;
+const KEY_VALUE_ANCHOR = `(?<![A-Za-z0-9])(?:${KEY_VALUE_KEYS})\\b`;
+
 export const SECRET_PATTERNS: readonly SecretPattern[] = [
   {
     category: "private-key",
-    pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
+    pattern: new RegExp(`${PK_BEGIN_MARKER}[\\s\\S]*?-----END ${PK_LABEL}${PK_MARKER_TAIL}`, "g"),
     replacement: redacted("private-key"),
     scan: true,
     // A real PEM spans several lines; the line-oriented scanner detects it as a block (M1-R1-002).
     scanMode: "block",
-    block: { begin: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/, end: /-----END [A-Z0-9 ]*PRIVATE KEY-----/ },
-    // The BEGIN marker itself must not be cut by a window end (M2-0-R2-001 / 追加4). Once the marker is
-    // complete the block state machine carries the block; the scanner treats a complete BEGIN match
-    // as resolved, so no oversized-candidate is raised for the key body.
+    block: { begin: new RegExp(PK_BEGIN_MARKER), end: /-----END [A-Z0-9 ]*PRIVATE KEY-----/ },
+    // Anchor = the literal "-----BEGIN " (M2-0-R3-001): the label is unbounded in the pattern and the
+    // block begin, so a bounded label in the anchor would not be a prefix of every match. partial =
+    // "-----BEGIN " cut anywhere, then a label and a cut "PRIVATE KEY-----". A complete BEGIN marker is
+    // resolved (M2-0-R2-001 / 追加4): the block state machine carries the key body, so no
+    // oversized-candidate is raised for it; a label longer than maxCarryBytes is oversized (fail closed).
     anchor: {
-      start: /-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----/g,
-      partial: new RegExp(`^(?:${prefixes("-----BEGIN ")}|-----BEGIN [A-Z0-9 ]{0,32}(?:${prefixes("PRIVATE KEY-----")})?|-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----[\\s\\S]*)$`),
-      anchorMaxBytes: 59,
+      start: new RegExp(PK_BEGIN, "g"),
+      partial: new RegExp(`^(?:${prefixes(PK_BEGIN)}|${PK_BEGIN}${PK_LABEL}(?:${prefixes(PK_MARKER_TAIL)})?|${PK_BEGIN_MARKER}[\\s\\S]*)$`),
+      anchorMaxBytes: PK_BEGIN.length,
     },
   },
   {
@@ -128,9 +149,11 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /(\b[a-z][a-z0-9+.-]{0,63}:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,
+    // Scanner body written as anchor + rest without the replacement's capture groups (M2-0-R3-001).
+    scanPattern: new RegExp(String.raw`${URL_ANCHOR}[^\s/:@]+:[^\s/@]+@`, "gi"),
     // Anchor = the scheme and "://". partial = a match cut anywhere: scheme, "://", user, ":", password, "@".
     anchor: {
-      start: /\b[a-z][a-z0-9+.-]{0,63}:\/\//gi,
+      start: new RegExp(URL_ANCHOR, "gi"),
       partial: /^[a-z][a-z0-9+.-]{0,63}(?::(?:\/(?:\/(?:[^\s/:@]*(?::(?:[^\s/@]*@?)?)?)?)?)?)?$/i,
       anchorMaxBytes: 67,
     },
@@ -194,11 +217,13 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
   },
   {
     category: "github",
-    pattern: /\b(?:gh[poust]_[A-Za-z0-9]{20,}|ghr_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+    // Anchor + rest (M2-0-R3-001): gh[poust]_ and ghr_ share one character class; a lookbehind picks
+    // the body class of the prefix the anchor matched. Same language as the v0.3.2 alternation (tested).
+    pattern: new RegExp(String.raw`${GITHUB_ANCHOR}(?:(?<=gh[poustr]_)[A-Za-z0-9]{20,}|(?<=github_pat_)[A-Za-z0-9_]{20,})\b`, "g"),
     replacement: redacted("github"),
     scan: true,
     anchor: {
-      start: /\b(?:gh[poustr]_|github_pat_)/g,
+      start: new RegExp(GITHUB_ANCHOR, "g"),
       partial: new RegExp(`^(?:g|gh|gh[poustr]|gh[poustr]_[A-Za-z0-9]*|${prefixes("github_pat_")}|github_pat_[A-Za-z0-9_]*)$`),
       anchorMaxBytes: 11,
     },
@@ -243,21 +268,24 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     //        Fail-safe: a quote that is not closed on the same line masks to the end of the line
     //        (ADR-0006: prefer over-masking to leaking).
     //        An unquoted value stops at whitespace / quote / separator as before.
+    // M2-0-R3-001: written as anchor (the key name) + rest; group 1 is the separator part only.
     pattern: new RegExp(
-      `(?<![A-Za-z0-9])((?:${KEY_VALUE_KEYS})\\b["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\\\r\\n]|\\\\.)*)"|'((?:[^'\\\\\\r\\n]|\\\\.)*)'|(["'])([^\\r\\n]+)|([^\\s"',;]+))`,
+      `${KEY_VALUE_ANCHOR}(["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\\\r\\n]|\\\\.)*)"|'((?:[^'\\\\\\r\\n]|\\\\.)*)'|(["'])([^\\r\\n]+)|([^\\s"',;]+))`,
       "gi",
     ),
     // R3-001: re-masking is prevented only when the whole value is one of aiqh's own canonical
     //         markers "[REDACTED:<category>]"; any other value starting with "[REDACTED:" is a
     //         secret like any other and is masked in full.
-    replacement: (match, key, dq, sq, openQuote, unterminated, bare) => {
+    // The kept part (key name and separator) is the match without its value part.
+    replacement: (match, _separator, dq, sq, openQuote, unterminated, bare) => {
       const raw = dq ?? sq ?? unterminated ?? bare;
       if (raw !== undefined && isCanonicalMarker(raw)) return match;
       const value = redacted("key-value");
-      if (dq !== undefined) return `${key}"${value}"`;
-      if (sq !== undefined) return `${key}'${value}'`;
-      if (openQuote !== undefined) return `${key}${openQuote}${value}`;
-      return `${key}${value}`;
+      const keep = (valuePartLength: number): string => match.slice(0, match.length - valuePartLength);
+      if (dq !== undefined) return `${keep(dq.length + 2)}"${value}"`;
+      if (sq !== undefined) return `${keep(sq.length + 2)}'${value}'`;
+      if (openQuote !== undefined) return `${keep(openQuote.length + (unterminated ?? "").length)}${openQuote}${value}`;
+      return `${keep((bare ?? "").length)}${value}`;
     },
     // M2-0: scanned, but only values that look like secrets are findings (looksLikeSecretValue);
     // the masker keeps redacting every assignment (ADR-0006: over-masking is fine in reports).
@@ -268,7 +296,7 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     // Anchor = the key name only (bounded); partial = key, optional quote, spaces, separator, spaces
     // and a value of any of the three forms cut anywhere (the closing quote may be missing).
     anchor: {
-      start: new RegExp(`(?<![A-Za-z0-9])(?:${KEY_VALUE_KEYS})\\b`, "gi"),
+      start: new RegExp(KEY_VALUE_ANCHOR, "gi"),
       partial: new RegExp(`^(?:${KEY_VALUE_KEY_PREFIXES}|(?:${KEY_VALUE_KEYS})\\b["']?\\s*(?:[:=]\\s*(?:"(?:[^"\\\\\\r\\n]|\\\\.)*"?|'(?:[^'\\\\\\r\\n]|\\\\.)*'?|["'][^\\r\\n]*|[^\\s"',;]*)?)?)$`, "i"),
       anchorMaxBytes: KEY_VALUE_ANCHOR_MAX,
     },

@@ -4,7 +4,8 @@
  * strings using the shared pattern definitions (R-012); multi-line PEM private keys are found by a
  * begin/end state machine; a single line longer than maxLineBytes is scanned as a sliding window
  * whose candidate prefixes are carried over (M2-0 / M1-R3-001, M2-0-R2-001: bounded anchors, minimum
- * overlap, earliest unresolved anchor, `partial` resolution — ADR-0013) so memory stays bounded. Reports
+ * overlap, earliest unresolved anchor, `partial` resolution; M2-0-R3-001: every body is anchor + rest —
+ * ADR-0013) so memory stays bounded. Reports
  * tracked .env files, untracked .env files git does not ignore and missing .gitignore coverage
  * (decided by git itself, counting only tracked .gitignore rules). `security.allow` rules suppress
  * secret-shaped findings only, and every suppression is recorded (M2-0 §7). Findings carry
@@ -289,7 +290,11 @@ function buildScanners(): { lineScanners: LineScanner[]; blockScanners: BlockSca
     if (!p.scan) continue;
     const partialSticky = p.anchor ? stickyPartial(p.anchor.partial) : /(?!)/y;
     if (p.scanMode === "block" && p.block) blockScanners.push({ category: p.category, pattern: p, begin: p.block.begin, end: p.block.end, partialSticky });
-    else lineScanners.push({ category: p.category, pattern: p, regex: new RegExp(p.pattern.source, p.pattern.flags.includes("g") ? p.pattern.flags : `${p.pattern.flags}g`), partialSticky });
+    else {
+      // The scanner uses its own regex only where the masker's must stay wider (M2-0-R3-002).
+      const body = p.scanPattern ?? p.pattern;
+      lineScanners.push({ category: p.category, pattern: p, regex: new RegExp(body.source, body.flags.includes("g") ? body.flags : `${body.flags}g`), partialSticky });
+    }
   }
   return { lineScanners, blockScanners };
 }
