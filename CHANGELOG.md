@@ -5,7 +5,15 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.3 — M2-0 independent review R3 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.3` / `git rev-parse v0.3.3` で確認。最終報告に記載）
+## v0.3.4 — M2-0 complete — completion record, R4 carried over to M2-1+（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.4` / `git rev-parse v0.3.4` で確認。最終報告に記載）
+
+- コード変更なし。M2-0 の完了ベースラインは v0.3.3（commit cb632cd）
+- 独立レビュー R4（`docs/reviews/m2-0/independent-review-r4.md`、High 0 / Medium 1）を記録（`docs/reviews/m2-0/response-r4.md`）。事前の基準「R4 で High が無ければ M2-0 完了」により完了
+- M2-0-R4-001（窓の境界で左右の文脈が失われる誤検出）は VALID。修正せず M2-1 以降のバックログの先頭に設計課題「窓走査は正規表現の境界の文脈を保つ」として持ち越し。
+  回帰テストは追加していない（修正時に修正前 FAIL とともに追加する）
+- 完了報告 `docs/reports/M2-0_COMPLETION.md`、ROADMAP（M2-0 完了、M2-1 以降のバックログ）、README。テスト 338 件、自己 verify 7 チェック PASS。`package.json` version 0.3.4
+
+## v0.3.3 — commit cb632cd / tag object 984bfcb — M2-0 independent review R3 applied
 
 - 独立レビュー R3（`docs/reviews/m2-0/independent-review-r3.md`、High 1 / Medium 1 / Low 1）の 3 件をすべて反映（`docs/reviews/m2-0/response-r3.md`）
 - M2-0-R3-001（High）: private-key のアンカーを固定文字列 `-----BEGIN ` に（本体の真の接頭辞）。長い BEGIN ラベルが窓境界をまたぐと 0 件になる見逃しを修正。

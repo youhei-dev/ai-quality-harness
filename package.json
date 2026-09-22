@@ -1,6 +1,6 @@
 {
   "name": "ai-quality-harness",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Fail-closed quality gate runner for AI-assisted development (aiqh)",
   "private": true,
   "type": "module",

@@ -102,7 +102,12 @@ M1 以降の内容は現時点の案であり、着手時に依頼範囲を再�
 
 ## M2 — 独立レビューループ
 
-### M2-0 — スキャナ保守 — v0.3.0（2026-09-20）→ 独立レビュー R1（High 1 / Medium 2）を v0.3.1、R2（High 1 / Low 2）を v0.3.2、R3（High 1 / Medium 1 / Low 1）を v0.3.3 に反映。**完了判定は R4**（High が無ければ v0.3.3 を完了ベースライン）
+### M2-0 — スキャナ保守 — **完了**（2026-09-23。完了ベースライン `v0.3.3` = commit cb632cd、記録タグ `v0.3.4`）
+- タグ: `v0.3.0`（commit 8e81d15、2026-09-20）/ `v0.3.1`（e25f59f、R1 反映）/ `v0.3.2`（cfadf18、R2 反映）/ `v0.3.3`（cb632cd、R3 反映）/ `v0.3.4`（完了記録、コード変更なし）
+- 独立レビューの指摘件数の推移: **R1: 3（High 1）→ R2: 3（High 1）→ R3: 3（High 1）→ R4: 1（High 0）**。事前の基準「R4 で High が無ければ M2-0 完了」により完了。
+  R4 の 1 件（Medium）は修正せず M2-1 以降へ持ち越し（`docs/reviews/m2-0/response-r4.md`）。完了報告は `docs/reports/M2-0_COMPLETION.md`
+- テスト件数: 280（v0.3.0）→ 294 → 319 → 338（v0.3.3、v0.3.4 も同じ）。自己 verify 7 チェック PASS
+
 M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、key-value 走査・`security.allow` と同じ塊で扱った。各件は回帰テストを先に書き「修正前 FAIL」を記録してから修正した
 （28 件の回帰テスト、`tests/regression-m2-0-*`）。完了時: テスト 280 件（10 回連続 PASS）、自己 verify 7 チェック PASS（key-value 走査込みで検出 0 件）。
 仕様は CONFIG_SPEC §3b、ADR-0010 改訂、ADR-0012。
@@ -114,6 +119,21 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 6. key-value 分類の走査（ソースコード中の誤検出を抑える方式の設計が必要）と `security.allow`（例外指定: パス / 行 / 分類。レビュー原文の例示、対象リポジトリのテスト内ダミー値の許容）。互換テストは維持
 7. `.env` 判定の代表パス・example サフィックスの設定化、窓走査の上限 / 重なりの設定化
 8. 持ち越し済みの整理: **R-012 は完了**（masker と scanner の定義共有 + `security.allow`）。R-010（M4）/ R-011 後半（M3）/ R-013（並列化時）は従来の行き先のまま
+
+### M2-1 以降のバックログ（上から順に扱う）
+1. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+   長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
+   左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
+   右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
+   対応方針の候補（どちらにするかは着手時に決める）:
+   - (a) 評価用の前文脈を 1 文字以上残し、文脈から始まる一致は finding にしない。窓の末尾に達した一致は、確定を次のチャンクまで遅らせる
+   - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
+   あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
+   修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
+2. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+3. M2-1 `aiqh review-packet`、M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+   key-value 誤検出の継続記録（下の「内容」）
+4. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
