@@ -29,11 +29,19 @@ function isRealDate(s: string): boolean {
 }
 
 /** `security.allow[]` entry (M2-0 §7): path glob, optional category / line, mandatory reason, optional expiry. */
+/**
+ * Free text of an allow rule must stay on one printable line (M2-0-R1-002 / R2-002): no C0 control
+ * characters (U+0000–U+001F, which includes CR / LF / TAB / ESC), no DEL (U+007F), no C1 controls
+ * (U+0080–U+009F, which includes NEL), no U+2028 / U+2029 line separators. Written as explicit
+ * ranges without the `u` flag so the generated JSON Schema `pattern` is the same expression.
+ */
+// eslint-disable-next-line no-control-regex -- the control ranges are the point of this rule (M2-0-R2-002)
+const ONE_PRINTABLE_LINE = /^[^\u0000-\u001F\u007F-\u009F\u2028\u2029]*$/;
 const allowRuleSchema = z.strictObject({
-  path: z.string().regex(/\S/, "allow.path must not be blank").regex(/^[^\r\n]*$/, "allow.path must not contain line breaks"),
+  path: z.string().regex(/\S/, "allow.path must not be blank").regex(ONE_PRINTABLE_LINE, "allow.path must not contain control characters or line separators"),
   category: z.enum(SECRET_CATEGORIES as [string, ...string[]]).optional(),
   line: z.number().int().positive().optional(),
-  reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank").regex(/^[^\r\n]*$/, "allow.reason must not contain line breaks"),
+  reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank").regex(ONE_PRINTABLE_LINE, "allow.reason must not contain control characters or line separators"),
   expires: z.string().regex(ISO_DATE, "allow.expires must be YYYY-MM-DD").refine(isRealDate, "allow.expires must be a real date").optional(),
 });
 
