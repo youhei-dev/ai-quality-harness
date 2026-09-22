@@ -80,13 +80,14 @@
 | `envProbePaths` | string[] | `.env`, `.env.local`, `.env.production`, `.env.development` | `.gitignore` のカバレッジ確認に使う代表パス（先頭が `.env` 本体扱い） |
 | `exampleEnvSuffixes` | string[] | `example`, `sample`, `template`, `dist` | `.env.<suffix>` を情報扱い（finding にしない）にする接尾辞 |
 | `maxLineBytes` | 正の整数 | 262144 | 1 行の保持上限（超えると窓走査）。JS 文字列長で測る |
-| `lineOverlapBytes` | 正の整数 | 4096 | 窓の重なりの下限 |
+| `lineOverlapBytes` | 整数（**最小 256** = `MIN_LINE_OVERLAP_BYTES`） | 4096 | 窓の重なりの下限。全パターンのアンカー長以上でなければ窓の切れ目でアンカーが失われる（M2-0-R2-001） |
 | `maxCarryBytes` | 正の整数 | 65536 | 候補プレフィックスの持ち越し上限。超える候補は `oversized-candidate` finding |
 
-**制約（M2-0-R1-001）**: 既定値を適用した後の 3 値が `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさない config は
+**制約（M2-0-R1-001、M2-0-R2-001）**: 既定値を適用した後の 3 値が `256 <= lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさない config は
 読込時エラー（exit 2）。1 つのキーだけを指定して既定値との関係が壊れる場合も同じ（例: `lineOverlapBytes: 100000` は既定の `maxCarryBytes` 65536 を超える）。
 境界（`lineOverlapBytes == maxCarryBytes`、`maxCarryBytes == maxLineBytes`）は有効。
-`allow[].reason` と `allow[].path` は改行（`\r` / `\n`）を含めない（スキーマエラー。M2-0-R1-002）。
+`allow[].reason` と `allow[].path` は改行（`\r` / `\n`）を含めない（スキーマエラー。M2-0-R1-002）。加えて C0 制御文字（U+0000〜U+001F、TAB を含む）、
+DEL（U+007F）、C1 制御文字（U+0080〜U+009F）、U+2028 / U+2029 を含めない（M2-0-R2-002。JSON Schema の `pattern` も同じ式）。
 
 抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
 scan の出力（text / `--json`）に必ず出る。verify のレポートには security チェックの出力として残る（実行経路は M0 のまま）。
@@ -219,9 +220,10 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
   `.env.production` / `.env.development` を ignore する場合だけ保護ありとする（否定で再包含されたものは報告。`!.env.example` は許容）
 - 未追跡で ignore されていない `.env*`（`config/.env.staging` のようなネストも含む）は、中身を読まずに `untracked-env` の finding にする
   （M1-R2-001）。example / sample / template / dist は情報のみ
-- 1 行が `security.maxLineBytes`（既定 256 KiB）を超える場合は窓走査に切り替わる（M1-R2-004 → M2-0）: 区間ごとに同じ行番号で照合し、
-  候補プレフィックス（アンカーは見つかったが完全一致が無い最後の位置。下限は重なり 4 KiB、上限は `maxCarryBytes` 64 KiB）を次の区間へ持ち越す。
-  上限を超える候補は `oversized-candidate` finding（fail closed）。メモリはファイルサイズに比例しない
+- 1 行が `security.maxLineBytes`（既定 256 KiB）を超える場合は窓走査に切り替わる（M1-R2-004 → M2-0 → M2-0-R2-001）: 区間ごとに同じ行番号で照合し、
+  候補プレフィックス（有界なアンカーが見つかり、区間末尾まで「一致の途中の形」（`partial`）が続く**最も早い**位置。下限は重なり `lineOverlapBytes`
+  （最小 256）、上限は `maxCarryBytes` 64 KiB）を次の区間へ持ち越す。上限を超える候補は `oversized-candidate` finding（fail closed）。
+  完全性の不変条件「窓なしの finding ⊆ 窓ありの finding ∪ oversized-candidate」は ADR-0013 と性質テストで固定。メモリはファイルサイズに比例しない
 - key-value 分類も走査する（値が秘密らしい場合だけ。§3b の既知の制限を参照）。未走査は bearer / basic
 - `security.allow` による抑制は必ず出力に残る（§3b）
 - `lstat` / open / read の失敗は exit 2（fail closed）。例外は ENOENT（index にあるが作業ツリーに無い）だけで、これはスキップ

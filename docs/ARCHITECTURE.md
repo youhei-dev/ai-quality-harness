@@ -209,19 +209,30 @@ aiqh security-scan
   exit 0（残る finding なし）/ 1（あり）/ 2（非 git / stat・読取エラー / 設定エラー）。未走査分類（bearer / basic）と理由を必ず表示
 ```
 
-**窓走査と候補の持ち越し（M1-R2-004 → M2-0 / M1-R3-001）**: 改行のないまま溜めた文字列が `maxLineBytes` を超えたら、その区間を同じ行番号で
-行指向パターンに掛ける。次の区間へ持ち越すのは固定の重なりではなく**候補プレフィックス**: 各パターンの開始アンカー（`patterns.ts` の `anchor.start`。
-url-credential は `scheme://user:`、anthropic は `sk-ant-`、aws は `AKIA` / `ASIA`、jwt は `eyJ`、key-value はキー名と区切り、など）のうち
-完全一致に含まれず、かつ区間末尾までがそのパターンの継続文字（`anchor.continues`）だけで続くもの、または区間末尾に達した一致の開始位置。
-複数パターンでは最も前の位置を採り、下限は従来の重なり `lineOverlapBytes`（4 KiB）、上限は `maxCarryBytes`（64 KiB）。上限を超える候補は
+**窓走査と候補の持ち越し（M1-R2-004 → M2-0 / M1-R3-001 → M2-0-R2-001、ADR-0013）**: 改行のないまま溜めた文字列が `maxLineBytes` を超えたら、
+その区間を同じ行番号で行指向パターンに掛ける。次の区間へ持ち越すのは固定の重なりではなく**候補プレフィックス**: 各パターンの**有界な開始アンカー**
+（`patterns.ts` の `anchor.start`。url-credential は `scheme://`（scheme は 64 文字以内）、anthropic は `sk-ant-`、aws は `AKIA` / `ASIA`、jwt は `eyJ`、
+key-value はキー名のみ、private-key は BEGIN マーカー。最長一致は `anchorMaxBytes` で宣言）のうち、完全一致に含まれず、かつアンカー位置から区間末尾までが
+「一致の途中で切れた形」（`anchor.partial`、`^…$` 固定）に一致するもの、または区間末尾に達した一致の開始位置。**最も早い**位置を採る
+（後ろのアンカーから持ち越すと、それより前から始まる秘密値を落とす）。`partial` に一致しない候補（例: 普通の URL `https://host/path` は `/` で解決）は捨てる。
+下限は重なり `lineOverlapBytes`（既定 4 KiB、最小 `MIN_LINE_OVERLAP_BYTES` = 256）、上限は `maxCarryBytes`（64 KiB）。上限を超える候補は
 「長すぎて完全走査できない」として **`oversized-candidate` finding（分類・行番号のみ）にし、捨てない（fail closed）**。読み取りチャンク
 （64 KiB）≤ `maxCarryBytes` なので、区間の最大長は `maxLineBytes + maxCarryBytes` に収まる（`LineAssembler.maxRetained` を単体テストで固定）。
+
+**完全性の不変条件（ADR-0013）**: 任意の 1 行について、窓なしで行スキャナに渡したときの finding は、窓走査でも同じ分類の finding になるか
+`oversized-candidate` になる。窓走査だけが 0 件で終わることはない。根拠は 3 つの性質で、それぞれテストで固定する:
+(1) アンカーは本体の接頭辞（本体に一致する任意の文字列の先頭で `anchor.start` が一致する）、(2) `partial` は接頭辞について閉じている
+（本体一致のアンカー開始位置からのすべての接頭辞に一致する）、(3) 重なり ≥ アンカー長（全 `anchorMaxBytes` ≤ `MIN_LINE_OVERLAP_BYTES` ≤ `lineOverlapBytes`。
+窓の末尾にかかるアンカーは重なり部分に丸ごと残る）。(1)(2) は固定の例示値に加え、本体 regex の文字クラスから生成した秘密値（区切り記号を含む）でも確認する。
+埋め草がアンカーに一致しない中立な文字のときは、秘密値が `maxCarryBytes` 以下なら同じ分類の finding（oversized ではない）になることも固定する
+（すべてを oversized に逃がす実装を排除）。private-key は BEGIN マーカーが完全一致した時点で候補を解決済みにし（ブロック状態機械が鍵本体を持つ）、
+1 行内の鍵で finding が重複しない。
 上限は **JS 文字列長（UTF-16 コード単位）で測る**ため、実メモリはおおむね 2 ×（256 KiB + 64 KiB）バイトが上限で、ファイルサイズに比例しない。
 行番号は改行の数だけ進む。PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
 既知の副作用: minified バンドルのような改行のない長行で、区間末尾までアンカーの継続文字だけが 64 KiB 超続く場合（例: `eyJ` で始まる巨大な
 base64 文字列）は oversized-candidate になる。実物でないと分かっているなら `security.allow` で理由つきで許容する。
 
-**窓設定の制約と進捗不変条件（M2-0-R1-001）**: 3 値は `0 < lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさなければならない
+**窓設定の制約と進捗不変条件（M2-0-R1-001、M2-0-R2-001）**: 3 値は `MIN_LINE_OVERLAP_BYTES (256) <= lineOverlapBytes <= maxCarryBytes <= maxLineBytes` を満たさなければならない
 （そうでないと窓の buffer が縮まず走査が終わらない）。3 層で守る: (1) `resolveSecurity()` が既定値を埋めた後に検証し `ConfigError`（exit 2）、
 (2) `LineAssembler` のコンストラクタが同じ関係を検証し `ScanError`（設定を経由しない直接構築も対象。判定は `config/window-limits.ts` に一本化）、
 (3) 長行ループの各反復で `pending` が必ず短くなる不変条件を置き、短くならなければ `ScanError`（exit 2。将来の変更に対する保険）。
@@ -249,8 +260,8 @@ example 系の否定は代表パスに含まれないため許容される。
 (c) `.gitignore` が無い、または git に聞けない → 作成 / 追記を 1 回だけ（同じ行は二度と追記しない）。
 
 `aiqh security-scan` の出力は他コマンドと同じマスク境界を通る（M2-0-R1-002）: text は全行 `maskSecrets`、`--json` は `maskDeep(result)`。
-config 由来の自由文（`allow[].reason` / `path`）に秘密の形があってもそのまま再出力しない。`reason` / `path` はスキーマで改行を禁止する
-（監査ログへの複数行注入の防止）。
+config 由来の自由文（`allow[].reason` / `path`）に秘密の形があってもそのまま再出力しない。`reason` / `path` はスキーマで改行に加えて
+C0 / DEL / C1 制御文字と U+2028 / U+2029 を禁止する（M2-0-R2-002。監査ログへの複数行注入・端末制御の防止。text 出力側のエスケープは行わない、ADR-0012）。
 
 Python アダプタは venv を「`<venv>/bin/python` が実行可能」なときだけ認識し（`PythonContext.python`、M1-R2-003）、
 すべての推奨コマンドはその interpreter から始まる。ツールのバイナリも実行権限（X_OK）で確認する（M1-R1-009）。
