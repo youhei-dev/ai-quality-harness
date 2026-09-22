@@ -3,7 +3,8 @@
  * tracks plus the untracked files git would not ignore, line by line (any size), for secret-shaped
  * strings using the shared pattern definitions (R-012); multi-line PEM private keys are found by a
  * begin/end state machine; a single line longer than maxLineBytes is scanned as a sliding window
- * whose candidate prefixes are carried over (M2-0 / M1-R3-001) so memory stays bounded. Reports
+ * whose candidate prefixes are carried over (M2-0 / M1-R3-001, M2-0-R2-001: bounded anchors, minimum
+ * overlap, earliest unresolved anchor, `partial` resolution — ADR-0013) so memory stays bounded. Reports
  * tracked .env files, untracked .env files git does not ignore and missing .gitignore coverage
  * (decided by git itself, counting only tracked .gitignore rules). `security.allow` rules suppress
  * secret-shaped findings only, and every suppression is recorded (M2-0 §7). Findings carry
@@ -98,11 +99,14 @@ interface LineScanner {
   category: string;
   regex: RegExp;
   pattern: SecretPattern;
+  partialSticky: RegExp;
 }
 interface BlockScanner {
   category: string;
+  pattern: SecretPattern;
   begin: RegExp;
   end: RegExp;
+  partialSticky: RegExp;
 }
 /** Where the next window should start (M2-0 / M1-R3-001). */
 export interface CarryDecision {
@@ -130,13 +134,7 @@ export function scanRepository(root: string, security: ResolvedSecurity = DEFAUL
     scannedCategories: [...SCANNED_CATEGORIES],
     unscannedCategories: UNSCANNED_CATEGORIES.map((u) => ({ ...u })),
   };
-  const lineScanners: LineScanner[] = [];
-  const blockScanners: BlockScanner[] = [];
-  for (const p of SECRET_PATTERNS) {
-    if (!p.scan) continue;
-    if (p.scanMode === "block" && p.block) blockScanners.push({ category: p.category, begin: p.block.begin, end: p.block.end });
-    else lineScanners.push({ category: p.category, pattern: p, regex: new RegExp(p.pattern.source, p.pattern.flags.includes("g") ? p.pattern.flags : `${p.pattern.flags}g`) });
-  }
+  const { lineScanners, blockScanners } = buildScanners();
   const ctx: FileScanContext = { lineScanners, blockScanners, security, result };
 
   for (const rel of tracked) {
@@ -206,40 +204,156 @@ function findMatches(s: LineScanner, text: string): Array<{ start: number; end: 
   return out;
 }
 
+/** Sticky form of an anchor's `partial` (^…$ → …$ with the y flag) so the remainder need not be sliced. */
+function stickyPartial(p: RegExp): RegExp {
+  return new RegExp(p.source.replace(/^\^/, ""), `${p.flags.replace(/[gy]/g, "")}y`);
+}
+
 /**
- * Candidate prefix to carry into the next window (M2-0 / M1-R3-001): for every line scanner, the
- * last anchor not covered by a complete match whose remainder consists only of characters the
- * pattern may continue with, or a complete match that reaches the window end; the earliest such
- * position across scanners wins. `null` when nothing may continue.
+ * Candidate prefix to carry into the next window (M2-0 / M1-R3-001, revised by M2-0-R2-001;
+ * ADR-0013): for every scanner, a complete match that reaches the window end, or an anchor that no
+ * complete match covers and whose remainder up to the window end still matches the pattern's
+ * `partial` (a match cut off by the window end). The EARLIEST such position across all scanners is
+ * carried, so a match that starts before another anchor is not lost. For block patterns a complete
+ * BEGIN marker counts as coverage: the block state machine carries the block itself. `null` when
+ * nothing may continue.
  */
-export function carryCandidate(window: string, scanners: readonly LineScanner[]): CarryDecision | null {
+export function carryCandidate(window: string, lineScanners: readonly LineScanner[], blockScanners: readonly BlockScanner[] = []): CarryDecision | null {
   let best: CarryDecision | null = null;
-  for (const s of scanners) {
-    const matches = findMatches(s, window);
-    let candidate = -1;
-    for (const m of matches) if (m.end === window.length) candidate = Math.max(candidate, m.start);
-    const anchor = s.pattern.anchor;
-    if (anchor) {
-      const re = new RegExp(anchor.start.source, anchor.start.flags.includes("g") ? anchor.start.flags : `${anchor.start.flags}g`);
-      re.lastIndex = 0;
-      for (;;) {
-        const a = re.exec(window);
-        if (a === null) break;
-        if (a[0].length === 0) {
-          re.lastIndex += 1;
-          continue;
-        }
-        const covered = matches.some((m) => m.start <= a.index && a.index < m.end);
-        if (covered) continue;
-        const cont = typeof anchor.continues === "function" ? anchor.continues(a) : anchor.continues;
-        const rest = window.slice(a.index + a[0].length);
-        const runs = new RegExp(`^(?:${cont.source})*$`, cont.flags.replace("g", "")).test(rest);
-        if (runs) candidate = Math.max(candidate, a.index);
+  const consider = (start: number, category: string): void => {
+    if (best === null || start < best.start) best = { start, category };
+  };
+  const anchorsOf = (category: string, anchor: NonNullable<SecretPattern["anchor"]>, partialSticky: RegExp, covered: (i: number) => boolean): void => {
+    const re = new RegExp(anchor.start.source, anchor.start.flags.includes("g") ? anchor.start.flags : `${anchor.start.flags}g`);
+    re.lastIndex = 0;
+    for (;;) {
+      const a = re.exec(window);
+      if (a === null) break;
+      if (a[0].length === 0) {
+        re.lastIndex += 1;
+        continue;
       }
+      if (best !== null && a.index >= best.start) break; // a later anchor cannot beat the earliest candidate
+      if (covered(a.index)) continue;
+      partialSticky.lastIndex = a.index;
+      if (partialSticky.test(window)) consider(a.index, category);
     }
-    if (candidate >= 0 && (best === null || candidate < best.start)) best = { start: candidate, category: s.category };
+  };
+  for (const s of lineScanners) {
+    const matches = findMatches(s, window);
+    for (const m of matches) if (m.end === window.length) consider(m.start, s.category);
+    if (s.pattern.anchor) anchorsOf(s.category, s.pattern.anchor, s.partialSticky, (i) => matches.some((m) => m.start <= i && i < m.end));
+  }
+  for (const b of blockScanners) {
+    if (!b.pattern.anchor) continue;
+    const begins: Array<{ start: number; end: number }> = [];
+    const re = new RegExp(b.begin.source, `${b.begin.flags.replace("g", "")}g`);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(window)) !== null) {
+      if (m[0].length === 0) {
+        re.lastIndex += 1;
+        continue;
+      }
+      begins.push({ start: m.index, end: m.index + m[0].length });
+    }
+    anchorsOf(b.category, b.pattern.anchor, b.partialSticky, (i) => begins.some((g) => g.start <= i && i < g.end));
   }
   return best;
+}
+
+/** Categories found on a whole line by the line scanners and single-line blocks — no windows (for the completeness tests). */
+export function lineFindings(line: string): string[] {
+  const { lineScanners, blockScanners } = buildScanners();
+  const text = stripCanonicalMarkers(line);
+  const out: string[] = [];
+  for (const s of lineScanners) if (findMatches(s, text).some((m) => m.finding)) out.push(s.category);
+  for (const b of blockScanners) if (b.begin.test(text) && b.end.test(text)) out.push(b.category);
+  return out;
+}
+
+/** Scan a string (fed in `chunkBytes` pieces) through the same pipeline as a file — no git, for tests. */
+export function scanString(text: string, security: ResolvedSecurity = DEFAULT_SECURITY, chunkBytes = READ_CHUNK_BYTES): ScanFinding[] {
+  const scanners = buildScanners();
+  const sink = new FileScanSink("<string>", scanners.lineScanners, scanners.blockScanners);
+  const lines = new LineAssembler((line, no) => sink.onLine(line, no), assemblerOptions(security, scanners, sink));
+  for (let i = 0; i < text.length; i += chunkBytes) lines.push(text.slice(i, i + chunkBytes));
+  lines.end();
+  sink.finish();
+  return sink.findings;
+}
+
+function buildScanners(): { lineScanners: LineScanner[]; blockScanners: BlockScanner[] } {
+  const lineScanners: LineScanner[] = [];
+  const blockScanners: BlockScanner[] = [];
+  for (const p of SECRET_PATTERNS) {
+    if (!p.scan) continue;
+    const partialSticky = p.anchor ? stickyPartial(p.anchor.partial) : /(?!)/y;
+    if (p.scanMode === "block" && p.block) blockScanners.push({ category: p.category, pattern: p, begin: p.block.begin, end: p.block.end, partialSticky });
+    else lineScanners.push({ category: p.category, pattern: p, regex: new RegExp(p.pattern.source, p.pattern.flags.includes("g") ? p.pattern.flags : `${p.pattern.flags}g`), partialSticky });
+  }
+  return { lineScanners, blockScanners };
+}
+
+function assemblerOptions(security: ResolvedSecurity, scanners: { lineScanners: LineScanner[]; blockScanners: BlockScanner[] }, sink: FileScanSink): LineAssemblerOptions {
+  return {
+    maxLineBytes: security.maxLineBytes,
+    lineOverlap: security.lineOverlapBytes,
+    maxCarryBytes: security.maxCarryBytes,
+    carryFrom: (window) => carryCandidate(window, scanners.lineScanners, scanners.blockScanners) ?? { start: window.length, category: null },
+    onOversizedCandidate: (category, no) => sink.oversized(category, no),
+  };
+}
+
+/** Per-file state of the line and block scanners; findings are de-duplicated by key (windows overlap). */
+class FileScanSink {
+  readonly findings: ScanFinding[] = [];
+  private readonly seen = new Set<string>();
+  private readonly open: Array<{ scanner: BlockScanner; beginLine: number }> = [];
+  private lineNo = 0;
+  private readonly rel: string;
+  private readonly lineScanners: readonly LineScanner[];
+  private readonly blockScanners: readonly BlockScanner[];
+  constructor(rel: string, lineScanners: readonly LineScanner[], blockScanners: readonly BlockScanner[]) {
+    this.rel = rel;
+    this.lineScanners = lineScanners;
+    this.blockScanners = blockScanners;
+  }
+  private push(f: ScanFinding, key: string): void {
+    if (this.seen.has(key)) return;
+    this.seen.add(key);
+    this.findings.push(f);
+  }
+  oversized(category: string, no: number): void {
+    this.push({ kind: "oversized-candidate", category, file: this.rel, line: no, endLine: no, message: `${category} candidate longer than maxCarryBytes could not be scanned completely` }, `oversized:${category}:${no}`);
+  }
+  onLine(rawLine: string, no: number): void {
+    this.lineNo = no;
+    const rel = this.rel;
+    const line = stripCanonicalMarkers(rawLine);
+    for (const s of this.lineScanners) {
+      if (findMatches(s, line).some((m) => m.finding)) {
+        this.push({ kind: "secret", category: s.category, file: rel, line: no, endLine: no, message: `${s.category}-shaped string` }, `${s.category}:${no}`);
+      }
+    }
+    for (const b of this.blockScanners) {
+      const idx = this.open.findIndex((o) => o.scanner === b);
+      if (idx === -1) {
+        if (b.begin.test(line)) {
+          if (b.end.test(line)) this.push({ kind: "secret", category: b.category, file: rel, line: no, endLine: no, message: `${b.category} block` }, `block:${b.category}:${no}:${no}`);
+          else this.open.push({ scanner: b, beginLine: no });
+        }
+      } else if (b.end.test(line)) {
+        const o = this.open[idx];
+        if (o) this.push({ kind: "secret", category: b.category, file: rel, line: o.beginLine, endLine: no, message: `${b.category} block` }, `block:${b.category}:${o.beginLine}:${no}`);
+        this.open.splice(idx, 1);
+      }
+    }
+  }
+  /** A block that never ended (truncated PEM) is still a finding: fail closed. */
+  finish(): void {
+    for (const o of this.open) this.push({ kind: "secret", category: o.scanner.category, file: this.rel, line: o.beginLine, endLine: this.lineNo, message: `${o.scanner.category} block (no end marker)` }, `block:${o.scanner.category}:${o.beginLine}:${this.lineNo}`);
+    this.open.length = 0;
+  }
 }
 
 function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
@@ -253,50 +367,15 @@ function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
     throw new ScanError(`cannot stat ${rel}: ${(err as Error).message}`);
   }
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
-  const open: Array<{ scanner: BlockScanner; beginLine: number }> = [];
-  const seen = new Set<string>(); // findings already reported (windows of one line overlap)
-  let lineNo = 0;
-  const push = (f: ScanFinding, key: string): void => {
-    if (seen.has(key)) return;
-    seen.add(key);
-    result.findings.push(f);
-  };
-  const onLine = (rawLine: string, no: number): void => {
-    lineNo = no;
-    const line = stripCanonicalMarkers(rawLine);
-    for (const s of lineScanners) {
-      if (findMatches(s, line).some((m) => m.finding)) {
-        push({ kind: "secret", category: s.category, file: rel, line: lineNo, endLine: lineNo, message: `${s.category}-shaped string` }, `${s.category}:${lineNo}`);
-      }
-    }
-    for (const b of blockScanners) {
-      const idx = open.findIndex((o) => o.scanner === b);
-      if (idx === -1) {
-        if (b.begin.test(line)) {
-          if (b.end.test(line)) push({ kind: "secret", category: b.category, file: rel, line: lineNo, endLine: lineNo, message: `${b.category} block` }, `block:${b.category}:${lineNo}:${lineNo}`);
-          else open.push({ scanner: b, beginLine: lineNo });
-        }
-      } else if (b.end.test(line)) {
-        const o = open[idx];
-        if (o) push({ kind: "secret", category: b.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${b.category} block` }, `block:${b.category}:${o.beginLine}:${lineNo}`);
-        open.splice(idx, 1);
-      }
-    }
-  };
-  const binary = readLines(abs, rel, onLine, {
-    maxLineBytes: security.maxLineBytes,
-    lineOverlap: security.lineOverlapBytes,
-    maxCarryBytes: security.maxCarryBytes,
-    carryFrom: (window) => carryCandidate(window, lineScanners) ?? { start: window.length, category: null },
-    onOversizedCandidate: (category, no) => push({ kind: "oversized-candidate", category, file: rel, line: no, endLine: no, message: `${category} candidate longer than maxCarryBytes could not be scanned completely` }, `oversized:${category}:${no}`),
-  });
+  const sink = new FileScanSink(rel, lineScanners, blockScanners);
+  const binary = readLines(abs, rel, (line, no) => sink.onLine(line, no), assemblerOptions(security, { lineScanners, blockScanners }, sink));
   if (binary) {
     result.skippedBinary += 1;
     return;
   }
   result.filesScanned += 1;
-  // A block that never ended (truncated PEM) is still a finding: fail closed.
-  for (const o of open) push({ kind: "secret", category: o.scanner.category, file: rel, line: o.beginLine, endLine: lineNo, message: `${o.scanner.category} block (no end marker)` }, `block:${o.scanner.category}:${o.beginLine}:${lineNo}`);
+  sink.finish();
+  result.findings.push(...sink.findings);
 }
 
 export interface LineAssemblerOptions {

@@ -49,7 +49,7 @@ describe("M2-0-R1-001: cross-field validation of the window settings", () => {
   });
   it("accepts the boundaries overlap == carry and carry == line", () => {
     expect(resolve('"maxLineBytes": 4096, "lineOverlapBytes": 2048, "maxCarryBytes": 2048').security.lineOverlapBytes).toBe(2048);
-    expect(resolve('"maxLineBytes": 4096, "lineOverlapBytes": 128, "maxCarryBytes": 4096').security.maxCarryBytes).toBe(4096);
+    expect(resolve('"maxLineBytes": 4096, "lineOverlapBytes": 256, "maxCarryBytes": 4096').security.maxCarryBytes).toBe(4096); // overlap 256 = MIN_LINE_OVERLAP_BYTES (M2-0-R2-001)
   });
   it("the reviewer's reproduction (10 / 20 / 64 with an 11-char line) ends with exit 2 through the CLI", () => {
     const t = makeTempDir("aiqh-r1-001-cli-");
@@ -93,12 +93,12 @@ describe("M2-0-R1-001: LineAssembler progress invariant (third layer; constructo
     expect(r.out).toMatch(/^SCANERROR .*no progress/m);
   });
   it("carry larger than the window with a candidate at the start: push() throws ScanError instead of looping", () => {
-    const r = probe("{ maxLineBytes: 1024, lineOverlap: 128, maxCarryBytes: 2048, skipOptionValidation: true, carryFrom: () => ({ start: 0, category: \"aws\" }) }", 'a.push("y".repeat(1500));');
+    const r = probe("{ maxLineBytes: 1024, lineOverlap: 256, maxCarryBytes: 2048, skipOptionValidation: true, carryFrom: () => ({ start: 0, category: \"aws\" }) }", 'a.push("y".repeat(1500));');
     expect(r.status).toBe(0);
     expect(r.out).toMatch(/^SCANERROR .*no progress/m);
   });
   it("valid settings still return", () => {
-    const r = probe("{ maxLineBytes: 4096, lineOverlap: 128, maxCarryBytes: 2048 }", 'a.push("z".repeat(10000));');
+    const r = probe("{ maxLineBytes: 4096, lineOverlap: 256, maxCarryBytes: 2048 }", 'a.push("z".repeat(10000));'); // overlap 256 = minimum (M2-0-R2-001)
     expect(r.status).toBe(0);
     expect(r.out).toMatch(/^RETURNED/m);
   });

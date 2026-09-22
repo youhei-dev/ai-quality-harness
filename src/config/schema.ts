@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CHECK_KINDS } from "../types.ts";
 import { SECRET_CATEGORIES } from "../security/patterns.ts";
+import { MIN_LINE_OVERLAP_BYTES } from "./window-limits.ts";
 
 export const CHECK_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -42,7 +43,7 @@ const securitySchema = z.strictObject({
   envProbePaths: z.array(z.string().min(1)).min(1).optional(),
   exampleEnvSuffixes: z.array(z.string().min(1)).optional(),
   maxLineBytes: z.number().int().positive().optional(),
-  lineOverlapBytes: z.number().int().positive().optional(),
+  lineOverlapBytes: z.number().int().min(MIN_LINE_OVERLAP_BYTES).optional(),
   maxCarryBytes: z.number().int().positive().optional(),
 });
 

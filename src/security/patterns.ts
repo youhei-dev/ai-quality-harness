@@ -30,13 +30,16 @@ export interface SecretPattern {
   scanMode?: "line" | "block";
   block?: { begin: RegExp; end: RegExp };
   /**
-   * Candidate anchor for the sliding window (M2-0 / M1-R3-001). `start` finds where a match of
-   * this category could begin; `continues` is the character class a match may run on with. At the
-   * end of a window, an anchor that is not covered by a complete match and whose remainder up to
-   * the window end consists only of `continues` characters is a candidate that may finish in the
-   * next window, so the text from that anchor is carried over (bounded by maxCarryBytes).
+   * Candidate anchor for the sliding window (M2-0 / M1-R3-001, revised by M2-0-R2-001; ADR-0013).
+   * `start` is a bounded prefix of every match of `pattern` (no unbounded quantifier; longest match
+   * `anchorMaxBytes`, which never exceeds MIN_LINE_OVERLAP_BYTES, so an anchor touching a window end
+   * is kept whole for the next window). `partial` is anchored ^…$ and accepts every prefix, from the
+   * anchor start, of every string `pattern` matches — the shape of a match cut off by the window end.
+   * At the end of a window the scanner carries the text from the earliest anchor that is not covered
+   * by a complete match and whose remainder still matches `partial`; anchors whose remainder cannot
+   * be a match are resolved and dropped.
    */
-  anchor?: { start: RegExp; continues: RegExp | ((anchorMatch: RegExpExecArray) => RegExp) };
+  anchor?: { start: RegExp; partial: RegExp; anchorMaxBytes: number };
   /**
    * For scanned categories whose regex matches ordinary code too (key-value): a match is a finding
    * only when its value passes the filter. `valueGroups` lists the capture groups that carry the
@@ -73,6 +76,31 @@ function isCanonicalMarker(value: string): boolean {
   return m !== null && m[1] !== undefined && CATEGORY_SET.has(m[1]);
 }
 
+/** Prefix-closed alternation of a literal: "abc" → "a|ab|abc" (for `partial` regexes). */
+function prefixes(literal: string): string {
+  const esc = (t: string): string => t.replace(/[.*+?^${}()|[\]\\/-]/g, "\\$&");
+  return Array.from({ length: literal.length }, (_, i) => esc(literal.slice(0, i + 1))).join("|");
+}
+/** Prefix-closed form of a simple key pattern made of letters and optional `[_-]?` separators. */
+function prefixClosedKey(key: string): string {
+  const units = key.match(/\[_-\]\?|[a-z]/g) ?? [];
+  let out = "";
+  for (let i = units.length - 1; i >= 0; i -= 1) {
+    const u = units[i] ?? "";
+    out = i === units.length - 1 ? u : `${u}(?:${out})?`;
+  }
+  return out;
+}
+
+/**
+ * Key names of the key-value category — the single definition used by the main pattern, its anchor
+ * and its `partial` (M2-0-R2-001 / 追加2; tested).
+ */
+export const KEY_VALUE_KEYS = "api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd";
+const KEY_VALUE_KEY_PREFIXES = KEY_VALUE_KEYS.split("|").map(prefixClosedKey).join("|");
+/** Longest key ("refresh_token" / "session-token" = 13) rounded up. */
+const KEY_VALUE_ANCHOR_MAX = 16;
+
 export const SECRET_PATTERNS: readonly SecretPattern[] = [
   {
     category: "private-key",
@@ -82,16 +110,30 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     // A real PEM spans several lines; the line-oriented scanner detects it as a block (M1-R1-002).
     scanMode: "block",
     block: { begin: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/, end: /-----END [A-Z0-9 ]*PRIVATE KEY-----/ },
+    // The BEGIN marker itself must not be cut by a window end (M2-0-R2-001 / 追加4). Once the marker is
+    // complete the block state machine carries the block; the scanner treats a complete BEGIN match
+    // as resolved, so no oversized-candidate is raised for the key body.
+    anchor: {
+      start: /-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----/g,
+      partial: new RegExp(`^(?:${prefixes("-----BEGIN ")}|-----BEGIN [A-Z0-9 ]{0,32}(?:${prefixes("PRIVATE KEY-----")})?|-----BEGIN [A-Z0-9 ]{0,32}PRIVATE KEY-----[\\s\\S]*)$`),
+      anchorMaxBytes: 59,
+    },
   },
   {
     category: "url-credential",
     // <scheme>://<user>:<password>@<host>  ->  <scheme>://[REDACTED]@<host>
     // (angle brackets keep this comment from matching the pattern below when the repository scans itself)
-    pattern: /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
+    // The scheme is bounded to 64 characters so that the anchor (the scheme) is a prefix of every
+    // match (M2-0-R2-001 / 追加2); RFC 3986 schemes are far shorter.
+    pattern: /(\b[a-z][a-z0-9+.-]{0,63}:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,
-    // Anchor = scheme, user and the colon; a plain URL (no "user:") is not a candidate.
-    anchor: { start: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:/gi, continues: /[^\s/@]/ },
+    // Anchor = the scheme and "://". partial = a match cut anywhere: scheme, "://", user, ":", password, "@".
+    anchor: {
+      start: /\b[a-z][a-z0-9+.-]{0,63}:\/\//gi,
+      partial: /^[a-z][a-z0-9+.-]{0,63}(?::(?:\/(?:\/(?:[^\s/:@]*(?::(?:[^\s/@]*@?)?)?)?)?)?)?$/i,
+      anchorMaxBytes: 67,
+    },
   },
   {
     category: "bearer",
@@ -134,56 +176,60 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     pattern: /\bsk-ant-[A-Za-z0-9_-]{8,}/g,
     replacement: redacted("anthropic"),
     scan: true,
-    anchor: { start: /\bsk-ant-/g, continues: /[A-Za-z0-9_-]/ },
+    anchor: { start: /\bsk-ant-/g, partial: new RegExp(`^(?:${prefixes("sk-ant-")}|sk-ant-[A-Za-z0-9_-]*)$`), anchorMaxBytes: 7 },
   },
   {
     category: "openai",
     pattern: /\bsk-(?!ant-)[A-Za-z0-9_-]{16,}/g,
     replacement: redacted("openai"),
     scan: true,
-    anchor: { start: /\bsk-/g, continues: /[A-Za-z0-9_-]/ },
+    anchor: { start: /\bsk-/g, partial: new RegExp(`^(?:${prefixes("sk-")}|sk-[A-Za-z0-9_-]*)$`), anchorMaxBytes: 3 },
   },
   {
     category: "aws",
     pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
     replacement: redacted("aws"),
     scan: true,
-    anchor: { start: /\b(?:AKIA|ASIA)/g, continues: /[A-Z0-9]/ },
+    anchor: { start: /\b(?:AKIA|ASIA)/g, partial: new RegExp(`^(?:${prefixes("AKIA")}|${prefixes("ASIA")}|(?:AKIA|ASIA)[A-Z0-9]{0,16})$`), anchorMaxBytes: 4 },
   },
   {
     category: "github",
     pattern: /\b(?:gh[poust]_[A-Za-z0-9]{20,}|ghr_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
     replacement: redacted("github"),
     scan: true,
-    anchor: { start: /\b(?:gh[poustr]_|github_pat_)/g, continues: /[A-Za-z0-9_]/ },
+    anchor: {
+      start: /\b(?:gh[poustr]_|github_pat_)/g,
+      partial: new RegExp(`^(?:g|gh|gh[poustr]|gh[poustr]_[A-Za-z0-9]*|${prefixes("github_pat_")}|github_pat_[A-Za-z0-9_]*)$`),
+      anchorMaxBytes: 11,
+    },
   },
   {
     category: "slack",
     pattern: /\bxox[abpors]-[A-Za-z0-9-]{10,}/g,
     replacement: redacted("slack"),
     scan: true,
-    anchor: { start: /\bxox[abpors]-/g, continues: /[A-Za-z0-9-]/ },
+    anchor: { start: /\bxox[abpors]-/g, partial: /^(?:x|xo|xox|xox[abpors]|xox[abpors]-[A-Za-z0-9-]*)$/, anchorMaxBytes: 5 },
   },
   {
     category: "google",
     pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g,
     replacement: redacted("google"),
     scan: true,
-    anchor: { start: /\bAIza/g, continues: /[0-9A-Za-z_-]/ },
+    anchor: { start: /\bAIza/g, partial: new RegExp(`^(?:${prefixes("AIza")}|AIza[0-9A-Za-z_-]{0,35})$`), anchorMaxBytes: 4 },
   },
   {
     category: "gitlab",
     pattern: /\bglpat-[A-Za-z0-9_-]{16,}\b/g,
     replacement: redacted("gitlab"),
     scan: true,
-    anchor: { start: /\bglpat-/g, continues: /[A-Za-z0-9_-]/ },
+    anchor: { start: /\bglpat-/g, partial: new RegExp(`^(?:${prefixes("glpat-")}|glpat-[A-Za-z0-9_-]*)$`), anchorMaxBytes: 6 },
   },
   {
     category: "jwt",
     pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
     replacement: redacted("jwt"),
     scan: true,
-    anchor: { start: /\beyJ/g, continues: /[A-Za-z0-9_.-]/ },
+    anchor: { start: /\beyJ/g, partial: /^(?:e|ey|eyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*)?)?)$/, anchorMaxBytes: 3 },
   },
   {
     category: "key-value",
@@ -197,8 +243,10 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     //        Fail-safe: a quote that is not closed on the same line masks to the end of the line
     //        (ADR-0006: prefer over-masking to leaking).
     //        An unquoted value stops at whitespace / quote / separator as before.
-    pattern:
-      /(?<![A-Za-z0-9])((?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*)(?:"((?:[^"\\\r\n]|\\.)*)"|'((?:[^'\\\r\n]|\\.)*)'|(["'])([^\r\n]+)|([^\s"',;]+))/gi,
+    pattern: new RegExp(
+      `(?<![A-Za-z0-9])((?:${KEY_VALUE_KEYS})\\b["']?\\s*[:=]\\s*)(?:"((?:[^"\\\\\\r\\n]|\\\\.)*)"|'((?:[^'\\\\\\r\\n]|\\\\.)*)'|(["'])([^\\r\\n]+)|([^\\s"',;]+))`,
+      "gi",
+    ),
     // R3-001: re-masking is prevented only when the whole value is one of aiqh's own canonical
     //         markers "[REDACTED:<category>]"; any other value starting with "[REDACTED:" is a
     //         secret like any other and is masked in full.
@@ -217,9 +265,12 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     valueFilter: (value, quoted) => looksLikeSecretValue(value, { quoted }),
     valueGroups: [2, 3, 5, 6],
     quotedGroups: [2, 3, 5],
+    // Anchor = the key name only (bounded); partial = key, optional quote, spaces, separator, spaces
+    // and a value of any of the three forms cut anywhere (the closing quote may be missing).
     anchor: {
-      start: /(?<![A-Za-z0-9])(?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|session[_-]?token|secret|token|password|passwd|pwd)\b["']?\s*[:=]\s*(["']?)/gi,
-      continues: (m) => (m[1] === '"' ? /[^"\r\n]/ : m[1] === "'" ? /[^'\r\n]/ : /[^\s"',;]/),
+      start: new RegExp(`(?<![A-Za-z0-9])(?:${KEY_VALUE_KEYS})\\b`, "gi"),
+      partial: new RegExp(`^(?:${KEY_VALUE_KEY_PREFIXES}|(?:${KEY_VALUE_KEYS})\\b["']?\\s*(?:[:=]\\s*(?:"(?:[^"\\\\\\r\\n]|\\\\.)*"?|'(?:[^'\\\\\\r\\n]|\\\\.)*'?|["'][^\\r\\n]*|[^\\s"',;]*)?)?)$`, "i"),
+      anchorMaxBytes: KEY_VALUE_ANCHOR_MAX,
     },
   },
 ];
