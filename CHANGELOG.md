@@ -5,7 +5,32 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.4.1 — M2-1 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.1` / `git rev-parse v0.4.1` で確認。最終報告に記載）
+## v0.4.2 — M2-1 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.2` / `git rev-parse v0.4.2` で確認。最終報告に記載）
+
+- 独立レビュー R2（`docs/reviews/m2-1/independent-review-r2.md`。R1 の 5 件は解消 3 / 部分的に解消 2〈R1-003、R1-004〉、新規 High 4 / Medium 4）の 8 件すべてに対応。
+  対応記録 `docs/reviews/m2-1/response-r2.md`。8 件とも v0.4.1 の実コードで再現してから、回帰テストの修正前 FAIL を記録して直した。v0.4.1 の項の
+  「5 件すべてに対応」は、R2 の判定では R1-003 と R1-004 が部分的な解消だった（残りの境界は R2-002・R2-003・R2-005・R2-006 として v0.4.2 で直した）
+- M2-1-R2-001（High）: `-o` のファイル名（ZIP のエントリ名）を、git を動かす前に生文字と秘密の形で検査する（出所 `output file name`、exit 1）。既定の名前も書き込み前に検査
+- M2-1-R2-002（High）: パケットと ZIP の書き込み先を realpath(親) + basename で、NFC・大文字小文字を区別せずに比べ、同じ実体なら exit 2（親のシンボリックリンク、大文字小文字だけの違い）
+- M2-1-R2-003（High）: 確定点（両方を置き終えた時点）を定義。確定前は戻し処理の各操作の失敗を集めて、残ったファイルをすべて表示（全部成功したときだけ「restored」、exit 2）。
+  確定後の退避ファイルの削除の失敗は exit 0 で警告と場所を出し、最終行 `REVIEW PACKET: written (backup files retained)`、`--json` に `backupsRetained`
+- M2-1-R2-004（High）: テストの期待値の SHA-256 を `node:crypto` で計算（`shasum` をやめる）。同じ種類の依存（`rm`、runner 経由の `wc`）も直し、
+  テストが git 以外の外部コマンドを skip 条件なしに使わないことを静的・動的に確かめるテストを追加
+- M2-1-R2-005（Medium）: インラインコードの中のバッククォートを `\u{60}` に（中身に U+0060 を残さない）
+- M2-1-R2-006（Medium）: 描画されるオプションの値（`--range`、`--label`、`--exclude`、`--doc`、依頼文・レビューのファイル名、`-o` のファイル名）を git の前に
+  生文字と秘密の形で検査（出所 `range`・`doc path N` など、exit 1）
+- M2-1-R2-007（Medium）: すべてのパス（変更一覧と各 commit のファイル一覧）の検査を最初の独立した段階にし、finding があれば中身・大きさに進まず exit 1。
+  finding とエラーが同時に起きうる箇所は「検出（exit 1）が先」に統一（上限超過、`--doc` の参照、不正な `latest.json`、`--cwd` のパス）
+- M2-1-R2-008（Medium）: README の「現在の状態」を更新。`package.json` の version・CHANGELOG の最新の見出し・README の版が一致するテストを追加。
+  ROADMAP のバックログにシンボリックリンク（mode 120000）を kind `symlink` として表示する件を追加
+- 構造（同じ種類の漏れを防ぐ）: 検査済みの文字列の型 `Checked`（`src/review/checked.ts`、作れるのは `checkValue` だけ）を描画関数と ZIP のエントリ名の引数にし、
+  本文は `md` タグ付きテンプレート（描画関数を通した断片と数値だけを埋め込める）で組み立てる。review-packet のオプションの一覧 `OPTION_INVENTORY` から描画する値を検査し、
+  一覧と cli.ts のオプションが一致することをテストで確かめる。型を入れた時点で、別の commit の `latest.json` の `git.commit` / `git.dirty` がそのまま
+  埋め込まれていた漏れ（LF と `# …` で見出しが増える、数値の commit で `unexpected error`）が見つかり、直した
+- ADR-0014 を更新（検査の段階と優先順位、確定点と戻し処理、同じ実体の判定、ZIP のエントリ名、`\u{60}`、検査済みの型と入口の一覧）。ARCHITECTURE を更新
+- テスト 455 件（86 ファイル）。`package.json` version 0.4.2
+
+## v0.4.1 — commit c8a185a / tag object 85555ef — M2-1 independent review R1 applied
 
 - 独立レビュー R1（`docs/reviews/m2-1/independent-review-r1.md`、High 3 / Medium 2）の 5 件すべてに対応。対応記録 `docs/reviews/m2-1/response-r1.md`。
   5 件とも v0.4.0 の実コードで再現してから、回帰テストの修正前 FAIL を記録して直した
