@@ -132,7 +132,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
 対象リポジトリに 256 KiB を超える行が無いため後に回す。
-1. **M2-1 `aiqh review-packet`**（v0.4.0 の予定）
+1. **M2-1 `aiqh review-packet`**（v0.4.0 で実装。リリースと独立レビューは未実施。仕様は ADR-0014）
 2. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
@@ -153,13 +153,15 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
-- `aiqh review-packet`: 依頼文（ファイルまたは標準入力）、変更ファイル一覧、`git diff`（サイズ上限あり）、ADR / docs の要約、最新 verify 結果、既知の懸念から Markdown パケットを生成。実装AI の「正しい」という結論は含めない
-  （この記述は v0.4.0 で依頼書の要件〈変更ファイルの全文、自己評価なし、検査内蔵、ZIP〉に合わせて改める）
+- `aiqh review-packet`（v0.4.0、ADR-0014）: commit 範囲 `<from>..<to>` から、人間の依頼文・前回レビュー（任意）、commit メッセージ、変更ファイル一覧、
+  ファイルごとの差分、`<to>` 時点の**変更ファイルの全文**、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ）で
+  Markdown パケットを生成する。**実装者の自己評価・手書きの節は載せない**。不正な UTF-8・生文字・秘密の形を入力ごとと組み立て後の 2 段で検査し、
+  検出があれば何も書かない（exit 1）。パケットだけを含む ZIP を出せる。終了コード 0 / 1 / 2
 - `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ
 - 再修正 → 再 verify → 再パケットのループ手順を docs に明文化
 
 ### 完了条件
-- [ ] M0 で手動作成したパケットと同等以上の内容が `aiqh review-packet` で自動生成される
+- [ ] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される
 - [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される
 - [ ] 本体の自己 verify PASS
 

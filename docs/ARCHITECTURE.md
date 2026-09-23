@@ -82,7 +82,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
 | `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed） |
-| `aiqh review-packet` | M2 | 依頼文、`git diff`、設計判断（ADR / docs）、最新 verify 結果、既知の懸念 | `artifacts/ai-review/review-packet-<id>.md` | 0 / 2 |
+| `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・git・上限・書込エラー |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
 
@@ -99,7 +99,7 @@ src/
     verify.ts             … verify のオーケストレーション                                 [M0]
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
     security-scan.ts      … 内蔵 Security Scan の CLI                                      [M1 実装済み]
-    review-packet.ts      … レビューパケット生成                                           [M2]
+    review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
     review-import.ts      … 指摘の構造化保存                                               [M2]
     history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
   config/
@@ -125,7 +125,10 @@ src/
   config/json-schema.ts   … zod → JSON Schema（schema/ に同梱）                              [M1]
   security/patterns.ts    … 秘密情報パターンの単一定義（masker / scanner で共有、R-012）      [M1]
   security/scan.ts        … 内蔵 Security Scan（値を持たない結果型）                          [M1]
-  review/                 … パケット生成、指摘パーサ、対応状況モデル                          [M2]
+  review/packet.ts        … パケット生成（git 呼び出し、判定、2 段の検査、組み立て。ADR-0014） [M2-1]
+  review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
+  security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]
+  review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
   history/                … 履歴 DB（SQLite または JSONL）、集計、静的ダッシュボード          [M4]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
 tests/                    … Vitest（ユニット + CLI 結合）                                  [M0]
@@ -284,9 +287,9 @@ package.json のスクリプト本文を入れない（M1-R1-003）。verify の
 ### 6.2 レビューループ（M2）
 
 ```
-依頼文 + git diff + ADR + latest.json + 既知の懸念
-   ▼ aiqh review-packet
-artifacts/ai-review/review-packet-<id>.md ──▶ 人間が Astra / Codex に渡す
+<from>..<to> + 依頼文（人間）+ 前回レビュー + --doc + latest.json（<to> かつ clean のとき）
+   ▼ aiqh review-packet（全文・差分・commit メッセージ。検査に通らなければ exit 1 で何も書かない）
+artifacts/ai-review/review-packet-<label>.md（+ --zip）──▶ 人間が Astra / Codex に渡す
                                                      ▼
                                           レビュー結果（Markdown）
    ▼ aiqh review-import
@@ -427,6 +430,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
+- **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は入力ごと（不正な UTF-8 → 生文字 → 秘密の形）と、組み立てたパケット全体の
+  2 段で検査し、1 件でもあれば exit 1 で何も書かない。`security.allow` は出所のリポジトリパスと行に適用する。出力は出所・行・分類またはコードポイントのみ。
+  git はシェルを経由せず引数配列で呼び、パスは `-z` で読む。書き込みは一時ファイル → rename
 - **会社固有情報の排除**: コード・設定・docs・テストデータに実在の社名・製品名・IP・社内パス・人名を書かない。
 
 ---

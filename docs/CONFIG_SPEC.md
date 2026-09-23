@@ -89,6 +89,10 @@
 `allow[].reason` と `allow[].path` は改行（`\r` / `\n`）を含めない（スキーマエラー。M2-0-R1-002）。加えて C0 制御文字（U+0000〜U+001F、TAB を含む）、
 DEL（U+007F）、C1 制御文字（U+0080〜U+009F）、U+2028 / U+2029 を含めない（M2-0-R2-002。JSON Schema の `pattern` も同じ式）。
 
+`aiqh review-packet`（M2-1、ADR-0014）も同じ `security` セクションを読む（cwd の `aiqh.config.jsonc`、`--config` で変更可）。`allow` はパケットに入る
+入力の出所（変更ファイルの全文と差分の行、`--doc`）のリポジトリパスと行に適用し、抑制した件数と一覧はパケットの Integrity 節に載せる。依頼文・レビュー原文・
+commit メッセージ・verify 結果にはパスが無いので適用されない。review-packet 用の新しいキーは無い（オプションは CLI のみ）。
+
 抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
 scan の出力（text / `--json`）に必ず出る。verify のレポートには security チェックの出力として残る（実行経路は M0 のまま）。
 

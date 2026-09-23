@@ -42,7 +42,8 @@ M1 の総括は [`docs/reports/M1_COMPLETION.md`](docs/reports/M1_COMPLETION.md)
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
-| `aiqh review-packet` / `aiqh review-import`（独立レビューAI とのループ） | M2-1 以降予定 |
+| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | M2-1 実装済み（v0.4.0 リリース前） |
+| `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | M2-2 以降予定 |
 | GitHub Actions 再利用ワークフロー | M3 予定 |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
 
@@ -162,7 +163,23 @@ aiqh verify [options]
 
 aiqh init [--cwd <dir>] [--write] [--force] [--write-gitignore] [--write-scripts] [--json]
 aiqh security-scan [--cwd <dir>] [--json]
+
+aiqh review-packet --range <from>..<to> [options]
+      --label <name>         タイトルとファイル名（a-z 0-9 . -。既定: <to> の先頭 12 桁）
+  -o, --output <file>        既定: <repo>/artifacts/ai-review/review-packet-<label>.md
+      --zip                  パケットだけを含む ZIP（無圧縮）も書く / --zip-output <file> で場所を指定
+      --request <file|->     人間が書いた依頼文（そのまま載せる。- は標準入力）
+      --review <file>        前回レビューの原文（複数可）
+      --doc <path>           <to> 時点の全文を載せるリポジトリ内の文書（複数可）
+      --exclude <glob>       全文・差分から除く（一覧には excluded として残る。複数可）
+      --max-file-bytes <n>   1 ファイルの上限（既定 524288。超えると exit 2）
+      --max-packet-bytes <n> パケット全体の上限（既定 4194304。超えると exit 2）
+  -c, --config <path>        security セクション（security.allow）を読む設定ファイル
+      --json                 結果を JSON で出力
 ```
+
+`aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・秘密の形のいずれかを検出（何も書かない。
+値は表示しない）、`2` = 使い方・git・上限・書込のエラー。`<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。
 
