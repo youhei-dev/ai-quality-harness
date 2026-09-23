@@ -5,7 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.4.0 — M2-1 — aiqh review-packet（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.0` / `git rev-parse v0.4.0` で確認。最終報告に記載）
+## v0.4.1 — M2-1 independent review R1 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.1` / `git rev-parse v0.4.1` で確認。最終報告に記載）
+
+- 独立レビュー R1（`docs/reviews/m2-1/independent-review-r1.md`、High 3 / Medium 2）の 5 件すべてに対応。対応記録 `docs/reviews/m2-1/response-r1.md`。
+  5 件とも v0.4.0 の実コードで再現してから、回帰テストの修正前 FAIL を記録して直した
+- M2-1-R1-001（High）: git の `-z` のパスを Buffer のまま区切り、厳格に復号する。不正な UTF-8 のパスは `invalid-utf8`、LF・TAB 以外の禁止文字を含むパスは `raw-char`（exit 1、
+  `--exclude` した変更も対象）。テキストの変更ファイルの差分が空なら exit 2。git に `core.precomposeunicode=false` を指定（macOS の既定で NFD のパスの差分が空になっていた）
+- M2-1-R1-002（High）: `--cwd`・`--output`・`--zip-output` を解決した完全パスに禁止文字があれば exit 2（オプション名とコードポイントのみ表示）。
+  review-packet の出力（標準出力・標準エラー・`--json`）はすべて安全表示 `escapeRawChars` を通してから masker
+- M2-1-R1-003（High）: パケットと ZIP の 2 段階の書き込み（準備で両方の一時ファイル → 確定で既存を退避 → 置き換え → 失敗時は退避から戻す。戻せなければ退避の場所を表示して残す）
+- M2-1-R1-004（Medium）: fence の外のメタデータを文脈ごとに描画（インラインコードは LF・TAB・バックスラッシュ・バッククォートを置き換えて 1 個のバッククォートで囲む、
+  見出しはインラインコードのみ、表のセルは `|` もエスケープ）。描画前の値を検査（verify の値、`--exclude`、依頼文・レビューのファイル名）
+- M2-1-R1-005（Medium）: submodule は表示する側のモードで判定（submodule → 通常ファイルの type change は通常ファイルとして全文・差分を載せる）。status T の行に「(type change)」
+- ZIP の他ツールとの互換性テスト（`unzip`、Python の `zipfile`）を追加。ADR-0014 を更新（パスの検査、安全表示、2 段階の書き込みと戻し、描画の規則、submodule、相対パスの基準）
+- テスト 415 件（77 ファイル）。`package.json` version 0.4.1
+
+## v0.4.0 — commit 4e196a3 / tag object 3b7ac13 — M2-1 — aiqh review-packet
 
 - 新コマンド `aiqh review-packet --range <from>..<to>`（ADR-0014）: 独立レビュー用の Markdown パケットを機械的に得た事実だけで作る。人間の依頼文・前回レビュー（任意）、
   commit メッセージ（Co-Authored-By / Claude-Session の trailer を除去）、変更ファイル一覧、ファイルごとの差分、`<to>` 時点の変更ファイルの全文、`--doc` の文書、
