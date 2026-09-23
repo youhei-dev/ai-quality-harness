@@ -554,7 +554,8 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     const blob = deleted ? r.oldBlob : r.newBlob;
     const mode = deleted ? r.oldMode : r.newMode;
     const excludedBy = matchExclude(r.path) ?? (r.oldPath !== null ? matchExclude(r.oldPath) : null);
-    if (mode === "160000" || (!deleted && r.oldMode === "160000")) {
+    // The displayed side decides (M2-1-R1-005): the old mode for a deletion, otherwise the new mode.
+    if (mode === "160000") {
       file.kind = "submodule";
       prepared.push({ file, content: null, diff: null });
       continue;
@@ -571,7 +572,9 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     const size = blobSize(root, blob);
     file.size = size;
     const isLock = LOCK_FILE_NAMES.includes(path.posix.basename(r.path));
-    const oldSize = !ZERO.test(r.oldBlob) && !deleted ? blobSize(root, r.oldBlob) : 0;
+    // A gitlink on the old side (submodule -> file) points to a commit, not a blob: that side is empty.
+    const oldIsBlob = !ZERO.test(r.oldBlob) && !deleted && r.oldMode !== "160000";
+    const oldSize = oldIsBlob ? blobSize(root, r.oldBlob) : 0;
     if (!isLock && (size > maxFile || oldSize > maxFile)) {
       tooLarge.push(`${r.path} (${Math.max(size, oldSize)} bytes)`);
       prepared.push({ file, content: null, diff: null });
@@ -584,7 +587,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       prepared.push({ file, content: null, diff: null });
       continue;
     }
-    const oldBytes = !ZERO.test(r.oldBlob) && !deleted ? blobBytes(root, r.oldBlob, oldSize) : Buffer.alloc(0);
+    const oldBytes = oldIsBlob ? blobBytes(root, r.oldBlob, oldSize) : Buffer.alloc(0);
     if (bytes.includes(0) || oldBytes.includes(0)) {
       file.kind = "binary";
       prepared.push({ file, content: null, diff: null });
@@ -711,7 +714,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   b.add("binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n");
   b.add("| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n");
   files.forEach((f, i) => {
-    const kind = f.kind === "excluded" ? `excluded (${cellCode(f.excludedBy ?? "")})` : f.kind;
+    const kind = `${f.kind === "excluded" ? `excluded (${cellCode(f.excludedBy ?? "")})` : f.kind}${f.status === "T" ? " (type change)" : ""}`;
     const counts = f.kind === "text" || f.kind === "deleted" ? [String(f.added ?? "-"), String(f.deleted ?? "-")] : ["-", "-"];
     b.add(`| ${i + 1} | ${f.status} | ${cellCode(f.path)} | ${f.oldPath !== null ? cellCode(f.oldPath) : ""} | ${kind} | ${f.size ?? "-"} | ${counts[0]} | ${counts[1]} |\n`);
   });
