@@ -150,7 +150,10 @@ function gitEnv(): NodeJS.ProcessEnv {
 }
 
 function runGit(cwd: string, args: string[], maxBuffer = 256 * 1024 * 1024): GitRun {
-  const r = spawnSync("git", ["-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "-c", "diff.noprefix=false", ...args], {
+  // core.precomposeunicode=false: paths are used as stored in the tree. With true (the macOS default of
+  // `git init`) git turns an NFD pathspec into NFC, the :(literal) pathspec misses the file and its diff
+  // comes back empty (M2-1-R1-001).
+  const r = spawnSync("git", ["-c", "core.quotePath=true", "-c", "core.precomposeunicode=false", "-c", "diff.suppressBlankEmpty=false", "-c", "diff.noprefix=false", ...args], {
     cwd,
     env: gitEnv(),
     encoding: "buffer",
@@ -169,16 +172,20 @@ function gitOk(cwd: string, args: string[], what: string, maxBuffer?: number): B
   return r.stdout;
 }
 
-function splitZ(buf: Buffer): string[] {
-  const out: string[] = [];
+/**
+ * Split git's -z output at NUL bytes, keeping each field as bytes (M2-1-R1-001): paths are decoded
+ * strictly by the caller, never with Buffer#toString("utf8"), which would turn invalid bytes into U+FFFD.
+ */
+function splitZ(buf: Buffer): Buffer[] {
+  const out: Buffer[] = [];
   let start = 0;
   for (let i = 0; i < buf.length; i++) {
     if (buf[i] === 0) {
-      out.push(buf.subarray(start, i).toString("utf8"));
+      out.push(buf.subarray(start, i));
       start = i + 1;
     }
   }
-  if (start < buf.length) out.push(buf.subarray(start).toString("utf8"));
+  if (start < buf.length) out.push(buf.subarray(start));
   return out;
 }
 
@@ -371,36 +378,67 @@ interface RawChange {
   newBlob: string;
 }
 
-function parseRaw(buf: Buffer): RawChange[] {
+function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
   const parts = splitZ(buf);
   const out: RawChange[] = [];
   for (let i = 0; i < parts.length; ) {
-    const meta = parts[i] ?? "";
+    const meta = (parts[i] ?? Buffer.alloc(0)).toString("latin1");
     const m = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])(\d*)$/.exec(meta);
-    if (!m) throw new PacketError(`unexpected git diff --raw output: ${JSON.stringify(meta.slice(0, 40))}`);
+    if (!m) throw new PacketError("unexpected git diff --raw output");
     const letter = m[5] ?? "";
+    const where = `git diff --raw entry ${out.length + 1}`;
     if (letter === "R" || letter === "C") {
-      out.push({ status: `${letter}${m[6] ?? ""}`, oldPath: parts[i + 1] ?? "", path: parts[i + 2] ?? "", oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      const oldPath = decodePath(ck, parts[i + 1], where);
+      const newPath = decodePath(ck, parts[i + 2], where);
+      out.push({ status: `${letter}${m[6] ?? ""}`, oldPath, path: newPath, oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
       i += 3;
     } else {
-      out.push({ status: letter, oldPath: null, path: parts[i + 1] ?? "", oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      out.push({ status: letter, oldPath: null, path: decodePath(ck, parts[i + 1], where), oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
       i += 2;
     }
   }
   return out;
 }
 
+/**
+ * A path from git, decoded strictly (M2-1-R1-001). Invalid UTF-8 is an `invalid-utf8` finding and a valid
+ * path with a forbidden raw character (anything of raw-chars.ts; LF and TAB are allowed in paths) is a
+ * `raw-char` finding, both with the source `path`; the value is never reported. On a finding the returned
+ * placeholder only keeps the build going until the findings are reported (nothing is written).
+ */
+function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): string {
+  const d = decodeUtf8Strict(bytes ?? Buffer.alloc(0));
+  if (!d.ok) {
+    ck.findings.push({ kind: "invalid-utf8", source: "path", line: null, detail: null, location: where, stage: "input" });
+    return `<invalid path: ${where}>`;
+  }
+  for (const h of findRawChars(d.text)) ck.findings.push({ kind: "raw-char", source: "path", line: null, detail: formatCodePoint(h.codePoint), location: where, stage: "input" });
+  return d.text;
+}
+
+/** Decode -z paths without reporting (numstat keys are only matched against paths already checked). */
+function quietPath(bytes: Buffer | undefined): string | null {
+  const d = decodeUtf8Strict(bytes ?? Buffer.alloc(0));
+  return d.ok ? d.text : null;
+}
+
 function parseNumstat(buf: Buffer): Map<string, { added: number | null; deleted: number | null }> {
   const parts = splitZ(buf);
   const out = new Map<string, { added: number | null; deleted: number | null }>();
   for (let i = 0; i < parts.length; ) {
-    const [a, d, p] = (parts[i] ?? "").split("\t");
+    const field = parts[i] ?? Buffer.alloc(0);
+    const t1 = field.indexOf(0x09);
+    const t2 = t1 === -1 ? -1 : field.indexOf(0x09, t1 + 1);
+    const a = field.subarray(0, t1).toString("latin1");
+    const d = field.subarray(t1 + 1, t2).toString("latin1");
     const counts = { added: a === "-" ? null : Number(a), deleted: d === "-" ? null : Number(d) };
-    if (p === "") {
-      out.set(parts[i + 2] ?? "", counts);
+    if (t2 === field.length - 1) {
+      const p = quietPath(parts[i + 2]);
+      if (p !== null) out.set(p, counts);
       i += 3;
     } else {
-      out.set(p ?? "", counts);
+      const p = quietPath(field.subarray(t2 + 1));
+      if (p !== null) out.set(p, counts);
       i += 1;
     }
   }
@@ -475,7 +513,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   const matchExclude = (p: string): string | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
 
   // ---- changes (two-point tree comparison from..to)
-  const raw = parseRaw(gitOk(root, ["diff", "--raw", "-z", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "listing changes"));
+  const raw = parseRaw(gitOk(root, ["diff", "--raw", "-z", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "listing changes"), ck);
   const numstat = parseNumstat(gitOk(root, ["diff", "--numstat", "-z", "--text", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "counting changes"));
   raw.sort((a, b) => Buffer.compare(Buffer.from(a.path, "utf8"), Buffer.from(b.path, "utf8")));
 
@@ -537,8 +575,16 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       continue;
     }
     if (deleted) file.kind = "deleted";
+    // Only strictly decoded paths reach this point (a path finding stops the packet before it is written).
+    if (ck.findings.some((f) => f.source === "path")) {
+      prepared.push({ file, content: null, diff: null });
+      continue;
+    }
     const pathspec = [`:(literal)${r.path}`, ...(r.oldPath !== null ? [`:(literal)${r.oldPath}`] : [])];
     const diffBytes = gitOk(root, [...DIFF_FLAGS, from.sha, to.sha, "--", ...pathspec], `diff of ${r.path}`);
+    // A changed file always has a diff header at least (mode-only changes, pure renames and empty files
+    // included), so an empty diff means the pathspec missed the file: never write a packet without it.
+    if (diffBytes.length === 0) throw new PacketError(`git diff returned nothing for the changed file ${r.path} (status ${r.status}); nothing written`);
     const diff = decode(ck, diffBytes, `diff ${r.path}`);
     prepared.push({ file, content: deleted ? null : text, diff });
     if (!deleted) checkText(ck, text, `full source ${r.path}`, (i) => ({ path: r.path, line: i + 1 }));
@@ -564,7 +610,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     if (decoded !== null) checkText(ck, message, source, null);
     const parents = gitOk(root, ["rev-list", "--parents", "-n", "1", sha], "reading parents").toString("utf8").trim().split(" ").slice(1);
     const treeArgs = parents.length === 0 ? ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", "--root", sha] : ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", parents[0] ?? "", sha];
-    const files = splitZ(gitOk(root, treeArgs, "listing commit files"));
+    const files = splitZ(gitOk(root, treeArgs, "listing commit files")).map((p, k) => decodePath(ck, p, `commit ${sha.slice(0, SHORT)} file list entry ${k + 1}`));
     commitInfos.push({ sha, subject: message.split("\n")[0] ?? "", message, files });
   }
 
@@ -578,7 +624,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   });
   const docs: Array<{ path: string; text: string | null }> = [];
   for (const d of opts.docs ?? []) {
-    const ls = splitZ(gitOk(root, ["ls-tree", "-z", to.sha, "--", `:(literal)${d}`], `looking up --doc ${d}`));
+    const ls = splitZ(gitOk(root, ["ls-tree", "-z", to.sha, "--", `:(literal)${d}`], `looking up --doc ${d}`)).map((e) => quietPath(e) ?? "");
     const entry = ls.find((e) => e.endsWith(`\t${d}`));
     const em = entry ? /^(\d{6}) blob ([0-9a-f]+)\t/.exec(entry) : null;
     if (!em) throw new PacketError(`--doc ${JSON.stringify(d)} is not a file at ${to.sha.slice(0, SHORT)}`);
