@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
 import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
@@ -35,6 +35,8 @@ export interface ReviewPacketOptions {
   stdin?: () => Buffer;
   /** Tests: date for allow-rule expiry. */
   today?: string;
+  /** Internal test hook for the two-phase write (M2-1-R1-003); not reachable from the CLI. */
+  writeHooks?: WriteHooks;
   log?: (line: string) => void;
   logError?: (line: string) => void;
 }
@@ -125,14 +127,16 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     }
     if (zipPath !== null && zipPath === output) return fail("--zip-output must differ from the packet path");
 
+    // Both contents first, then one two-phase write for both files (M2-1-R1-003).
     const bytes = Buffer.from(built.text, "utf8");
-    atomicWrite(output, bytes);
+    const zip = zipPath !== null ? createStoredZip([{ name: path.basename(output), data: bytes }]) : null;
+    const targets: WriteTarget[] = [{ label: "packet", path: output, data: bytes }];
+    if (zipPath !== null && zip !== null) targets.push({ label: "zip", path: zipPath, data: zip });
+    writeTogether(targets, options.writeHooks);
     summary.output = output;
     summary.bytes = bytes.length;
     summary.sha256 = createHash("sha256").update(bytes).digest("hex");
-    if (zipPath !== null) {
-      const zip = createStoredZip([{ name: path.basename(output), data: bytes }]);
-      atomicWrite(zipPath, zip);
+    if (zipPath !== null && zip !== null) {
       summary.zip = zipPath;
       summary.zipSha256 = createHash("sha256").update(zip).digest("hex");
     }
@@ -151,7 +155,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     }
     return finish(EXIT_PASSED);
   } catch (err) {
-    if (err instanceof PacketError || err instanceof ConfigError || err instanceof ZipError || err instanceof InputError) return fail(err.message);
+    if (err instanceof PacketError || err instanceof ConfigError || err instanceof ZipError || err instanceof InputError || err instanceof WriteError) return fail(err.message);
     if (err instanceof Error && "code" in err) return fail(`write failed: ${err.message}`);
     throw err;
   }
@@ -207,14 +211,112 @@ function readSecurity(cwd: string, configPath: string | undefined): ResolvedSecu
   return loadConfig(dflt).security;
 }
 
-/** Write to a temporary file in the same directory, then rename; on failure nothing replaces the target. */
-function atomicWrite(target: string, data: Uint8Array): void {
-  mkdirSync(path.dirname(target), { recursive: true });
-  const tmp = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}`);
-  try {
-    writeFileSync(tmp, data);
-    renameSync(tmp, target);
-  } finally {
-    if (existsSync(tmp)) rmSync(tmp, { force: true });
+export interface WriteHooks {
+  /** Called before each step ("prepare:<label>", "commit:backup:<label>", "commit:install:<label>", "rollback:…"); may throw. */
+  beforeStep?: (step: string) => void;
+}
+
+interface WriteTarget {
+  label: "packet" | "zip";
+  path: string;
+  data: Uint8Array;
+}
+
+class WriteError extends Error {
+  override readonly name = "WriteError";
+}
+
+/** Unused sibling name `.<base>.<kind>-<pid>-<random>` (never an existing file). */
+function siblingName(target: string, kind: "tmp" | "bak"): string {
+  for (;;) {
+    const p = path.join(path.dirname(target), `.${path.basename(target)}.${kind}-${process.pid}-${randomBytes(6).toString("hex")}`);
+    if (!existsSync(p)) return p;
   }
+}
+
+function lstatOrNull(p: string): Stats | null {
+  try {
+    return lstatSync(p);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+/**
+ * Two-phase write of the packet and the ZIP (M2-1-R1-003), so that they are replaced together or not at all.
+ * Prepare: every target must be absent or a regular file; both temporary files are written next to their
+ * targets with flag "wx". A failure removes the temporary files; existing files are untouched.
+ * Commit: existing targets are renamed to backups, then the new files are renamed into place (packet, then
+ * ZIP); on success the backups are removed. A failure removes what was newly installed, renames the backups
+ * back, and reports the error. If a backup cannot be put back it is kept and its location is reported (exit 2).
+ */
+function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): void {
+  const step = (name: string): void => hooks?.beforeStep?.(name);
+  const tmps = new Map<WriteTarget, string>();
+  const removeTmps = (): void => {
+    for (const t of tmps.values()) if (existsSync(t)) rmSync(t, { force: true });
+  };
+  try {
+    for (const t of targets) {
+      step(`prepare:${t.label}`);
+      const st = lstatOrNull(t.path);
+      if (st !== null && !st.isFile()) throw new WriteError(`${t.label} target exists and is not a regular file: ${t.path}`);
+      mkdirSync(path.dirname(t.path), { recursive: true });
+      const tmp = siblingName(t.path, "tmp");
+      writeFileSync(tmp, t.data, { flag: "wx" });
+      tmps.set(t, tmp);
+    }
+  } catch (err) {
+    removeTmps();
+    throw prepareError(err);
+  }
+
+  const backups = new Map<WriteTarget, string>();
+  const installed: WriteTarget[] = [];
+  try {
+    for (const t of targets) {
+      if (lstatOrNull(t.path) === null) continue;
+      step(`commit:backup:${t.label}`);
+      const bak = siblingName(t.path, "bak");
+      renameSync(t.path, bak);
+      backups.set(t, bak);
+    }
+    for (const t of targets) {
+      step(`commit:install:${t.label}`);
+      renameSync(tmps.get(t) ?? "", t.path);
+      installed.push(t);
+    }
+  } catch (err) {
+    const kept: string[] = [];
+    for (const t of [...installed].reverse()) {
+      if (backups.has(t)) continue;
+      try {
+        step(`rollback:remove:${t.label}`);
+        unlinkSync(t.path);
+      } catch {
+        // a new file without a previous one: leaving it is reported below through the error
+      }
+    }
+    for (const [t, bak] of backups) {
+      try {
+        step(`rollback:restore:${t.label}`);
+        renameSync(bak, t.path);
+      } catch {
+        kept.push(bak);
+      }
+    }
+    removeTmps();
+    const cause = err instanceof Error ? err.message : String(err);
+    if (kept.length > 0) {
+      throw new WriteError(`write failed (${cause}) and the previous file could not be restored; it is kept at: ${kept.join(", ")}`);
+    }
+    throw new WriteError(`write failed (${cause}); the previous files were restored`);
+  }
+  for (const bak of backups.values()) rmSync(bak, { force: true });
+}
+
+function prepareError(err: unknown): Error {
+  if (err instanceof WriteError) return err;
+  return new WriteError(`write failed before any file was replaced (${err instanceof Error ? err.message : String(err)})`);
 }
