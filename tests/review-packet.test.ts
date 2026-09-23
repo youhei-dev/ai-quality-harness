@@ -198,7 +198,7 @@ describe("review-packet: content", () => {
     expect(res.code, res.err).toBe(0);
     const md = readFileSync(outPath(r.dir, "paths"), "utf8");
     expect(md).toContain(`## ${renderPath(nl)} (1 lines)\n\n\`\`\`text\nnewline path content\n\`\`\``);
-    expect(renderPath(nl)).toBe("`odd\\u{A}name.txt` (escaped)");
+    expect(renderPath(nl)).toBe("`odd\\nname.txt`");
     expect(md).toContain(`## \`${jp}\` (1 lines)\n\n\`\`\`markdown\njapanese path content\n\`\`\``);
     expect(md).toContain("## `with space/a b.ts` (1 lines)");
   });
@@ -411,7 +411,8 @@ describe("review-packet: fail closed (exit 1, nothing written, values never prin
     expect(secretGlob.err).not.toContain("QWERTYUIOPASDFGH");
     const rawGlob = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "s2", exclude: [`none/${ch(0x2028)}`] });
     expect(rawGlob.code).toBe(1);
-    expect(rawGlob.err).toMatch(/\[raw-char\] packet template:\d+ U\+2028 \(packet\)/);
+    // v0.4.1 (M2-1-R1-004): option values are rendered escaped, so a raw character in a glob is reported at the input stage
+    expect(rawGlob.err).toMatch(/\[raw-char\] --exclude pattern 1:1 U\+2028 \(input\)/);
     expect(existsSync(outPath(r.dir, "s2"))).toBe(false);
   });
 
@@ -450,8 +451,8 @@ describe("review-packet: security.allow", () => {
     expect(res.code, res.err).toBe(0);
     const md = readFileSync(outPath(r.dir, "al"), "utf8");
     expect(md).toContain("Suppressed by security.allow: 2.");
-    expect(md).toContain("- full source fixtures/key.txt → `fixtures/key.txt`:2 aws by rule #1");
-    expect(md).toContain("- diff fixtures/key.txt → `fixtures/key.txt`:2 aws by rule #1");
+    expect(md).toContain("- `full source fixtures/key.txt` → `fixtures/key.txt`:2 `aws` by rule #1");
+    expect(md).toContain("- `diff fixtures/key.txt` → `fixtures/key.txt`:2 `aws` by rule #1");
     const wrongLine = path.join(path.dirname(r.dir), `${path.basename(r.dir)}-aiqh2.config.jsonc`);
     writeFileSync(wrongLine, JSON.stringify({ version: 1, project: { name: "t" }, checks: [{ name: "x", kind: "custom", command: "true" }], security: { allow: [{ path: "fixtures/key.txt", line: 1, reason: "wrong line" }] } }));
     cleanups.push(() => execFileSync("rm", ["-f", wrongLine]));
@@ -468,8 +469,8 @@ describe("review-packet: verification, ZIP and reproducibility", () => {
     r.write("artifacts/verification/latest.json", report(head, false));
     expect((await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "v1" })).code).toBe(0);
     const md = readFileSync(outPath(r.dir, "v1"), "utf8");
-    expect(md).toContain("- Verdict: PASSED; exit code 0; tool aiqh 9.9.9");
-    expect(md).toContain("| unit | unit | true | PASS | 0 | 12 |");
+    expect(md).toContain("- Verdict: `PASSED`; exit code `0`; tool `aiqh 9.9.9`");
+    expect(md).toContain("| `unit` | `unit` | `true` | `PASS` | `0` | `12` |");
     r.write("artifacts/verification/latest.json", report(head, true));
     expect((await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "v2" })).code).toBe(0);
     expect(readFileSync(outPath(r.dir, "v2"), "utf8")).toContain("No verify result for <to>: latest.json is for commit");
