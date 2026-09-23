@@ -178,6 +178,7 @@ aiqh review-packet --range <from>..<to> [options]
       --json                 結果を JSON で出力
 ```
 
+相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
 `aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・秘密の形のいずれかを検出（何も書かない。
 値は表示しない）、`2` = 使い方・git・上限・書込のエラー。`<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
 
