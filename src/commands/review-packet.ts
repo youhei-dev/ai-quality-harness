@@ -23,7 +23,10 @@ export interface ReviewPacketOptions {
   exclude?: string[];
   maxFileBytes?: number;
   maxPacketBytes?: number;
-  /** Config file for the `security` section (default: <repo root>/aiqh.config.jsonc if present). */
+  /**
+   * Config file for the `security` section. Default: `aiqh.config.jsonc` in the --cwd directory (the process's
+   * current directory only when --cwd is not given) if present; never the repository root of a subdirectory.
+   */
   configPath?: string;
   json?: boolean;
   toolVersion: string;
@@ -98,7 +101,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
       summary.findings = built.findings;
       if (!options.json) {
         logError(`aiqh review-packet: ${built.findings.length} finding(s); no packet written (values are never shown)`);
-        for (const f of built.findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
+        for (const f of built.findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.location ? ` (${f.location})` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
         logError("REVIEW PACKET: not written (findings)");
       }
       return finish(EXIT_FAILED);

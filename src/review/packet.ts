@@ -61,6 +61,11 @@ export interface PacketFinding {
   line: number | null;
   /** Secret category, or the code point ("U+2028") for raw characters. */
   detail: string | null;
+  /**
+   * For a diff line: the file line it shows — `path:line` in <to>, or `path@from:line` for a removed line
+   * that exists only in <from> (M2-1 SP3 #1). Null for other sources and for diff header lines.
+   */
+  location: string | null;
   /** "input": found while checking one input; "packet": found in the assembled packet. */
   stage: "input" | "packet";
 }
@@ -236,8 +241,11 @@ function lineCount(text: string): number {
 // ---------------------------------------------------------------------------------------------------
 // the packet under construction, with a line → source map for the whole-packet check
 
-/** Maps a 0-based line within a segment to the repository path / line it came from (for allow rules). */
-type LineOrigin = (i: number) => { path: string; line: number } | null;
+/**
+ * Maps a 0-based line within a segment to the repository path / line it came from (for allow rules).
+ * `side` is set for diff lines: "new" = the line in <to>, "old" = a removed line in <from>.
+ */
+type LineOrigin = (i: number) => { path: string; line: number; side?: "new" | "old" } | null;
 
 interface Segment {
   startLine: number;
@@ -298,13 +306,18 @@ interface Checker {
 function decode(ck: Checker, bytes: Uint8Array, source: string): string | null {
   const d = decodeUtf8Strict(bytes);
   if (d.ok) return d.text;
-  ck.findings.push({ kind: "invalid-utf8", source, line: d.line, detail: null, stage: "input" });
+  ck.findings.push({ kind: "invalid-utf8", source, line: d.line, detail: null, location: null, stage: "input" });
   return null;
 }
 
 /** Raw characters and secret-shaped strings in one input; allow rules use `origin` (repository path / line). */
 function checkText(ck: Checker, text: string, source: string, origin: LineOrigin | null, stage: "input" | "packet" = "input"): void {
-  for (const h of findRawChars(text)) ck.findings.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), stage });
+  const locate = (line: number): string | null => {
+    const at = origin ? origin(line - 1) : null;
+    if (!at?.side) return null;
+    return at.side === "old" ? `${at.path}@from:${at.line}` : `${at.path}:${at.line}`;
+  };
+  for (const h of findRawChars(text)) ck.findings.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: locate(h.line), stage });
   for (const f of scanString(text, ck.security)) {
     const line = f.line ?? 1;
     const at = origin ? origin(line - 1) : null;
@@ -316,13 +329,13 @@ function checkText(ck: Checker, text: string, source: string, origin: LineOrigin
         continue;
       }
     }
-    ck.findings.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source, line, detail: f.category ?? null, stage });
+    ck.findings.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source, line, detail: f.category ?? null, location: locate(line), stage });
   }
 }
 
 /** Diff line → path / line in the new file (" " and "+") or the old file ("-"); header lines map to nothing. */
 function diffOrigin(diff: string, newPath: string, oldPath: string): LineOrigin {
-  const map: Array<{ path: string; line: number } | null> = [];
+  const map: Array<{ path: string; line: number; side: "new" | "old" } | null> = [];
   let oldLine = 0;
   let newLine = 0;
   let inHunk = false;
@@ -335,10 +348,10 @@ function diffOrigin(diff: string, newPath: string, oldPath: string): LineOrigin 
       map.push(null);
       continue;
     }
-    if (inHunk && l.startsWith("+")) map.push({ path: newPath, line: newLine++ });
-    else if (inHunk && l.startsWith("-")) map.push({ path: oldPath, line: oldLine++ });
+    if (inHunk && l.startsWith("+")) map.push({ path: newPath, line: newLine++, side: "new" });
+    else if (inHunk && l.startsWith("-")) map.push({ path: oldPath, line: oldLine++, side: "old" });
     else if (inHunk && l.startsWith(" ")) {
-      map.push({ path: newPath, line: newLine++ });
+      map.push({ path: newPath, line: newLine++, side: "new" });
       oldLine++;
     } else map.push(null);
   }
@@ -486,9 +499,11 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       continue;
     }
     if (excludedBy !== null) {
+      // Content is neither checked nor shown; only the blob's size and SHA-256 are recorded (M2-1 SP3 #6).
       file.kind = "excluded";
       file.excludedBy = excludedBy;
       file.size = blobSize(root, blob);
+      file.sha256 = sha256(blobBytes(root, blob, file.size));
       prepared.push({ file, content: null, diff: null });
       continue;
     }
