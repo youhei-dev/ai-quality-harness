@@ -132,7 +132,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
 対象リポジトリに 256 KiB を超える行が無いため後に回す。
-1. **M2-1 `aiqh review-packet`**（**実装済み・v0.4.0 でリリース、独立レビュー R1 待ち**。仕様は ADR-0014）
+1. **M2-1 `aiqh review-packet`**（**実装済み・v0.4.1 で独立レビュー R1 を反映、R2 対応中**。仕様は ADR-0014）
 2. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
@@ -153,7 +153,9 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
    git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
 7. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
    review-packet は v0.4.0 で exit 2 にした）
-8. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+8. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
+   （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
+9. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
