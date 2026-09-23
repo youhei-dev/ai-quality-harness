@@ -609,7 +609,7 @@ function applyAllow(result: ScanResult, rules: readonly AllowRule[]): void {
   const usage = rules.map((r, i) => ({ rule: i, path: r.path, category: r.category ?? null, line: r.line ?? null, reason: r.reason, expires: r.expires ?? null, count: 0, expired: r.expires !== undefined && r.expires < today }));
   const kept: ScanFinding[] = [];
   for (const f of result.findings) {
-    const idx = f.kind === "secret" || f.kind === "oversized-candidate" ? rules.findIndex((r, i) => !usage[i]?.expired && allowMatches(r, f)) : -1;
+    const idx = findAllowRule(rules, f, today);
     if (idx === -1) {
       kept.push(f);
       continue;
@@ -622,6 +622,16 @@ function applyAllow(result: ScanResult, rules: readonly AllowRule[]): void {
   result.allowUsage = usage;
   result.expiredAllows = usage.filter((u) => u.expired).map((u) => u.rule);
   result.unusedAllows = usage.filter((u) => !u.expired && u.count === 0).map((u) => u.rule);
+}
+
+/**
+ * Index of the first active (not expired on `today`, YYYY-MM-DD) allow rule that suppresses `f`, or -1.
+ * Only secret-shaped findings can be suppressed. Shared with `aiqh review-packet` (M2-1, ADR-0014),
+ * which applies the rules to the repository path and line a packet line came from.
+ */
+export function findAllowRule(rules: readonly AllowRule[], f: ScanFinding, today: string = todayIso()): number {
+  if (f.kind !== "secret" && f.kind !== "oversized-candidate") return -1;
+  return rules.findIndex((r) => !(r.expires !== undefined && r.expires < today) && allowMatches(r, f));
 }
 
 function allowMatches(rule: AllowRule, f: ScanFinding): boolean {
