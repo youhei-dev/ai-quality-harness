@@ -416,10 +416,11 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
 }
 
 /**
- * A path from git, decoded strictly (M2-1-R1-001). Invalid UTF-8 is an `invalid-utf8` finding and a valid
- * path with a forbidden raw character (anything of raw-chars.ts; LF and TAB are allowed in paths) is a
- * `raw-char` finding, both with the source `path`; the value is never reported. On a finding the returned
- * placeholder only keeps the build going until the findings are reported (nothing is written).
+ * A path from git, decoded strictly (M2-1-R1-001). Invalid UTF-8 is an `invalid-utf8` finding, a valid path
+ * with a forbidden raw character (anything of raw-chars.ts; LF and TAB are allowed in paths) is a `raw-char`
+ * finding and a secret-shaped path a `secret` finding (M2-1-R2-007: a path is rendered in the metadata, so it
+ * is checked like other rendered values), all with the source `path`; the value is never reported. On a
+ * finding the returned placeholder only keeps the path pass going until the findings are reported.
  */
 function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): string {
   const d = decodeUtf8Strict(bytes ?? Buffer.alloc(0));
@@ -428,6 +429,9 @@ function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): stri
     return `<invalid path: ${where}>`;
   }
   for (const h of findRawChars(d.text)) ck.findings.push({ kind: "raw-char", source: "path", line: null, detail: formatCodePoint(h.codePoint), location: where, stage: "input" });
+  for (const f of scanString(d.text, ck.security)) {
+    ck.findings.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source: "path", line: null, detail: f.category ?? null, location: where, stage: "input" });
+  }
   return d.text;
 }
 
@@ -529,8 +533,23 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   const excludes = opts.excludes ?? [];
   const matchExclude = (p: string): string | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
 
-  // ---- changes (two-point tree comparison from..to)
+  // ---- paths first (M2-1-R2-007): every path of the changed-file list and of each commit's file list is
+  // decoded and checked as a separate pass; any path finding returns before contents and sizes are looked at.
   const raw = parseRaw(gitOk(root, ["diff", "--raw", "-z", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "listing changes"), ck);
+  const commitFiles = new Map<string, string[]>();
+  for (const sha of commits) {
+    const parents = gitOk(root, ["rev-list", "--parents", "-n", "1", sha], "reading parents").toString("utf8").trim().split(" ").slice(1);
+    const treeArgs = parents.length === 0 ? ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", "--root", sha] : ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", parents[0] ?? "", sha];
+    commitFiles.set(sha, splitZ(gitOk(root, treeArgs, "listing commit files")).map((p, k) => decodePath(ck, p, `commit ${sha.slice(0, SHORT)} file list entry ${k + 1}`)));
+  }
+  if (ck.findings.length > 0) return { ok: false, findings: ck.findings };
+
+  // Errors found while inputs are being checked (sizes, a --doc that is not a file, an invalid latest.json)
+  // are reported only when no finding was made (M2-1-R2-007: a detection, exit 1, comes before an error, exit 2).
+  // git failures still stop at once (the check itself cannot be done).
+  const deferred: string[] = [];
+
+  // ---- changes (two-point tree comparison from..to)
   const numstat = parseNumstat(gitOk(root, ["diff", "--numstat", "-z", "--text", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "counting changes"));
   raw.sort((a, b) => Buffer.compare(Buffer.from(a.path, "utf8"), Buffer.from(b.path, "utf8")));
 
@@ -595,11 +614,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       continue;
     }
     if (deleted) file.kind = "deleted";
-    // Only strictly decoded paths reach this point (a path finding stops the packet before it is written).
-    if (ck.findings.some((f) => f.source === "path")) {
-      prepared.push({ file, content: null, diff: null });
-      continue;
-    }
+    // Only strictly decoded, checked paths reach this point (the path pass returned on any path finding).
     const pathspec = [`:(literal)${r.path}`, ...(r.oldPath !== null ? [`:(literal)${r.oldPath}`] : [])];
     const diffBytes = gitOk(root, [...DIFF_FLAGS, from.sha, to.sha, "--", ...pathspec], `diff of ${r.path}`);
     // A changed file always has a diff header at least (mode-only changes, pure renames and empty files
@@ -611,7 +626,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     if (diff !== null) checkText(ck, diff, `diff ${r.path}`, diffOrigin(diff, r.path, r.oldPath ?? r.path));
   }
   if (tooLarge.length > 0) {
-    throw new PacketError(`changed file larger than --max-file-bytes (${maxFile}): ${tooLarge.join(", ")}; raise the limit or leave it out with --exclude`);
+    deferred.push(`changed file larger than --max-file-bytes (${maxFile}): ${tooLarge.join(", ")}; raise the limit or leave it out with --exclude`);
   }
 
   // ---- commits
@@ -628,10 +643,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     const decoded = decode(ck, commitMessage(rawCommit), source);
     const message = decoded === null ? "" : stripTrailers(decoded);
     if (decoded !== null) checkText(ck, message, source, null);
-    const parents = gitOk(root, ["rev-list", "--parents", "-n", "1", sha], "reading parents").toString("utf8").trim().split(" ").slice(1);
-    const treeArgs = parents.length === 0 ? ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", "--root", sha] : ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", parents[0] ?? "", sha];
-    const files = splitZ(gitOk(root, treeArgs, "listing commit files")).map((p, k) => decodePath(ck, p, `commit ${sha.slice(0, SHORT)} file list entry ${k + 1}`));
-    commitInfos.push({ sha, subject: message.split("\n")[0] ?? "", message, files });
+    commitInfos.push({ sha, subject: message.split("\n")[0] ?? "", message, files: commitFiles.get(sha) ?? [] });
   }
 
   // ---- human inputs and documents
@@ -647,19 +659,26 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     const ls = splitZ(gitOk(root, ["ls-tree", "-z", to.sha, "--", `:(literal)${d}`], `looking up --doc ${d}`)).map((e) => quietPath(e) ?? "");
     const entry = ls.find((e) => e.endsWith(`\t${d}`));
     const em = entry ? /^(\d{6}) blob ([0-9a-f]+)\t/.exec(entry) : null;
-    if (!em) throw new PacketError(`--doc ${JSON.stringify(d)} is not a file at ${to.sha.slice(0, SHORT)}`);
+    if (!em) {
+      deferred.push(`--doc ${JSON.stringify(d)} is not a file at ${to.sha.slice(0, SHORT)}`);
+      continue;
+    }
     const blob = em[2] ?? "";
     const size = blobSize(root, blob);
-    if (size > maxFile) throw new PacketError(`--doc ${d} is larger than --max-file-bytes (${size} > ${maxFile})`);
+    if (size > maxFile) {
+      deferred.push(`--doc ${d} is larger than --max-file-bytes (${size} > ${maxFile})`);
+      continue;
+    }
     const text = decode(ck, blobBytes(root, blob, size), `doc ${d}`);
     if (text !== null) checkText(ck, text, `doc ${d}`, (i) => ({ path: d, line: i + 1 }));
     docs.push({ path: d, text });
   }
 
   // ---- verify result of <to> (only when latest.json belongs to <to> and a clean tree)
-  const verification = readVerification(ck, root, to.sha);
+  const verification = readVerification(ck, root, to.sha, deferred);
 
   if (ck.findings.length > 0) return { ok: false, findings: ck.findings };
+  if (deferred.length > 0) throw new PacketError(deferred.join("; "));
 
   // ---- assemble
   const b = new Builder();
@@ -766,7 +785,8 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   return { ok: true, text, label, fromSha: from.sha, toSha: to.sha, root, commits: commits.length, files, suppressed: ck.suppressed };
 }
 
-function readVerification(ck: Checker, root: string, toSha: string): string {
+/** The Verification section's text; an unreadable latest.json is added to `deferred` (reported only without findings). */
+function readVerification(ck: Checker, root: string, toSha: string, deferred: string[]): string {
   const file = path.join(root, "artifacts", "verification", "latest.json");
   if (!existsSync(file)) return "No verify result: `artifacts/verification/latest.json` does not exist.\n";
   const decoded = decode(ck, readFileSync(file), "verification (artifacts/verification/latest.json)");
@@ -775,7 +795,8 @@ function readVerification(ck: Checker, root: string, toSha: string): string {
   try {
     report = JSON.parse(decoded) as VerificationReport;
   } catch {
-    throw new PacketError("artifacts/verification/latest.json is not valid JSON");
+    deferred.push("artifacts/verification/latest.json is not valid JSON");
+    return "";
   }
   const commit = report.git?.commit ?? null;
   const dirty = report.git?.dirty ?? null;

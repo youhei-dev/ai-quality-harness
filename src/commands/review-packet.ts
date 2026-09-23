@@ -99,12 +99,14 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   };
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
-  if (cwdProblem !== null) return fail(cwdProblem);
   try {
+    // Order (M2-1-R2-007): a detection (exit 1) comes before an error (exit 2) whenever both are known. Only
+    // what the check itself needs comes first: the command line (commander) and the security configuration.
     const security = readSecurity(cwd, options.configPath);
     const optionFindings = checkOptionValues(options, cwd, security);
     if (optionFindings.length > 0) return rejected(optionFindings);
+    const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
+    if (cwdProblem !== null) return fail(cwdProblem);
     const packetOpts: PacketOptions = { cwd, range: options.range, security, toolVersion: options.toolVersion };
     if (options.label !== undefined) packetOpts.label = options.label;
     if (options.request !== undefined) packetOpts.request = readInput(cwd, options.request, options.stdin);
