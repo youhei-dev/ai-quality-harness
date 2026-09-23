@@ -23,6 +23,7 @@ import path from "node:path";
 import type { ResolvedSecurity, VerificationReport } from "../types.ts";
 import { decodeUtf8Strict, findRawChars, formatCodePoint, isForbiddenCodePoint } from "../security/raw-chars.ts";
 import { findAllowRule, scanString, type ScanFinding } from "../security/scan.ts";
+import { REJECTED, checkValue, type Checked } from "./checked.ts";
 
 /** Lock files: full source and diff are left out by default (name-status, stat and SHA-256 stay). */
 export const LOCK_FILE_NAMES: readonly string[] = [
@@ -79,18 +80,22 @@ export interface Suppression {
   rule: number;
 }
 
+/**
+ * Options for buildPacket. The values that are rendered are Checked (M2-1 R2): the caller checks them through
+ * the option inventory of runReviewPacket before calling, so they cannot reach the renderers unchecked.
+ */
 export interface PacketOptions {
   /** Directory inside the repository. */
   cwd: string;
   /** `<from>..<to>`. */
-  range: string;
-  label?: string;
+  range: Checked;
+  label?: Checked;
   /** Human-written request: file contents (already read) and the name to show. */
-  request?: { name: string; bytes: Uint8Array };
-  reviews?: Array<{ name: string; bytes: Uint8Array }>;
+  request?: { name: Checked; bytes: Uint8Array };
+  reviews?: Array<{ name: Checked; bytes: Uint8Array }>;
   /** Repository paths whose content at <to> is included in full. */
-  docs?: string[];
-  excludes?: string[];
+  docs?: Checked[];
+  excludes?: Checked[];
   maxFileBytes?: number;
   maxPacketBytes?: number;
   security: ResolvedSecurity;
@@ -102,14 +107,14 @@ export interface PacketOptions {
 export type ChangeKind = "text" | "binary" | "lock" | "excluded" | "submodule" | "deleted";
 
 export interface ChangedFile {
-  status: string;
-  path: string;
-  oldPath: string | null;
+  status: Checked;
+  path: Checked;
+  oldPath: Checked | null;
   kind: ChangeKind;
   /** The --exclude glob that matched (kind "excluded"). */
-  excludedBy: string | null;
+  excludedBy: Checked | null;
   size: number | null;
-  sha256: string | null;
+  sha256: Checked | null;
   added: number | null;
   deleted: number | null;
 }
@@ -221,17 +226,48 @@ function escapeInline(s: string): string {
   return out;
 }
 
+declare const mdBrand: unique symbol;
+
+/** Packet text written by aiqh: fixed text and rendered values (M2-1 R2). Only md and the renderers create it. */
+export type Md = string & { readonly [mdBrand]: true };
+
+/**
+ * Template for packet text (M2-1 R2). Only fixed text, rendered fragments (Md: inlineCode, cellCode,
+ * plainOrCode, other md results) and numbers can be interpolated. A string cannot — neither an unchecked one
+ * nor a Checked one, which may still hold LF or backticks — so every value goes through a renderer, and a
+ * value that bypasses them is a type error.
+ */
+export function md(strings: TemplateStringsArray, ...values: ReadonlyArray<Md | number>): Md {
+  let out = strings[0] ?? "";
+  values.forEach((v, i) => {
+    out += String(v) + (strings[i + 1] ?? "");
+  });
+  return out as Md;
+}
+
+function joinMd(parts: readonly Md[], separator: Md): Md {
+  return parts.join(separator) as Md;
+}
+
 /** Inline code for paths, globs, file names, labels and other user / JSON strings (also the only dynamic text in headings). */
-export function inlineCode(s: string): string {
-  return `\`${escapeInline(s)}\``;
+export function inlineCode(s: Checked): Md {
+  return `\`${escapeInline(s)}\`` as Md;
 }
 
 /** Paths are rendered as inline code (kept as a name for the call sites and tests). */
 export const renderPath = inlineCode;
 
 /** Inline code inside a table cell: as inlineCode, plus `|` escaped (GFM splits cells before code spans). */
-function cellCode(s: string): string {
-  return `\`${escapeInline(s).replace(/\|/g, "\\|")}\``;
+function cellCode(s: Checked): Md {
+  return `\`${escapeInline(s).replace(/\|/g, "\\|")}\`` as Md;
+}
+
+/** Characters shown as plain text: SHAs, versions, times, labels, status letters, `true` / `null`. */
+const PLAIN = /^[A-Za-z0-9 ._:+()/-]*$/;
+
+/** A value shown as plain text when it has only PLAIN characters, otherwise as inline code. */
+function plainOrCode(s: Checked): Md {
+  return PLAIN.test(s) ? (s as string as Md) : inlineCode(s);
 }
 
 function fenceFor(content: string): string {
@@ -281,27 +317,38 @@ class Builder {
   private line = 1;
   readonly segments: Segment[] = [];
 
-  /** Template text (headings, tables written by aiqh). */
-  add(text: string): void {
+  /** Template text (headings, tables written by aiqh), built with md. */
+  add(text: Md): void {
+    this.push(text);
+  }
+
+  /** Template text attributed to a source (the Verification section), so that a packet line can be traced back to it. */
+  addSource(text: Md, source: string, origin: LineOrigin | null): void {
+    this.pushSource(text, source, origin);
+  }
+
+  /**
+   * A fenced block for an input's content (checked by checkText with the allow rules, and again as part of
+   * the packet); the fence is longer than any backtick run inside.
+   */
+  fenced(content: string, lang: string, source: string, origin: LineOrigin | null): void {
+    const fence = fenceFor(content);
+    this.push(`${fence}${lang}\n`);
+    this.pushSource(content, source, origin);
+    if (content.length > 0 && !content.endsWith("\n")) this.push("\n");
+    this.push(`${fence}\n`);
+    if (content.length > 0 && !content.endsWith("\n")) this.push("(no newline at end of file)\n");
+  }
+
+  private push(text: string): void {
     this.parts.push(text);
     this.line += (text.match(/\n/g) ?? []).length;
   }
 
-  /** Text that came from an input: recorded so that a packet line can be traced back to its source. */
-  addSource(text: string, source: string, origin: LineOrigin | null): void {
+  private pushSource(text: string, source: string, origin: LineOrigin | null): void {
     const lines = lineCount(text);
     this.segments.push({ startLine: this.line, lines, source, origin });
-    this.add(text);
-  }
-
-  /** A fenced block for an input; the fence is longer than any backtick run inside. */
-  fenced(content: string, lang: string, source: string, origin: LineOrigin | null): void {
-    const fence = fenceFor(content);
-    this.add(`${fence}${lang}\n`);
-    this.addSource(content, source, origin);
-    if (content.length > 0 && !content.endsWith("\n")) this.add("\n");
-    this.add(`${fence}\n`);
-    if (content.length > 0 && !content.endsWith("\n")) this.add("(no newline at end of file)\n");
+    this.push(text);
   }
 
   text(): string {
@@ -330,6 +377,17 @@ function decode(ck: Checker, bytes: Uint8Array, source: string): string | null {
   if (d.ok) return d.text;
   ck.findings.push({ kind: "invalid-utf8", source, line: d.line, detail: null, location: null, stage: "input" });
   return null;
+}
+
+/**
+ * checkValue for a value that is rendered (M2-1 R2): findings go to `ck` with `source` (and `location`; `line`
+ * false leaves the line out, as for paths); a rejected value becomes REJECTED so that checking can go on.
+ */
+function checkInto(ck: Checker, value: string, source: string, at: { location?: string; line?: false } = {}): Checked {
+  const r = checkValue(value, ck.security);
+  if (r.ok) return r.value;
+  for (const f of r.findings) ck.findings.push({ kind: f.kind, source, line: at.line === false ? null : f.line, detail: f.detail, location: at.location ?? null, stage: "input" });
+  return REJECTED;
 }
 
 /** Raw characters and secret-shaped strings in one input; allow rules use `origin` (repository path / line). */
@@ -384,9 +442,9 @@ function diffOrigin(diff: string, newPath: string, oldPath: string): LineOrigin 
 // build
 
 interface RawChange {
-  status: string;
-  path: string;
-  oldPath: string | null;
+  status: Checked;
+  path: Checked;
+  oldPath: Checked | null;
   oldMode: string;
   newMode: string;
   oldBlob: string;
@@ -405,10 +463,10 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
     if (letter === "R" || letter === "C") {
       const oldPath = decodePath(ck, parts[i + 1], where);
       const newPath = decodePath(ck, parts[i + 2], where);
-      out.push({ status: `${letter}${m[6] ?? ""}`, oldPath, path: newPath, oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      out.push({ status: checkInto(ck, `${letter}${m[6] ?? ""}`, "git diff --raw status"), oldPath, path: newPath, oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
       i += 3;
     } else {
-      out.push({ status: letter, oldPath: null, path: decodePath(ck, parts[i + 1], where), oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      out.push({ status: checkInto(ck, letter, "git diff --raw status"), oldPath: null, path: decodePath(ck, parts[i + 1], where), oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
       i += 2;
     }
   }
@@ -422,17 +480,13 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
  * is checked like other rendered values), all with the source `path`; the value is never reported. On a
  * finding the returned placeholder only keeps the path pass going until the findings are reported.
  */
-function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): string {
+function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): Checked {
   const d = decodeUtf8Strict(bytes ?? Buffer.alloc(0));
   if (!d.ok) {
     ck.findings.push({ kind: "invalid-utf8", source: "path", line: null, detail: null, location: where, stage: "input" });
-    return `<invalid path: ${where}>`;
+    return REJECTED;
   }
-  for (const h of findRawChars(d.text)) ck.findings.push({ kind: "raw-char", source: "path", line: null, detail: formatCodePoint(h.codePoint), location: where, stage: "input" });
-  for (const f of scanString(d.text, ck.security)) {
-    ck.findings.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source: "path", line: null, detail: f.category ?? null, location: where, stage: "input" });
-  }
-  return d.text;
+  return checkInto(ck, d.text, "path", { location: where, line: false });
 }
 
 /** Decode -z paths without reporting (numstat keys are only matched against paths already checked). */
@@ -525,18 +579,20 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   if (anc.status !== 0) throw new PacketError(`--range: ancestry check failed: ${anc.stderr}`);
   const commits = gitOk(root, ["rev-list", "--reverse", "--topo-order", `${from.sha}..${to.sha}`], "listing commits").toString("utf8").split("\n").filter((l) => l.length > 0);
   if (commits.length === 0) throw new PacketError("--range contains no commits");
-  const label = opts.label ?? to.sha.slice(0, SHORT);
 
   const ck: Checker = { findings: [], suppressed: [], security: opts.security, today: opts.today };
+  /** A value aiqh derives (SHA, hash, version, time) is checked like any other rendered value (M2-1 R2). */
+  const derived = (value: string): Checked => checkInto(ck, value, "packet metadata");
+  const label = opts.label ?? derived(to.sha.slice(0, SHORT));
   // Option values that are rendered (range, label, globs, documents, file names) were checked by the caller
-  // before this function was called (M2-1-R2-006): the renderers escape raw characters, so they are not seen here.
+  // before this function was called (M2-1-R2-006; they are Checked): the renderers escape raw characters.
   const excludes = opts.excludes ?? [];
-  const matchExclude = (p: string): string | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
+  const matchExclude = (p: string): Checked | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
 
   // ---- paths first (M2-1-R2-007): every path of the changed-file list and of each commit's file list is
   // decoded and checked as a separate pass; any path finding returns before contents and sizes are looked at.
   const raw = parseRaw(gitOk(root, ["diff", "--raw", "-z", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "listing changes"), ck);
-  const commitFiles = new Map<string, string[]>();
+  const commitFiles = new Map<string, Checked[]>();
   for (const sha of commits) {
     const parents = gitOk(root, ["rev-list", "--parents", "-n", "1", sha], "reading parents").toString("utf8").trim().split(" ").slice(1);
     const treeArgs = parents.length === 0 ? ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", "--root", sha] : ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", parents[0] ?? "", sha];
@@ -578,7 +634,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       file.kind = "excluded";
       file.excludedBy = excludedBy;
       file.size = blobSize(root, blob);
-      file.sha256 = sha256(blobBytes(root, blob, file.size));
+      file.sha256 = derived(sha256(blobBytes(root, blob, file.size)));
       prepared.push({ file, content: null, diff: null });
       continue;
     }
@@ -594,7 +650,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       continue;
     }
     const bytes = blobBytes(root, blob, size);
-    file.sha256 = sha256(bytes);
+    file.sha256 = derived(sha256(bytes));
     if (isLock) {
       file.kind = "lock";
       prepared.push({ file, content: null, diff: null });
@@ -632,9 +688,11 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   // ---- commits
   interface CommitInfo {
     sha: string;
-    subject: string;
+    full: Checked;
+    short: Checked;
+    subject: Checked;
     message: string;
-    files: string[];
+    files: Checked[];
   }
   const commitInfos: CommitInfo[] = [];
   for (const sha of commits) {
@@ -642,8 +700,11 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     const source = `commit ${sha.slice(0, SHORT)} message`;
     const decoded = decode(ck, commitMessage(rawCommit), source);
     const message = decoded === null ? "" : stripTrailers(decoded);
+    const before = ck.findings.length;
     if (decoded !== null) checkText(ck, message, source, null);
-    commitInfos.push({ sha, subject: message.split("\n")[0] ?? "", message, files: commitFiles.get(sha) ?? [] });
+    // The subject is rendered in a table: Checked on its own, but only when the message had no finding (no duplicate).
+    const subject = decoded !== null && ck.findings.length === before ? checkInto(ck, message.split("\n")[0] ?? "", source) : REJECTED;
+    commitInfos.push({ sha, full: derived(sha), short: derived(sha.slice(0, SHORT)), subject, message, files: commitFiles.get(sha) ?? [] });
   }
 
   // ---- human inputs and documents
@@ -654,7 +715,7 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     if (text !== null) checkText(ck, text, `review ${r.name}`, null);
     return { name: r.name, text };
   });
-  const docs: Array<{ path: string; text: string | null }> = [];
+  const docs: Array<{ path: Checked; text: string | null }> = [];
   for (const d of opts.docs ?? []) {
     const ls = splitZ(gitOk(root, ["ls-tree", "-z", to.sha, "--", `:(literal)${d}`], `looking up --doc ${d}`)).map((e) => quietPath(e) ?? "");
     const entry = ls.find((e) => e.endsWith(`\t${d}`));
@@ -677,90 +738,107 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   // ---- verify result of <to> (only when latest.json belongs to <to> and a clean tree)
   const verification = readVerification(ck, root, to.sha, deferred);
 
+  // ---- the other values that are rendered, derived by aiqh (checked like the rest; M2-1 R2)
+  const toCommit = gitOk(root, ["cat-file", "commit", to.sha], "reading <to>");
+  const meta = {
+    range: derived(`${from.sha.slice(0, SHORT)}..${to.sha.slice(0, SHORT)}`),
+    from: derived(from.sha),
+    fromTag: from.tagObject !== null ? derived(from.tagObject) : null,
+    to: derived(to.sha),
+    toTag: to.tagObject !== null ? derived(to.tagObject) : null,
+    toShort: derived(to.sha.slice(0, SHORT)),
+    time: derived(committerTime(toCommit) ?? "unknown"),
+    tool: derived(opts.toolVersion),
+    git: derived(gitOk(root, ["--version"], "git --version").toString("utf8").trim()),
+  };
+  const suppressed = ck.suppressed.map((s) => ({ source: derived(s.source), path: derived(s.path), category: derived(s.category), line: s.line, rule: s.rule }));
+
   if (ck.findings.length > 0) return { ok: false, findings: ck.findings };
   if (deferred.length > 0) throw new PacketError(deferred.join("; "));
 
-  // ---- assemble
+  // ---- assemble: only md, the renderers and numbers (M2-1 R2)
   const b = new Builder();
-  const toCommit = gitOk(root, ["cat-file", "commit", to.sha], "reading <to>");
-  const gitVersion = gitOk(root, ["--version"], "git --version").toString("utf8").trim();
   const files = prepared.map((p) => p.file);
-  b.add(`# Review Packet — ${label}\n\n`);
-  b.add("## Metadata\n\n");
-  b.add(`- Range: \`${from.sha.slice(0, SHORT)}..${to.sha.slice(0, SHORT)}\` (commits in \`from..to\`; changes = \`git diff <from> <to>\`, a two-point tree comparison)\n`);
-  b.add(`- Range as given: ${renderPath(opts.range)} (resolved once to the SHAs below)\n`);
-  b.add(`- From: commit \`${from.sha}\`${from.tagObject ? ` (tag object \`${from.tagObject}\`)` : ""}\n`);
-  b.add(`- To: commit \`${to.sha}\`${to.tagObject ? ` (tag object \`${to.tagObject}\`)` : ""}\n`);
-  b.add(`- Committer time of <to>: ${committerTime(toCommit) ?? "unknown"} (UTC)\n`);
-  b.add(`- Commits: ${commits.length}; changed files: ${files.length}\n`);
-  b.add(`- Generated by: aiqh ${opts.toolVersion}; ${gitVersion}\n`);
-  b.add(`- Options: label \`${label}\`; max file bytes ${maxFile}; max packet bytes ${maxPacket}`);
-  b.add(excludes.length > 0 ? `; excludes ${excludes.map((g) => inlineCode(g)).join(", ")}` : "; excludes none");
-  b.add(`; documents ${docs.length}; request ${request ? "given" : "none"}; previous reviews ${reviews.length}\n\n`);
-  b.add("This packet contains no conclusion by the implementer about correctness. It holds the request and previous reviews as supplied by\n");
-  b.add("a human, the commit messages, the changed-file list, per-file diffs, the full sources at <to>, selected documents and the verify\n");
-  b.add("result that `aiqh verify` recorded for <to>. **Commit messages are written by the implementer (possibly an AI) and may contain its\n");
-  b.add("explanations.** Every input was checked for invalid UTF-8, raw control / separator / bidi characters and secret-shaped strings.\n\n");
+  const dash = md`-`;
+  const KIND: Record<ChangeKind, Md> = { text: md`text`, binary: md`binary`, lock: md`lock`, excluded: md`excluded`, submodule: md`submodule`, deleted: md`deleted` };
+  b.add(md`# Review Packet — ${plainOrCode(label)}\n\n`);
+  b.add(md`## Metadata\n\n`);
+  b.add(md`- Range: ${inlineCode(meta.range)} (commits in \`from..to\`; changes = \`git diff <from> <to>\`, a two-point tree comparison)\n`);
+  b.add(md`- Range as given: ${renderPath(opts.range)} (resolved once to the SHAs below)\n`);
+  b.add(md`- From: commit ${inlineCode(meta.from)}${meta.fromTag !== null ? md` (tag object ${inlineCode(meta.fromTag)})` : md``}\n`);
+  b.add(md`- To: commit ${inlineCode(meta.to)}${meta.toTag !== null ? md` (tag object ${inlineCode(meta.toTag)})` : md``}\n`);
+  b.add(md`- Committer time of <to>: ${plainOrCode(meta.time)} (UTC)\n`);
+  b.add(md`- Commits: ${commits.length}; changed files: ${files.length}\n`);
+  b.add(md`- Generated by: aiqh ${plainOrCode(meta.tool)}; ${plainOrCode(meta.git)}\n`);
+  b.add(md`- Options: label ${inlineCode(label)}; max file bytes ${maxFile}; max packet bytes ${maxPacket}`);
+  b.add(excludes.length > 0 ? md`; excludes ${joinMd(excludes.map((g) => inlineCode(g)), md`, `)}` : md`; excludes none`);
+  b.add(md`; documents ${docs.length}; request ${request ? md`given` : md`none`}; previous reviews ${reviews.length}\n\n`);
+  b.add(md`This packet contains no conclusion by the implementer about correctness. It holds the request and previous reviews as supplied by\n`);
+  b.add(md`a human, the commit messages, the changed-file list, per-file diffs, the full sources at <to>, selected documents and the verify\n`);
+  b.add(md`result that \`aiqh verify\` recorded for <to>. **Commit messages are written by the implementer (possibly an AI) and may contain its\n`);
+  b.add(md`explanations.** Every input was checked for invalid UTF-8, raw control / separator / bidi characters and secret-shaped strings.\n\n`);
 
-  b.add("# Request\n\n");
+  b.add(md`# Request\n\n`);
   if (request !== null && request.text !== null) {
-    b.add(`Supplied by a human (${inlineCode(request.name)}), verbatim:\n\n`);
+    b.add(md`Supplied by a human (${inlineCode(request.name)}), verbatim:\n\n`);
     b.fenced(request.text, "markdown", "request", null);
-  } else b.add("Not supplied.\n");
-  b.add("\n# Previous Reviews\n\n");
-  if (reviews.length === 0) b.add("None supplied.\n");
+  } else b.add(md`Not supplied.\n`);
+  b.add(md`\n# Previous Reviews\n\n`);
+  if (reviews.length === 0) b.add(md`None supplied.\n`);
   for (const r of reviews) {
-    b.add(`## ${inlineCode(r.name)}\n\n`);
+    b.add(md`## ${inlineCode(r.name)}\n\n`);
     b.fenced(r.text ?? "", "markdown", `review ${r.name}`, null);
-    b.add("\n");
+    b.add(md`\n`);
   }
 
-  b.add("\n# Commits\n\n`git rev-list --reverse --topo-order <from>..<to>`. Messages without Co-Authored-By / Claude-Session trailers.\n\n");
-  b.add("| # | Commit | Subject | Files |\n|---|---|---|---|\n");
-  commitInfos.forEach((c, i) => b.add(`| ${i + 1} | \`${c.sha.slice(0, SHORT)}\` | ${cellCode(c.subject)} | ${c.files.length} |\n`));
+  b.add(md`\n# Commits\n\n\`git rev-list --reverse --topo-order <from>..<to>\`. Messages without Co-Authored-By / Claude-Session trailers.\n\n`);
+  b.add(md`| # | Commit | Subject | Files |\n|---|---|---|---|\n`);
+  commitInfos.forEach((c, i) => b.add(md`| ${i + 1} | ${inlineCode(c.short)} | ${cellCode(c.subject)} | ${c.files.length} |\n`));
   for (const c of commitInfos) {
-    b.add(`\n## ${c.sha}\n\nFiles: ${c.files.length === 0 ? "none" : c.files.map(renderPath).join(", ")}\n\n`);
+    b.add(md`\n## ${plainOrCode(c.full)}\n\nFiles: ${c.files.length === 0 ? md`none` : joinMd(c.files.map(renderPath), md`, `)}\n\n`);
     b.fenced(c.message, "text", `commit ${c.sha.slice(0, SHORT)} message`, null);
   }
 
-  b.add("\n# Changed Files\n\n`git diff --raw -M50% <from> <to>`, sorted by path. Kinds: text (full source and diff below), deleted (diff only),\n");
-  b.add("binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n");
-  b.add("| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n");
+  b.add(md`\n# Changed Files\n\n\`git diff --raw -M50% <from> <to>\`, sorted by path. Kinds: text (full source and diff below), deleted (diff only),\n`);
+  b.add(md`binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n`);
+  b.add(md`| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n`);
   files.forEach((f, i) => {
-    const kind = `${f.kind === "excluded" ? `excluded (${cellCode(f.excludedBy ?? "")})` : f.kind}${f.status === "T" ? " (type change)" : ""}`;
-    const counts = f.kind === "text" || f.kind === "deleted" ? [String(f.added ?? "-"), String(f.deleted ?? "-")] : ["-", "-"];
-    b.add(`| ${i + 1} | ${f.status} | ${cellCode(f.path)} | ${f.oldPath !== null ? cellCode(f.oldPath) : ""} | ${kind} | ${f.size ?? "-"} | ${counts[0]} | ${counts[1]} |\n`);
+    const kind = md`${f.kind === "excluded" && f.excludedBy !== null ? md`excluded (${cellCode(f.excludedBy)})` : KIND[f.kind]}${f.status === "T" ? md` (type change)` : md``}`;
+    const shown = f.kind === "text" || f.kind === "deleted";
+    const added = shown ? (f.added ?? dash) : dash;
+    const removed = shown ? (f.deleted ?? dash) : dash;
+    b.add(md`| ${i + 1} | ${plainOrCode(f.status)} | ${cellCode(f.path)} | ${f.oldPath !== null ? cellCode(f.oldPath) : md``} | ${kind} | ${f.size ?? dash} | ${added} | ${removed} |\n`);
   });
 
-  b.add("\n# Diff\n\nPer file: `git diff --text --diff-algorithm=myers -U3 --full-index -M50% <from> <to> -- <path>`.\n");
+  b.add(md`\n# Diff\n\nPer file: \`git diff --text --diff-algorithm=myers -U3 --full-index -M50% <from> <to> -- <path>\`.\n`);
   for (const p of prepared) {
-    b.add(`\n## ${renderPath(p.file.path)}\n\n`);
+    b.add(md`\n## ${renderPath(p.file.path)}\n\n`);
     if (p.diff !== null) b.fenced(p.diff, "diff", `diff ${p.file.path}`, diffOrigin(p.diff, p.file.path, p.file.oldPath ?? p.file.path));
-    else b.add(`Not shown (${p.file.kind}).\n`);
+    else b.add(md`Not shown (${KIND[p.file.kind]}).\n`);
   }
 
-  b.add("\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded and submodule entries have none).\n");
+  b.add(md`\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded and submodule entries have none).\n`);
   for (const p of prepared) {
     if (p.content === null) continue;
-    b.add(`\n## ${renderPath(p.file.path)} (${lineCount(p.content)} lines)\n\n`);
+    b.add(md`\n## ${renderPath(p.file.path)} (${lineCount(p.content)} lines)\n\n`);
     b.fenced(p.content, langOf(p.file.path), `full source ${p.file.path}`, (i) => ({ path: p.file.path, line: i + 1 }));
   }
 
-  b.add("\n# Documents\n\n");
-  if (docs.length === 0) b.add("None selected (--doc).\n");
+  b.add(md`\n# Documents\n\n`);
+  if (docs.length === 0) b.add(md`None selected (--doc).\n`);
   for (const d of docs) {
-    b.add(`## ${renderPath(d.path)} (at \`${to.sha.slice(0, SHORT)}\`)\n\n`);
+    b.add(md`## ${renderPath(d.path)} (at ${inlineCode(meta.toShort)})\n\n`);
     b.fenced(d.text ?? "", langOf(d.path), `doc ${d.path}`, (i) => ({ path: d.path, line: i + 1 }));
-    b.add("\n");
+    b.add(md`\n`);
   }
 
-  b.add("\n# Verification\n\n");
+  b.add(md`\n# Verification\n\n`);
   b.addSource(verification, "verification (artifacts/verification/latest.json)", null);
 
-  b.add("\n# Integrity\n\nSHA-256 of the blob at <to> (or at <from> for deleted files).\n\n| Path | Bytes | SHA-256 |\n|---|---|---|\n");
-  for (const f of files) b.add(`| ${cellCode(f.path)} | ${f.size ?? "-"} | ${f.sha256 ?? "-"} |\n`);
-  b.add(`\nChecks before writing: invalid UTF-8 0, raw characters 0, secret-shaped strings 0 (after security.allow). Suppressed by security.allow: ${ck.suppressed.length}.\n`);
-  for (const s of ck.suppressed) b.add(`- ${inlineCode(s.source)} → ${inlineCode(s.path)}:${s.line} ${inlineCode(s.category)} by rule #${s.rule + 1}\n`);
+  b.add(md`\n# Integrity\n\nSHA-256 of the blob at <to> (or at <from> for deleted files).\n\n| Path | Bytes | SHA-256 |\n|---|---|---|\n`);
+  for (const f of files) b.add(md`| ${cellCode(f.path)} | ${f.size ?? dash} | ${f.sha256 !== null ? plainOrCode(f.sha256) : dash} |\n`);
+  b.add(md`\nChecks before writing: invalid UTF-8 0, raw characters 0, secret-shaped strings 0 (after security.allow). Suppressed by security.allow: ${suppressed.length}.\n`);
+  for (const s of suppressed) b.add(md`- ${inlineCode(s.source)} → ${inlineCode(s.path)}:${s.line} ${inlineCode(s.category)} by rule #${s.rule + 1}\n`);
 
   const text = b.text();
 
@@ -786,34 +864,40 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
 }
 
 /** The Verification section's text; an unreadable latest.json is added to `deferred` (reported only without findings). */
-function readVerification(ck: Checker, root: string, toSha: string, deferred: string[]): string {
+function readVerification(ck: Checker, root: string, toSha: string, deferred: string[]): Md {
+  const source = "verification (artifacts/verification/latest.json)";
   const file = path.join(root, "artifacts", "verification", "latest.json");
-  if (!existsSync(file)) return "No verify result: `artifacts/verification/latest.json` does not exist.\n";
-  const decoded = decode(ck, readFileSync(file), "verification (artifacts/verification/latest.json)");
-  if (decoded === null) return "";
+  if (!existsSync(file)) return md`No verify result: \`artifacts/verification/latest.json\` does not exist.\n`;
+  const decoded = decode(ck, readFileSync(file), source);
+  if (decoded === null) return md``;
   let report: VerificationReport;
   try {
     report = JSON.parse(decoded) as VerificationReport;
   } catch {
     deferred.push("artifacts/verification/latest.json is not valid JSON");
-    return "";
+    return md``;
   }
-  const commit = report.git?.commit ?? null;
-  const dirty = report.git?.dirty ?? null;
+  const commit: unknown = report.git?.commit ?? null;
+  const dirty: unknown = report.git?.dirty ?? null;
   if (commit !== toSha || dirty !== false) {
-    return `No verify result for <to>: latest.json is for commit ${commit ? `\`${commit.slice(0, SHORT)}\`` : "unknown"} with dirty = ${String(dirty)} (included only for <to> on a clean tree).\n`;
+    // latest.json's own values for another commit are rendered like any other value (found by the typed template, M2-1 R2)
+    const shown = commit !== null && commit !== "" ? inlineCode(checkInto(ck, String(commit).slice(0, SHORT), source)) : md`unknown`;
+    return md`No verify result for <to>: latest.json is for commit ${shown} with dirty = ${plainOrCode(checkInto(ck, String(dirty), source))} (included only for <to> on a clean tree).\n`;
   }
-  const lines: string[] = [];
-  lines.push(`\`aiqh verify\` result recorded in latest.json for \`${toSha.slice(0, SHORT)}\` (clean tree):\n\n`);
-  lines.push(`- Verdict: ${inlineCode(String(report.verdict))}; exit code ${inlineCode(String(report.exitCode))}; tool ${inlineCode(`${String(report.tool?.name)} ${String(report.tool?.version)}`)}\n`);
-  lines.push(`- Started: ${inlineCode(String(report.startedAt))}; finished: ${inlineCode(String(report.finishedAt))}\n\n`);
-  lines.push("| Check | Kind | Required | Status | Exit code | Duration (ms) |\n|---|---|---|---|---|---|\n");
-  for (const c of report.checks ?? []) {
-    lines.push(`| ${cellCode(String(c.name))} | ${cellCode(String(c.kind))} | ${cellCode(String(c.required))} | ${cellCode(String(c.status))} | ${cellCode(String(c.exitCode))} | ${cellCode(String(c.durationMs))} |\n`);
-  }
-  const text = lines.join("");
-  // The rendered table escapes raw characters (M2-1-R1-004), so the values are checked before rendering.
+  // The rendered table escapes raw characters (M2-1-R1-004), so the values are checked before rendering, as one
+  // text (a finding's line is the value's line in it); each value is then Checked on its own for its renderer.
   const values = [report.verdict, report.exitCode, report.tool?.name, report.tool?.version, report.startedAt, report.finishedAt, ...(report.checks ?? []).flatMap((c) => [c.name, c.kind, c.required, c.status, c.exitCode, c.durationMs])];
-  checkText(ck, values.map((v) => String(v)).join("\n"), "verification (artifacts/verification/latest.json)", null);
-  return text;
+  const before = ck.findings.length;
+  checkText(ck, values.map((v) => String(v)).join("\n"), source, null);
+  if (ck.findings.length > before) return md``;
+  const v = (value: unknown): Checked => checkInto(ck, String(value), source);
+  const parts: Md[] = [];
+  parts.push(md`\`aiqh verify\` result recorded in latest.json for ${inlineCode(v(toSha.slice(0, SHORT)))} (clean tree):\n\n`);
+  parts.push(md`- Verdict: ${inlineCode(v(report.verdict))}; exit code ${inlineCode(v(report.exitCode))}; tool ${inlineCode(v(`${String(report.tool?.name)} ${String(report.tool?.version)}`))}\n`);
+  parts.push(md`- Started: ${inlineCode(v(report.startedAt))}; finished: ${inlineCode(v(report.finishedAt))}\n\n`);
+  parts.push(md`| Check | Kind | Required | Status | Exit code | Duration (ms) |\n|---|---|---|---|---|---|\n`);
+  for (const c of report.checks ?? []) {
+    parts.push(md`| ${cellCode(v(c.name))} | ${cellCode(v(c.kind))} | ${cellCode(v(c.required))} | ${cellCode(v(c.status))} | ${cellCode(v(c.exitCode))} | ${cellCode(v(c.durationMs))} |\n`);
+  }
+  return joinMd(parts, md``);
 }

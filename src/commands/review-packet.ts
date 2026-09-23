@@ -6,7 +6,8 @@ import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
-import { DEFAULT_SECURITY, scanString } from "../security/scan.ts";
+import { DEFAULT_SECURITY } from "../security/scan.ts";
+import { REJECTED, checkValue, type Checked, type ValueFinding } from "../review/checked.ts";
 import { PacketError, buildPacket, type PacketFinding, type PacketOptions } from "../review/packet.ts";
 import { ZipError, createStoredZip } from "../review/zip.ts";
 
@@ -43,6 +44,47 @@ export interface ReviewPacketOptions {
 
 /** Output file names: ASCII letters, digits, ".", "_", "-" only. */
 const OUTPUT_NAME = /^[A-Za-z0-9._-]+$/;
+
+/** The options that cli.ts registers for review-packet (commander attribute names). */
+type OptionName = "range" | "cwd" | "label" | "output" | "zip" | "zipOutput" | "request" | "review" | "doc" | "exclude" | "maxFileBytes" | "maxPacketBytes" | "config" | "json";
+
+interface OptionEntry {
+  /**
+   * - rendered: the strings of `rendered` go into the packet or its ZIP; they are checked for raw characters and
+   *   secret shapes before git runs (finding, exit 1), which is the only way to the Checked values buildPacket takes
+   * - path: a path that is resolved and used, never rendered; a forbidden character in the resolved path is exit 2
+   * - config: a file that is read (errors are printed through the safe display)
+   * - number / flag: not text
+   */
+  handling: "rendered" | "path" | "config" | "number" | "flag";
+  /** For rendered values: the finding source; a repeatable option's values are numbered (" 1", " 2", …). */
+  source?: string;
+  repeatable?: boolean;
+  rendered?: (o: ReviewPacketOptions, cwd: string) => string[];
+}
+
+/**
+ * Every option of `aiqh review-packet` and how its value is handled before anything is rendered or written
+ * (M2-1 R2, ADR-0014). tests/regression-m2-1-r2-checked-inventory.test.ts compares the keys with the options
+ * that cli.ts registers, so a new option cannot be added without deciding here how its value is checked.
+ */
+export const OPTION_INVENTORY: Readonly<Record<OptionName, OptionEntry>> = {
+  range: { handling: "rendered", source: "range", rendered: (o) => [o.range] },
+  label: { handling: "rendered", source: "label", rendered: (o) => (o.label === undefined ? [] : [o.label]) },
+  exclude: { handling: "rendered", source: "--exclude pattern", repeatable: true, rendered: (o) => o.exclude ?? [] },
+  doc: { handling: "rendered", source: "doc path", repeatable: true, rendered: (o) => o.doc ?? [] },
+  request: { handling: "rendered", source: "request file name", rendered: (o, cwd) => (o.request === undefined ? [] : [inputName(cwd, o.request)]) },
+  review: { handling: "rendered", source: "review file name", repeatable: true, rendered: (o, cwd) => (o.review ?? []).map((r) => inputName(cwd, r)) },
+  // The packet's file name is the ZIP entry name (M2-1-R2-001); its resolved path is also checked as a path (exit 2).
+  output: { handling: "rendered", source: "output file name", rendered: (o, cwd) => (o.output === undefined ? [] : [path.basename(path.resolve(cwd, o.output))]) },
+  zipOutput: { handling: "path" },
+  cwd: { handling: "path" },
+  config: { handling: "config" },
+  maxFileBytes: { handling: "number" },
+  maxPacketBytes: { handling: "number" },
+  zip: { handling: "flag" },
+  json: { handling: "flag" },
+};
 
 interface JsonSummary {
   result: "written" | "findings" | "error";
@@ -103,16 +145,16 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     // Order (M2-1-R2-007): a detection (exit 1) comes before an error (exit 2) whenever both are known. Only
     // what the check itself needs comes first: the command line (commander) and the security configuration.
     const security = readSecurity(cwd, options.configPath);
-    const optionFindings = checkOptionValues(options, cwd, security);
-    if (optionFindings.length > 0) return rejected(optionFindings);
+    const opt = checkOptionValues(options, cwd, security);
+    if (opt.findings.length > 0) return rejected(opt.findings);
     const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
     if (cwdProblem !== null) return fail(cwdProblem);
-    const packetOpts: PacketOptions = { cwd, range: options.range, security, toolVersion: options.toolVersion };
-    if (options.label !== undefined) packetOpts.label = options.label;
-    if (options.request !== undefined) packetOpts.request = readInput(cwd, options.request, options.stdin);
-    packetOpts.reviews = (options.review ?? []).map((r) => readInput(cwd, r, options.stdin));
-    packetOpts.docs = options.doc ?? [];
-    packetOpts.excludes = options.exclude ?? [];
+    const packetOpts: PacketOptions = { cwd, range: nth(opt.checked, "range", 0), security, toolVersion: options.toolVersion };
+    if (options.label !== undefined) packetOpts.label = nth(opt.checked, "label", 0);
+    if (options.request !== undefined) packetOpts.request = { name: nth(opt.checked, "request", 0), bytes: readInput(cwd, options.request, options.stdin) };
+    packetOpts.reviews = (options.review ?? []).map((r, i) => ({ name: nth(opt.checked, "review", i), bytes: readInput(cwd, r, options.stdin) }));
+    packetOpts.docs = opt.checked.get("doc") ?? [];
+    packetOpts.excludes = opt.checked.get("exclude") ?? [];
     if (options.maxFileBytes !== undefined) packetOpts.maxFileBytes = options.maxFileBytes;
     if (options.maxPacketBytes !== undefined) packetOpts.maxPacketBytes = options.maxPacketBytes;
     if (options.today !== undefined) packetOpts.today = options.today;
@@ -121,10 +163,13 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     if (!built.ok) return rejected(built.findings);
 
     const output = path.resolve(cwd, options.output ?? path.join(built.root, "artifacts", "ai-review", `review-packet-${built.label}.md`));
-    const entryName = path.basename(output);
-    if (options.output === undefined) {
-      const nameFindings = valueFindings(entryName, "output file name", security);
-      if (nameFindings.length > 0) return rejected(nameFindings);
+    // The ZIP entry name: checked through the inventory for -o, here for the default name (from the Checked label).
+    let entryName: Checked;
+    if (options.output !== undefined) entryName = nth(opt.checked, "output", 0);
+    else {
+      const r = checkValue(path.basename(output), security);
+      if (!r.ok) return rejected(asPacketFindings(r.findings, "output file name"));
+      entryName = r.value;
     }
     const zipWanted = options.zip === true || options.zipOutput !== undefined;
     const zipPath = zipWanted ? path.resolve(cwd, options.zipOutput ?? output.replace(/\.md$/, "") + ".zip") : null;
@@ -210,30 +255,37 @@ function rawCharsIn(option: string, resolved: string): string | null {
 }
 
 /**
- * Option values that end up in the packet or its ZIP, checked for raw characters and secret shapes before git
- * is run and before anything is rendered (M2-1-R2-006). The renderers turn raw characters into ASCII notation,
- * so a value that is not checked here would pass both stages. The packet's file name is the ZIP entry name,
- * which the whole-packet check never sees (M2-1-R2-001). Findings name the option, never the value.
+ * The rendered option values of OPTION_INVENTORY, checked for raw characters and secret shapes before git is
+ * run and before anything is rendered (M2-1-R2-006; the packet's file name, which becomes the ZIP entry name,
+ * M2-1-R2-001). The renderers turn raw characters into ASCII notation, so a value that is not checked here
+ * would pass both stages; buildPacket takes only the Checked values returned here. Findings name the option,
+ * never the value.
  */
-function checkOptionValues(options: ReviewPacketOptions, cwd: string, security: ResolvedSecurity): PacketFinding[] {
-  const values: Array<[source: string, value: string]> = [["range", options.range]];
-  if (options.label !== undefined) values.push(["label", options.label]);
-  (options.exclude ?? []).forEach((g, i) => values.push([`--exclude pattern ${i + 1}`, g]));
-  (options.doc ?? []).forEach((d, i) => values.push([`doc path ${i + 1}`, d]));
-  if (options.request !== undefined) values.push(["request file name", inputName(cwd, options.request)]);
-  (options.review ?? []).forEach((r, i) => values.push([`review file name ${i + 1}`, inputName(cwd, r)]));
-  if (options.output !== undefined) values.push(["output file name", path.basename(path.resolve(cwd, options.output))]);
-  return values.flatMap(([source, value]) => valueFindings(value, source, security));
+function checkOptionValues(options: ReviewPacketOptions, cwd: string, security: ResolvedSecurity): { findings: PacketFinding[]; checked: Map<OptionName, Checked[]> } {
+  const findings: PacketFinding[] = [];
+  const checked = new Map<OptionName, Checked[]>();
+  for (const [name, entry] of Object.entries(OPTION_INVENTORY) as Array<[OptionName, OptionEntry]>) {
+    if (entry.handling !== "rendered" || entry.rendered === undefined) continue;
+    const values = entry.rendered(options, cwd).map((value, i) => {
+      const r = checkValue(value, security);
+      if (r.ok) return r.value;
+      findings.push(...asPacketFindings(r.findings, entry.repeatable === true ? `${entry.source ?? name} ${i + 1}` : (entry.source ?? name)));
+      return REJECTED;
+    });
+    checked.set(name, values);
+  }
+  return { findings, checked };
 }
 
-/** Raw characters and secret shapes in one value; the findings carry `source` and never the value. */
-function valueFindings(value: string, source: string, security: ResolvedSecurity): PacketFinding[] {
-  const out: PacketFinding[] = [];
-  for (const h of findRawChars(value)) out.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: null, stage: "input" });
-  for (const f of scanString(value, security)) {
-    out.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source, line: f.line ?? 1, detail: f.category ?? null, location: null, stage: "input" });
-  }
-  return out;
+function asPacketFindings(findings: ValueFinding[], source: string): PacketFinding[] {
+  return findings.map((f) => ({ kind: f.kind, source, line: f.line, detail: f.detail, location: null, stage: "input" }));
+}
+
+/** The i-th Checked value of an option (present by construction; a missing one is an internal error). */
+function nth(checked: Map<OptionName, Checked[]>, name: OptionName, i: number): Checked {
+  const v = checked.get(name)?.[i];
+  if (v === undefined) throw new Error(`internal: option ${name} value ${i + 1} was not checked`);
+  return v;
 }
 
 /** The name shown for a --request / --review file (its basename, or "(standard input)" for "-"). */
@@ -245,11 +297,12 @@ class InputError extends Error {
   override readonly name = "InputError";
 }
 
-function readInput(cwd: string, file: string, stdin: (() => Buffer) | undefined): { name: string; bytes: Uint8Array } {
-  if (file === "-") return { name: inputName(cwd, file), bytes: stdin ? stdin() : readFileSync(0) };
+/** The bytes of a --request / --review file (its name is checked through OPTION_INVENTORY). */
+function readInput(cwd: string, file: string, stdin: (() => Buffer) | undefined): Uint8Array {
+  if (file === "-") return stdin ? stdin() : readFileSync(0);
   const abs = path.resolve(cwd, file);
   try {
-    return { name: inputName(cwd, file), bytes: readFileSync(abs) };
+    return readFileSync(abs);
   } catch (err) {
     throw new InputError(`cannot read ${file}: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }

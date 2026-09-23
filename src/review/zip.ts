@@ -5,10 +5,15 @@
  * entries therefore always give the same bytes. No ZIP64: sizes and offsets must fit in 32 bits.
  */
 import { crc32 } from "node:zlib";
+import type { Checked } from "./checked.ts";
 
 export interface ZipEntry {
-  /** Archive path: ASCII letters, digits, ".", "_", "-", separated by "/"; no "." / ".." segments. */
-  name: string;
+  /**
+   * Archive path: ASCII letters, digits, ".", "_", "-", separated by "/"; no "." / ".." segments. Checked (raw
+   * characters and secret shapes, M2-1-R2-001): the name is written twice into the archive and is not part of the
+   * packet text that the whole-packet check sees.
+   */
+  name: Checked;
   data: Uint8Array;
 }
 

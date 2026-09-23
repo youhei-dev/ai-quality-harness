@@ -11,7 +11,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runReviewPacket, type ReviewPacketOptions } from "../src/commands/review-packet.ts";
 import { LOCK_FILE_NAMES, renderPath } from "../src/review/packet.ts";
-import { fake, makeTempDir } from "./helpers.ts";
+import { checked, fake, makeTempDir } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -197,8 +197,8 @@ describe("review-packet: content", () => {
     const res = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "paths" });
     expect(res.code, res.err).toBe(0);
     const md = readFileSync(outPath(r.dir, "paths"), "utf8");
-    expect(md).toContain(`## ${renderPath(nl)} (1 lines)\n\n\`\`\`text\nnewline path content\n\`\`\``);
-    expect(renderPath(nl)).toBe("`odd\\nname.txt`");
+    expect(md).toContain(`## ${renderPath(checked(nl))} (1 lines)\n\n\`\`\`text\nnewline path content\n\`\`\``);
+    expect(renderPath(checked(nl))).toBe("`odd\\nname.txt`");
     expect(md).toContain(`## \`${jp}\` (1 lines)\n\n\`\`\`markdown\njapanese path content\n\`\`\``);
     expect(md).toContain("## `with space/a b.ts` (1 lines)");
   });

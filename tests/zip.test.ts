@@ -6,6 +6,7 @@
 import { crc32 } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { DOS_DATE, DOS_TIME, ZipError, createStoredZip } from "../src/review/zip.ts";
+import { checked } from "./helpers.ts";
 
 interface ReadEntry {
   name: string;
@@ -60,7 +61,7 @@ function readZip(zip: Buffer): ReadEntry[] {
 describe("createStoredZip", () => {
   it("writes one stored entry that the reader accepts, with fixed time, UTF-8 flag and mode 0644", () => {
     const data = Buffer.from("# Review Packet\n\n本文 `code`\n".repeat(500), "utf8");
-    const entries = readZip(createStoredZip([{ name: "review-packet-demo.md", data }]));
+    const entries = readZip(createStoredZip([{ name: checked("review-packet-demo.md"), data }]));
     expect(entries).toHaveLength(1);
     const [e] = entries;
     expect(e?.name).toBe("review-packet-demo.md");
@@ -75,9 +76,9 @@ describe("createStoredZip", () => {
 
   it("keeps several entries in the given order, including an empty one", () => {
     const zip = createStoredZip([
-      { name: "b.md", data: Buffer.from("second") },
-      { name: "a/empty.txt", data: new Uint8Array(0) },
-      { name: "c.md", data: Buffer.from([0, 1, 2, 255]) },
+      { name: checked("b.md"), data: Buffer.from("second") },
+      { name: checked("a/empty.txt"), data: new Uint8Array(0) },
+      { name: checked("c.md"), data: Buffer.from([0, 1, 2, 255]) },
     ]);
     expect(readZip(zip).map((e) => [e.name, e.data.length])).toEqual([
       ["b.md", 6],
@@ -88,8 +89,8 @@ describe("createStoredZip", () => {
 
   it("is reproducible byte for byte and independent of the clock", () => {
     const data = Buffer.from("same input\n");
-    const a = createStoredZip([{ name: "p.md", data }]);
-    const b = createStoredZip([{ name: "p.md", data: Buffer.from(data) }]);
+    const a = createStoredZip([{ name: checked("p.md"), data }]);
+    const b = createStoredZip([{ name: checked("p.md"), data: Buffer.from(data) }]);
     expect(a.equals(b)).toBe(true);
     // header sizes: local 30 + name, central 46 + name, end 22
     expect(a.length).toBe(30 + 4 + data.length + 46 + 4 + 22);
@@ -98,18 +99,18 @@ describe("createStoredZip", () => {
   it("accepts a Uint8Array view with a non-zero offset", () => {
     const backing = Buffer.from("xxhello");
     const view = new Uint8Array(backing.buffer, backing.byteOffset + 2, 5);
-    expect(readZip(createStoredZip([{ name: "v.txt", data: view }]))[0]?.data.toString()).toBe("hello");
+    expect(readZip(createStoredZip([{ name: checked("v.txt"), data: view }]))[0]?.data.toString()).toBe("hello");
   });
 
   it("rejects no entries, unsafe or non-ASCII names, and duplicates", () => {
     expect(() => createStoredZip([])).toThrow(ZipError);
     for (const name of ["", "/abs.md", "../up.md", "a/../b.md", "./a.md", "a\\b.md", "日本.md", "a b.md", "a//b.md", "dir/"]) {
-      expect(() => createStoredZip([{ name, data: Buffer.from("x") }]), JSON.stringify(name)).toThrow(ZipError);
+      expect(() => createStoredZip([{ name: checked(name), data: Buffer.from("x") }]), JSON.stringify(name)).toThrow(ZipError);
     }
     expect(() =>
       createStoredZip([
-        { name: "a.md", data: Buffer.from("1") },
-        { name: "a.md", data: Buffer.from("2") },
+        { name: checked("a.md"), data: Buffer.from("1") },
+        { name: checked("a.md"), data: Buffer.from("2") },
       ]),
     ).toThrow(/duplicate/);
   });

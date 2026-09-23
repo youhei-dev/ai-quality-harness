@@ -10,7 +10,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createStoredZip } from "../src/review/zip.ts";
-import { makeTempDir } from "./helpers.ts";
+import { checked, makeTempDir } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -24,9 +24,9 @@ function sample(): { file: string; entries: Array<{ name: string; data: Buffer }
   const t = makeTempDir("aiqh-zip-interop-");
   cleanups.push(t.cleanup);
   const entries = [
-    { name: "review-packet-demo.md", data: Buffer.from("# Review Packet\n\n" + `${String.fromCodePoint(0x65e5, 0x672c)} \`code\`\n`.repeat(300), "utf8") },
-    { name: "dir/empty.txt", data: Buffer.alloc(0) },
-    { name: "bytes.bin", data: Buffer.from([0, 1, 2, 250, 251, 255]) },
+    { name: checked("review-packet-demo.md"), data: Buffer.from("# Review Packet\n\n" + `${String.fromCodePoint(0x65e5, 0x672c)} \`code\`\n`.repeat(300), "utf8") },
+    { name: checked("dir/empty.txt"), data: Buffer.alloc(0) },
+    { name: checked("bytes.bin"), data: Buffer.from([0, 1, 2, 250, 251, 255]) },
   ];
   const file = path.join(t.dir, "sample.zip");
   writeFileSync(file, createStoredZip(entries));

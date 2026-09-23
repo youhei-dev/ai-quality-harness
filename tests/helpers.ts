@@ -1,6 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { checkValue, type Checked } from "../src/review/checked.ts";
+import { DEFAULT_SECURITY } from "../src/security/scan.ts";
 import type { CheckResult } from "../src/types.ts";
 
 export function makeTempDir(prefix = "aiqh-test-"): { dir: string; cleanup: () => void } {
@@ -79,4 +81,11 @@ export async function waitForPid(file: string, ms: number): Promise<number> {
  */
 export function fake(prefix: string, body: string): string {
   return prefix + body;
+}
+
+/** A Checked value for tests (M2-1 R2); throws unless `value` passes the pre-render check. */
+export function checked(value: string): Checked {
+  const r = checkValue(value, DEFAULT_SECURITY);
+  if (!r.ok) throw new Error(`test value does not pass the pre-render check: ${JSON.stringify(r.findings)}`);
+  return r.value;
 }
