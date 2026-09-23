@@ -2,8 +2,8 @@
  * M2-1-R1-004 (Medium): metadata outside the fenced blocks (request / review file names, --exclude
  * globs, verify check names, commit subjects, paths) was inserted with only `|` escaped, so LF, backticks
  * or backslashes could create fake headings or break tables. Now inline code, headings and table cells
- * have their own renderers: LF, TAB, backslash and backtick become `\n` `\t` `\\` `` \` `` (so no backtick
- * is left inside the single-backtick code span), and table cells also escape `|`.
+ * have their own renderers: LF, TAB and backslash become `\n` `\t` `\\`, a backtick `\u{60}` (M2-1-R2-005: no
+ * backtick is left inside the single-backtick code span), and table cells also escape `|`.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -119,6 +119,6 @@ describe("M2-1-R1-004: metadata cannot change the packet's Markdown structure", 
     expect(lines.filter((l) => /^#+ Fake/.test(l))).toEqual([]);
     expect(tableProblems(lines)).toEqual([]);
     // the names are still visible, in the escaped form
-    expect(md).toContain("x\\n# Fake Request\\n\\`\\`\\`\\\\|y");
+    expect(md).toContain("x\\n# Fake Request\\n\\u{60}\\u{60}\\u{60}\\\\|y");
   });
 });

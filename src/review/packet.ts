@@ -202,9 +202,10 @@ function resolveCommit(root: string, ref: string, side: string): { sha: string; 
 // rendering helpers
 
 /**
- * Content of an inline code span (M2-1-R1-004): LF, TAB, backslash and backtick become `\\n` `\\t` `\\\\` `` \\` ``,
- * other control / separator / bidi characters `\\u{HEX}`. No backtick is left, so one backtick on each side
- * always delimits the span, and no line break can start a heading or a table row.
+ * Content of an inline code span (M2-1-R1-004, M2-1-R2-005): LF, TAB and backslash become `\\n` `\\t` `\\\\`,
+ * a backtick (U+0060) and other control / separator / bidi characters the ASCII notation `\\u{HEX}`. No U+0060 is
+ * left (a backslash does not escape inside a CommonMark code span, so `` \\` `` would still close it), so one backtick
+ * on each side always delimits the span, and no line break can start a heading or a table row.
  */
 function escapeInline(s: string): string {
   let out = "";
@@ -213,8 +214,7 @@ function escapeInline(s: string): string {
     if (cp === 0x0a) out += "\\n";
     else if (cp === 0x09) out += "\\t";
     else if (cp === 0x5c) out += "\\\\";
-    else if (cp === 0x60) out += "\\`";
-    else if (cp < 0x20 || isForbiddenCodePoint(cp)) out += `\\u{${cp.toString(16).toUpperCase()}}`;
+    else if (cp === 0x60 || cp < 0x20 || isForbiddenCodePoint(cp)) out += `\\u{${cp.toString(16).toUpperCase()}}`;
     else out += c;
   }
   return out;
