@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.5 — M2-1 preparation — flaky r3-cli test fixed（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.5` / `git rev-parse v0.3.5` で確認。最終報告に記載）
+## v0.4.0 — M2-1 — aiqh review-packet（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.0` / `git rev-parse v0.4.0` で確認。最終報告に記載）
+
+- 新コマンド `aiqh review-packet --range <from>..<to>`（ADR-0014）: 独立レビュー用の Markdown パケットを機械的に得た事実だけで作る。人間の依頼文・前回レビュー（任意）、
+  commit メッセージ（Co-Authored-By / Claude-Session の trailer を除去）、変更ファイル一覧、ファイルごとの差分、`<to>` 時点の変更ファイルの全文、`--doc` の文書、
+  `<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ）。実装者の自己評価・手書きの節は載せない。`--zip` でパケットだけを含む無圧縮 ZIP
+- fail closed: 不正な UTF-8・生文字（C0〈TAB・LF 以外、CR を含む〉・DEL・C1・U+2028 / U+2029・双方向制御文字・U+FEFF）・秘密の形を、入力ごとと組み立て後の
+  2 段で検査し、検出があれば何も書かない（exit 1）。`security.allow` は出所のパスと行に適用。差分の finding は差分の行とファイルの行を両方表示（`diff a.ts:7 (a.ts:1)`、
+  削除行は `(a.ts@from:5)`）。使い方・git・範囲・上限・書込のエラーは exit 2（review-packet の commander の使い方エラーも 2）
+- 範囲は最初に完全 SHA に解決し、`<from>` が `<to>` の祖先でなければ exit 2。git は引数配列で呼び、パスは `-z`、内容は blob から。lock ファイル 12 種は既定で全文・差分なし、
+  除外・lock・バイナリは blob の SHA-256 を記録。同じ入力・同じ aiqh と git の版ならパケットと ZIP はバイト単位で一致（TZ / LANG に依存しない）
+- 新規モジュール: `src/security/raw-chars.ts`（禁止集合と厳格な UTF-8。追跡中の Markdown の検査テストもこれを使う）、`src/review/zip.ts`（`zlib.crc32`、固定 DOS 日時）、
+  `src/review/packet.ts`、`src/commands/review-packet.ts`。`src/security/scan.ts` から `findAllowRule` を切り出し（挙動同じ）。新規依存なし
+- `--cwd` を付けたとき既定の設定は `--cwd` 先の `aiqh.config.jsonc`（プロセスのカレントの設定は使わない。ガードテスト）
+- docs: ADR-0014、ARCHITECTURE、CONFIG_SPEC、README、ROADMAP（review-packet の記述と完了条件を改訂、バックログに review-packet テストの分割・並列化と
+  他コマンドの使い方エラーの exit 2 化を追加）。`docs/adr/README.md` に 0012・0013 の行を補完
+- テスト 389 件（71 ファイル）。`package.json` version 0.4.0
+
+## v0.3.5 — commit cae4b7a / tag object 36922ad — M2-1 preparation — flaky r3-cli test fixed
 
 - テストのみの修正（`src/` の変更なし）。v0.3.4 の worktree 検証で 1 回だけ FAIL した `tests/regression-r3-cli.test.ts` の「check 1's descendants are gone」の原因は、
   pid ファイルを作成と書き込みの間に読む競合（`Number("") = 0` → `process.kill(0, 0)` が自分のプロセスグループに成功 → alive と判定）。調査記録 `docs/reports/M2-1_FLAKY_R3_CLI.md`
