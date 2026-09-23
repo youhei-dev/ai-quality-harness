@@ -120,8 +120,20 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 7. `.env` 判定の代表パス・example サフィックスの設定化、窓走査の上限 / 重なりの設定化
 8. 持ち越し済みの整理: **R-012 は完了**（masker と scanner の定義共有 + `security.allow`）。R-010（M4）/ R-011 後半（M3）/ R-013（並列化時）は従来の行き先のまま
 
+### M2-1 準備 — 不安定テストの修正 — v0.3.5（2026-09-23）
+- 対象: `tests/regression-r3-cli.test.ts` の「check 1's descendants are gone」（v0.3.4 の commit 単位の worktree 検証で `npm run verify` の中の 1 回だけ FAIL、やり直しで PASS）
+- 原因（テスト側の読み取りの競合）: pid ファイルの**存在**だけを待って直後に中身を読んでいた。書き手の `writeFileSync` は作成と書き込みの 2 段で、その間に読むと `""` →
+  `Number("") = 0` → `process.kill(0, 0)` は自分のプロセスグループ宛てで必ず成功 → alive と判定。後始末の `killIfAlive` も同じ読み方で、pid 0 なら自分のグループを SIGKILL し得た。
+  製品（`aiqh verify` の中断処理）の不具合ではない。ゾンビ・PID 再利用・判定までの時間の仮説は計測で否定した
+- 対応: pid は「中身が正の安全な整数」になるまで待つ共通 helper（`tests/helpers.ts` の `waitForPid`）で読み、`process.kill` に 0 以下・NaN を渡さないガードを置いた。
+  同じ読み方の 4 箇所も同じ helper に置き換えた。pid ファイルを空で作り後から書く回帰ケースを追加（修正前 FAIL を記録）。詳細は `docs/reports/M2-1_FLAKY_R3_CLI.md`
+- テスト件数: 339（v0.3.4 の 338 + 回帰ケース 1）。製品コード（`src/`）の変更なし
+
 ### M2-1 以降のバックログ（上から順に扱う）
-1. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
+対象リポジトリに 256 KiB を超える行が無いため後に回す。
+1. **M2-1 `aiqh review-packet`**（v0.4.0 の予定）
+2. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -130,14 +142,19 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-2. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
-3. M2-1 `aiqh review-packet`、M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+3. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+4. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
    key-value 誤検出の継続記録（下の「内容」）
-4. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+5. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
+   SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
+   SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
+   実測では `close` がパイプを握る子孫の終了を待つため消えていたが、stdio を手放した子孫には効かない。ARCHITECTURE は今回（v0.3.5）書き換えていない
+6. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
 - `aiqh review-packet`: 依頼文（ファイルまたは標準入力）、変更ファイル一覧、`git diff`（サイズ上限あり）、ADR / docs の要約、最新 verify 結果、既知の懸念から Markdown パケットを生成。実装AI の「正しい」という結論は含めない
+  （この記述は v0.4.0 で依頼書の要件〈変更ファイルの全文、自己評価なし、検査内蔵、ZIP〉に合わせて改める）
 - `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ
 - 再修正 → 再 verify → 再パケットのループ手順を docs に明文化
 

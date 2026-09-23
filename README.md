@@ -27,7 +27,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M2-0「スキャナ保守」は完了（完了ベースライン `v0.3.3`、記録タグ `v0.3.4`。独立レビュー R1〜R3 を反映し、R4 の 1 件は M2-1 以降へ持ち越し）。次は M2-1**（バックログの先頭は「窓走査は正規表現の境界の文脈を保つ」、続いて review-packet コマンド。[`docs/reports/M2-0_COMPLETION.md`](docs/reports/M2-0_COMPLETION.md)）。M1（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）では`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+**M2-0「スキャナ保守」は完了（完了ベースライン `v0.3.3`、記録タグ `v0.3.4`。独立レビュー R1〜R3 を反映し、R4 の 1 件は M2-1 以降へ持ち越し）。次は M2-1**（`aiqh review-packet` コマンド。v0.3.5 で順序を変更し、「窓走査は正規表現の境界の文脈を保つ」はその後。[`docs/reports/M2-0_COMPLETION.md`](docs/reports/M2-0_COMPLETION.md)）。M1（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）では`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
 チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
 M1 の独立レビュー R1（10 件、High 3）を v0.2.1、R2（5 件、High 1）を v0.2.2 で反映し、R3（5 件、High 0）は M2-0 へ持ち越しました。
 各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md)、
