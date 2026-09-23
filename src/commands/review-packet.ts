@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
 import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
@@ -136,7 +136,9 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
       if (problem !== null) return fail(problem);
       if (!OUTPUT_NAME.test(path.basename(p))) return fail(`output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}`);
     }
-    if (zipPath !== null && zipPath === output) return fail("--zip-output must differ from the packet path");
+    if (zipPath !== null && targetIdentity(zipPath) === targetIdentity(output)) {
+      return fail("--zip-output resolves to the same file as the packet path (compared through symbolic links in the parent directories, ignoring case)");
+    }
 
     // Both contents first, then one two-phase write for both files (M2-1-R1-003).
     const bytes = Buffer.from(built.text, "utf8");
@@ -250,6 +252,28 @@ interface WriteTarget {
 
 class WriteError extends Error {
   override readonly name = "WriteError";
+}
+
+/**
+ * The file that writing to `p` would replace, for comparing the packet and ZIP targets (M2-1-R2-002): the
+ * parent directory through realpath (through its nearest existing ancestor when it does not exist yet) plus
+ * the basename, in NFC and lower case. Case-only differences are treated as the same file on every file
+ * system (a case-insensitive one would write both to one file; rejecting them everywhere is the safe side).
+ */
+function targetIdentity(p: string): string {
+  const rest = [path.basename(p)];
+  let dir = path.dirname(p);
+  for (;;) {
+    try {
+      return path.join(realpathSync(dir), ...rest).normalize("NFC").toLowerCase();
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      const parent = path.dirname(dir);
+      if ((code !== "ENOENT" && code !== "ENOTDIR") || parent === dir) throw err;
+      rest.unshift(path.basename(dir));
+      dir = parent;
+    }
+  }
 }
 
 /** Unused sibling name `.<base>.<kind>-<pid>-<random>` (never an existing file). */
