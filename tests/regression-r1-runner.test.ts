@@ -4,11 +4,11 @@
  * Test names carry the review ID so the "FAIL before fix / PASS after fix" record can be traced.
  * Dummy secrets are assembled at runtime with fake() (see CLAUDE.md).
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval } from "./helpers.ts";
+import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -37,7 +37,8 @@ describe("R-004 killTree: SIGKILL escalation reaches the group after the leader 
     expect(r.timedOut).toBe(true);
     expect(elapsed).toBeLessThan(4000);
     expect(existsSync(pidFile)).toBe(true);
-    const grandchildPid = Number(readFileSync(pidFile, "utf8"));
+    // M2-1: never pass an empty / half-written pid file (Number("") = 0) to process.kill.
+    const grandchildPid = await waitForPid(pidFile, 2000);
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(() => process.kill(grandchildPid, 0)).toThrow();
   }, 15_000);

@@ -3,11 +3,10 @@
  * (docs/reviews/m0/independent-review-r2.md). The CLI's SIGINT / SIGTERM handling must use the
  * same clean-up path: SIGTERM to every active group → grace → SIGKILL → exit.
  */
-import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand, terminateActiveChildren } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval } from "./helpers.ts";
+import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -24,8 +23,8 @@ describe("R2-002 terminateActiveChildren (CLI signal path)", () => {
     )}; true`;
 
     const running = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000 });
-    while (!existsSync(pidFile)) await new Promise((resolve) => setTimeout(resolve, 20));
-    const grandchildPid = Number(readFileSync(pidFile, "utf8"));
+    // M2-1: wait for a valid pid, not for the file to exist (Number("") = 0 would probe our own group).
+    const grandchildPid = await waitForPid(pidFile, 8000);
 
     const started = Date.now();
     await terminateActiveChildren(300);

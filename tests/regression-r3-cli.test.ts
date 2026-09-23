@@ -10,17 +10,27 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { VerificationReport } from "../src/types.ts";
-import { makeTempDir, nodeEval } from "./helpers.ts";
+import { assertSignalablePid, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const CLI = path.resolve(import.meta.dirname, "..", "src", "cli.ts");
 const cleanups: Array<() => void> = [];
 afterEach(() => {
-  while (cleanups.length > 0) cleanups.pop()?.();
+  // Run every clean-up even if one throws (e.g. the pid guard), then report the first error.
+  const errors: unknown[] = [];
+  while (cleanups.length > 0) {
+    try {
+      cleanups.pop()?.();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  if (errors.length > 0) throw errors[0];
 });
 
 function killIfAlive(pidFile: string): void {
   if (!existsSync(pidFile)) return;
   const pid = Number(readFileSync(pidFile, "utf8"));
+  assertSignalablePid(pid);
   try {
     process.kill(pid, "SIGKILL");
   } catch {
@@ -29,6 +39,7 @@ function killIfAlive(pidFile: string): void {
 }
 
 function alive(pid: number): boolean {
+  assertSignalablePid(pid);
   try {
     process.kill(pid, 0);
     return true;
@@ -43,21 +54,38 @@ async function waitFor(pred: () => boolean, ms: number): Promise<boolean> {
   return pred();
 }
 
-function project(): { dir: string; one: { started: string; pid: string }; two: { started: string; pid: string } } {
+interface ScenarioOptions {
+  /**
+   * M2-1 (v0.3.5): when > 0, check 1 creates its pid file empty and writes the pid this many ms
+   * later. This widens the window between file creation and write that a reader can fall into.
+   */
+  pidWriteDelayMs?: number;
+}
+
+function project(options: ScenarioOptions = {}): { dir: string; one: { started: string; pid: string }; two: { started: string; pid: string } } {
   const t = makeTempDir("aiqh-r3-cli-");
   const dir = t.dir;
   const one = { started: path.join(dir, "one.started"), pid: path.join(dir, "one.pid") };
   const two = { started: path.join(dir, "two.started"), pid: path.join(dir, "two.pid") };
   cleanups.push(() => {
-    killIfAlive(one.pid);
-    killIfAlive(two.pid);
-    t.cleanup();
+    // The temp dir is removed even when the pid guard in killIfAlive throws.
+    try {
+      killIfAlive(one.pid);
+      killIfAlive(two.pid);
+    } finally {
+      t.cleanup();
+    }
   });
   // check 1: marks start, records its pid, sleeps; dies on SIGTERM (default) -> the runner moves on quickly.
   // check 2: marks start, records its pid, ignores SIGTERM and lingers -> must never be started.
   // "; true" makes the shell fork node as a grandchild (separate pid from the group leader).
+  const delay = options.pidWriteDelayMs ?? 0;
+  const writePid =
+    delay > 0
+      ? `fs.writeFileSync(${JSON.stringify(one.pid)}, ""); setTimeout(() => fs.writeFileSync(${JSON.stringify(one.pid)}, String(process.pid)), ${delay});`
+      : `fs.writeFileSync(${JSON.stringify(one.pid)}, String(process.pid));`;
   const oneCmd = `${nodeEval(
-    `const fs=require("fs"); fs.writeFileSync(${JSON.stringify(one.started)}, "1"); fs.writeFileSync(${JSON.stringify(one.pid)}, String(process.pid)); setTimeout(() => {}, 10000)`,
+    `const fs=require("fs"); fs.writeFileSync(${JSON.stringify(one.started)}, "1"); ${writePid} setTimeout(() => {}, 10000)`,
   )}; true`;
   const twoCmd = `${nodeEval(
     `const fs=require("fs"); fs.writeFileSync(${JSON.stringify(two.started)}, "1"); process.on("SIGTERM", () => {}); fs.writeFileSync(${JSON.stringify(two.pid)}, String(process.pid)); setTimeout(() => {}, 8000)`,
@@ -76,22 +104,23 @@ function project(): { dir: string; one: { started: string; pid: string }; two: {
   return { dir, one, two };
 }
 
-async function runScenario(signal: "SIGINT" | "SIGTERM"): Promise<{
+async function runScenario(signal: "SIGINT" | "SIGTERM", options: ScenarioOptions = {}): Promise<{
   code: number | null;
   output: string;
   onePid: number;
   twoStarted: boolean;
   report: VerificationReport | null;
 }> {
-  const { dir, one, two } = project();
+  const { dir, one, two } = project(options);
   const cli = spawn(process.execPath, [CLI, "verify"], { cwd: dir, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   cli.stdout.on("data", (d: Buffer) => (output += d.toString()));
   cli.stderr.on("data", (d: Buffer) => (output += d.toString()));
   const exited = new Promise<number | null>((resolve) => cli.on("exit", (code) => resolve(code)));
 
-  expect(await waitFor(() => existsSync(one.started) && existsSync(one.pid), 8000)).toBe(true);
-  const onePid = Number(readFileSync(one.pid, "utf8"));
+  expect(await waitFor(() => existsSync(one.started), 8000)).toBe(true);
+  // M2-1: wait for a valid pid, not for the file to exist (see the delayed-write case below).
+  const onePid = await waitForPid(one.pid, 8000);
   await new Promise((r) => setTimeout(r, 100));
   cli.kill(signal);
 
@@ -112,7 +141,7 @@ describe("R3-002 CLI signal handling cancels the pipeline", () => {
       const r = await runScenario(signal);
       expect(r.code).toBe(expectedCode);
       expect(r.twoStarted).toBe(false);
-      expect(alive(r.onePid)).toBe(false);
+      expect(alive(r.onePid), `pid=${r.onePid}`).toBe(false);
       expect(r.output).not.toContain("PASSED");
       expect(r.output).not.toContain("VERIFY FAILED");
       expect(r.output).toContain("VERIFY ERROR");
@@ -127,4 +156,19 @@ describe("R3-002 CLI signal handling cancels the pipeline", () => {
       expect(r.output).toContain("SKIPPED");
     }, 20_000);
   }
+
+  // M2-1 (v0.3.5): the flaky failure at "descendants are gone" came from reading the pid file
+  // between its creation and the write: Number("") = 0 and kill(0, 0) hits the test's own process
+  // group, so alive() was true. The writer is kept non-atomic on purpose so this case keeps
+  // exercising the reader's wait.
+  it("pid file created empty and written later: the pid read is valid and the SIGTERM guarantees hold", async () => {
+    const r = await runScenario("SIGTERM", { pidWriteDelayMs: 400 });
+    expect(r.onePid).toBeGreaterThan(0);
+    expect(r.code).toBe(143);
+    expect(r.twoStarted).toBe(false);
+    expect(alive(r.onePid), `pid=${r.onePid}`).toBe(false);
+    expect(r.output).not.toContain("PASSED");
+    expect(r.output).toContain("VERIFY ERROR");
+    expect(r.report?.interruptedBy).toBe("SIGTERM");
+  }, 20_000);
 });

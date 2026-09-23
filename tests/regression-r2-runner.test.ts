@@ -2,11 +2,11 @@
  * Regression tests for independent review R2 — R2-002
  * (docs/reviews/m0/independent-review-r2.md). Timeout clean-up lifecycle.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval } from "./helpers.ts";
+import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -41,7 +41,8 @@ describe("R2-002 killTree escalation survives the leader's close event", () => {
     expect(r.timedOut).toBe(true);
     expect(elapsed).toBeLessThan(4000);
     expect(existsSync(pidFile)).toBe(true);
-    const grandchildPid = Number(readFileSync(pidFile, "utf8"));
+    // M2-1: never pass an empty / half-written pid file (Number("") = 0) to process.kill.
+    const grandchildPid = await waitForPid(pidFile, 2000);
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(() => process.kill(grandchildPid, 0)).toThrow();
   }, 15_000);
