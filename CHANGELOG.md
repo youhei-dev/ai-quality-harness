@@ -5,7 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.3.4 — M2-0 complete — completion record, R4 carried over to M2-1+（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.4` / `git rev-parse v0.3.4` で確認。最終報告に記載）
+## v0.3.5 — M2-1 preparation — flaky r3-cli test fixed（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.3.5` / `git rev-parse v0.3.5` で確認。最終報告に記載）
+
+- テストのみの修正（`src/` の変更なし）。v0.3.4 の worktree 検証で 1 回だけ FAIL した `tests/regression-r3-cli.test.ts` の「check 1's descendants are gone」の原因は、
+  pid ファイルを作成と書き込みの間に読む競合（`Number("") = 0` → `process.kill(0, 0)` が自分のプロセスグループに成功 → alive と判定）。調査記録 `docs/reports/M2-1_FLAKY_R3_CLI.md`
+- `tests/helpers.ts` に `parsePid` / `waitForPid` / `assertSignalablePid`。pid は中身が正の安全な整数になるまで待って読み、`process.kill` に 0 以下・NaN を渡さない。
+  同じ読み方の 4 箇所（execute / regression-r1-runner / regression-r2-runner / regression-r2-cli-signal）も置き換え
+- 回帰ケース: check 1 が pid ファイルを空で作り 400ms 後に書く（修正前は pid 0 で FAIL）。判定の失敗メッセージに `pid=<値>` を出す
+- ROADMAP: バックログの順序を変更（review-packet → M2-0-R4-001 → scheme 64 文字超の既知の制限）、SIGKILL 経路の消滅確認をバックログに追加。README の次段階の記述を更新
+- テスト 339 件（338 + 1）。`package.json` version 0.3.5
+
+## v0.3.4 — commit 8aa3042 / tag object e5a343d — M2-0 complete — completion record, R4 carried over to M2-1+
 
 - コード変更なし。M2-0 の完了ベースラインは v0.3.3（commit cb632cd）
 - 独立レビュー R4（`docs/reviews/m2-0/independent-review-r4.md`、High 0 / Medium 1）を記録（`docs/reviews/m2-0/response-r4.md`）。事前の基準「R4 で High が無ければ M2-0 完了」により完了
