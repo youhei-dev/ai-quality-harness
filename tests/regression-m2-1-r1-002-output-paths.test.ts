@@ -106,14 +106,22 @@ describe("M2-1-R1-002: forbidden characters in output paths", () => {
   });
 
   it("user strings inside error messages (--doc, an unreadable --request) are printed safely", () => {
+    // v0.4.2 (M2-1-R2-006): a forbidden character in these values is a finding before git runs (exit 1),
+    // so the error messages are exercised with LF, which is allowed in values and never printed raw
     const r = repo();
-    const doc = cli(r.dir, ["--range", `${r.base}..HEAD`, "--doc", `no${ch(0x2029)}such.md`]);
+    const doc = cli(r.dir, ["--range", `${r.base}..HEAD`, "--doc", "no\nsuch.md"]);
     expect(doc.code).toBe(2);
     expect(rawIn(Buffer.concat([doc.stdout, doc.stderr]))).toEqual([]);
-    expect(doc.stderr.toString("utf8")).toContain("\\u{2029}");
-    const req = cli(r.dir, ["--range", `${r.base}..HEAD`, "--request", `missing${ch(0x202e)}.md`, "--json"]);
+    // quoted by JSON.stringify in the message: LF appears as the two characters "\n", one line per message
+    expect(doc.stderr.toString("utf8")).toContain('"no\\nsuch.md"');
+    expect(doc.stderr.toString("utf8").trimEnd().split("\n")).toHaveLength(2);
+    const req = cli(r.dir, ["--range", `${r.base}..HEAD`, "--request", "missing\nfile.md", "--json"]);
     expect(req.code).toBe(2);
     expect(rawIn(req.stdout)).toEqual([]);
+    expect((JSON.parse(req.stdout.toString("utf8")) as { error: string }).error).toContain("missing\\u{A}file.md");
+    const rawDoc = cli(r.dir, ["--range", `${r.base}..HEAD`, "--doc", `no${ch(0x2029)}such.md`]);
+    expect(rawDoc.code).toBe(1);
+    expect(rawIn(Buffer.concat([rawDoc.stdout, rawDoc.stderr]))).toEqual([]);
   });
 
   it("LF in an output directory is allowed but printed as \\u{A} (one line per message)", () => {

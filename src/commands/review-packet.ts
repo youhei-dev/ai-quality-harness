@@ -103,11 +103,8 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   if (cwdProblem !== null) return fail(cwdProblem);
   try {
     const security = readSecurity(cwd, options.configPath);
-    // The packet's file name is also the ZIP entry name (M2-1-R2-001): checked before anything is built.
-    if (options.output !== undefined) {
-      const nameFindings = checkOutputName(path.basename(path.resolve(cwd, options.output)), security);
-      if (nameFindings.length > 0) return rejected(nameFindings);
-    }
+    const optionFindings = checkOptionValues(options, cwd, security);
+    if (optionFindings.length > 0) return rejected(optionFindings);
     const packetOpts: PacketOptions = { cwd, range: options.range, security, toolVersion: options.toolVersion };
     if (options.label !== undefined) packetOpts.label = options.label;
     if (options.request !== undefined) packetOpts.request = readInput(cwd, options.request, options.stdin);
@@ -124,7 +121,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     const output = path.resolve(cwd, options.output ?? path.join(built.root, "artifacts", "ai-review", `review-packet-${built.label}.md`));
     const entryName = path.basename(output);
     if (options.output === undefined) {
-      const nameFindings = checkOutputName(entryName, security);
+      const nameFindings = valueFindings(entryName, "output file name", security);
       if (nameFindings.length > 0) return rejected(nameFindings);
     }
     const zipWanted = options.zip === true || options.zipOutput !== undefined;
@@ -211,18 +208,35 @@ function rawCharsIn(option: string, resolved: string): string | null {
 }
 
 /**
- * Raw characters and secret shapes in the packet's file name (M2-1-R2-001). The name is written into the ZIP
- * (local header and central directory) and is not part of the packet text, so the whole-packet check never
- * sees it. Findings carry the source `output file name` and never the value.
+ * Option values that end up in the packet or its ZIP, checked for raw characters and secret shapes before git
+ * is run and before anything is rendered (M2-1-R2-006). The renderers turn raw characters into ASCII notation,
+ * so a value that is not checked here would pass both stages. The packet's file name is the ZIP entry name,
+ * which the whole-packet check never sees (M2-1-R2-001). Findings name the option, never the value.
  */
-function checkOutputName(name: string, security: ResolvedSecurity): PacketFinding[] {
-  const source = "output file name";
+function checkOptionValues(options: ReviewPacketOptions, cwd: string, security: ResolvedSecurity): PacketFinding[] {
+  const values: Array<[source: string, value: string]> = [["range", options.range]];
+  if (options.label !== undefined) values.push(["label", options.label]);
+  (options.exclude ?? []).forEach((g, i) => values.push([`--exclude pattern ${i + 1}`, g]));
+  (options.doc ?? []).forEach((d, i) => values.push([`doc path ${i + 1}`, d]));
+  if (options.request !== undefined) values.push(["request file name", inputName(cwd, options.request)]);
+  (options.review ?? []).forEach((r, i) => values.push([`review file name ${i + 1}`, inputName(cwd, r)]));
+  if (options.output !== undefined) values.push(["output file name", path.basename(path.resolve(cwd, options.output))]);
+  return values.flatMap(([source, value]) => valueFindings(value, source, security));
+}
+
+/** Raw characters and secret shapes in one value; the findings carry `source` and never the value. */
+function valueFindings(value: string, source: string, security: ResolvedSecurity): PacketFinding[] {
   const out: PacketFinding[] = [];
-  for (const h of findRawChars(name)) out.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: null, stage: "input" });
-  for (const f of scanString(name, security)) {
+  for (const h of findRawChars(value)) out.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: null, stage: "input" });
+  for (const f of scanString(value, security)) {
     out.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source, line: f.line ?? 1, detail: f.category ?? null, location: null, stage: "input" });
   }
   return out;
+}
+
+/** The name shown for a --request / --review file (its basename, or "(standard input)" for "-"). */
+function inputName(cwd: string, file: string): string {
+  return file === "-" ? "(standard input)" : path.basename(path.resolve(cwd, file));
 }
 
 class InputError extends Error {
@@ -230,10 +244,10 @@ class InputError extends Error {
 }
 
 function readInput(cwd: string, file: string, stdin: (() => Buffer) | undefined): { name: string; bytes: Uint8Array } {
-  if (file === "-") return { name: "(standard input)", bytes: stdin ? stdin() : readFileSync(0) };
+  if (file === "-") return { name: inputName(cwd, file), bytes: stdin ? stdin() : readFileSync(0) };
   const abs = path.resolve(cwd, file);
   try {
-    return { name: path.basename(abs), bytes: readFileSync(abs) };
+    return { name: inputName(cwd, file), bytes: readFileSync(abs) };
   } catch (err) {
     throw new InputError(`cannot read ${file}: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }

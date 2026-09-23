@@ -7,7 +7,8 @@
  *
  * Fail closed: every input is checked for invalid UTF-8, forbidden raw characters (raw-chars.ts) and
  * secret-shaped strings (the shared scanner) before the packet is assembled, and the assembled packet
- * is checked again as a whole. Any finding means no packet (exit 1). Usage, git and size-limit
+ * is checked again as a whole. Option values that are rendered are checked by the caller before this
+ * module is called (runReviewPacket, M2-1-R2-006). Any finding means no packet (exit 1). Usage, git and size-limit
  * problems are PacketErrors (exit 2). Findings carry a source label, a line and a category or code
  * point — never the value or the line content.
  *
@@ -354,11 +355,6 @@ function checkText(ck: Checker, text: string, source: string, origin: LineOrigin
   }
 }
 
-/** Raw characters only (no secret scan: secrets in option values are caught by the whole-packet check). */
-function rawCharsOnly(ck: Checker, value: string, source: string): void {
-  for (const h of findRawChars(value)) ck.findings.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: null, stage: "input" });
-}
-
 /** Diff line → path / line in the new file (" " and "+") or the old file ("-"); header lines map to nothing. */
 function diffOrigin(diff: string, newPath: string, oldPath: string): LineOrigin {
   const map: Array<{ path: string; line: number; side: "new" | "old" } | null> = [];
@@ -528,11 +524,9 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   const label = opts.label ?? to.sha.slice(0, SHORT);
 
   const ck: Checker = { findings: [], suppressed: [], security: opts.security, today: opts.today };
+  // Option values that are rendered (range, label, globs, documents, file names) were checked by the caller
+  // before this function was called (M2-1-R2-006): the renderers escape raw characters, so they are not seen here.
   const excludes = opts.excludes ?? [];
-  // Metadata from options is rendered escaped (M2-1-R1-004); raw characters in it are still findings (fail closed).
-  excludes.forEach((g, i) => rawCharsOnly(ck, g, `--exclude pattern ${i + 1}`));
-  if (opts.request) rawCharsOnly(ck, opts.request.name, "request file name");
-  (opts.reviews ?? []).forEach((r, i) => rawCharsOnly(ck, r.name, `review file name ${i + 1}`));
   const matchExclude = (p: string): string | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
 
   // ---- changes (two-point tree comparison from..to)

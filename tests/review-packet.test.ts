@@ -401,13 +401,15 @@ describe("review-packet: fail closed (exit 1, nothing written, values never prin
     });
   }
 
-  it("stage 2: text that appears only in the assembled packet (an --exclude glob in the metadata) is checked too", async () => {
+  it("text that appears only in the packet's metadata (an --exclude glob) is checked before rendering", async () => {
     const r = baseRepo();
     r.write("src/keep.ts", "export const keep = 7;\n");
     r.commit("s2", ["src/keep.ts"]);
     const secretGlob = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "s2", exclude: [`none/${SECRET()}`] });
     expect(secretGlob.code).toBe(1);
-    expect(secretGlob.err).toMatch(/\[secret\] packet template:\d+ aws \(packet\)/);
+    // v0.4.2 (M2-1-R2-006): option values are checked (raw characters and secret shapes) before rendering;
+    // up to v0.4.1 a secret-shaped glob was found by the whole-packet check (stage "packet")
+    expect(secretGlob.err).toMatch(/\[secret\] --exclude pattern 1:1 aws \(input\)/);
     expect(secretGlob.err).not.toContain("QWERTYUIOPASDFGH");
     const rawGlob = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "s2", exclude: [`none/${ch(0x2028)}`] });
     expect(rawGlob.code).toBe(1);
