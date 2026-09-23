@@ -6,7 +6,7 @@ import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
-import { DEFAULT_SECURITY } from "../security/scan.ts";
+import { DEFAULT_SECURITY, scanString } from "../security/scan.ts";
 import { PacketError, buildPacket, type PacketFinding, type PacketOptions } from "../review/packet.ts";
 import { ZipError, createStoredZip } from "../review/zip.ts";
 
@@ -85,12 +85,27 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     }
     return finish(EXIT_ERROR);
   };
+  const rejected = (findings: PacketFinding[]): number => {
+    summary.result = "findings";
+    summary.findings = findings;
+    if (!options.json) {
+      logError(`aiqh review-packet: ${findings.length} finding(s); no packet written (values are never shown)`);
+      for (const f of findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.location ? ` (${f.location})` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
+      logError("REVIEW PACKET: not written (findings)");
+    }
+    return finish(EXIT_FAILED);
+  };
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
   if (cwdProblem !== null) return fail(cwdProblem);
   try {
     const security = readSecurity(cwd, options.configPath);
+    // The packet's file name is also the ZIP entry name (M2-1-R2-001): checked before anything is built.
+    if (options.output !== undefined) {
+      const nameFindings = checkOutputName(path.basename(path.resolve(cwd, options.output)), security);
+      if (nameFindings.length > 0) return rejected(nameFindings);
+    }
     const packetOpts: PacketOptions = { cwd, range: options.range, security, toolVersion: options.toolVersion };
     if (options.label !== undefined) packetOpts.label = options.label;
     if (options.request !== undefined) packetOpts.request = readInput(cwd, options.request, options.stdin);
@@ -102,18 +117,14 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     if (options.today !== undefined) packetOpts.today = options.today;
 
     const built = buildPacket(packetOpts);
-    if (!built.ok) {
-      summary.result = "findings";
-      summary.findings = built.findings;
-      if (!options.json) {
-        logError(`aiqh review-packet: ${built.findings.length} finding(s); no packet written (values are never shown)`);
-        for (const f of built.findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.location ? ` (${f.location})` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
-        logError("REVIEW PACKET: not written (findings)");
-      }
-      return finish(EXIT_FAILED);
-    }
+    if (!built.ok) return rejected(built.findings);
 
     const output = path.resolve(cwd, options.output ?? path.join(built.root, "artifacts", "ai-review", `review-packet-${built.label}.md`));
+    const entryName = path.basename(output);
+    if (options.output === undefined) {
+      const nameFindings = checkOutputName(entryName, security);
+      if (nameFindings.length > 0) return rejected(nameFindings);
+    }
     const zipWanted = options.zip === true || options.zipOutput !== undefined;
     const zipPath = zipWanted ? path.resolve(cwd, options.zipOutput ?? output.replace(/\.md$/, "") + ".zip") : null;
     for (const [label, p] of [
@@ -129,7 +140,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
 
     // Both contents first, then one two-phase write for both files (M2-1-R1-003).
     const bytes = Buffer.from(built.text, "utf8");
-    const zip = zipPath !== null ? createStoredZip([{ name: path.basename(output), data: bytes }]) : null;
+    const zip = zipPath !== null ? createStoredZip([{ name: entryName, data: bytes }]) : null;
     const targets: WriteTarget[] = [{ label: "packet", path: output, data: bytes }];
     if (zipPath !== null && zip !== null) targets.push({ label: "zip", path: zipPath, data: zip });
     writeTogether(targets, options.writeHooks);
@@ -187,6 +198,21 @@ function rawCharsIn(option: string, resolved: string): string | null {
   if (hits.length === 0) return null;
   const codes = [...new Set(hits.map((h) => formatCodePoint(h.codePoint)))].join(", ");
   return `${option}: the resolved path contains ${codes}; choose a path without control, separator or bidi characters`;
+}
+
+/**
+ * Raw characters and secret shapes in the packet's file name (M2-1-R2-001). The name is written into the ZIP
+ * (local header and central directory) and is not part of the packet text, so the whole-packet check never
+ * sees it. Findings carry the source `output file name` and never the value.
+ */
+function checkOutputName(name: string, security: ResolvedSecurity): PacketFinding[] {
+  const source = "output file name";
+  const out: PacketFinding[] = [];
+  for (const h of findRawChars(name)) out.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: null, stage: "input" });
+  for (const f of scanString(name, security)) {
+    out.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", source, line: f.line ?? 1, detail: f.category ?? null, location: null, stage: "input" });
+  }
+  return out;
 }
 
 class InputError extends Error {
