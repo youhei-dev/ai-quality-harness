@@ -6,7 +6,7 @@
  * from code points, so this file contains neither.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runReviewPacket, type ReviewPacketOptions } from "../src/commands/review-packet.ts";
@@ -444,7 +444,7 @@ describe("review-packet: security.allow", () => {
     r.commit("fixture", ["fixtures/key.txt"]);
     const cfg = path.join(path.dirname(r.dir), `${path.basename(r.dir)}-aiqh.config.jsonc`);
     writeFileSync(cfg, JSON.stringify({ version: 1, project: { name: "t" }, checks: [{ name: "x", kind: "custom", command: "true" }], security: { allow: [{ path: "fixtures/key.txt", line: 2, reason: "test fixture" }] } }));
-    cleanups.push(() => execFileSync("rm", ["-f", cfg]));
+    cleanups.push(() => rmSync(cfg, { force: true }));
     const denied = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "al" });
     expect(denied.code).toBe(1);
     const res = await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "al", configPath: cfg });
@@ -455,7 +455,7 @@ describe("review-packet: security.allow", () => {
     expect(md).toContain("- `diff fixtures/key.txt` → `fixtures/key.txt`:2 `aws` by rule #1");
     const wrongLine = path.join(path.dirname(r.dir), `${path.basename(r.dir)}-aiqh2.config.jsonc`);
     writeFileSync(wrongLine, JSON.stringify({ version: 1, project: { name: "t" }, checks: [{ name: "x", kind: "custom", command: "true" }], security: { allow: [{ path: "fixtures/key.txt", line: 1, reason: "wrong line" }] } }));
-    cleanups.push(() => execFileSync("rm", ["-f", wrongLine]));
+    cleanups.push(() => rmSync(wrongLine, { force: true }));
     expect((await run({ cwd: r.dir, range: `${r.base}..HEAD`, label: "al2", configPath: wrongLine })).code).toBe(1);
   });
 });

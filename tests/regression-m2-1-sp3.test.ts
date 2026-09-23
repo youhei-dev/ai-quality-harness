@@ -8,6 +8,7 @@
  * Secret-shaped values are assembled at run time.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -93,7 +94,7 @@ describe("M2-1 SP3 #6: excluded files get a blob SHA-256", () => {
     const res = await run(r.dir, `${r.base}..HEAD`, { exclude: ["vendor/**"] });
     expect(res.code, res.err).toBe(0);
     const md = readFileSync(path.join(r.dir, "artifacts", "ai-review", "review-packet-sp3.md"), "utf8");
-    const expected = execFileSync("shasum", ["-a", "256"], { input: content, encoding: "utf8" }).split(" ")[0];
+    const expected = createHash("sha256").update(content).digest("hex");
     expect(md).toContain(`| \`vendor/v.txt\` | ${content.length} | ${expected} |`);
     expect(md).not.toContain("vendored content");
   });

@@ -39,11 +39,12 @@ describe("executeCommand", () => {
 
   it("runs through the shell so pipes and && work", async () => {
     const r = await executeCommand({
-      command: `${nodeEval('console.log("a\\nb")')} | wc -l && echo joined`,
+      command: `${nodeEval('console.log("a\\nb")')} | ${nodeEval('process.stdin.resume(); process.stdin.on("end", () => console.log("read"))')} && echo joined`,
       cwd: tempDir(),
       timeoutMs: 10_000,
     });
     expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("read");
     expect(r.stdout).toContain("joined");
   });
 

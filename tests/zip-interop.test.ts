@@ -1,9 +1,11 @@
 /**
  * M2-1 R1 (reviewer's note, not a finding): the stored ZIP is also checked by other tools. Each test runs
  * only where its tool is available — `unzip -v` exits 0, or `python3 -c "import zipfile"` exits 0 — and is
- * skipped otherwise (the skip condition is the tool check itself, nothing else).
+ * skipped otherwise (the skip condition is the tool check itself, nothing else). Expected values are computed
+ * with Node (node:crypto), never with another external command (M2-1-R2-004).
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -55,7 +57,7 @@ describe("ZIP interoperability", () => {
     expect(res.status, res.stderr).toBe(0);
     const parsed = JSON.parse(res.stdout) as { bad: string | null; entries: Array<[string, number, number[], string]> };
     expect(parsed.bad).toBeNull();
-    const sha = (b: Buffer): string => spawnSync("shasum", ["-a", "256"], { input: b, encoding: "utf8" }).stdout.split(" ")[0] ?? "";
+    const sha = (b: Buffer): string => createHash("sha256").update(b).digest("hex");
     expect(parsed.entries).toEqual(entries.map((e) => [e.name, 0, [1980, 1, 1, 0, 0, 0], sha(e.data)]));
   });
 });
