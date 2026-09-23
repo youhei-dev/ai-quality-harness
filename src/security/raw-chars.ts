@@ -47,6 +47,20 @@ export function findRawChars(text: string): RawCharHit[] {
   return hits;
 }
 
+/**
+ * Safe display of a user-derived string on a terminal or in JSON (M2-1-R1-002): every forbidden
+ * character and LF / TAB become the ASCII notation `\u{HEX}`; everything else is unchanged. Apply the
+ * masker after this. The single place that turns user strings into printable text for review-packet.
+ */
+export function escapeRawChars(s: string): string {
+  let out = "";
+  for (const c of s) {
+    const cp = c.codePointAt(0) ?? 0;
+    out += cp === 0x0a || cp === 0x09 || isForbiddenCodePoint(cp) ? `\\u{${cp.toString(16).toUpperCase()}}` : c;
+  }
+  return out;
+}
+
 /** "U+2028" style label. */
 export function formatCodePoint(cp: number): string {
   return `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;

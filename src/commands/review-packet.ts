@@ -5,6 +5,7 @@ import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
+import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
 import { DEFAULT_SECURITY } from "../security/scan.ts";
 import { PacketError, buildPacket, type PacketFinding, type PacketOptions } from "../review/packet.ts";
 import { ZipError, createStoredZip } from "../review/zip.ts";
@@ -65,11 +66,12 @@ interface JsonSummary {
 export async function runReviewPacket(options: ReviewPacketOptions): Promise<number> {
   const rawLog = options.log ?? ((line: string) => console.log(line));
   const rawLogError = options.logError ?? ((line: string) => console.error(line));
-  const log = (line: string): void => rawLog(maskSecrets(line));
-  const logError = (line: string): void => rawLogError(maskSecrets(line));
+  // Every printed line and every JSON string goes through the safe display first (M2-1-R1-002), then the masker.
+  const log = (line: string): void => rawLog(safeText(line));
+  const logError = (line: string): void => rawLogError(safeText(line));
   const summary: JsonSummary = { result: "error", output: null, zip: null, bytes: null, sha256: null, zipSha256: null, from: null, to: null, commits: null, files: null, suppressed: null, findings: [], error: null };
   const finish = (code: number): number => {
-    if (options.json) rawLog(JSON.stringify(maskDeep(summary), null, 2));
+    if (options.json) rawLog(JSON.stringify(maskDeep(escapeDeep(summary)), null, 2));
     return code;
   };
   const fail = (message: string): number => {
@@ -83,6 +85,8 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   };
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
+  const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
+  if (cwdProblem !== null) return fail(cwdProblem);
   try {
     const security = readSecurity(cwd, options.configPath);
     const packetOpts: PacketOptions = { cwd, range: options.range, security, toolVersion: options.toolVersion };
@@ -110,8 +114,14 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     const output = path.resolve(cwd, options.output ?? path.join(built.root, "artifacts", "ai-review", `review-packet-${built.label}.md`));
     const zipWanted = options.zip === true || options.zipOutput !== undefined;
     const zipPath = zipWanted ? path.resolve(cwd, options.zipOutput ?? output.replace(/\.md$/, "") + ".zip") : null;
-    for (const p of [output, zipPath]) {
-      if (p !== null && !OUTPUT_NAME.test(path.basename(p))) return fail(`output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}`);
+    for (const [label, p] of [
+      ["--output", output],
+      ["--zip-output", zipPath],
+    ] as const) {
+      if (p === null) continue;
+      const problem = rawCharsIn(label, p);
+      if (problem !== null) return fail(problem);
+      if (!OUTPUT_NAME.test(path.basename(p))) return fail(`output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}`);
     }
     if (zipPath !== null && zipPath === output) return fail("--zip-output must differ from the packet path");
 
@@ -145,6 +155,34 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     if (err instanceof Error && "code" in err) return fail(`write failed: ${err.message}`);
     throw err;
   }
+}
+
+/** Safe display (forbidden characters, LF, TAB as `\u{...}`), then the masker. */
+function safeText(s: string): string {
+  return maskSecrets(escapeRawChars(s));
+}
+
+/** The same for every string inside a JSON value (before maskDeep). */
+function escapeDeep<T>(value: T): T {
+  if (typeof value === "string") return escapeRawChars(value) as T;
+  if (Array.isArray(value)) return value.map((v: unknown) => escapeDeep(v)) as T;
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = escapeDeep(v);
+    return out as T;
+  }
+  return value;
+}
+
+/**
+ * A resolved path that contains a forbidden character (M2-1-R1-002): the message names the option and
+ * the code points only, never the path. LF and TAB are allowed (they are shown as `\u{A}` / `\u{9}`).
+ */
+function rawCharsIn(option: string, resolved: string): string | null {
+  const hits = findRawChars(resolved);
+  if (hits.length === 0) return null;
+  const codes = [...new Set(hits.map((h) => formatCodePoint(h.codePoint)))].join(", ");
+  return `${option}: the resolved path contains ${codes}; choose a path without control, separator or bidi characters`;
 }
 
 class InputError extends Error {
