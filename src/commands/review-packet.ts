@@ -58,6 +58,8 @@ interface JsonSummary {
   suppressed: number | null;
   findings: PacketFinding[];
   error: string | null;
+  /** Backups of the previous packet / ZIP that could not be removed after the commit point (M2-1-R2-003). */
+  backupsRetained: string[];
 }
 
 /**
@@ -71,7 +73,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   // Every printed line and every JSON string goes through the safe display first (M2-1-R1-002), then the masker.
   const log = (line: string): void => rawLog(safeText(line));
   const logError = (line: string): void => rawLogError(safeText(line));
-  const summary: JsonSummary = { result: "error", output: null, zip: null, bytes: null, sha256: null, zipSha256: null, from: null, to: null, commits: null, files: null, suppressed: null, findings: [], error: null };
+  const summary: JsonSummary = { result: "error", output: null, zip: null, bytes: null, sha256: null, zipSha256: null, from: null, to: null, commits: null, files: null, suppressed: null, findings: [], error: null, backupsRetained: [] };
   const finish = (code: number): number => {
     if (options.json) rawLog(JSON.stringify(maskDeep(escapeDeep(summary)), null, 2));
     return code;
@@ -145,7 +147,8 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     const zip = zipPath !== null ? createStoredZip([{ name: entryName, data: bytes }]) : null;
     const targets: WriteTarget[] = [{ label: "packet", path: output, data: bytes }];
     if (zipPath !== null && zip !== null) targets.push({ label: "zip", path: zipPath, data: zip });
-    writeTogether(targets, options.writeHooks);
+    const { retainedBackups } = writeTogether(targets, options.writeHooks);
+    summary.backupsRetained = retainedBackups;
     summary.output = output;
     summary.bytes = bytes.length;
     summary.sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -164,7 +167,12 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
       log(`packet: ${output} (${bytes.length} bytes, sha256 ${summary.sha256})`);
       if (summary.zip) log(`zip:    ${summary.zip} (sha256 ${summary.zipSha256})`);
       if (built.suppressed.length > 0) log(`suppressed by security.allow: ${built.suppressed.length} (listed in the packet's Integrity section)`);
-      log("REVIEW PACKET: written");
+      if (retainedBackups.length > 0) {
+        // After the commit point (M2-1-R2-003): the new files are in place; only the old versions remain as well.
+        logError(`aiqh review-packet: warning: the packet${summary.zip ? " and the ZIP were" : " was"} written, but ${retainedBackups.length} backup file(s) of the previous version could not be removed:`);
+        for (const b of retainedBackups) logError(`  backup file retained at ${b}`);
+        log("REVIEW PACKET: written (backup files retained)");
+      } else log("REVIEW PACKET: written");
     }
     return finish(EXIT_PASSED);
   } catch (err) {
@@ -240,7 +248,10 @@ function readSecurity(cwd: string, configPath: string | undefined): ResolvedSecu
 }
 
 export interface WriteHooks {
-  /** Called before each step ("prepare:<label>", "commit:backup:<label>", "commit:install:<label>", "rollback:…"); may throw. */
+  /**
+   * Called before each step ("prepare:<label>", "commit:backup:<label>", "commit:install:<label>",
+   * "rollback:remove:<label>", "rollback:restore:<label>", "cleanup:backup:<label>"); may throw.
+   */
   beforeStep?: (step: string) => void;
 }
 
@@ -298,14 +309,27 @@ function lstatOrNull(p: string): Stats | null {
  * Prepare: every target must be absent or a regular file; both temporary files are written next to their
  * targets with flag "wx". A failure removes the temporary files; existing files are untouched.
  * Commit: existing targets are renamed to backups, then the new files are renamed into place (packet, then
- * ZIP); on success the backups are removed. A failure removes what was newly installed, renames the backups
- * back, and reports the error. If a backup cannot be put back it is kept and its location is reported (exit 2).
+ * ZIP). The commit point (M2-1-R2-003) is reached when both new files are in place.
+ * Before it, a failure runs every rollback action — remove a new file that had no previous one, rename each
+ * backup back, remove the temporary files — and collects each action's failure: the error says "the previous
+ * files were restored" only when all succeeded, otherwise it lists every file left behind (exit 2).
+ * After it, the backups are removed; one that cannot be removed does not undo the write: it is returned as a
+ * retained backup (warning, exit 0).
  */
-function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): void {
+function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): { retainedBackups: string[] } {
   const step = (name: string): void => hooks?.beforeStep?.(name);
   const tmps = new Map<WriteTarget, string>();
-  const removeTmps = (): void => {
-    for (const t of tmps.values()) if (existsSync(t)) rmSync(t, { force: true });
+  /** Remove the temporary files that still exist; returns the ones that could not be removed. */
+  const removeTmps = (): string[] => {
+    const left: string[] = [];
+    for (const t of tmps.values()) {
+      try {
+        if (existsSync(t)) rmSync(t, { force: true });
+      } catch {
+        left.push(t);
+      }
+    }
+    return left;
   };
   try {
     for (const t of targets) {
@@ -318,8 +342,7 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): v
       tmps.set(t, tmp);
     }
   } catch (err) {
-    removeTmps();
-    throw prepareError(err);
+    throw prepareError(err, removeTmps());
   }
 
   const backups = new Map<WriteTarget, string>();
@@ -338,14 +361,14 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): v
       installed.push(t);
     }
   } catch (err) {
-    const kept: string[] = [];
+    const left: string[] = [];
     for (const t of [...installed].reverse()) {
       if (backups.has(t)) continue;
       try {
         step(`rollback:remove:${t.label}`);
         unlinkSync(t.path);
       } catch {
-        // a new file without a previous one: leaving it is reported below through the error
+        left.push(`new file left at ${t.path}`);
       }
     }
     for (const [t, bak] of backups) {
@@ -353,20 +376,31 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): v
         step(`rollback:restore:${t.label}`);
         renameSync(bak, t.path);
       } catch {
-        kept.push(bak);
+        if (installed.includes(t)) left.push(`new file left at ${t.path}`);
+        left.push(`previous file could not be restored; it is kept at ${bak} (for ${t.path})`);
       }
     }
-    removeTmps();
+    for (const tmp of removeTmps()) left.push(`temporary file left at ${tmp}`);
     const cause = err instanceof Error ? err.message : String(err);
-    if (kept.length > 0) {
-      throw new WriteError(`write failed (${cause}) and the previous file could not be restored; it is kept at: ${kept.join(", ")}`);
-    }
+    if (left.length > 0) throw new WriteError(`write failed (${cause}) and could not be fully rolled back: ${left.join("; ")}`);
     throw new WriteError(`write failed (${cause}); the previous files were restored`);
   }
-  for (const bak of backups.values()) rmSync(bak, { force: true });
+
+  // Commit point: both new files are in place. Removing the backups can no longer undo the write.
+  const retainedBackups: string[] = [];
+  for (const [t, bak] of backups) {
+    try {
+      step(`cleanup:backup:${t.label}`);
+      rmSync(bak, { force: true });
+    } catch {
+      retainedBackups.push(bak);
+    }
+  }
+  return { retainedBackups };
 }
 
-function prepareError(err: unknown): Error {
-  if (err instanceof WriteError) return err;
-  return new WriteError(`write failed before any file was replaced (${err instanceof Error ? err.message : String(err)})`);
+function prepareError(err: unknown, leftTmps: string[]): Error {
+  const left = leftTmps.length > 0 ? `; temporary file left at ${leftTmps.join(", ")}` : "";
+  if (err instanceof WriteError) return left === "" ? err : new WriteError(`${err.message}${left}`);
+  return new WriteError(`write failed before any file was replaced (${err instanceof Error ? err.message : String(err)})${left}`);
 }
