@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
 import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
@@ -182,6 +182,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
       if (problem !== null) return fail(problem);
       if (!OUTPUT_NAME.test(path.basename(p))) return fail(`output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}`);
     }
+    // Early rejection by strings (before any directory is created); the final check is by dev + ino (M2-1-R3-001).
     if (zipPath !== null && targetIdentity(zipPath) === targetIdentity(output)) {
       return fail("--zip-output resolves to the same file as the packet path (compared through symbolic links in the parent directories, ignoring case)");
     }
@@ -318,7 +319,7 @@ function readSecurity(cwd: string, configPath: string | undefined): ResolvedSecu
 
 export interface WriteHooks {
   /**
-   * Called before each step ("prepare:<label>", "commit:backup:<label>", "commit:install:<label>",
+   * Called before each step ("prepare:<label>", "check:same-target", "commit:backup:<label>", "commit:install:<label>",
    * "rollback:remove:<label>", "rollback:restore:<label>", "cleanup:backup:<label>"); may throw.
    */
   beforeStep?: (step: string) => void;
@@ -335,7 +336,8 @@ class WriteError extends Error {
 }
 
 /**
- * The file that writing to `p` would replace, for comparing the packet and ZIP targets (M2-1-R2-002): the
+ * The file that writing to `p` would replace, for an early rejection of the same packet and ZIP target before
+ * anything is created (M2-1-R2-002; the final check is by dev + ino, checkTargetsByIdentity, M2-1-R3-001): the
  * parent directory through realpath (through its nearest existing ancestor when it does not exist yet) plus
  * the basename, in NFC and lower case. Case-only differences are treated as the same file on every file
  * system (a case-insensitive one would write both to one file; rejecting them everywhere is the safe side).
@@ -378,7 +380,8 @@ function lstatOrNull(p: string): Stats | null {
  * Prepare: every target must be absent or a regular file; both temporary files are written next to their
  * targets with flag "wx". A failure removes the temporary files; existing files are untouched.
  * Commit: existing targets are renamed to backups, then the new files are renamed into place (packet, then
- * ZIP). The commit point (M2-1-R2-003) is reached when both new files are in place.
+ * ZIP). Between the phases the targets are checked by file system identity (checkTargetsByIdentity). The commit
+ * point (M2-1-R2-003) is reached when both new files are in place.
  * Before it, a failure runs every rollback action — remove a new file that had no previous one, rename each
  * backup back, remove the temporary files — and collects each action's failure: the error says "the previous
  * files were restored" only when all succeeded, otherwise it lists every file left behind (exit 2).
@@ -400,16 +403,23 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): {
     }
     return left;
   };
+  const parents = new Map<WriteTarget, { dev: number; ino: number }>();
   try {
     for (const t of targets) {
       step(`prepare:${t.label}`);
       const st = lstatOrNull(t.path);
       if (st !== null && !st.isFile()) throw new WriteError(`${t.label} target exists and is not a regular file: ${t.path}`);
       mkdirSync(path.dirname(t.path), { recursive: true });
-      const tmp = siblingName(t.path, "tmp");
+      // The temporary file goes into the directory as resolved now; its identity is checked again before the commit.
+      const dir = realpathSync(path.dirname(t.path));
+      const id = statSync(dir);
+      parents.set(t, { dev: id.dev, ino: id.ino });
+      const tmp = siblingName(path.join(dir, path.basename(t.path)), "tmp");
       writeFileSync(tmp, t.data, { flag: "wx" });
       tmps.set(t, tmp);
     }
+    step("check:same-target");
+    checkTargetsByIdentity(targets, parents);
   } catch (err) {
     throw prepareError(err, removeTmps());
   }
@@ -466,6 +476,34 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): {
     }
   }
   return { retainedBackups };
+}
+
+/**
+ * The same-target check by file system identity (M2-1-R3-001), right before the commit phase: the file system, not
+ * a string transformation, decides whether two parent directory names are one directory (APFS treats U+00DF and
+ * "ss" as the same name; toLowerCase does not). Each parent must still be the directory the temporary file was
+ * written to (dev + ino recorded in the prepare phase), and the packet and the ZIP must not be the same file:
+ * parents with the same dev + ino and basenames equal ignoring ASCII case (basenames are ASCII; case-only
+ * differences are rejected on every file system, the safe side). Concurrent changes of the output directories by
+ * others after this check are outside the trust boundary (ADR-0014).
+ */
+function checkTargetsByIdentity(targets: WriteTarget[], parents: Map<WriteTarget, { dev: number; ino: number }>): void {
+  const ascii = /^[\x21-\x7e]+$/;
+  for (const t of targets) {
+    const was = parents.get(t);
+    const now = statSync(path.dirname(t.path));
+    if (was === undefined || now.dev !== was.dev || now.ino !== was.ino) {
+      throw new WriteError(`the ${t.label} target's directory changed during the write; nothing was replaced: ${t.path}`);
+    }
+    if (!ascii.test(path.basename(t.path))) throw new WriteError(`${t.label} file name is not ASCII: ${t.path}`);
+  }
+  const [a, b] = targets;
+  if (a === undefined || b === undefined) return;
+  const pa = parents.get(a);
+  const pb = parents.get(b);
+  if (pa !== undefined && pb !== undefined && pa.dev === pb.dev && pa.ino === pb.ino && path.basename(a.path).toLowerCase() === path.basename(b.path).toLowerCase()) {
+    throw new WriteError("--zip-output resolves to the same file as the packet path (same directory by device and inode, file names equal ignoring ASCII case); nothing was replaced");
+  }
 }
 
 function prepareError(err: unknown, leftTmps: string[]): Error {
