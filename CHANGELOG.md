@@ -5,7 +5,14 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.4.3 — M2-1 independent review R3: High fixed, Medium carried over to M2-2（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.3` / `git rev-parse v0.4.3` で確認。最終報告に記載）
+## v0.4.4 — M2-1 complete — completion record, R3-002〜006 carried over to M2-2（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.4` / `git rev-parse v0.4.4` で確認。最終報告に記載）
+
+- 独立レビュー R4（`docs/reviews/m2-1/independent-review-r4.md`）: M2-1-R3-001 は解消、新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-1/response-r4.md`
+- 事前の基準（R<N> で High が無ければ完了）により **M2-1 完了**。完了ベースライン v0.4.3（commit 6cf3199 / tag object 8ee5f54）、完了記録は本タグ
+- 完了報告 `docs/reports/M2-1_COMPLETION.md`、ROADMAP（M2-1 完了、次は M2-2。先頭は R3-002〜006）、README
+- コード変更なし（`src/` `tests/` `scripts/` は v0.4.3 と同一）。テスト 466 件（87 ファイル）、自己 verify 7 チェック PASS。`package.json` version 0.4.4
+
+## v0.4.3 — commit 6cf3199 / tag object 8ee5f54 — M2-1 independent review R3: High fixed, Medium carried over to M2-2
 
 - 独立レビュー R3（`docs/reviews/m2-1/independent-review-r3.md`。R2 の 8 件は解消 6 / 部分的に解消 2〈R2-002、R2-007〉、新規 High 1 / Medium 5）。対応記録 `docs/reviews/m2-1/response-r3.md`
 - M2-1-R3-001（High）: パケットと ZIP の同じ実体の判定を、ファイルシステムの同一性で行う。準備段階で親ディレクトリを作って一時ファイルを書いた後、確定の直前に
