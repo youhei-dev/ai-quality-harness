@@ -129,10 +129,17 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   同じ読み方の 4 箇所も同じ helper に置き換えた。pid ファイルを空で作り後から書く回帰ケースを追加（修正前 FAIL を記録）。詳細は `docs/reports/M2-1_FLAKY_R3_CLI.md`
 - テスト件数: 339（v0.3.4 の 338 + 回帰ケース 1）。製品コード（`src/`）の変更なし
 
+### M2-1 — `aiqh review-packet` — **完了**（2026-09-25。完了ベースライン `v0.4.3` = commit 6cf3199、記録タグ `v0.4.4`）
+- タグ: `v0.3.5`（cae4b7a、準備）/ `v0.4.0`（4e196a3、実装）/ `v0.4.1`（c8a185a、R1 反映）/ `v0.4.2`（7f981b2、R2 反映）/ `v0.4.3`（6cf3199、R3 の High 反映）/ `v0.4.4`（完了記録、コード変更なし）
+- 独立レビューの指摘件数の推移: **R1: High 3 / Medium 2 → R2: High 4 / Medium 4 → R3: High 1 / Medium 5 → R4: 0**。事前の基準「R<N> で High が無ければ完了」により R4 で完了。
+  R3 の Medium 5 件は M2-2 の先頭へ持ち越し（下のバックログ 2）。完了報告は `docs/reports/M2-1_COMPLETION.md`
+- テスト件数: 339（v0.3.5）→ 389（v0.4.0）→ 415 → 455 → 466（v0.4.3、v0.4.4 も同じ）。自己 verify 7 チェック PASS
+- 次の段階は **M2-2**（先頭は R3-002〜006）
+
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
 対象リポジトリに 256 KiB を超える行が無いため後に回す。
-1. **M2-1 `aiqh review-packet`**（**実装済み・v0.4.3 で独立レビュー R3 の High を反映、R4 待ち**。R3 の Medium 5 件は M2-2 の先頭〈2〉。仕様は ADR-0014）
+1. **M2-1 `aiqh review-packet`**（**完了**。完了ベースライン v0.4.3、記録タグ v0.4.4。R3 の Medium 5 件は M2-2 の先頭〈2〉。仕様は ADR-0014）
 2. **M2-2 の先頭: M2-1 独立レビュー R3 の持ち越し（Medium 5 件。`docs/reviews/m2-1/response-r3.md`）**。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
    確定の直前の判定より後の同時の変更は信頼境界の外（README）。判定と rename を同じ実体に固定する（`openat` 相当）手段が Node の標準 API に無いため、必要になれば
    「確定の各段階の直前に再確認して窓を狭める」案を検討する
@@ -180,7 +187,7 @@ M2-1 の教訓（R3）:
 - 再修正 → 再 verify → 再パケットのループ手順を docs に明文化
 
 ### 完了条件
-- [ ] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される
+- [x] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される（M2-1、v0.4.4 で完了。R1〜R4 のパケットをこのコマンドで生成）
 - [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される
 - [ ] 本体の自己 verify PASS
 
