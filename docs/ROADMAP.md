@@ -133,7 +133,16 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
 対象リポジトリに 256 KiB を超える行が無いため後に回す。
 1. **M2-1 `aiqh review-packet`**（**実装済み・v0.4.2 で独立レビュー R2 を反映、R3 待ち**。仕様は ADR-0014）
-2. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+2. **M2-2 の先頭: M2-1 独立レビュー R3 の持ち越し（Medium 5 件。`docs/reviews/m2-1/response-r3.md`）**。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
+   確定の直前の判定より後の同時の変更は信頼境界の外（README）。判定と rename を同じ実体に固定する（`openat` 相当）手段が Node の標準 API に無いため、必要になれば
+   「確定の各段階の直前に再確認して窓を狭める」案を検討する
+   - **M2-1-R3-002**: finding（オプションの値・パス）があるとき、後段の「検査そのものができない状態」（読めない `--request` / `--review`、欠けた git object）が exit 1 に隠れる。
+     「finding 優先」と「検査を完遂できるか」を分け、検査を完遂できないなら exit 2 にする（危険な値を git に渡さない制約は保つ）
+   - **M2-1-R3-003**: JSON として壊れた `latest.json` の中の生文字・秘密の形を、parse に失敗したときも検査する（finding なら exit 1、無ければ exit 2）
+   - **M2-1-R3-004**: `Checked` / `Md` の偽造（`any`・型の別名・`JSON.parse` の代入）を AST で検出する（現在は `as Checked` の文字列検査のみ。現在のソースに該当なし）
+   - **M2-1-R3-005**: オプション一覧のテストを help の解析ではなく commander の `Command` オブジェクトの `options` と比べる形にする（非表示・short-only を含める。CLI の組み立てを副作用のない関数に分ける）
+   - **M2-1-R3-006**: テストの外部コマンドの検査を AST で行う（単一引用符・変数・テンプレート文字列・`promisify(execFile)` の別名を含める。probe と `it.skipIf` の対応も確かめる）
+3. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -142,20 +151,24 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-3. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
-4. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+4. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+5. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
    key-value 誤検出の継続記録（下の「内容」）
-5. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
+6. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
    SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
    SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
    実測では `close` がパイプを握る子孫の終了を待つため消えていたが、stdio を手放した子孫には効かない。ARCHITECTURE は今回（v0.3.5）書き換えていない
-6. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
+7. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
    git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
-7. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
+8. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
    review-packet は v0.4.0 で exit 2 にした）
-8. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
+9. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
-9. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+10. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+
+M2-1 の教訓（R3）:
+- **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
+- **正規表現やテキスト解析による構造テスト**（`as Checked` の grep、help の解析、外部コマンドの正規表現）**は迂回できる**。構造の保証には AST や実体（commander の `Command` オブジェクト）を使う（R3-004〜006）
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
 - 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化
