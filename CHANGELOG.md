@@ -5,7 +5,23 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.4.2 — M2-1 independent review R2 applied（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.2` / `git rev-parse v0.4.2` で確認。最終報告に記載）
+## v0.4.3 — M2-1 independent review R3: High fixed, Medium carried over to M2-2（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.3` / `git rev-parse v0.4.3` で確認。最終報告に記載）
+
+- 独立レビュー R3（`docs/reviews/m2-1/independent-review-r3.md`。R2 の 8 件は解消 6 / 部分的に解消 2〈R2-002、R2-007〉、新規 High 1 / Medium 5）。対応記録 `docs/reviews/m2-1/response-r3.md`
+- M2-1-R3-001（High）: パケットと ZIP の同じ実体の判定を、ファイルシステムの同一性で行う。準備段階で親ディレクトリを作って一時ファイルを書いた後、確定の直前に
+  両方の親を `stat` し、`dev`+`ino` と ASCII の basename（大文字小文字を無視）で比べる。親が準備のときから変わっていれば、または同じ実体なら exit 2（既存ファイルは不変）。
+  v0.4.2 までの文字列の比較（realpath + NFC + 小文字化）は、APFS が同じ名前として扱う U+00DF / `ss`、U+03C2 / U+03C3、U+00B5 / U+03BC などの親ディレクトリ名で一致せず、
+  同時の変更なしに既存ファイルが失われていた（exit 0）。文字列の比較は早い段階の拒否として残した。一度は Medium に下げる判断をしたが、この経路が見つかり High に戻した
+- 信頼境界を README と ADR-0014 に明記: aiqh の実行中に、出力先（`-o`・`--zip-output`）とその親ディレクトリを他のプロセスや利用者が同時に変更しないこと
+- ADR-0014 の保証の記述を実際に合わせて訂正（`Checked` は型と文字列検査による保証で迂回できる〈R3-004〉、オプション一覧のテストは help の長いオプションのみ〈R3-005〉、
+  finding と検査できない状態の終了コードの現状〈R3-002 / R3-003〉）
+- R3-002〜006（Medium）は M2-2 の先頭へ持ち越し（ROADMAP）
+- テスト 466 件（87 ファイル）。`package.json` version 0.4.3
+
+## v0.4.2 — commit 7f981b2 / tag object 3933494 — M2-1 independent review R2 applied
+
+- 注記（v0.4.3）: この版で対応した M2-1-R2-002 は、独立レビュー R3 で「部分的に解消」と判定された（残りは R3-001 として v0.4.3 で修正）
+- 注記（v0.4.3）: この版で対応した M2-1-R2-007 は、独立レビュー R3 で「部分的に解消」と判定された（残りは R3-002・R3-003 として M2-2 へ持ち越し）
 
 - 独立レビュー R2（`docs/reviews/m2-1/independent-review-r2.md`。R1 の 5 件は解消 3 / 部分的に解消 2〈R1-003、R1-004〉、新規 High 4 / Medium 4）の 8 件すべてに対応。
   対応記録 `docs/reviews/m2-1/response-r2.md`。8 件とも v0.4.1 の実コードで再現してから、回帰テストの修正前 FAIL を記録して直した。v0.4.1 の項の
@@ -31,6 +47,9 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - テスト 455 件（86 ファイル）。`package.json` version 0.4.2
 
 ## v0.4.1 — commit c8a185a / tag object 85555ef — M2-1 independent review R1 applied
+
+- 注記（v0.4.3）: この版で対応した M2-1-R1-003 は、独立レビュー R2 で「部分的に解消」と判定された（残りは R2-002・R2-003 として v0.4.2 で修正）
+- 注記（v0.4.3）: この版で対応した M2-1-R1-004 は、独立レビュー R2 で「部分的に解消」と判定された（残りは R2-005・R2-006 として v0.4.2 で修正）
 
 - 独立レビュー R1（`docs/reviews/m2-1/independent-review-r1.md`、High 3 / Medium 2）の 5 件すべてに対応。対応記録 `docs/reviews/m2-1/response-r1.md`。
   5 件とも v0.4.0 の実コードで再現してから、回帰テストの修正前 FAIL を記録して直した
