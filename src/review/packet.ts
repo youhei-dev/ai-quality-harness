@@ -22,7 +22,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { ResolvedSecurity } from "../types.ts";
@@ -1002,19 +1002,24 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 /**
- * The verify result of <to>. latest.json that cannot be read is an InspectionError (exit 2 even with findings);
- * one that is not JSON, or not of the shape that is rendered, is a deferred error, after its whole text was
- * checked for raw characters and secret shapes (M2-1-R3-003: a finding in it is reported, exit 1).
+ * The verify result of <to>. latest.json that does not exist (ENOENT) is "no verify result"; one that cannot be read
+ * for any other reason is an InspectionError (exit 2 even with findings); one that is not JSON, or not of the shape
+ * that is rendered, is a deferred error, after its whole text was checked for raw characters and secret shapes
+ * (M2-1-R3-003: a finding in it is reported, exit 1).
  */
 function readVerification(ck: Checker, root: string, toSha: string, deferred: DeferredError[]): Verification {
   const source = "verification (artifacts/verification/latest.json)";
   const file = path.join(root, "artifacts", "verification", "latest.json");
-  if (!existsSync(file)) return { kind: "absent" };
   let bytes: Buffer;
   try {
     bytes = readFileSync(file);
   } catch (err) {
-    throw new InspectionError(`cannot read artifacts/verification/latest.json: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
+    // Only ENOENT (the file or a parent directory does not exist) is "absent" (M2-2-R1-007): a file behind a parent
+    // that cannot be traversed (EACCES), a parent that is a file (ENOTDIR), a symbolic link loop (ELOOP) or a
+    // directory (EISDIR) cannot be inspected. existsSync() folded all of them into "does not exist".
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { kind: "absent" };
+    throw new InspectionError(`cannot read artifacts/verification/latest.json: ${code ?? "error"}`);
   }
   const decoded = decode(ck, bytes, source);
   if (decoded === null) return { kind: "none" };
