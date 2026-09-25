@@ -5,7 +5,36 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.3 — M2-2: independent review R3 — the carry-over work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.3` / `git rev-parse v0.5.3` で確認し、次の release commit で記入）
+## v0.5.4 — M2-2: independent review R3 fixed — one written line is one line; JSON keys through the boundary; only two writers reach the terminal（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.4` / `git rev-parse v0.5.4` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r3（範囲 v0.5.1..v0.5.2）の Medium 3 件（v0.5.3 でバックログへ）を修正。SP1 で出口に渡す文字列を AST で全件洗い出し（105 か所と commander の 3 経路）、
+  人間の承認の後に実装した。新しい ADR-0017（ADR-0016 の決定 3 と既知の限界を置換）
+- M2-2-R3-002: JSON（`--json`）のオブジェクトのキーも値と同じく、禁止文字を表記にしてから秘密の形を mask する。変換の後に 1 つのオブジェクトの 2 つのキーが同じ文字列に
+  なったら、合わせずに何も出さない（fail closed、最上位の「unexpected error」で exit 2）。`__proto__` というキーも消えない
+- M2-2-R3-001: **1 回の書き出し = 1 行**（1 行の中の LF・TAB も `\u{A}` / `\u{9}` の表記）。複数行はコマンド自身の書式だけを block で書く: init の設定案
+  （コメントに入る値は作る所で表記にする。`--write` で書くファイルも同じ）、設定の検証エラー（見出しの 1 行と zod の詳細の block。`ConfigError` に `summary` / `details`）、
+  commander の help と `--version`、使い方エラーの提案の行（commander が引用する引数の LF は、引数の一部だけが引用される場合も含めて表記）
+- M2-2-R3-003: 端末に書くのは `src/output.ts` の `emitOut` / `emitErr` だけ（引数は `safeText` / `safeJson` だけが作る型 `Safe`）。構造ガード
+  `tests/structure/output-guard.ts` は、端末に 1 つのプロパティで届くオブジェクト（`process`・`globalThis`・`node:process`）の動的・反射的な扱い、型検査で中身が
+  見えないコード（`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm`）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない
+  子プロセス、`safeText` / `safeJson` の外で作る `Safe` を違反にする。SP1 の 22 形、出口の中の 3 形、同じ種類で足した 12 形を回帰テストで固定した
+- **出力が変わる条件**:
+  - 利用者由来の値に LF・TAB を含むとき（パス、ファイル名、`--cwd`、設定ファイルのパス、Node・git のエラー文、verify の check の出力の末尾の行、commander が
+    引用する引数、設定の project 名と check のコマンド）: その文字が `\u{A}` / `\u{9}` の表記になり、1 行のままになる。review-packet は従来どおり
+  - 利用者由来の値に禁止文字を含むとき: 従来どおり表記（v0.5.2 から）。加えて、init の設定案のコメントに入る値（アダプタの理由・注記・有効化の案内）の
+    LF・TAB・禁止文字は、端末と `--write` で書くファイルの両方で表記になる（今のアダプタの文は aiqh 自身の文で、該当しない）
+  - JSON のキーに禁止文字・秘密の形を含むとき: 表記・mask になる。変換の後にキーが衝突するとき: 何も出さず exit 2（今の各コマンドの `--json` のキーは固定の識別子で、
+    どちらも起きない）
+  - 設定の検証エラーは、見出しの行と zod の詳細を別の書き出しで出す（端末に出るバイトは同じ）
+- 禁止文字・秘密の形・利用者由来の LF・TAB の無い出力は v0.5.3 とバイト単位で一致した（同じ fixture で 40 通り: v0.5.2 の 25 通り〈verify の check の出力から TAB を除いた〉に、
+  設定の検証エラー 5、引数なしの `aiqh`、提案つきの未知のコマンド・オプション 4、scripts を持つリポジトリなどでの init 3、init の `--write` 2 を足した。
+  `--write` が書く `aiqh.config.jsonc`・`.gitignore`・`package.json` も一致）。check の出力に TAB がある verify の 2 通りは、TAB の 2 行だけが表記に変わる
+- 既存テストの期待値の変更は 1 件（SP1 の予測どおり: M2-2-R2-001 の対照が固定していた、既定で LF・TAB を残す動き）。回帰テスト 3 ファイル 25 件
+  （`regression-m2-2-r3-001-line-breaks`・`regression-m2-2-r3-002-json-keys`・`regression-m2-2-r3-003-output-guard`）。テスト 618 件（98 ファイル）。
+  `package.json` version 0.5.4
+- 注記: v0.5.3 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.3 — commit e92e999 / tag object dfb1960 — M2-2: independent review R3 — the carry-over work is closed (docs only)
 
 - 独立レビュー m2-2-r3（`docs/reviews/m2-2/independent-review-r3.md`、範囲 v0.5.1..v0.5.2）: 前回の M2-2-R2-001 は解消、新しい指摘は High 0 / Medium 3 / Low 0。
   対応記録 `docs/reviews/m2-2/response-r3.md`
