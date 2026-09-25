@@ -5,7 +5,28 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.4 — M2-2: independent review R3 fixed — one written line is one line; JSON keys through the boundary; only two writers reach the terminal（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.4` / `git rev-parse v0.5.4` で確認し、次の release commit で記入）
+## v0.5.5 — M2-2: independent review R4 — the output boundary work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.5` / `git rev-parse v0.5.5` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r4（`docs/reviews/m2-2/independent-review-r4.md`、ChatGPT、範囲 v0.5.3..v0.5.4）: 前回の 3 件は R3-001 が解消、R3-002・R3-003 が部分的に解消。
+  新しい指摘は High 0 / Medium 2 / Low 0。対応記録 `docs/reviews/m2-2/response-r4.md`
+  - M2-2-R4-001: `safeJson()` の写しに関数の値の `toJSON` が残ると、`JSON.stringify()` がそれを呼び、戻り値は表記・mask を通らずに出る
+  - M2-2-R4-002: 出力の構造ガードが `process.getBuiltinModule(…)` を検出しない（import なしで `node:console`・`node:vm` を取れる）
+- 区切る前に 2 件の前提を実測した（どちらも再現。High の基準には当たらない）: `safeJson()` を呼ぶのは `createOutput().json` だけで、今の各コマンドの `--json` は
+  JSON のデータだけ（一時 worktree で検査を足し、vitest と通常の出力の比較でコマンドからの呼び出し 35 回に JSON のデータでない値 0 件）。`src/` は
+  `process.getBuiltinModule` と同じ種類の方法を 1 つも使わず、読み込む組み込みモジュールは 6 つのまま
+- ADR-0017 の既知の限界に 2 件と、同じ種類で検出しない方法（`process.dlopen`、`process.report.writeReport("stdout")`）を追記した（v0.5.5 で追記）。
+  「`node:vm` を検出する」と読める記述を「`node:vm` の import を検出する」に、JSON の決定を「JSON のデータについて」に直した。ARCHITECTURE も同じ
+- ROADMAP: 2 件と、v0.5.4 で約束した構造ガードの既知の限界（読み込めるモジュールの一覧による限定）をバックログの 2・3 へ。既存の項目は 4〜19 に
+- **リリースの検証で起きた不安定なテスト**: 自己 verify の `unit-minpath` が 7 回中 2 回 FAIL した（どちらも `tests/regression-r4-report.test.ts` の
+  「R4-002 interrupted checks keep timedOut / outputTruncated > timedOut stays true when an abort overlaps a timeout」、`exec.interruptedBy` が null）。
+  2 回目の失敗の直後の負荷平均は 1 分 71.23・5 分 82.17（8 コア）。推定の原因（確定ではない）は、負荷で子が SIGTERM を無視する処理を登録する前にタイムアウトの
+  SIGTERM が届き、600ms の中断の前に実行が終わること。テストはこの版では直さず、ROADMAP のバックログの先頭（1）に記録した（`docs/reviews/m2-2/response-r4.md`）。
+  v0.5.5 のタグは、負荷の低い状態でのやり直しの検証が PASS した commit に付けた
+- 完了基準「High が無ければ区切り、Medium 以下はバックログへ」により、出力の出口の強化（v0.5.2〜v0.5.4、独立レビュー R2〜R4）をここで区切る
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。出力は v0.5.4 と同じ。テスト 618 件（98 ファイル）。`package.json` version 0.5.5
+- 注記: v0.5.4 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.4 — commit f33c75f / tag object 29ee54e — M2-2: independent review R3 fixed — one written line is one line; JSON keys through the boundary; only two writers reach the terminal
 
 - 独立レビュー m2-2-r3（範囲 v0.5.1..v0.5.2）の Medium 3 件（v0.5.3 でバックログへ）を修正。SP1 で出口に渡す文字列を AST で全件洗い出し（105 か所と commander の 3 経路）、
   人間の承認の後に実装した。新しい ADR-0017（ADR-0016 の決定 3 と既知の限界を置換）
