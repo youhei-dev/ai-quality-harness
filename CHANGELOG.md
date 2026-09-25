@@ -5,7 +5,30 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.0 — M2-2: M2-1 independent review R3 Medium findings fixed（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.0` / `git rev-parse v0.5.0` で確認し、次の release commit で記入）
+## v0.5.1 — M2-2: independent review R1 — unreadable is not absent; a rejected range keeps the range-independent checks（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.1` / `git rev-parse v0.5.1` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r1（`docs/reviews/m2-2/independent-review-r1.md`、範囲 v0.4.4..v0.5.0）: 前回の 5 件は解消 2 / 部分的に解消 3、新しい指摘は High 0 / Medium 6 / Low 1。
+  7 件を修正の前に実コードで確かめ、6 件を再現した（R1-004 は再現せず: 規則 `widened-renderer` が検出する）。対応記録 `docs/reviews/m2-2/response-r1.md`
+- M2-2-R1-007（レビュアーは Medium。人間の判断で High として扱う）: `latest.json` を `existsSync()` で探していたため、親を辿れない・親がファイル・symlink のループの
+  `latest.json` を「無い」とし、exit 0 でパケットを書いて「does not exist」と記述していた。直接読み、ENOENT だけを「無い」、それ以外は検査不能（exit 2）にした
+- 既定の設定ファイル（R1-007 の確認で見つけた同じ種類の箇所）: review-packet と security-scan がそれぞれ `existsSync()` で既定の設定ファイルを探していたため、
+  辿れない・ループの設定ファイルを「無い」として既定値を使っていた（review-packet は exit 0 でパケットを書き、security-scan は設定で足した `envProbePaths` が効かず
+  exit 1 のところ exit 0）。1 つの関数 `loadSecurityConfig`（`src/config/load.ts`）にまとめ、ENOENT だけ既定値、それ以外は設定の誤り（exit 2）にした。`--config` の扱いは変えていない
+- M2-2-R1-001（Medium）: `--range` に finding があるとき、範囲に依存しない検査（作業ツリーの確認、root の取得）まで飛ばしていたため、検査不能が exit 1 の完全な結果に
+  隠れていた。範囲の値とその結果を使う処理だけを飛ばし、作業ツリー・root・依頼文とレビュー・`latest.json` の読取と復号と JSON でない場合の全文検査・aiqh の版と
+  `git --version`・`--label` があるときの既定の出力名は検査する（ADR-0015 を改訂）。塞がれた値は今までどおり git に渡らない
+- **終了コードが変わる組み合わせ**: 読めない `latest.json`（ENOENT 以外）が 0 → 2、読めない既定の設定ファイル（ENOENT 以外。review-packet・security-scan）が 0 → 2、
+  `--range` の finding ＋ 範囲に依存しない検査不能（作業ツリー外、無い `--cwd`、読めない `latest.json`）が 1 → 2
+- パケットの組み立ては変えていない（版の表記が同じ状態で、v0.5.0 と同じ範囲・入力〈v0.4.4..v0.5.0、`latest.json` あり・なし〉から作ったパケットと ZIP の SHA-256 が一致）
+- 保証の記述の訂正（コードは変えていない）: `unit-minpath` は PATH の名前解決で起動する、宣言していないコマンドを検出する（絶対パスでの起動、引き継ぐ環境変数、
+  単独で実行してシグナルを受けたときの子孫は対象外。R1-005・006。README・ARCHITECTURE）、オプション一覧の比較は short 別名を見ない（R1-002）、外部コマンドのガードは
+  複数のツールの probe を混ぜた変数を誤って許可する（R1-003）、brand のガードの関数型へのアサーション（R1-004）（ADR-0014 §14）。既定の設定ファイルの扱い（CONFIG_SPEC §3b）
+- 残り（R1-002〜006、同じ種類の残りの箇所）は ROADMAP のバックログの先頭へ（既存の項目は順序を変えず番号だけ振り直した）
+- 既存テストの期待値の変更は 0 件。回帰テスト 3 ファイル 36 件（`regression-m2-2-r1-007-unreadable-parent`、`regression-m2-2-r1-config-read`、
+  `regression-m2-2-r1-001-rejected-range-preflight`。権限を使う 7 件は root では skip）。テスト 572 件（94 ファイル）。`package.json` version 0.5.1
+- 注記: v0.5.0 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.0 — commit d9793cd / tag object 7557c1e — M2-2: M2-1 independent review R3 Medium findings fixed
 
 - M2-2 の先頭: M2-1 独立レビュー R3 の Medium 5 件（R3-002〜006）を修正。SP1 で 5 件とも実コードで再現してから設計し（人間の承認）、各件の回帰テストの
   修正前 FAIL を記録した。対応記録 `docs/reviews/m2-1/response-r3.md`（「M2-2 での修正」）
