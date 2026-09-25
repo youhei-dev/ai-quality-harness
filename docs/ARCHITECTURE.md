@@ -439,7 +439,10 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `src/cli.ts` とオプションの解析は `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`）。処理の順序は、禁止文字（raw-chars.ts の集合）を
   `\u{HEX}` の表記にする → masker。JSON は文字列を再帰的に表記にしてから `maskDeep`。LF と TAB は残す（review-packet は 1 回の書き出し = 1 行なので表記にする）。
   型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr`・fd 1 / 2 への書き込みを `src/output.ts` 以外で禁止する。
-  ファイルへの出力（レポート、init が書く設定）は対象外（ROADMAP のバックログ）
+  ファイルへの出力（レポート、init が書く設定）は対象外（ROADMAP のバックログ）。
+  既知の限界（v0.5.3、ADR-0016）: 既定のモードでは利用者由来の値（パス、ファイル名）の LF・TAB も残り、端末の見た目を崩せる（終了コードと `--json` の結果は
+  変わらない）。`safeJson()` はオブジェクトのキーを表記にしない（今の各コマンドの `--json` のキーは固定）。構造テストは動的なキーの `process[key]` と、
+  `src/output.ts` の中の書き出しを見ない
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →

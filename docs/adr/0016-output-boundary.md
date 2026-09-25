@@ -15,7 +15,7 @@ ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマ�
 ## 決定
 1. 標準出力・標準エラーへ書く文字列は、すべて `src/output.ts` を通す。各コマンドは `createOutput()`（`log` / `error` / `json`）、`src/cli.ts` とオプションの解析は
    `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`（サブコマンドを足す前に設定し、各コマンドに引き継がせる）
-2. 処理の順序: 禁止文字（`src/security/raw-chars.ts` の集合）を `\u{HEX}` の表記にする → masker（ADR-0006）。JSON は文字列を再帰的に表記にしてから `maskDeep`
+2. 処理の順序: 禁止文字（`src/security/raw-chars.ts` の集合）を `\u{HEX}` の表記にする → masker（ADR-0006）。JSON は文字列を再帰的に表記にしてから `maskDeep`（値の文字列。オブジェクトのキーは表記にしない: 既知の限界 2）
 3. LF と TAB は禁止文字の集合に入っていない。既定では残す（複数行のメッセージ、check の出力の末尾、設定案、help の行と桁）。review-packet は「1 回の書き出し = 1 行」
    なので LF と TAB も表記にする（従来どおり）
 4. 構造テスト `tests/structure/output-guard.ts`（型情報付き）: `src/` の中で大域の `console`、`process.stdout` / `process.stderr`、`node:console`、fd 1・2 や
@@ -27,6 +27,16 @@ ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマ�
 - security-scan だけを review-packet と同じ処理にする: verify・init・commander・オプションの解析の経路が残る。1 か所ずつ直すと漏れる（M2-1、M2-2-R1 の P2・O1 の教訓）
 - LF と TAB もすべてのコマンドで表記にする: verify の check の出力の末尾や設定エラーの詳細など、禁止文字の無い通常の出力が変わる
 - 禁止文字を取り除く: 何があったかが分からなくなる。表記にして残す
+
+## 既知の限界（v0.5.3、M2-2 独立レビュー R3 で確認。ROADMAP のバックログ）
+1. **LF・TAB（M2-2-R3-001）**: 既定の `"keep"` モードは LF・TAB を残す。コマンド自身の書式だけでなく、埋め込んだ利用者由来の値（パス、ファイル名）の中の
+   LF・TAB も残るため、端末の行・桁の見た目を崩せる（LF を含むファイル名で `SECURITY SCAN: no findings` と読める行が出ることを確かめた）。
+   終了コード、最後の判定の行、`--json` の結果は変わらない（security-scan・verify・init で実測）。review-packet（`"escape"`）では LF・TAB も表記になる
+2. **JSON のキー（M2-2-R3-002）**: `safeJson()` は値の文字列だけを表記にし、オブジェクトのキーは表記にしない（キーの U+202E は生で出る）。
+   今の各コマンドの `--json`（security-scan・init・review-packet。verify には `--json` が無い）のキーはすべて固定の識別子で、利用者由来のキーは無い
+   （利用者由来の値を入れた出力で、キーを全件確かめた）
+3. **構造ガード（M2-2-R3-003）**: `tests/structure/output-guard.ts` は、動的なキーの `process[key]`（キーの型が文字列リテラルでも）を検出しない。
+   また `src/output.ts` をファイル単位で許可するため、その中に足した出口を通らない書き出しを検出しない。今の `src/` に該当は無い
 
 ## 影響
 - 禁止文字を含む出力は、その文字が表記になる（CHANGELOG v0.5.2）。verify の check の出力の末尾にある ESC（色付け）や CR も表記になる
