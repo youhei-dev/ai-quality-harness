@@ -3,12 +3,13 @@
  * aiqh writes to standard output or standard error goes through here. Forbidden raw characters (raw-chars.ts: C0
  * controls other than TAB and LF, DEL, C1 controls, U+2028 / U+2029, the bidi controls, U+FEFF) first become the ASCII
  * notation `\u{HEX}`, then the masker redacts secret shapes (it is idempotent, so text a command masked already is
- * unchanged). Before v0.5.2 only review-packet escaped raw characters; the other commands passed paths, file names,
- * git output and error messages to the terminal through the masker alone.
+ * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002). Before
+ * v0.5.2 only review-packet escaped raw characters; the other commands passed paths, file names, git output and error
+ * messages to the terminal through the masker alone.
  * tests/structure/output-guard.ts allows `console`, `process.stdout` / `process.stderr` and writes to file descriptors
  * 1 and 2 only in this module.
  */
-import { maskDeep, maskSecrets } from "./security/mask.ts";
+import { maskSecrets } from "./security/mask.ts";
 import { escapeRawChars, isForbiddenCodePoint } from "./security/raw-chars.ts";
 
 /**
@@ -35,21 +36,30 @@ export function safeText(s: string, mode: LineMode = "keep"): string {
   return maskSecrets(escapeForDisplay(s, mode));
 }
 
-/** Every string inside a JSON value escaped (object keys are aiqh's own and stay as they are). */
-function escapeDeep(value: unknown, mode: LineMode): unknown {
-  if (typeof value === "string") return escapeForDisplay(value, mode);
-  if (Array.isArray(value)) return value.map((v: unknown) => escapeDeep(v, mode));
+/**
+ * A copy of a JSON value in which every string — object keys included (M2-2-R3-002) — is escaped, then masked. Two keys
+ * of one object that become the same string are an error, never a merge (fail closed: nothing is printed; the CLI
+ * reports it as an unexpected error, exit 2). The objects of the copy have no prototype, so a key such as "__proto__"
+ * stays a key.
+ */
+function jsonSafe(value: unknown, mode: LineMode): unknown {
+  if (typeof value === "string") return maskSecrets(escapeForDisplay(value, mode));
+  if (Array.isArray(value)) return value.map((v: unknown) => jsonSafe(v, mode));
   if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = escapeDeep(v, mode);
+    const out = Object.create(null) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(value)) {
+      const key = maskSecrets(escapeForDisplay(k, mode));
+      if (Object.hasOwn(out, key)) throw new Error(`JSON output refused: two object keys are the same after escaping and masking ("${escapeRawChars(key)}")`);
+      out[key] = jsonSafe(v, mode);
+    }
     return out;
   }
   return value;
 }
 
-/** A JSON document for the terminal: strings escaped, then masked (maskDeep), then printed with two-space indentation. */
+/** A JSON document for the terminal: every string and object key escaped, then masked, printed with two-space indentation. */
 export function safeJson(value: unknown, mode: LineMode = "keep"): string {
-  return JSON.stringify(maskDeep(escapeDeep(value, mode)), null, 2);
+  return JSON.stringify(jsonSafe(value, mode), null, 2);
 }
 
 /** The writers a command is given: the sinks of a test, or the process's standard output and error. */
