@@ -20,6 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:minpath": "node scripts/test-minimal-path.ts",
     "smoke:package": "node scripts/package-smoke.ts",
     "security": "node src/cli.ts security-scan",
     "schema:gen": "node scripts/gen-schema.ts",

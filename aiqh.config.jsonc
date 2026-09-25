@@ -11,6 +11,11 @@
       "description": "tsc --noEmit over src/ and tests/" },
     { "name": "unit",      "kind": "unit",      "command": "npm run test",      "timeoutSec": 600,
       "description": "Vitest: config loading, fail-closed verdict, reports, masking, CLI end-to-end" },
+    // M2-2 (M2-1-R3-006): the same suite with only node and git on PATH, so a test that starts an undeclared
+    // external command in any form (also inside a `node -e` script) fails; unzip / python3 tests skip.
+    // The symlinks live in a temporary directory that the script removes (scripts/test-minimal-path.ts).
+    { "name": "unit-minpath", "kind": "custom", "command": "npm run test:minpath", "timeoutSec": 600,
+      "description": "Vitest with only node and git on PATH: tests start no undeclared external command" },
     { "name": "build",     "kind": "build",     "command": "npm run build",     "timeoutSec": 300,
       "description": "tsc emits dist/ (the distributed artifact; bin points at dist/cli.js)" },
     // R2-005 (formerly R-008): distribution acceptance test. npm pack -> temp consumer -> install the
