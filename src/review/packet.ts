@@ -23,7 +23,7 @@ import path from "node:path";
 import type { ResolvedSecurity, VerificationReport } from "../types.ts";
 import { decodeUtf8Strict, findRawChars, formatCodePoint, isForbiddenCodePoint } from "../security/raw-chars.ts";
 import { findAllowRule, scanString, type ScanFinding } from "../security/scan.ts";
-import { REJECTED, checkValue, type Checked } from "./checked.ts";
+import { REJECTED, UncheckedValueError, assertChecked, checkValue, type Checked } from "./checked.ts";
 
 /** Lock files: full source and diff are left out by default (name-status, stat and SHA-256 stay). */
 export const LOCK_FILE_NAMES: readonly string[] = [
@@ -232,26 +232,47 @@ declare const mdBrand: unique symbol;
 export type Md = string & { readonly [mdBrand]: true };
 
 /**
+ * Every Md created in this process (M2-2, M2-1-R3-004): md, joinMd and the Builder accept an interpolated or
+ * added string only if it is here, so a string that reached them through `any` or an assertion stops the
+ * packet (UncheckedValueError, fail closed) instead of being written.
+ */
+const issuedMd = new Set<string>();
+
+/** The only place that creates the Md brand (the structure test allows no other; callers: the renderers below). */
+function issueMd(text: string): Md {
+  issuedMd.add(text);
+  return text as Md;
+}
+
+/** Run-time proof that `text` was created by md or a renderer (M2-1-R3-004). */
+function assertMd(text: Md): Md {
+  if (typeof text !== "string" || !issuedMd.has(text)) throw new UncheckedValueError("internal: packet text that was not built by md or a renderer");
+  return text;
+}
+
+/**
  * Template for packet text (M2-1 R2). Only fixed text, rendered fragments (Md: inlineCode, cellCode,
  * plainOrCode, other md results) and numbers can be interpolated. A string cannot — neither an unchecked one
  * nor a Checked one, which may still hold LF or backticks — so every value goes through a renderer, and a
- * value that bypasses them is a type error.
+ * value that bypasses them is a type error, and at run time an UncheckedValueError (M2-1-R3-004). md is used
+ * only as a tag: a direct call with a forged strings array is rejected (a tag's strings array is frozen and has `raw`).
  */
 export function md(strings: TemplateStringsArray, ...values: ReadonlyArray<Md | number>): Md {
+  if (!Object.isFrozen(strings) || !Array.isArray(strings.raw)) throw new UncheckedValueError("internal: md is a template tag");
   let out = strings[0] ?? "";
   values.forEach((v, i) => {
-    out += String(v) + (strings[i + 1] ?? "");
+    out += (typeof v === "number" ? String(v) : assertMd(v)) + (strings[i + 1] ?? "");
   });
-  return out as Md;
+  return issueMd(out);
 }
 
 function joinMd(parts: readonly Md[], separator: Md): Md {
-  return parts.join(separator) as Md;
+  return issueMd(parts.map(assertMd).join(assertMd(separator)));
 }
 
 /** Inline code for paths, globs, file names, labels and other user / JSON strings (also the only dynamic text in headings). */
 export function inlineCode(s: Checked): Md {
-  return `\`${escapeInline(s)}\`` as Md;
+  return issueMd(`\`${escapeInline(assertChecked(s))}\``);
 }
 
 /** Paths are rendered as inline code (kept as a name for the call sites and tests). */
@@ -259,7 +280,7 @@ export const renderPath = inlineCode;
 
 /** Inline code inside a table cell: as inlineCode, plus `|` escaped (GFM splits cells before code spans). */
 function cellCode(s: Checked): Md {
-  return `\`${escapeInline(s).replace(/\|/g, "\\|")}\`` as Md;
+  return issueMd(`\`${escapeInline(assertChecked(s)).replace(/\|/g, "\\|")}\``);
 }
 
 /** Characters shown as plain text: SHAs, versions, times, labels, status letters, `true` / `null`. */
@@ -267,7 +288,7 @@ const PLAIN = /^[A-Za-z0-9 ._:+()/-]*$/;
 
 /** A value shown as plain text when it has only PLAIN characters, otherwise as inline code. */
 function plainOrCode(s: Checked): Md {
-  return PLAIN.test(s) ? (s as string as Md) : inlineCode(s);
+  return PLAIN.test(assertChecked(s)) ? issueMd(s) : inlineCode(s);
 }
 
 function fenceFor(content: string): string {
@@ -319,12 +340,12 @@ class Builder {
 
   /** Template text (headings, tables written by aiqh), built with md. */
   add(text: Md): void {
-    this.push(text);
+    this.push(assertMd(text));
   }
 
   /** Template text attributed to a source (the Verification section), so that a packet line can be traced back to it. */
   addSource(text: Md, source: string, origin: LineOrigin | null): void {
-    this.pushSource(text, source, origin);
+    this.pushSource(assertMd(text), source, origin);
   }
 
   /**

@@ -5,7 +5,7 @@
  * entries therefore always give the same bytes. No ZIP64: sizes and offsets must fit in 32 bits.
  */
 import { crc32 } from "node:zlib";
-import type { Checked } from "./checked.ts";
+import { assertChecked, type Checked } from "./checked.ts";
 
 export interface ZipEntry {
   /**
@@ -44,6 +44,8 @@ export function createStoredZip(entries: readonly ZipEntry[]): Buffer {
   const centrals: Buffer[] = [];
   let offset = 0;
   for (const e of entries) {
+    // Run-time proof that the name passed the pre-render check (M2-1-R3-004); a forged Checked throws here.
+    assertChecked(e.name);
     if (!NAME.test(e.name) || e.name.split("/").some((s) => s === "." || s === "..")) throw new ZipError(`invalid entry name: ${JSON.stringify(e.name)}`);
     if (seen.has(e.name)) throw new ZipError(`duplicate entry name: ${e.name}`);
     seen.add(e.name);

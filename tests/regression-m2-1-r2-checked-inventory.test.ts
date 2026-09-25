@@ -5,13 +5,14 @@
  * `aiqh review-packet` is listed in one inventory that decides how its value is checked.
  *  - the inventory's keys equal the options that cli.ts registers (read from `--help`, so a new option
  *    without an inventory entry fails here)
- *  - no `as Checked` outside checked.ts (the brand cannot be forged elsewhere)
+ *  - (M2-2) the text search for `as Checked` was replaced by the brand guard with the type checker and a
+ *    run-time registry: tests/regression-m2-2-r3-004-brand-forgery.test.ts (M2-1-R3-004)
  *  - type level (npm run typecheck): a plain string is rejected by inlineCode / createStoredZip, and packet
  *    text is built with the `md` template, which takes only rendered fragments and numbers
  *  - the leak the typed template found: latest.json values of another commit were interpolated as is
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OPTION_INVENTORY, runReviewPacket } from "../src/commands/review-packet.ts";
@@ -39,13 +40,6 @@ function registeredOptions(): string[] {
   return [...names].sort();
 }
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((n) => {
-    const p = path.join(dir, n);
-    return statSync(p).isDirectory() ? sourceFiles(p) : p.endsWith(".ts") ? [p] : [];
-  });
-}
-
 /** Never called: the @ts-expect-error lines fail `npm run typecheck` if a plain string becomes acceptable. */
 function typeLevel(): void {
   // @ts-expect-error a plain string is not a Checked value
@@ -63,14 +57,6 @@ void typeLevel;
 describe("M2-1 R2: checked strings and the option inventory", () => {
   it("the inventory lists exactly the options registered for review-packet in cli.ts", () => {
     expect(Object.keys(OPTION_INVENTORY).sort()).toEqual(registeredOptions());
-  });
-
-  it("only src/review/checked.ts turns a string into Checked", () => {
-    const forged = sourceFiles(path.join(ROOT, "src"))
-      .filter((f) => !f.endsWith(path.join("review", "checked.ts")))
-      .filter((f) => /\bas\s+(?:unknown\s+as\s+)?Checked\b/.test(readFileSync(f, "utf8")))
-      .map((f) => path.relative(ROOT, f));
-    expect(forged).toEqual([]);
   });
 
   it("found by the typed template: latest.json values for another commit (git.commit, git.dirty) cannot change the Markdown", async () => {
