@@ -5,7 +5,7 @@
 - 対応日: 2026-09-25
 - 結果（レビュアー）: 前回の 3 件は R3-001 が解消、R3-002・R3-003 が部分的に解消。新しい指摘は High 0 / Medium 2（M2-2-R4-001・002）/ Low 0
 - 人間の判断: 完了基準「High が無ければ区切り、Medium 以下はバックログへ」に従い、出力の出口の強化（M2-2-R3-001〜003、v0.5.4）を v0.5.5 で区切る。
-  2 件は **Medium のままバックログの先頭へ（v0.5.5 では修正しない）**。v0.5.5 は docs だけの版。区切る前に 2 件の前提を実測した（M2-2-R1-007 の教訓）
+  2 件は **Medium のままバックログの上位（2・3）へ（v0.5.5 では修正しない）**。v0.5.5 は docs だけの版。区切る前に 2 件の前提を実測した（M2-2-R1-007 の教訓）
 
 ## 前回の指摘の判定（レビュアーの判定）
 
@@ -106,13 +106,30 @@ LF・TAB・禁止文字・ダミーの秘密の形は実行時に作り、記録
 
 ## 対応
 
-- 2 件とも **Medium のままバックログの先頭へ（v0.5.5 では修正しない）**。重大度はレビュアーの判定のまま
-  1. M2-2-R4-001: `safeJson()` の入力を JSON のデータに限る（関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object は fail closed で拒否する）
-  2. M2-2-R4-002 と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定し、import・`require`・`process.getBuiltinModule` と同じ種類を
+- 2 件とも **Medium のままバックログの上位（2・3）へ（v0.5.5 では修正しない）**。重大度はレビュアーの判定のまま。先頭（1）は、v0.5.5 のリリースの検証で見つかった
+  不安定なテスト（下の節）
+  2. M2-2-R4-001: `safeJson()` の入力を JSON のデータに限る（関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object は fail closed で拒否する）
+  3. M2-2-R4-002 と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定し、import・`require`・`process.getBuiltinModule` と同じ種類を
      同じ規則で検査する。process の書き出す関数（`emitWarning` など）の禁止も含む
 - SP2 報告（v0.5.4）§10-3 で「m2-2-r4 の結果を受けた次の docs の版で足す」とした構造ガードの既知の限界（`worker_threads`、`node:repl`・`node:test`、`tty.WriteStream(fd)`、
-  `util.debuglog`、`process.emitWarning`、実行時に組み立てたパスへの fs の書き込み）を、この版でバックログの 2 に入れた
+  `util.debuglog`、`process.emitWarning`、実行時に組み立てたパスへの fs の書き込み）を、この版でバックログの 3 に入れた
 - 保証の記述の訂正: ADR-0017 の既知の限界に 2 件を追記し、ARCHITECTURE も同じ内容にした
+
+## v0.5.5 のリリースの検証で起きた不安定なテスト
+
+- 起きたこと: v0.5.5 のリリースの検証で、自己 verify の `unit-minpath`（最小の PATH で全テストをもう一度実行する check）が 2 回 FAIL した。失敗したテストはどちらも
+  `tests/regression-r4-report.test.ts` の「R4-002 interrupted checks keep timedOut / outputTruncated > timedOut stays true when an abort overlaps a timeout」
+  （`exec.interruptedBy` が null。期待は `"SIGINT"`）
+- 回数: その時点の unit-minpath の実行 **7 回中 2 回**（release commit の一時 worktree の `npm run verify` と、HEAD の `npm run verify`）。PASS は 5 回（docs の 2 commit の
+  worktree の verify、HEAD の `npm run verify:dist`、`npm run test:minpath` の単独実行 2 回）。同じ verify の `unit`（通常の PATH の全テスト）と HEAD の `npx vitest run` × 3 は
+  PASS し、このテストのファイルだけの実行は 10 回とも PASS した
+- 負荷: 2 回目の失敗の直後に測った負荷平均は 1 分 71.23・5 分 82.17（8 コア。5 分の平均は 1 回目の失敗の時間帯も含む）。ブラウザなどほかのアプリの負荷があり、
+  検証が終わった後も 57〜68 だった
+- 推定の原因（**確定ではない**）: このテストは、SIGTERM を無視する子（`node -e`）に対し、タイムアウト 300ms → SIGTERM → 猶予 1500ms の間の 600ms に中断（SIGINT）が
+  届くことを前提にしている。負荷が高く、子が SIGTERM を無視する処理を登録する前にタイムアウトの SIGTERM が届くと、子はすぐ終わり、600ms の中断の前に実行が終わる。
+  負荷の下での子の起動時間は測っていない。この版の変更は docs と版だけで、このテストの経路（`src/runner/execute.ts`）は変えていない
+- 対応（人間の判断）: テストの修正はこの版では行わず（v0.5.5 は docs だけの版）、ROADMAP のバックログの先頭（1）に記録した（自己 verify の信頼性に関わるため）。
+  v0.5.5 のタグは、負荷の低い状態でのやり直しの検証が PASS した commit に付けた
 
 ## 出力の出口の強化の区切り
 

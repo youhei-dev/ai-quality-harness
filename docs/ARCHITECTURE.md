@@ -449,7 +449,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
   v0.5.5 で追記（M2-2 独立レビュー R4）: `safeJson()` は JSON のデータでない値を処理しない（自分の `toJSON` の関数の戻り値は表記・mask を通らない。今の各コマンドの
   `--json` は JSON のデータだけ）。構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの先頭（1・2）
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 2・3
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →

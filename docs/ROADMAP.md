@@ -156,12 +156,12 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   書いていた → ENOENT だけを「無い」とし、それ以外は検査不能）。M2-2-R1-001（Medium）も修正（Rejected の `--range` でも、作業ツリー・root・
   `latest.json` の読取など範囲に依存しない検査を行う。ADR-0015 を改訂）。確認で見つけた同じ種類の既定の設定ファイルの読み込み（review-packet と
   security-scan。security-scan は検査が弱まり exit 1 のところ exit 0）も、1 つの関数 `loadSecurityConfig` にまとめて修正。残りの R1-002〜006 は
-  下のバックログ 3〜7、残りの同じ種類の箇所はバックログ 8
+  下のバックログ 4〜8、残りの同じ種類の箇所はバックログ 9
 - 独立レビュー m2-2-r2（範囲 `v0.5.0..v0.5.1`）: 前回の 2 件（R1-007、R1-001）は解消、新しい指摘は **High 1（M2-2-R2-001）**/ Medium 0 / Low 0。
   security-scan の出力は masker だけを通していたため、パス（作業フォルダ、ファイル名、設定のエラー）の禁止文字が生のまま端末に出た（v0.5.1 の設定のエラーの経路。
   走査の出力の経路は v0.4.4 でもあった）。同じことは verify・init・commander の使い方エラー・オプションの解析でも起きた
 - v0.5.2: **M2-2-R2-001 を High のまま修正**。すべてのコマンドの標準出力・標準エラーを 1 つの出口 `src/output.ts` に通す（禁止文字を `\u{HEX}` の表記 → masker。
-  ADR-0016）。型情報付きの構造テストが、`src/output.ts` 以外からの書き出しを禁止する。禁止文字の無い出力は v0.5.1 とバイト一致。ファイルへの出力は下のバックログ 9
+  ADR-0016）。型情報付きの構造テストが、`src/output.ts` 以外からの書き出しを禁止する。禁止文字の無い出力は v0.5.1 とバイト一致。ファイルへの出力は下のバックログ 10
 - 独立レビュー m2-2-r3（範囲 `v0.5.1..v0.5.2`）: 前回の R2-001 は解消、新しい指摘は **High 0** / Medium 3（R3-001〜003）/ Low 0。3 件とも実コードで再現した
   （LF・TAB は見た目だけで、終了コードと `--json` は正しい。各コマンドの `--json` に利用者由来のキーは無い。構造ガードの穴を使う書き出しは `src/` に無い）
 - v0.5.3（docs だけ）: 完了基準「High が無ければ区切り、Medium 以下は次へ」により、**M2-1 からの持ち越し作業（v0.5.0〜v0.5.2、R1〜R3）をここで区切り**。
@@ -179,7 +179,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   区切る前に 2 件の前提を実測した（どちらも再現。今の各コマンドの `--json` は JSON のデータだけで、`src/` はどの方法も使わない）
 - v0.5.5（docs だけ）: 完了基準「High が無ければ区切り、Medium 以下はバックログへ」により、**出力の出口の強化（v0.5.2〜v0.5.4、R2〜R4）をここで区切り**。
   R4 の記録（`docs/reviews/m2-2/response-r4.md`）、ADR-0017 の既知の限界に 2 件を追記（「`node:vm` を検出する」と読める記述を、import の検出と直した）、
-  R4 の 2 件と構造ガードの既知の限界をバックログの先頭（1・2）へ
+  R4 の 2 件と構造ガードの既知の限界をバックログの 2・3 へ。リリースの検証で見つかった unit-minpath の不安定なテストを先頭（1）へ
 - 次: バックログから選ぶ（未定）
 
 ### M2-1 以降のバックログ（上から順に扱う）
@@ -188,42 +188,49 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 順序の変更（v0.5.0、人間の判断）: 「使い方エラーを exit 2 に揃える」と「review-packet テストの分割・並列化」を M2-0-R4-001 の前へ。前者は ADR-0015 で
 review-packet の終了コードの規則を決めた直後で、同じ文脈で小さく済む。後者は git を多数起動する回帰テストの増加と `unit-minpath`（全テストをもう一度実行）で
 自己 verify の所要時間が伸びたため、review-import の前に抑える。
-順序の変更（v0.5.1、人間の判断）: M2-2 独立レビュー R1 の残り（R1-002〜006）と、読めないものを「無い」とする残りの箇所を先頭へ（v0.5.5 の番号で 3〜8）。既存の項目の順序は変えていない。
-順序の変更（v0.5.2、人間の判断）: ファイルへの出力の禁止文字を、読めないものを「無い」とする残りの箇所（v0.5.5 の番号で 8）の後へ（同 9）。既存の項目の順序は変えていない。
+順序の変更（v0.5.1、人間の判断）: M2-2 独立レビュー R1 の残り（R1-002〜006）と、読めないものを「無い」とする残りの箇所を先頭へ（v0.5.5 の番号で 4〜9）。既存の項目の順序は変えていない。
+順序の変更（v0.5.2、人間の判断）: ファイルへの出力の禁止文字を、読めないものを「無い」とする残りの箇所（v0.5.5 の番号で 9）の後へ（同 10）。既存の項目の順序は変えていない。
 順序の変更（v0.5.3、人間の判断）: M2-2 独立レビュー R3 の Medium 3 件を足した。出力の安全に関わる R3-002・R3-001 を先頭、R3-003 を構造ガードの M2-2-R1-003 の直後へ
-（3 件とも v0.5.4 で完了し、バックログから外した）。verify の check への `NO_COLOR` を「ファイルへの出力の禁止文字」の直後（v0.5.5 の番号で 10）へ。既存の項目の順序は変えていない。
-順序の変更（v0.5.5、人間の判断）: M2-2 独立レビュー R4 の Medium 2 件を先頭（1・2）へ。2 には ADR-0017 の既知の限界（v0.5.4 の SP2 報告で次の docs の版で足すとしたもの）を含めた。既存の項目の順序は変えていない。
-1. **M2-2-R4-001（Medium）: `safeJson()` の入力を JSON のデータに限る**。関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object
+（3 件とも v0.5.4 で完了し、バックログから外した）。verify の check への `NO_COLOR` を「ファイルへの出力の禁止文字」の直後（v0.5.5 の番号で 11）へ。既存の項目の順序は変えていない。
+順序の変更（v0.5.5、人間の判断）: M2-2 独立レビュー R4 の Medium 2 件を先頭へ（v0.5.5 の番号で 2・3）。3 には ADR-0017 の既知の限界（v0.5.4 の SP2 報告で次の docs の版で足すとしたもの）を含めた。既存の項目の順序は変えていない。
+順序の変更（v0.5.5 のリリースの検証、人間の判断）: unit-minpath の不安定なテストを先頭（1）へ。R4 の 2 件は 2・3 になった。既存の項目の順序は変えていない。
+1. **テストの不安定（unit-minpath）: `tests/regression-r4-report.test.ts` の「R4-002 interrupted checks keep timedOut / outputTruncated > timedOut stays true
+   when an abort overlaps a timeout」**。起きたこと: 負荷の高いとき（負荷平均 71〜82、8 コア）に FAIL する。v0.5.5 のリリースの検証で 7 回中 2 回、`exec.interruptedBy` が
+   null だった（`docs/reviews/m2-2/response-r4.md`）。着手時にやること: 負荷の下で、子プロセスが SIGTERM を無視する処理を登録し終えるまでの時間を測り、原因を確定する。
+   `src/runner/execute.ts` 側の不具合でないことを確かめる。子の準備完了の印を待ってから時間を測る形などに直す。同じく短いタイムアウトを使う 4 ファイル
+   （`execute.test.ts`、`regression-r1-runner.test.ts`、`regression-r2-runner.test.ts`、`regression-r4-report.test.ts`）も確認する。先頭に置く理由: 自己 verify（品質のゲート）の
+   信頼性に関わるため
+2. **M2-2-R4-001（Medium）: `safeJson()` の入力を JSON のデータに限る**。関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object
    （`Object.prototype` / null 以外）は、fail closed で拒否する（v0.5.5 で確認: 自分の `toJSON` に関数の値があると `JSON.stringify()` がそれを呼び、戻り値は表記・mask を
    通らずに出る。今の各コマンドの `--json` は JSON のデータだけ。`docs/reviews/m2-2/response-r4.md`、ADR-0017 の既知の限界）
-2. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
+3. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
    と、同じ種類（`process.dlopen`、`process.report.writeReport("stdout")` など。v0.5.5 の洗い出し、`docs/reviews/m2-2/response-r4.md`）を同じ規則で検査する。process の
    書き出す関数（`emitWarning` など）の禁止も含む。既知の限界の `worker_threads`、`node:repl`・`node:test`、`tty.WriteStream(fd)`、`util.debuglog`、実行時に組み立てた
    パスへの fs の書き込みも、この項目で扱う。今の `src/` は 6 つ（child_process・crypto・fs・path・string_decoder・zlib）だけを読み込み、どの方法も使わない
-3. **M2-2-R1-002（Medium）: オプション一覧に short 別名を含める**。一覧と `Command` オブジェクトの比較は `attributeName`・位置引数・値の有無だけを見るため、
+4. **M2-2-R1-002（Medium）: オプション一覧に short 別名を含める**。一覧と `Command` オブジェクトの比較は `attributeName`・位置引数・値の有無だけを見るため、
    `-o` → `-p` の変更や `-c` の削除を検出しない（v0.5.1 で確認）。一覧に long と short の対応を持たせ、`Command` の `short` / `long` / `flags` と比べる
-4. **M2-2-R1-003（Medium）: probe を 1 ツール = 1 変数に制限する**。1 つの変数に python3 と unzip の probe を OR で混ぜると、その `skipIf` の中の python3 の起動を
+5. **M2-2-R1-003（Medium）: probe を 1 ツール = 1 変数に制限する**。1 つの変数に python3 と unzip の probe を OR で混ぜると、その `skipIf` の中の python3 の起動を
    `guarded` と誤って判定する（v0.5.1 で確認。現在の `tests/` にこの形は無い）
-5. **M2-2-R1-006（Medium）: `test:minpath` をプロセスグループで起動し、グループごと止める**。単独で実行して SIGTERM を受けると vitest の直接の子プロセスだけを止め、
+6. **M2-2-R1-006（Medium）: `test:minpath` をプロセスグループで起動し、グループごと止める**。単独で実行して SIGTERM を受けると vitest の直接の子プロセスだけを止め、
    テストが起動した子孫が残る（v0.5.1 で確認。自己 verify の中では runner がプロセスグループごと止める）
-6. **M2-2-R1-005（Medium）: 最小 PATH の保証の強化**。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
+7. **M2-2-R1-005（Medium）: 最小 PATH の保証の強化**。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
    v0.5.1 では保証の記述を「PATH の名前解決で起動する、宣言していないコマンドを検出する」に狭めた（README・ARCHITECTURE）
-7. **M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
-8. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
+8. **M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
+9. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
    O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）、
    P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）、O3（git の失敗を「not a git repository」と記述）、
    O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・P4（書き込みの失敗の後の一時ファイルの一覧）
-9. **ファイルへの出力の禁止文字**（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
+10. **ファイルへの出力の禁止文字**（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
    表記にするか、どの形で残すか（レポートの JSON は機械が読む）を着手時に決める
-10. **verify の check に `NO_COLOR` を渡す**（v0.5.2 の SP2 報告 §12-3 の人間の判断）: v0.5.2 から check の出力の末尾の ESC（色付け）は `\u{1B}` の
+11. **verify の check に `NO_COLOR` を渡す**（v0.5.2 の SP2 報告 §12-3 の人間の判断）: v0.5.2 から check の出力の末尾の ESC（色付け）は `\u{1B}` の
    表記になる。check の出力は非 TTY なので多くのツールは色を付けないが、利用者の環境で `FORCE_COLOR` が設定されていると表記が並ぶ
-11. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
+12. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
    review-packet は v0.4.0 で exit 2 にした）
-12. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
+13. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
    git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
-13. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+14. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -232,16 +239,16 @@ review-packet の終了コードの規則を決めた直後で、同じ文脈で
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-14. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
-15. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+15. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+16. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
    key-value 誤検出の継続記録（下の「内容」）
-16. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
+17. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
    SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
    SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
    実測では `close` がパイプを握る子孫の終了を待つため消えていたが、stdio を手放した子孫には効かない。ARCHITECTURE は今回（v0.3.5）書き換えていない
-17. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
+18. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
-18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+19. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
