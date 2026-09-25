@@ -33,7 +33,9 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
    - verify の check の出力の末尾: 従来どおり全体を mask してから行に分け、各行を 1 行として書く（行の中の TAB は表記になる）
 3. **JSON のキー（R3-002）**: キーも値と同じく、表記にしてから mask する（1 つの関数で値を写す）。変換の後に 1 つのオブジェクトの 2 つのキーが同じ文字列に
    なったら、合わせずにエラーにする（fail closed: 何も出さず、CLI は最上位の「unexpected error」で exit 2）。写しのオブジェクトはプロトタイプを持たない
-   （`__proto__` というキーも消えない）。JSON の文字列の中の LF・TAB は従来どおり（`JSON.stringify` が `\n` / `\t` にする。review-packet は表記）
+   （`__proto__` というキーも消えない）。JSON の文字列の中の LF・TAB は従来どおり（`JSON.stringify` が `\n` / `\t` にする。review-packet は表記）。
+   この決定は JSON のデータ（文字列・有限の数・真偽値・null・配列、プロトタイプが `Object.prototype` か null の object）について。関数の値の `toJSON` など、
+   JSON のデータでない値は処理しない（既知の限界。v0.5.5 で追記）
 4. **端末に書くのは 2 つの基本関数だけ（R3-003）**: `src/output.ts` の `emitOut` / `emitErr` だけが `console`・`process.stdout` / `process.stderr` を参照し、
    引数は brand 型 `Safe` だけを受け取る。`Safe` を作るのは `safeText` / `safeJson` だけ。公開する関数の形と出力は変えない
    （行は `console.log` / `console.error`、commander は各ストリームの `write`、従来どおり）
@@ -43,7 +45,8 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
      `Object.getOwnPropertyDescriptor` など）、型のアサーション、別名、スプレッド、計算されたキーや rest の分割代入は違反。捨てられる値
      （`process.on(…)` の戻り値）は使用に数えない
    - 型検査で中身が見えないコード: `Function`（`Function` 型の値の呼び出し、たとえば関数の `constructor` を含む）、`eval`、`require`、`createRequire`、
-     文字列リテラルでない `import()`、`node:vm`
+     文字列リテラルでない `import()`、`node:vm` の読み込み（import の宣言と、文字列リテラルの `import()`。`process.getBuiltinModule("node:vm")` は
+     検出しない: 既知の限界。v0.5.5 で追記）
    - ファイル記述子: 数値（値を問わない。1・2 でないことを示せない）への fs の書き込み、任意の呼び出しへの `fd` オプション、fs の呼び出しの
      `/dev/…`・`/proc/…` のパスのリテラル
    - 子プロセス: `stdio` のすべての要素が `"pipe"` / `"ignore"` でないもの。既定で端末を渡す関数（spawn、spawnSync、execFileSync、execSync、fork）では
@@ -69,7 +72,18 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
 - 構造ガードは、端末に書く次の方法を扱わない（今の `src/` はどれも使わない。`src/` が読み込む Node の組み込みモジュールは child_process・crypto・fs・path・
   string_decoder・zlib だけ）: `worker_threads`（Worker の標準出力は既定で親の端末へ）、`node:repl`・`node:test`（既定で標準出力へ）、
   `tty.WriteStream(fd)`、`util.debuglog`、`process.emitWarning`、実行時に組み立てたパス（`/dev/tty` など）への fs の書き込み。
-  扱う場合の案は、`src/` が読み込める組み込みモジュールを一覧で限定すること（未決定）
+  扱う場合の案は、`src/` が読み込める組み込みモジュールを一覧で限定すること（v0.5.5 で ROADMAP のバックログ 2 に入れた）
+- **v0.5.5 で追記（M2-2 独立レビュー R4。`docs/reviews/m2-2/response-r4.md`）**
+  - M2-2-R4-001: `safeJson()` は JSON のデータでない値を処理しない。自分の `toJSON` に関数の値があると（関数を返す数えられる getter も同じ）、`JSON.stringify()` が
+    それを呼び、戻り値は表記・mask を通らずに出る。ほかの JSON のデータでない値は、消える（関数・`symbol`・`undefined`・数えられないプロパティ）、形が変わる
+    （`Date`・`Map`・`Set`・クラスのインスタンス）、例外（`bigint`）のどれかで、生の値は出ない。今の各コマンドの `--json` は JSON のデータだけ
+    （v0.5.5 で実行時に確認: vitest と通常の出力の比較で、コマンドからの `safeJson()` の呼び出し 35 回に JSON のデータでない値は 0 件）。
+    ROADMAP のバックログ 1（入力を JSON のデータに限り、それ以外は fail closed で拒否する）
+  - M2-2-R4-002: 構造ガードは `process.getBuiltinModule(…)` を検出しない。import・`require`・`createRequire`・`import()` を使わずに、`node:console`（端末）・
+    `node:vm`（動的なコード）・`node:worker_threads` などを取れる（名前を変数で渡す形も）。同じ種類で検出しないもの: `process.dlopen`（ネイティブのアドオン）、
+    `process.report.writeReport("stdout")`（診断レポートを標準出力へ書く）。`process.binding`・`process._linkedBinding`・`process._rawDebug` は型に無く、使うには
+    キャストが要るので検出する。`getBuiltinModule` で取った `child_process`・`fs` の呼び出しは型で解決するので、stdio・fd の規則で検出する。
+    今の `src/` はどれも使わない。ROADMAP のバックログ 2（読み込めるモジュールの一覧で限定し、import・`require`・`getBuiltinModule` を同じ規則で検査する）
 - ファイルへの出力（verify のレポート、init が書く設定の JSON の値）の禁止文字は、この ADR でも対象外（ROADMAP のバックログ）。init の設定案の
   コメントの値だけは決定 2 で表記にした
 

@@ -440,13 +440,16 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   （raw-chars.ts の集合）を `\u{HEX}` の表記にする → masker。**1 回の書き出し = 1 行**（v0.5.4）: 1 行の中の LF・TAB も表記にする。複数行はコマンド自身の書式
   だけを block で書く（init の設定案、設定の検証エラーの zod の詳細、commander の help と使い方エラーの提案の行）。block は行を保ち、各行を 1 行と同じく処理する。
   設定案のコメントに入る値は作る所で表記にする（`--write` で書くファイルも同じ）。`ConfigError` は見出し（1 行）と詳細（block）を分けて持つ。
-  JSON はキーと文字列を表記にしてから mask し、変換の後にキーが衝突したら出さない（exit 2）。端末に書くのは `emitOut` / `emitErr` の 2 つだけで、
+  JSON（JSON のデータ）はキーと文字列を表記にしてから mask し、変換の後にキーが衝突したら出さない（exit 2）。端末に書くのは `emitOut` / `emitErr` の 2 つだけで、
   引数は `safeText` / `safeJson` だけが作る型 `Safe`。型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr` の
   参照を 2 つの基本関数の中だけに限り、端末に 1 つのプロパティで届くオブジェクト（`process`・`globalThis`）の動的・反射的な扱い、型検査で中身が見えないコード
-  （`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm`）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない子プロセス、
+  （`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm` の読み込み）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない子プロセス、
   `safeText` / `safeJson` の外で作る `Safe` を禁止する。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。構造テストは `worker_threads`・`node:repl`・
-  `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）
+  `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
+  v0.5.5 で追記（M2-2 独立レビュー R4）: `safeJson()` は JSON のデータでない値を処理しない（自分の `toJSON` の関数の戻り値は表記・mask を通らない。今の各コマンドの
+  `--json` は JSON のデータだけ）。構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの先頭（1・2）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
