@@ -35,7 +35,9 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
     security = loadSecurityConfig(cwd, options.configPath);
   } catch (err) {
     if (err instanceof ConfigError) {
-      logError(`aiqh security-scan: ${err.message}`);
+      // The problem and the path as one line, zod's details (if any) as a block (M2-2-R3-001).
+      logError(`aiqh security-scan: ${err.summary}`);
+      if (err.details !== undefined) output.errorBlock(err.details);
       return EXIT_ERROR;
     }
     throw err;

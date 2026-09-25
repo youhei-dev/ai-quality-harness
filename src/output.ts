@@ -3,9 +3,13 @@
  * aiqh writes to standard output or standard error goes through here. Forbidden raw characters (raw-chars.ts: C0
  * controls other than TAB and LF, DEL, C1 controls, U+2028 / U+2029, the bidi controls, U+FEFF) first become the ASCII
  * notation `\u{HEX}`, then the masker redacts secret shapes (it is idempotent, so text a command masked already is
- * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002). Before
- * v0.5.2 only review-packet escaped raw characters; the other commands passed paths, file names, git output and error
- * messages to the terminal through the masker alone.
+ * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002).
+ * One written line is one line (M2-2-R3-001): LF and TAB in a line become notation as well, so a value embedded in it (a
+ * path, a file name, an error message, a line of a check's output) cannot start a line or a column of its own. A
+ * command's own multi-line text — the proposed config, the details of a config error, commander's help and messages —
+ * is written as an explicit block: its lines stay, and each of them is processed like a line.
+ * Before v0.5.2 only review-packet escaped raw characters; the other commands passed paths, file names, git output and
+ * error messages to the terminal through the masker alone.
  * tests/structure/output-guard.ts allows `console`, `process.stdout` / `process.stderr` and writes to file descriptors
  * 1 and 2 only in this module.
  */
@@ -13,10 +17,10 @@ import { maskSecrets } from "./security/mask.ts";
 import { escapeRawChars, isForbiddenCodePoint } from "./security/raw-chars.ts";
 
 /**
- * How one written string treats LF and TAB, which are not in the forbidden set:
- * - keep: they are the output's own lines and columns (multi-line messages, the tails of check output, the proposed
- *   config, help), so they stay
- * - escape: one call is one line (review-packet, M2-1-R1-002), so they become `\u{A}` / `\u{9}` as well
+ * How the strings of a JSON document treat LF and TAB, which are not in the forbidden set (JSON.stringify writes them as
+ * `\n` / `\t`, so they never break a line of the document):
+ * - keep: they stay (init's `configText` keeps its lines)
+ * - escape: they become `\u{A}` / `\u{9}` as well (review-packet, M2-1-R1-002)
  */
 export type LineMode = "keep" | "escape";
 
@@ -31,9 +35,16 @@ export function escapeForDisplay(s: string, mode: LineMode): string {
   return out;
 }
 
-/** Text for the terminal: raw characters escaped, then secret shapes masked. */
-export function safeText(s: string, mode: LineMode = "keep"): string {
-  return maskSecrets(escapeForDisplay(s, mode));
+/**
+ * What one written string is (M2-2-R3-001):
+ * - line: one line; LF and TAB become notation like the forbidden characters
+ * - block: a command's own lines; they stay, and each line is processed like a line (its TAB becomes notation)
+ */
+export type TextShape = "line" | "block";
+
+/** Text for the terminal: raw characters escaped (for a line, LF and TAB as well), then secret shapes masked. */
+export function safeText(s: string, shape: TextShape = "line"): string {
+  return maskSecrets(shape === "line" ? escapeRawChars(s) : s.split("\n").map(escapeRawChars).join("\n"));
 }
 
 /**
@@ -62,29 +73,41 @@ export function safeJson(value: unknown, mode: LineMode = "keep"): string {
   return JSON.stringify(jsonSafe(value, mode), null, 2);
 }
 
-/** The writers a command is given: the sinks of a test, or the process's standard output and error. */
+/**
+ * The writers a command is given: the sinks of a test, or the process's standard output and error. A sink receives one
+ * line, one block (its lines joined with LF) or one JSON document per call.
+ */
 export interface OutputSinks {
   log?: ((line: string) => void) | undefined;
   logError?: ((line: string) => void) | undefined;
 }
 
 export interface Output {
-  /** One line (or a block of lines with "keep") to standard output. */
+  /** One line to standard output: LF, TAB and the forbidden characters in it become notation. */
   log: (line: string) => void;
-  /** The same to standard error. */
+  /** One line to standard error. */
   error: (line: string) => void;
+  /** A command's own multi-line text to standard output: its lines stay, each processed like a line. */
+  block: (text: string) => void;
+  /** A command's own multi-line text to standard error. */
+  errorBlock: (text: string) => void;
   /** A JSON document to standard output. */
   json: (value: unknown) => void;
 }
 
-/** The output of one command run: everything it prints goes through safeText / safeJson. */
-export function createOutput(sinks: OutputSinks, mode: LineMode = "keep"): Output {
-  const out = sinks.log ?? ((line: string) => console.log(line));
-  const err = sinks.logError ?? ((line: string) => console.error(line));
+/**
+ * The output of one command run: everything it prints goes through safeText / safeJson. `jsonMode` is how the strings
+ * of its JSON document treat LF and TAB ("escape" for review-packet).
+ */
+export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): Output {
+  const out = sinks.log ?? ((text: string) => console.log(text));
+  const err = sinks.logError ?? ((text: string) => console.error(text));
   return {
-    log: (line) => out(safeText(line, mode)),
-    error: (line) => err(safeText(line, mode)),
-    json: (value) => out(safeJson(value, mode)),
+    log: (line) => out(safeText(line)),
+    error: (line) => err(safeText(line)),
+    block: (text) => out(safeText(text, "block")),
+    errorBlock: (text) => err(safeText(text, "block")),
+    json: (value) => out(safeJson(value, jsonMode)),
   };
 }
 
@@ -93,16 +116,35 @@ export function writeError(line: string): void {
   console.error(safeText(line));
 }
 
+/** The suggestion commander appends to a usage error as the last line of the message, e.g. `(Did you mean --json?)`. */
+const COMMANDER_SUGGESTION = /\n\(Did you mean [^\n]*\?\)$/;
+
 /**
- * commander's own output — help, `--version`, usage errors, which can quote argv — through the same processing; written
- * as given (commander ends its messages with a newline). Set on the program before its commands are added, so that
- * every command inherits it.
+ * A usage error of commander (M2-2-R3-001): its message quotes argv — a whole argument, or a part of one (with `-v`
+ * known, `-v<LF>x` is reported as `-<LF>x`), or several joined with ", " — so it is one line: every LF becomes notation
+ * except commander's own two, the final one and the one before its suggestion. commander ends every such message with
+ * its own text (a quote, a period or the suggestion), so an argument cannot end the message as a suggestion line.
+ */
+function commanderError(str: string): string {
+  const end = str.endsWith("\n") ? "\n" : "";
+  const body = str.slice(0, str.length - end.length);
+  const at = COMMANDER_SUGGESTION.exec(body)?.index ?? body.length;
+  return `${escapeRawChars(body.slice(0, at))}${body.slice(at)}${end}`;
+}
+
+/**
+ * commander's own output — help, `--version`, usage errors, which can quote argv — through the same processing: help and
+ * `--version` are commander's blocks, written as given (commander ends them with a newline); a usage error is one line
+ * plus commander's suggestion. Set on the program before its commands are added, so that every command inherits it.
  */
 export const COMMANDER_OUTPUT = {
   writeOut: (str: string): void => {
-    process.stdout.write(safeText(str));
+    process.stdout.write(safeText(str, "block"));
   },
   writeErr: (str: string): void => {
-    process.stderr.write(safeText(str));
+    process.stderr.write(safeText(str, "block"));
+  },
+  outputError: (str: string, write: (str: string) => void): void => {
+    write(commanderError(str));
   },
 };

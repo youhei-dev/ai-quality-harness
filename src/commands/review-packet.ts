@@ -116,7 +116,8 @@ interface JsonSummary {
  */
 export async function runReviewPacket(options: ReviewPacketOptions): Promise<number> {
   // Every printed line and every JSON string goes through the output boundary (src/output.ts): raw characters, and LF
-  // and TAB as well (one call is one line, M2-1-R1-002), become ASCII notation, then the masker.
+  // and TAB as well, become ASCII notation, then the masker. One call is one line (M2-1-R1-002; every command's lines
+  // since M2-2-R3-001); "escape" makes the JSON's strings escape LF and TAB too, as before.
   const output = createOutput({ log: options.log, logError: options.logError }, "escape");
   const log = output.log;
   const logError = output.error;

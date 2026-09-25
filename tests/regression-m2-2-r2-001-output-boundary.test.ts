@@ -236,7 +236,10 @@ describe("M2-2-R2-001 controls: secret shapes stay masked; output without raw ch
     const { escapeForDisplay, safeJson, safeText } = await import("../src/output.ts");
     const samples = ["plain ASCII line", "日本語のパス /tmp/作業/a.ts", "tab\tseparated\tcolumns", "multi\nline\nmessage\n", "  $ node -e 0", `key: ${SECRET()}`, "", "emoji 😀 and « quotes »"];
     for (const s of samples) {
-      expect(safeText(s)).toBe(maskSecrets(s));
+      // One written line is one line since v0.5.4 (M2-2-R3-001): LF and TAB in a line become notation as well; a
+      // command's own multi-line text is a block, whose lines stay (a TAB in them becomes notation)
+      expect(safeText(s)).toBe(/[\n\t]/.test(s) ? maskSecrets(escapeRawChars(s)) : maskSecrets(s));
+      expect(safeText(s, "block")).toBe(s.includes("\t") ? maskSecrets(s.split("\n").map(escapeRawChars).join("\n")) : maskSecrets(s));
       expect(escapeForDisplay(s, "escape")).toBe(escapeRawChars(s));
     }
     const value = { root: "/tmp/作業", findings: [{ file: "a\tb.ts", line: 1, message: `x ${SECRET()}` }], count: 3, ok: true, none: null };

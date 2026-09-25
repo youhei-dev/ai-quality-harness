@@ -37,7 +37,8 @@ function positiveInt(value: string): number {
 export function buildProgram(deps: ProgramDeps): Command {
   const program = new Command();
   // commander's own output (help, --version, usage errors that quote argv) goes through the output boundary
-  // (src/output.ts, M2-2-R2-001). Set before the commands are added: each command inherits it when it is created.
+  // (src/output.ts, M2-2-R2-001; a usage error is one line plus commander's suggestion, M2-2-R3-001). Set before the
+  // commands are added: each command inherits it when it is created.
   program.configureOutput(COMMANDER_OUTPUT);
   program
     .name("aiqh")

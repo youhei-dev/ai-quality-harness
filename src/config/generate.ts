@@ -4,6 +4,7 @@
 import { CATEGORY_KINDS, type CategoryKind } from "../types.ts";
 import type { Resolution, Suggestion } from "../adapters/types.ts";
 import { maskSecrets } from "../security/mask.ts";
+import { escapeRawChars } from "../security/raw-chars.ts";
 
 export interface GenerateOptions {
   projectName: string;
@@ -24,6 +25,15 @@ const LABEL: Record<CategoryKind, string> = {
 
 function jsonString(s: string): string {
   return JSON.stringify(s);
+}
+
+/**
+ * A value in a comment line (an adapter's reason, note or hint): LF, TAB and the raw characters become `\u{HEX}`, then
+ * the masker (M2-2-R3-001). The comment stays one line — in the proposal on the terminal and in the file --write writes —
+ * so a value cannot end the comment and start a line of JSONC.
+ */
+function commentValue(s: string): string {
+  return maskSecrets(escapeRawChars(s));
 }
 
 /** The checks that would be written (kind order = category order). */
@@ -52,9 +62,9 @@ export function generateConfigJsonc(opts: GenerateOptions): string {
   checks.forEach((s, i) => {
     const kindRes = resolution.byKind[s.kind as CategoryKind];
     const chosen = kindRes?.chosen;
-    // Adapter text is masked before it lands in a file (M1-R1-003, defence in depth).
-    if (chosen) lines.push(`    // ${LABEL[s.kind as CategoryKind]}: ${chosen.adapter} — ${maskSecrets(chosen.reason)}`);
-    for (const note of chosen?.notes ?? []) lines.push(`    //   note: ${maskSecrets(note)}`);
+    // Adapter text is masked before it lands in a file (M1-R1-003, defence in depth), as one comment line (M2-2-R3-001).
+    if (chosen) lines.push(`    // ${LABEL[s.kind as CategoryKind]}: ${chosen.adapter} — ${commentValue(chosen.reason)}`);
+    for (const note of chosen?.notes ?? []) lines.push(`    //   note: ${commentValue(note)}`);
     const fields = [`"name": ${jsonString(s.name)}`, `"kind": ${jsonString(s.kind)}`, `"command": ${jsonString(s.command)}`, `"timeoutSec": ${s.timeoutSec}`];
     if (s.required === false) fields.push('"required": false');
     fields.push(`"description": ${jsonString(s.description)}`);
@@ -63,10 +73,10 @@ export function generateConfigJsonc(opts: GenerateOptions): string {
   for (const kind of CATEGORY_KINDS) {
     const r = resolution.byKind[kind];
     if (r.chosen) continue;
-    lines.push(`    // ${LABEL[kind]}: NOT APPLICABLE — ${maskSecrets(r.unavailable.map((u) => u.reason).join(" / ") || "no adapter applies to this repository")}`);
+    lines.push(`    // ${LABEL[kind]}: NOT APPLICABLE — ${commentValue(r.unavailable.map((u) => u.reason).join(" / ") || "no adapter applies to this repository")}`);
     const hint = r.unavailable.find((u) => u.enableHint)?.enableHint;
-    if (hint) lines.push(`    //   to enable: ${maskSecrets(hint)}`);
-    for (const note of r.unavailable.flatMap((u) => u.notes ?? []).slice(0, 2)) lines.push(`    //   note: ${maskSecrets(note)}`);
+    if (hint) lines.push(`    //   to enable: ${commentValue(hint)}`);
+    for (const note of r.unavailable.flatMap((u) => u.notes ?? []).slice(0, 2)) lines.push(`    //   note: ${commentValue(note)}`);
   }
   lines.push("  ]");
   lines.push("}");

@@ -54,7 +54,8 @@ const CONSOLE_TAIL_LINES = 20;
 export async function runVerify(options: VerifyOptions): Promise<number> {
   // Every printed line goes through the output boundary (src/output.ts, M2-2-R2-001): raw characters in paths, names,
   // git output and the tails of check output become ASCII notation, then the masker (the masks below stay: printTail
-  // masks a tail as one text, so a secret over several lines is redacted before it is split into lines).
+  // masks a tail as one text, so a secret over several lines is redacted before it is split into lines). One written
+  // line is one line (M2-2-R3-001): LF and TAB in a value, and TAB in a line of a check's output, become notation.
   const output = createOutput({ log: options.log, logError: options.logError });
   const log = output.log;
   const logError = output.error;
@@ -68,7 +69,9 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     config = loadConfig(configPath);
   } catch (err) {
     if (err instanceof ConfigError) {
-      logError(`aiqh: ${maskSecrets(err.message)}`);
+      // The problem and the path as one line, zod's details (if any) as a block (M2-2-R3-001).
+      logError(`aiqh: ${maskSecrets(err.summary)}`);
+      if (err.details !== undefined) output.errorBlock(maskSecrets(err.details));
       logError("VERIFY ERROR (configuration error)");
       return EXIT_ERROR;
     }

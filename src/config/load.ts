@@ -15,9 +15,21 @@ import {
 
 export const DEFAULT_CONFIG_FILENAME = "aiqh.config.jsonc";
 
-/** Raised for any problem with the config file. The CLI maps it to exit code 2. */
+/**
+ * Raised for any problem with the config file. The CLI maps it to exit code 2. The output writes `summary` (the problem
+ * and the path) as one line and `details` (zod's lines for an invalid config) as a block (M2-2-R3-001): the config file
+ * is trusted input (R-006), so its values keep their lines there; the raw characters of each line still become notation.
+ * `message` is both, joined with LF, as before.
+ */
 export class ConfigError extends Error {
   override readonly name = "ConfigError";
+  readonly summary: string;
+  readonly details: string | undefined;
+  constructor(summary: string, details?: string) {
+    super(details === undefined ? summary : `${summary}\n${details}`);
+    this.summary = summary;
+    this.details = details;
+  }
 }
 
 export function loadConfig(configPath: string): ResolvedConfig {
@@ -85,7 +97,7 @@ export function parseConfigText(text: string, label = "<config>"): RawConfig {
 
   const result = configSchema.safeParse(data);
   if (!result.success) {
-    throw new ConfigError(`config is invalid: ${label}\n${z.prettifyError(result.error)}`);
+    throw new ConfigError(`config is invalid: ${label}`, z.prettifyError(result.error));
   }
   return result.data;
 }

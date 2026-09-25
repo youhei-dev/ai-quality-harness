@@ -73,7 +73,8 @@ function resolvableSchemaPath(root: string): string | undefined {
 
 export async function runInit(options: InitOptions): Promise<number> {
   // Every printed line and the JSON go through the output boundary (src/output.ts, M2-2-R2-001): raw characters in
-  // paths and detected names become ASCII notation, then the masker.
+  // paths and detected names become ASCII notation, then the masker. One written line is one line (M2-2-R3-001); the
+  // proposed config is the command's own multi-line text, written as a block.
   const output = createOutput({ log: options.log, logError: options.logError });
   const log = output.log;
   const logError = output.error;
@@ -124,7 +125,7 @@ export async function runInit(options: InitOptions): Promise<number> {
     }
     log("");
     log(`proposed ${DEFAULT_CONFIG_FILENAME}:`);
-    log(configText.trimEnd());
+    output.block(configText.trimEnd());
     log("");
     log("additional proposals (not written unless the matching flag is given):");
     log(gitignoreProposal.needed ? `  - .gitignore: add "${GITIGNORE_LINE}" (--write-gitignore)${gitignoreProposal.reason ? ` — ${gitignoreProposal.reason}` : ""}` : `  - .gitignore: already ignores ${GITIGNORE_LINE} (confirmed with git check-ignore)`);
@@ -149,8 +150,9 @@ export async function runInit(options: InitOptions): Promise<number> {
     try {
       resolveConfig(parseConfigText(configText, DEFAULT_CONFIG_FILENAME), configFile);
     } catch (err) {
-      const message = err instanceof ConfigError ? err.message : (err as Error).message;
-      logError(`aiqh init: refusing to write a config that aiqh verify would reject: ${message}`);
+      const summary = err instanceof ConfigError ? err.summary : (err as Error).message;
+      logError(`aiqh init: refusing to write a config that aiqh verify would reject: ${summary}`);
+      if (err instanceof ConfigError && err.details !== undefined) output.errorBlock(err.details);
       return EXIT_ERROR;
     }
     try {
