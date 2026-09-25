@@ -5,7 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.2 — M2-2: independent review R2 — one safe output boundary for every command（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.2` / `git rev-parse v0.5.2` で確認し、次の release commit で記入）
+## v0.5.3 — M2-2: independent review R3 — the carry-over work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.3` / `git rev-parse v0.5.3` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r3（`docs/reviews/m2-2/independent-review-r3.md`、範囲 v0.5.1..v0.5.2）: 前回の M2-2-R2-001 は解消、新しい指摘は High 0 / Medium 3 / Low 0。
+  対応記録 `docs/reviews/m2-2/response-r3.md`
+- 3 件の前提を実コードで確かめた（どれも再現。High の基準には当たらない）: R3-001 は利用者由来のパス・ファイル名の LF・TAB で端末の見た目を崩せるが、
+  終了コード・最後の判定の行・`--json` の結果は正しい。R3-002 は `safeJson()` がオブジェクトのキーを表記にしないが、各コマンドの `--json` に利用者由来のキーは無い。
+  R3-003 は構造ガードが動的な `process[key]` と `src/output.ts` の中の書き出しを検出しないが、今の `src/` に該当は無い
+- 3 件は ROADMAP のバックログへ（v0.5.3 では直さない。重大度はレビュアーの判定のまま）。R3-002・R3-001 を先頭、R3-003 を構造ガードの M2-2-R1-003 の直後、
+  verify の check への `NO_COLOR`（v0.5.2 の人間の判断）を「ファイルへの出力の禁止文字」の直後に置いた
+- 出力の出口の既知の限界 3 点を ADR-0016 と ARCHITECTURE に明記した
+- 完了基準「High が無ければ区切り、Medium 以下は次へ」により、M2-1 独立レビュー R3 の持ち越し 5 件から始まった作業（v0.5.0〜v0.5.2、独立レビュー R1〜R3）をここで区切る
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 593 件（95 ファイル）。`package.json` version 0.5.3
+- 注記: v0.5.2 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.2 — commit 28999de / tag object 11faa66 — M2-2: independent review R2 — one safe output boundary for every command
 
 - 独立レビュー m2-2-r2（`docs/reviews/m2-2/independent-review-r2.md`、範囲 v0.5.0..v0.5.1）: 前回の 2 件（R1-007、R1-001）は解消、新しい指摘は High 1 / Medium 0 / Low 0。
   対応記録 `docs/reviews/m2-2/response-r2.md`
