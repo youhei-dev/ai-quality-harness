@@ -4,8 +4,8 @@ import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, loadSecurityConfig } from "../config/load.ts";
-import { maskDeep, maskSecrets } from "../security/mask.ts";
-import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
+import { createOutput } from "../output.ts";
+import { findRawChars, formatCodePoint } from "../security/raw-chars.ts";
 import { REJECTED, UncheckedValueError, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
 import { DeferredError, InspectionError, decideOutcome } from "../review/outcome.ts";
 import { inspectPacket, type PacketFinding, type PacketInspection, type PacketOptions } from "../review/packet.ts";
@@ -111,17 +111,18 @@ interface JsonSummary {
  * invalid UTF-8) and nothing written, 2 = usage / configuration / inspection / deferred / write error and
  * nothing written (fail closed). The order is ADR-0015's (src/review/outcome.ts): an input that cannot be
  * obtained is exit 2 even with findings (listed as incomplete); findings come before the errors that did not
- * stop the inspection. Printed lines and JSON go through the masker; findings never include values.
+ * stop the inspection. Printed lines and JSON go through the output boundary (src/output.ts: raw characters as ASCII
+ * notation, then the masker); findings never include values.
  */
 export async function runReviewPacket(options: ReviewPacketOptions): Promise<number> {
-  const rawLog = options.log ?? ((line: string) => console.log(line));
-  const rawLogError = options.logError ?? ((line: string) => console.error(line));
-  // Every printed line and every JSON string goes through the safe display first (M2-1-R1-002), then the masker.
-  const log = (line: string): void => rawLog(safeText(line));
-  const logError = (line: string): void => rawLogError(safeText(line));
+  // Every printed line and every JSON string goes through the output boundary (src/output.ts): raw characters, and LF
+  // and TAB as well (one call is one line, M2-1-R1-002), become ASCII notation, then the masker.
+  const output = createOutput({ log: options.log, logError: options.logError }, "escape");
+  const log = output.log;
+  const logError = output.error;
   const summary: JsonSummary = { result: "error", output: null, zip: null, bytes: null, sha256: null, zipSha256: null, from: null, to: null, commits: null, files: null, suppressed: null, findings: [], error: null, backupsRetained: [] };
   const finish = (code: number): number => {
-    if (options.json) rawLog(JSON.stringify(maskDeep(escapeDeep(summary)), null, 2));
+    if (options.json) output.json(summary);
     return code;
   };
   const printFindings = (findings: readonly PacketFinding[]): void => {
@@ -301,23 +302,6 @@ function outputTargets(options: ReviewPacketOptions, cwd: string, inspection: Pa
     deferred.push(new DeferredError(`write failed: ${err.message}`));
   }
   return { findings, deferred, output, zipPath, entryName };
-}
-
-/** Safe display (forbidden characters, LF, TAB as `\u{...}`), then the masker. */
-function safeText(s: string): string {
-  return maskSecrets(escapeRawChars(s));
-}
-
-/** The same for every string inside a JSON value (before maskDeep). */
-function escapeDeep<T>(value: T): T {
-  if (typeof value === "string") return escapeRawChars(value) as T;
-  if (Array.isArray(value)) return value.map((v: unknown) => escapeDeep(v)) as T;
-  if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = escapeDeep(v);
-    return out as T;
-  }
-  return value;
 }
 
 /**

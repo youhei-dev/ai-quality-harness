@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { buildProgram } from "./cli-program.ts";
 import { CLI_SIGNALS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
-import { maskSecrets } from "./security/mask.ts";
+import { writeError } from "./output.ts";
 import { EXIT_ERROR, SIGNAL_EXIT_CODES } from "./types.ts";
 
 function readVersion(): string {
@@ -34,11 +34,11 @@ function onSignalBeforeVerdictFixed(signal: CliSignal): void {
   const exitCode = SIGNAL_EXIT_CODES[signal] ?? EXIT_ERROR;
   // Backup: even if the run finished before the abort is observed, the process must not exit 0.
   process.exitCode = exitCode;
-  console.error(`aiqh: received ${signal}, stopping: no new checks, terminating running ones (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
+  writeError(`aiqh: received ${signal}, stopping: no new checks, terminating running ones (grace ${DEFAULT_KILL_GRACE_MS}ms)`);
   interruption.abort(signal);
   void terminateActiveChildren(DEFAULT_KILL_GRACE_MS);
   setTimeout(() => {
-    console.error(`aiqh: clean-up did not finish within ${DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS}ms, exiting ${exitCode}`);
+    writeError(`aiqh: clean-up did not finish within ${DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS}ms, exiting ${exitCode}`);
     process.exit(exitCode);
   }, DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS).unref();
 }
@@ -51,7 +51,7 @@ function onSignalBeforeVerdictFixed(signal: CliSignal): void {
  * Node would restore the default action and kill the process, which would change the outcome.
  */
 function onSignalAfterVerdictFixed(signal: CliSignal): void {
-  console.error(`aiqh: ${signal} received after the verdict was fixed; result unchanged`);
+  writeError(`aiqh: ${signal} received after the verdict was fixed; result unchanged`);
 }
 
 // Handler references are kept so the swap can remove exactly these functions (R5-001).
@@ -75,7 +75,8 @@ const program = buildProgram({ version: VERSION, signal: interruption.signal, on
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
-  console.error(`aiqh: unexpected error: ${maskSecrets(message)}`);
-  console.error("VERIFY ERROR (internal error)");
+  // Through the output boundary like every other line (src/output.ts): a message can quote a path.
+  writeError(`aiqh: unexpected error: ${message}`);
+  writeError("VERIFY ERROR (internal error)");
   process.exitCode = EXIT_ERROR;
 });

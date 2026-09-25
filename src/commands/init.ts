@@ -17,7 +17,7 @@ import { resolveDetections } from "../adapters/index.ts";
 import type { Resolution } from "../adapters/types.ts";
 import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks } from "../config/generate.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, parseConfigText, resolveConfig } from "../config/load.ts";
-import { maskDeep, maskSecrets } from "../security/mask.ts";
+import { createOutput } from "../output.ts";
 import { gitIgnoredByRepoRules } from "../security/scan.ts";
 
 export interface InitOptions {
@@ -72,10 +72,11 @@ function resolvableSchemaPath(root: string): string | undefined {
 }
 
 export async function runInit(options: InitOptions): Promise<number> {
-  const rawLog = options.log ?? ((line: string) => console.log(line));
-  const rawLogError = options.logError ?? ((line: string) => console.error(line));
-  const log = (line: string): void => rawLog(maskSecrets(line));
-  const logError = (line: string): void => rawLogError(maskSecrets(line));
+  // Every printed line and the JSON go through the output boundary (src/output.ts, M2-2-R2-001): raw characters in
+  // paths and detected names become ASCII notation, then the masker.
+  const output = createOutput({ log: options.log, logError: options.logError });
+  const log = output.log;
+  const logError = output.error;
   const root = path.resolve(options.cwd ?? process.cwd());
   if (!existsSync(root)) {
     logError(`aiqh init: directory not found: ${root}`);
@@ -95,23 +96,17 @@ export async function runInit(options: InitOptions): Promise<number> {
   const scriptsProposal = proposeScripts(ctx.node?.packageJson.scripts ?? null, ctx.node !== null);
 
   if (options.json) {
-    rawLog(
-      JSON.stringify(
-        maskDeep({
-          root,
-          projectName,
-          projectType: resolution.projectType,
-          aiqh,
-          schemaPath: schemaPath ?? null,
-          audit: auditRows(resolution),
-          config: { checks },
-          configText,
-          proposals: { gitignore: gitignoreProposal, scripts: scriptsProposal },
-        }),
-        null,
-        2,
-      ),
-    );
+    output.json({
+      root,
+      projectName,
+      projectType: resolution.projectType,
+      aiqh,
+      schemaPath: schemaPath ?? null,
+      audit: auditRows(resolution),
+      config: { checks },
+      configText,
+      proposals: { gitignore: gitignoreProposal, scripts: scriptsProposal },
+    });
   } else {
     log(`aiqh init — ${root}`);
     log(`project: ${projectName} (${resolution.projectType})`);

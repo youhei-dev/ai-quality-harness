@@ -9,7 +9,7 @@ import { runInit } from "./commands/init.ts";
 import { runReviewPacket } from "./commands/review-packet.ts";
 import { runSecurityScan } from "./commands/security-scan.ts";
 import { runVerify } from "./commands/verify.ts";
-import { maskSecrets } from "./security/mask.ts";
+import { COMMANDER_OUTPUT, writeError } from "./output.ts";
 import { EXIT_ERROR } from "./types.ts";
 
 export interface ProgramDeps {
@@ -28,7 +28,7 @@ function collect(value: string, previous: string[]): string[] {
 /** Positive integer option (bytes); anything else is a usage error (exit 2). */
 function positiveInt(value: string): number {
   if (!/^[0-9]+$/.test(value) || Number(value) < 1 || !Number.isSafeInteger(Number(value))) {
-    console.error(`aiqh: expected a positive integer, got ${maskSecrets(JSON.stringify(value))}`);
+    writeError(`aiqh: expected a positive integer, got ${JSON.stringify(value)}`);
     process.exit(EXIT_ERROR);
   }
   return Number(value);
@@ -36,6 +36,9 @@ function positiveInt(value: string): number {
 
 export function buildProgram(deps: ProgramDeps): Command {
   const program = new Command();
+  // commander's own output (help, --version, usage errors that quote argv) goes through the output boundary
+  // (src/output.ts, M2-2-R2-001). Set before the commands are added: each command inherits it when it is created.
+  program.configureOutput(COMMANDER_OUTPUT);
   program
     .name("aiqh")
     .description("Fail-closed quality gate runner for AI-assisted development")

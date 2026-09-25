@@ -4,6 +4,7 @@ import { getGitInfo } from "../git/info.ts";
 import { buildReport } from "../report/build-report.ts";
 import { formatDuration } from "../report/markdown.ts";
 import { writeReports } from "../report/write.ts";
+import { createOutput } from "../output.ts";
 import { runChecks } from "../runner/run-checks.ts";
 import { maskSecrets } from "../security/mask.ts";
 import { CATEGORY_KINDS, EXIT_ERROR, SIGNAL_EXIT_CODES, type CheckResult, type ResolvedCheck } from "../types.ts";
@@ -38,9 +39,9 @@ export interface VerifyOptions {
    * option of runVerify only — it is not reachable from the config file or the CLI arguments.
    */
   afterChecksCompleted?: () => void;
-  /** Line sink for progress output. Default: console.log */
+  /** Line sink for progress output. Default: standard output (through the output boundary, src/output.ts) */
   log?: (line: string) => void;
-  /** Line sink for errors. Default: console.error */
+  /** Line sink for errors. Default: standard error (through the output boundary) */
   logError?: (line: string) => void;
 }
 
@@ -51,8 +52,12 @@ const CONSOLE_TAIL_LINES = 20;
  * the exit code: 0 = "VERIFY PASSED", 1 = "VERIFY FAILED", 2 / 130 / 143 = "VERIFY ERROR" (R-007, R3-002).
  */
 export async function runVerify(options: VerifyOptions): Promise<number> {
-  const log = options.log ?? ((line: string) => console.log(line));
-  const logError = options.logError ?? ((line: string) => console.error(line));
+  // Every printed line goes through the output boundary (src/output.ts, M2-2-R2-001): raw characters in paths, names,
+  // git output and the tails of check output become ASCII notation, then the masker (the masks below stay: printTail
+  // masks a tail as one text, so a secret over several lines is redacted before it is split into lines).
+  const output = createOutput({ log: options.log, logError: options.logError });
+  const log = output.log;
+  const logError = output.error;
   const startedAt = new Date();
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
