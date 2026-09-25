@@ -1,15 +1,17 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
-import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
+import { ConfigError, loadSecurityConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
-import { DEFAULT_SECURITY, ScanError, scanRepository, type ScanResult } from "../security/scan.ts";
+import { ScanError, scanRepository, type ScanResult } from "../security/scan.ts";
 
 export interface SecurityScanOptions {
   cwd?: string;
   json?: boolean;
-  /** Config to read the `security` section from; default <cwd>/aiqh.config.jsonc (absent ⇒ defaults). */
+  /**
+   * Config to read the `security` section from; default <cwd>/aiqh.config.jsonc (does not exist ⇒ defaults; exists but
+   * cannot be read ⇒ exit 2). Read by loadSecurityConfig, shared with review-packet.
+   */
   configPath?: string;
   log?: (line: string) => void;
   logError?: (line: string) => void;
@@ -30,7 +32,7 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
   const cwd = path.resolve(options.cwd ?? process.cwd());
   let security: ResolvedSecurity;
   try {
-    security = readSecurity(cwd, options.configPath);
+    security = loadSecurityConfig(cwd, options.configPath);
   } catch (err) {
     if (err instanceof ConfigError) {
       logError(`aiqh security-scan: ${err.message}`);
@@ -54,14 +56,6 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
   }
   renderText(result, log);
   return result.findings.length === 0 ? EXIT_PASSED : EXIT_FAILED;
-}
-
-/** The `security` section of the config: explicit --config must exist; the default file may be absent. */
-function readSecurity(cwd: string, configPath: string | undefined): ResolvedSecurity {
-  if (configPath !== undefined) return loadConfig(path.resolve(cwd, configPath)).security;
-  const dflt = path.join(cwd, DEFAULT_CONFIG_FILENAME);
-  if (!existsSync(dflt)) return DEFAULT_SECURITY;
-  return loadConfig(dflt).security;
 }
 
 function describeRule(u: ScanResult["allowUsage"][number]): string {

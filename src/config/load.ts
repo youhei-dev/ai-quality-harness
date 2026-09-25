@@ -27,14 +27,39 @@ export function loadConfig(configPath: string): ResolvedConfig {
   return resolveConfig(raw, absoluteConfigPath);
 }
 
+/**
+ * The `security` section for `aiqh security-scan` and `aiqh review-packet` — the one reader for both (v0.5.1): an
+ * explicit --config must exist and be valid (loadConfig); without it, `aiqh.config.jsonc` in `cwd` is read, and the
+ * defaults are used only when that file does not exist (ENOENT). A default file that cannot be read for any other
+ * reason, or that is invalid, is a ConfigError (exit 2), never the defaults: they would drop its rules, and for
+ * security-scan its extra .env probes (M2-2 R1, found with M2-2-R1-007: existsSync() was false for every error).
+ */
+export function loadSecurityConfig(cwd: string, configPath: string | undefined): ResolvedSecurity {
+  if (configPath !== undefined) return loadConfig(path.resolve(cwd, configPath)).security;
+  const file = path.join(cwd, DEFAULT_CONFIG_FILENAME);
+  const text = readConfigTextIfExists(file);
+  if (text === null) return DEFAULT_SECURITY;
+  return resolveConfig(parseConfigText(text, file), file).security;
+}
+
 function readConfigText(absoluteConfigPath: string): string {
+  const text = readConfigTextIfExists(absoluteConfigPath);
+  if (text === null) {
+    throw new ConfigError(`config file not found: ${absoluteConfigPath}`);
+  }
+  return text;
+}
+
+/**
+ * The file's text, or null only when it does not exist (ENOENT). Any other failure — a parent that cannot be
+ * traversed (EACCES), a parent that is a file (ENOTDIR), a symbolic link loop (ELOOP), a directory (EISDIR) — is
+ * a ConfigError: a config file that is there but cannot be read is never taken as absent.
+ */
+function readConfigTextIfExists(absoluteConfigPath: string): string | null {
   try {
     return readFileSync(absoluteConfigPath, "utf8");
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") {
-      throw new ConfigError(`config file not found: ${absoluteConfigPath}`);
-    }
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ConfigError(
       `config file could not be read: ${absoluteConfigPath} (${(err as Error).message})`,
     );

@@ -3,10 +3,9 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSyn
 import path from "node:path";
 import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
-import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
+import { ConfigError, loadSecurityConfig } from "../config/load.ts";
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
-import { DEFAULT_SECURITY } from "../security/scan.ts";
 import { REJECTED, UncheckedValueError, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
 import { DeferredError, InspectionError, decideOutcome } from "../review/outcome.ts";
 import { inspectPacket, type PacketFinding, type PacketInspection, type PacketOptions } from "../review/packet.ts";
@@ -28,7 +27,8 @@ export interface ReviewPacketOptions {
   maxPacketBytes?: number;
   /**
    * Config file for the `security` section. Default: `aiqh.config.jsonc` in the --cwd directory (the process's
-   * current directory only when --cwd is not given) if present; never the repository root of a subdirectory.
+   * current directory only when --cwd is not given) if it exists; never the repository root of a subdirectory.
+   * Read by loadSecurityConfig (shared with security-scan): only a file that does not exist gives the defaults.
    */
   configPath?: string;
   json?: boolean;
@@ -165,7 +165,7 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   const cwd = path.resolve(options.cwd ?? process.cwd());
   try {
     // ADR-0015: the configuration of the check itself comes first (exit 2); then every input is inspected.
-    const security = readSecurity(cwd, options.configPath);
+    const security = loadSecurityConfig(cwd, options.configPath);
     const opt = checkOptionValues(options, cwd, security);
     const deferred: DeferredError[] = [];
     // A forbidden character in the resolved --cwd does not stop the inspection (reported only without findings).
@@ -380,14 +380,6 @@ function readInput(cwd: string, file: string, stdin: (() => Buffer) | undefined)
   } catch (err) {
     throw new InspectionError(`cannot read ${file === "-" ? "standard input" : file}: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }
-}
-
-/** The `security` section: explicit --config must exist; the default file may be absent (like security-scan). */
-function readSecurity(cwd: string, configPath: string | undefined): ResolvedSecurity {
-  if (configPath !== undefined) return loadConfig(path.resolve(cwd, configPath)).security;
-  const dflt = path.join(cwd, DEFAULT_CONFIG_FILENAME);
-  if (!existsSync(dflt)) return DEFAULT_SECURITY;
-  return loadConfig(dflt).security;
 }
 
 export interface WriteHooks {
