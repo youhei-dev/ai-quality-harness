@@ -96,7 +96,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 src/
   cli.ts                  … エントリ（bin: aiqh）。版の読込・シグナル処理・引数の解析と終了コード設定 [M0]
   cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
-  output.ts               … 端末への出力の出口（禁止文字を表記 → マスク。すべての標準出力・標準エラーが通る、ADR-0016） [M2-2]
+  output.ts               … 端末への出力の出口（禁止文字を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
   commands/
     verify.ts             … verify のオーケストレーション                                 [M0]
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
@@ -277,8 +277,8 @@ example 系の否定は代表パスに含まれないため許容される。
 「contains artifacts/ but is not tracked; `git add .gitignore` …」と案内（未追跡のルールはクローン先に無いため保護と数えないが、重複追記は無意味）、
 (c) `.gitignore` が無い、または git に聞けない → 作成 / 追記を 1 回だけ（同じ行は二度と追記しない）。
 
-`aiqh security-scan` の出力は他コマンドと同じ出口（`src/output.ts`、ADR-0016）を通る（M2-0-R1-002、v0.5.2 の M2-2-R2-001）: text は全行を禁止文字の表記 →
-`maskSecrets`、`--json` は文字列を表記にしてから `maskDeep(result)`。
+`aiqh security-scan` の出力は他コマンドと同じ出口（`src/output.ts`、ADR-0016・0017）を通る（M2-0-R1-002、v0.5.2 の M2-2-R2-001）: text は全行を禁止文字の表記
+（v0.5.4 から 1 行の中の LF・TAB も）→ `maskSecrets`、`--json` は文字列とオブジェクトのキーを表記にしてから mask（キーは v0.5.4 から）。
 config 由来の自由文（`allow[].reason` / `path`）に秘密の形があってもそのまま再出力しない。`reason` / `path` はスキーマで改行に加えて
 C0 / DEL / C1 制御文字と U+2028 / U+2029 を禁止する（M2-0-R2-002。監査ログへの複数行注入・端末制御の防止、ADR-0012）。v0.5.2 から text 出力側でも、
 パス・ファイル名・エラー文を含むすべての出力の禁止文字を表記にする（ADR-0016。スキーマでの禁止はそのまま）。
@@ -435,14 +435,18 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **配布の受入テスト**: 自己 verify の `package` チェック（`scripts/package-smoke.ts`）が `npm pack` → 一時ディレクトリへ
   install → `npx --no-install aiqh verify` を毎回実行し、bin / shebang / `files` / 実行時依存 / version を検証する（R2-005）。
 - **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
-- **端末への出力の出口（v0.5.2、ADR-0016、M2-2-R2-001）**: すべての標準出力・標準エラーは `src/output.ts` を通る（各コマンドは `createOutput()`、
-  `src/cli.ts` とオプションの解析は `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`）。処理の順序は、禁止文字（raw-chars.ts の集合）を
-  `\u{HEX}` の表記にする → masker。JSON は文字列を再帰的に表記にしてから `maskDeep`。LF と TAB は残す（review-packet は 1 回の書き出し = 1 行なので表記にする）。
-  型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr`・fd 1 / 2 への書き込みを `src/output.ts` 以外で禁止する。
-  ファイルへの出力（レポート、init が書く設定）は対象外（ROADMAP のバックログ）。
-  既知の限界（v0.5.3、ADR-0016）: 既定のモードでは利用者由来の値（パス、ファイル名）の LF・TAB も残り、端末の見た目を崩せる（終了コードと `--json` の結果は
-  変わらない）。`safeJson()` はオブジェクトのキーを表記にしない（今の各コマンドの `--json` のキーは固定）。構造テストは動的なキーの `process[key]` と、
-  `src/output.ts` の中の書き出しを見ない
+- **端末への出力の出口（v0.5.2、ADR-0016、M2-2-R2-001。v0.5.4、ADR-0017、M2-2-R3-001〜003）**: すべての標準出力・標準エラーは `src/output.ts` を通る
+  （各コマンドは `createOutput()`、`src/cli.ts` とオプションの解析は `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`）。処理の順序は、禁止文字
+  （raw-chars.ts の集合）を `\u{HEX}` の表記にする → masker。**1 回の書き出し = 1 行**（v0.5.4）: 1 行の中の LF・TAB も表記にする。複数行はコマンド自身の書式
+  だけを block で書く（init の設定案、設定の検証エラーの zod の詳細、commander の help と使い方エラーの提案の行）。block は行を保ち、各行を 1 行と同じく処理する。
+  設定案のコメントに入る値は作る所で表記にする（`--write` で書くファイルも同じ）。`ConfigError` は見出し（1 行）と詳細（block）を分けて持つ。
+  JSON はキーと文字列を表記にしてから mask し、変換の後にキーが衝突したら出さない（exit 2）。端末に書くのは `emitOut` / `emitErr` の 2 つだけで、
+  引数は `safeText` / `safeJson` だけが作る型 `Safe`。型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr` の
+  参照を 2 つの基本関数の中だけに限り、端末に 1 つのプロパティで届くオブジェクト（`process`・`globalThis`）の動的・反射的な扱い、型検査で中身が見えないコード
+  （`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm`）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない子プロセス、
+  `safeText` / `safeJson` の外で作る `Safe` を禁止する。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
+  既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。構造テストは `worker_threads`・`node:repl`・
+  `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →

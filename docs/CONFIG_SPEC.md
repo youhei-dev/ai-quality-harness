@@ -12,6 +12,8 @@
 - 文字コード: UTF-8
 - `--config <path>` で別パスを指定できる。相対パスの基準（プロジェクトルート）は**設定ファイルのあるディレクトリ**
 - `aiqh init` が生成する（M1）。生成物はコメント付きで、検出できなかった分類は理由と有効化の案内をコメントで残す。
+  コメントに入る値（アダプタの理由・注記・有効化の案内）は、LF・TAB・禁止文字を `\u{HEX}` の表記にしてから秘密の形を mask する（v0.5.4、M2-2-R3-001、
+  ADR-0017）。コメントは 1 行のまま（値がコメントを終わらせて JSONC の行を作らない）。端末に出す設定案と `--write` で書くファイルは同じ中身
   `$schema` は対象から `./node_modules/ai-quality-harness/schema/aiqh.config.schema.json` を解決できる場合だけ書く
   （`npm link` 運用では省略される）。スキーマ本体は本体リポジトリの `schema/aiqh.config.schema.json`（`npm run schema:gen` で zod から生成）
 
