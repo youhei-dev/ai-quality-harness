@@ -82,3 +82,26 @@
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**: 大文字小文字・Unicode の同一視の規則はファイルシステムごとに違い、JavaScript の変換では写せない
 - **判断を下げる前提は、確かめられるなら確かめる**: 「同時の差し替えが必要」という前提が、確認の工程で崩れた。停止条件を依頼書に書いておいたことで、完了扱いにする前に止まれた
 - **正規表現やテキスト解析による構造テストは迂回できる**: 構造の保証には AST や実体（commander の `Command` オブジェクト）を使う（R3-004〜006）
+
+## R3-002〜006（Medium）— M2-2 での修正（v0.5.0）
+
+- 人間の判断（2026-09-25、M2-2 SP1 の承認）: SP1 報告 §8 の 11 項目をすべて推奨案で採用。設計は R3-002 = 早期 return の廃止と `Rejected` 型と判定関数、
+  R3-003 = 全文の検査と形の検証（zod）と読取失敗の分類、R3-004 = 型情報付きの構造テストと実行時の登録簿、R3-005 = 副作用のない CLI の factory と
+  `Command` オブジェクトとの比較、R3-006 = 型情報付き AST と最小 PATH の全テスト（自己 verify の `unit-minpath`）。終了コードの優先順位は ADR-0015
+- 各件とも SP1 で実コードの再現をしてから直した（`tmp/m2-2/repro/`）。修正前 FAIL は、各 commit で足したテストを 1 つ前の commit のコードに当てて記録した
+  （`tmp/m2-2/before-<ID>-*.log`）。構造テスト（R3-004・R3-006 の静的検査）はガード自体が修正なので、テストのガードを旧判定（v0.4.4 のテストの正規表現）に
+  差し替えた実行も記録した
+- 以降の独立レビュー（m2-2-r1 以降）の原文と対応記録は `docs/reviews/m2-2/` に置く
+
+| ID | commit | 修正 | 回帰テスト | 修正前 FAIL |
+|---|---|---|---|---|
+| M2-1-R3-004 | 9f8d0a3 | brand を作るのは `issue` / `REJECTED` / `issueMd` だけ。型情報付きの構造テスト（`tests/structure/brand-guard.ts`）、実行時の登録簿（描画関数・`md`・組み立て・ZIP のエントリ名） | `tests/regression-m2-2-r3-004-brand-forgery.test.ts`（9 件） | 4 / 9（実行時 3、src の brand の生成箇所 1）。ガードを旧判定にすると、迂回の 22 形のうち 20 形を見逃して FAIL |
+| M2-1-R3-006 | 17cdad6 | 型情報付き AST（`tests/structure/process-guard.ts`）、`scripts/test-minimal-path.ts` と自己 verify の `unit-minpath`（8 チェック） | `tests/regression-m2-2-r3-006-external-commands.test.ts`（6 件） | 新しいガードのままでは 0 / 6（ガード自体が修正）。旧判定にすると 5 / 6（違反の 13 行のうち 8 行を見逃す。静的解析の限界の 1 形を含めると 14 形中 9 形） |
+| M2-1-R3-005 | 2e46c4b | `src/cli-program.ts`（副作用のない `buildProgram`）、一覧を `Command` オブジェクトと比較 | `tests/regression-m2-2-r3-005-option-inventory.test.ts`（5 件） | 5 / 5（factory が無く import で失敗）。help と使い方エラーの出力 13 通りは分割の前後でバイト一致 |
+| M2-1-R3-002 | cb164c0 | `src/review/outcome.ts`（`InspectionError` / `DeferredError` / `EXIT_PRIORITY` / `decideOutcome`）、`Rejected` 型、検査を最後まで続ける `inspectPacket` | `tests/regression-m2-2-r3-002-exit-priority.test.ts`（38 件） | 判定関数の単体テストを除く 36 件中 20 件（検査不能が 1 に隠れる 14 通り、D1・D2・D4、報告の形 3 件）。ファイル全体は `outcome.ts` が無く import で失敗 |
+| M2-1-R3-003 | 6b3f235 | `latest.json`: 読めなければ検査不能、JSON でない・形が違えば全文を検査してから出力しない判断 | `tests/regression-m2-2-r3-003-latest-json.test.ts`（16 件） | 12 / 16 |
+
+- 既存テストの期待値の変更: `tests/regression-m2-1-r2-007-findings-before-errors.test.ts` の 1 件（ファイル名の finding + 読めない `--request` が 1 → 2。SP1 で予定したもの）。
+  置き換え（SP1 で予定したもの）: `tests/regression-m2-1-r2-checked-inventory.test.ts` の 2 件（`as Checked` の文字列検査、`--help` の解析）、
+  `tests/regression-m2-1-r2-004-external-commands.test.ts`（静的な正規表現と 3 ファイルの動的検査。ファイルごと）
+- パケットの組み立ては変えていない: 版の表記が同じ状態で、v0.4.4 と M2-2 の実装から同じ範囲・入力で作ったパケットと ZIP の SHA-256 が一致した

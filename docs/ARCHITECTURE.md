@@ -82,7 +82,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
 | `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed） |
-| `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・git・上限・書込エラー |
+| `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
 
@@ -94,7 +94,8 @@ npm レジストリへの公開は行わない（`private: true`）。
 
 ```
 src/
-  cli.ts                  … エントリ（bin: aiqh）。サブコマンド登録と終了コード設定        [M0]
+  cli.ts                  … エントリ（bin: aiqh）。版の読込・シグナル処理・引数の解析と終了コード設定 [M0]
+  cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
   commands/
     verify.ts             … verify のオーケストレーション                                 [M0]
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
@@ -126,7 +127,9 @@ src/
   security/patterns.ts    … 秘密情報パターンの単一定義（masker / scanner で共有、R-012）      [M1]
   security/scan.ts        … 内蔵 Security Scan（値を持たない結果型）                          [M1]
   review/packet.ts        … パケット生成（git 呼び出し、判定、段階ごとの検査、md テンプレートでの組み立て。ADR-0014） [M2-1]
-  review/checked.ts       … 検査済みの文字列 Checked と描画前の検査 checkValue（描画関数と ZIP はこの型だけを受け取る） [M2-1 R2]
+  review/checked.ts       … 検査済みの文字列 Checked と描画前の検査 checkValue（描画関数と ZIP はこの型だけを受け取る。実行時の登録簿、
+                            finding で塞がれた値 Rejected。M2-1-R3-004 / R3-002） [M2-1 R2]
+  review/outcome.ts       … review-packet の終了コードの優先順位（InspectionError / DeferredError / decideOutcome、ADR-0015） [M2-2]
   review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
   security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]
   review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
@@ -432,10 +435,17 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
-  入力ごと（不正な UTF-8 → 生文字 → 秘密の形）→ 組み立てたパケット全体、の順に検査し、1 件でもあれば exit 1 で何も書かない（検出はエラーより先）。
-  描画する値は検査済みの型 `Checked` だけが描画関数と ZIP のエントリ名に渡る（v0.4.2）。`security.allow` は出所のリポジトリパスと行に適用する。
+  入力ごと（不正な UTF-8 → 生文字 → 秘密の形）→ 組み立てたパケット全体、の順に検査し、1 件でもあれば exit 1 で何も書かない。
+  finding があっても検査は最後まで続け、finding のある値は git に渡さない。終了コードは検査不能（exit 2）→ 検出（exit 1）→ 出力しない判断（exit 2）の順（v0.5.0、ADR-0015）。
+  描画する値は検査済みの型 `Checked` だけが描画関数と ZIP のエントリ名に渡る（v0.4.2。v0.5.0 から型情報付きの構造テストと実行時の登録簿で固定）。`security.allow` は出所のリポジトリパスと行に適用する。
   出力は出所・行・分類またはコードポイントのみ。git はシェルを経由せず引数配列で呼び、パスは `-z` で読む。書き込みはパケットと ZIP の 2 段階
   （準備 → 確定。確定点の前の失敗は戻し、後の退避削除の失敗は警告）
+- **テストが起動する外部コマンド（M2-1-R2-004 / R3-006）**: テストが起動してよいのは git と node（`process.execPath`）で、unzip / python3 は
+  その有無を確かめる probe と、それを条件にした `skipIf` / `runIf` の中だけ。`tests/structure/process-guard.ts`（型情報付き）が child_process の宣言に
+  解決される呼び出しをすべて調べる。文字列の中からの起動（`node -e` のスクリプトなど）は静的には見えないため、自己 verify の `unit-minpath`
+  （`scripts/test-minimal-path.ts`: PATH を node と git の symlink だけを置いた一時ディレクトリにして全テストを実行、終了後に削除）で確かめる。
+  runner 経由でテストが実行するコマンド（`tests/helpers.ts` の `nodeEval`）は、`process.execPath` ではなく PATH 上の `node` を使う前提である
+  （`unit-minpath` でも PATH に node を置く）。
 - **会社固有情報の排除**: コード・設定・docs・テストデータに実在の社名・製品名・IP・社内パス・人名を書かない。
 
 ---

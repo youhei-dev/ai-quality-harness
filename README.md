@@ -183,7 +183,9 @@ aiqh review-packet --range <from>..<to> [options]
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
 `aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・秘密の形のいずれかを検出（何も書かない。
-値は表示しない）、`2` = 使い方・git・上限・書込のエラー。`<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
+値は表示しない）、`2` = 使い方・設定・検査不能（読めない入力、作業ツリー外、git の失敗など）・上限・書込のエラー。検査そのものができないときは finding があっても
+`2` で、それまでの finding を「検査が完了していないため不完全」と明記して出します。上限超過など検査を妨げないエラーは finding が無いときだけ `2` です（ADR-0015）。
+`<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。
 
@@ -196,8 +198,8 @@ npm test            # Vitest
 npm run build       # tsc → dist/
 ```
 
-`npm run verify` は上記に `npm run smoke:package`（配布 smoke test）、`npm run security`（内蔵スキャン）、
-`npm audit --audit-level=high` を加えた 7 つを順に実行します。
+`npm run verify` は上記に `npm run test:minpath`（PATH を node と git だけにした全テスト。テストが宣言していない外部コマンドを起動しないことの確認）、
+`npm run smoke:package`（配布 smoke test）、`npm run security`（内蔵スキャン）、`npm audit --audit-level=high` を加えた 8 つを順に実行します。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）
