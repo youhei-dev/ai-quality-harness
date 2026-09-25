@@ -66,7 +66,9 @@
 
 ### 3b. `security` セクション（M2-0、ADR-0012）
 
-`aiqh security-scan` は既定で cwd の `aiqh.config.jsonc` を読み（`--config <path>` で変更可。既定ファイルが無ければ既定値、あるが不正なら exit 2）、
+`aiqh security-scan` は既定で cwd の `aiqh.config.jsonc` を読み（`--config <path>` で変更可。既定ファイルが無い〈ENOENT〉ときだけ既定値。それ以外の理由で
+読めない〈辿れない親ディレクトリ、シンボリックリンクのループ、ディレクトリなど〉か不正なら exit 2。v0.5.1 で明確化: v0.5.0 までは、あっても辿れない既定ファイルを
+無いものとして既定値で走査し、設定で足した `envProbePaths` が効かないまま exit 0 になり得た）、
 `security` セクションの設定で走査する。config は信頼された入力（R-006 の trust boundary）であり、allow はレビューで見える形で記録される。
 
 | キー | 型 | 既定 | 意味 |
@@ -89,7 +91,8 @@
 `allow[].reason` と `allow[].path` は改行（`\r` / `\n`）を含めない（スキーマエラー。M2-0-R1-002）。加えて C0 制御文字（U+0000〜U+001F、TAB を含む）、
 DEL（U+007F）、C1 制御文字（U+0080〜U+009F）、U+2028 / U+2029 を含めない（M2-0-R2-002。JSON Schema の `pattern` も同じ式）。
 
-`aiqh review-packet`（M2-1、ADR-0014）も同じ `security` セクションを読む（cwd の `aiqh.config.jsonc`、`--config` で変更可）。`allow` はパケットに入る
+`aiqh review-packet`（M2-1、ADR-0014）も同じ `security` セクションを、security-scan と同じ関数（`src/config/load.ts` の `loadSecurityConfig`）で読む
+（cwd の `aiqh.config.jsonc`、`--config` で変更可。既定ファイルが無い〈ENOENT〉ときだけ既定値、読めない・不正なら exit 2。v0.5.1）。`allow` はパケットに入る
 入力の出所（変更ファイルの全文と差分の行、`--doc`）のリポジトリパスと行に適用し、抑制した件数と一覧はパケットの Integrity 節に載せる。依頼文・レビュー原文・
 commit メッセージ・verify 結果にはパスが無いので適用されない。review-packet 用の新しいキーは無い（オプションは CLI のみ）。
 

@@ -182,6 +182,7 @@ aiqh review-packet --range <from>..<to> [options]
 ```
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
+`--config` を省略したときは `--cwd` のディレクトリの `aiqh.config.jsonc` を読み、無ければ既定値、あるのに読めない・不正なら `2` です（`aiqh security-scan` も同じ。v0.5.1）。
 `aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・秘密の形のいずれかを検出（何も書かない。
 値は表示しない）、`2` = 使い方・設定・検査不能（読めない入力、作業ツリー外、git の失敗など）・上限・書込のエラー。検査そのものができないときは finding があっても
 `2` で、それまでの finding を「検査が完了していないため不完全」と明記して出します。上限超過など検査を妨げないエラーは finding が無いときだけ `2` です（ADR-0015）。
@@ -198,8 +199,11 @@ npm test            # Vitest
 npm run build       # tsc → dist/
 ```
 
-`npm run verify` は上記に `npm run test:minpath`（PATH を node と git だけにした全テスト。テストが宣言していない外部コマンドを起動しないことの確認）、
+`npm run verify` は上記に `npm run test:minpath`（PATH を node と git の symlink だけにした全テスト）、
 `npm run smoke:package`（配布 smoke test）、`npm run security`（内蔵スキャン）、`npm audit --audit-level=high` を加えた 8 つを順に実行します。
+`test:minpath` が保証するのは、**PATH の名前解決で起動する、テストが宣言していないコマンドを検出する**ことだけです（v0.5.1 で記述を訂正。M2-2-R1-005・006）。
+絶対パスでの起動は防ぎません。子プロセスの環境変数は PATH 以外を引き継ぎます。単独で実行してシグナルを受けたときに止めるのは vitest の直接の子プロセスだけで、
+自己 verify の中では runner がプロセスグループごと止めます。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）

@@ -42,7 +42,7 @@
 ## コマンド
 
 ```bash
-npm run verify        # 自己 verify（lint / typecheck / unit / build / dependency）
+npm run verify        # 自己 verify（8 チェック: lint / typecheck / unit / unit-minpath / build / package / security / dependency）
 npm run verify:dist   # ビルド済み dist/ で同じことを行う
 npm run lint && npm run typecheck && npm test && npm run build
 ```
