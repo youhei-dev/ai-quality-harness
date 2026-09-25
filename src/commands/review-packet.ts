@@ -258,7 +258,8 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
  * Where the packet and the ZIP go (ADR-0015): the default file name, which becomes the ZIP entry name, is checked
  * like -o's (a finding); a forbidden character in a resolved output path, a name outside [A-Za-z0-9._-] and the
  * same file for both are deferred (the first one found, as before). Nothing when the path cannot be known yet
- * (no -o and the range or the label has a finding).
+ * (no -o, and the label has a finding or is <to>'s while the range has a finding). With --label the default path
+ * does not depend on the range, so it is checked even when the range has a finding (M2-2-R1-001).
  */
 function outputTargets(options: ReviewPacketOptions, cwd: string, inspection: PacketInspection, checked: Map<OptionName, Array<Checked | Rejected>>, security: ResolvedSecurity): { findings: PacketFinding[]; deferred: DeferredError[]; output: string | null; zipPath: string | null; entryName: Checked | null } {
   const findings: PacketFinding[] = [];
@@ -270,8 +271,8 @@ function outputTargets(options: ReviewPacketOptions, cwd: string, inspection: Pa
     // The ZIP entry name: checked through the inventory for -o (its finding is already reported).
     const name = nth(checked, "output", 0);
     entryName = typeof name === "string" ? name : null;
-  } else if (inspection.git !== null && typeof inspection.label === "string") {
-    output = path.resolve(cwd, path.join(inspection.git.root, "artifacts", "ai-review", `review-packet-${inspection.label}.md`));
+  } else if (typeof inspection.label === "string") {
+    output = path.resolve(cwd, path.join(inspection.root, "artifacts", "ai-review", `review-packet-${inspection.label}.md`));
     const r = checkValue(path.basename(output), security);
     if (r.ok) entryName = r.value;
     else findings.push(...asPacketFindings(r.findings, "output file name"));

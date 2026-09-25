@@ -85,8 +85,9 @@ export interface Suppression {
 /**
  * Options for inspectPacket. The values that are rendered are checked by the caller through the option
  * inventory of runReviewPacket (M2-1 R2): Checked, or Rejected when the value has a finding (ADR-0015) — a
- * Rejected range stops every git step, a Rejected document is not looked up, a Rejected label is not
- * shape-checked.
+ * Rejected range stops the steps that use it (its form, the refs and everything that depends on <from> / <to>;
+ * the work tree, the root, the human inputs and latest.json as far as it does not depend on <to> are still
+ * inspected, M2-2-R1-001), a Rejected document is not looked up, a Rejected label is not shape-checked.
  */
 export interface PacketOptions {
   /** Directory inside the repository. */
@@ -126,9 +127,8 @@ export interface ChangedFile {
   deleted: number | null;
 }
 
-/** What git gave for the range (null in PacketInspection when the range has a finding and git was not run). */
+/** What git gave for the range (null in PacketInspection when the range has a finding: the steps that use it did not run). */
 export interface PacketGit {
-  root: string;
   fromSha: string;
   toSha: string;
   commits: number;
@@ -143,6 +143,8 @@ export interface PacketInspection {
   findings: PacketFinding[];
   deferred: DeferredError[];
   git: PacketGit | null;
+  /** The repository root (known even when the range has a finding: it does not depend on the range, M2-2-R1-001). */
+  root: string;
   /** The --label value, or the first 12 hex digits of <to>; null when there is neither. */
   label: Checked | Rejected | null;
   suppressed: Suppression[];
@@ -651,13 +653,32 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     deferred.push(new DeferredError("--label may contain only lower-case letters, digits, \".\" and \"-\" (1-64 characters)"));
   }
   const range = opts.range;
-  if (typeof range !== "string") {
-    // The range has a finding: no git step can run (blocked by that finding). The human inputs are still checked.
+  // The form of a range with a finding is not checked (its finding stands for it, as for --label).
+  const m = typeof range === "string" ? /^(.*?)\.\.(.*)$/.exec(range) : null;
+  if (typeof range === "string" && (!m || range.includes("..."))) throw new InspectionError("--range must have the form <from>..<to>");
+
+  // The work tree and its root do not depend on the range: they are inspected even when it has a finding (M2-2-R1-001).
+  const inside = runGit(opts.cwd, ["rev-parse", "--is-inside-work-tree"]);
+  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new InspectionError(`not inside a git work tree: ${opts.cwd}`);
+  const root = gitOk(opts.cwd, ["rev-parse", "--show-toplevel"], "finding the repository root").toString("utf8").trim();
+
+  /** A value aiqh derives (SHA, hash, version, time) is checked like any other rendered value (M2-1 R2). */
+  const derived = (value: string): Checked | Rejected => checkInto(ck, value, "packet metadata");
+
+  if (typeof range !== "string" || !m) {
+    // The range has a finding (m is null only then): the steps that use it — its refs and everything that depends on
+    // <from> / <to> — are blocked by that finding and never get its value (ADR-0015 §3). What does not depend on the
+    // range is still inspected, in the order of the full inspection: the human inputs, latest.json up to the point
+    // where it would be matched against <to>, and the derived values that do not come from the range.
     checkHumanInputs(ck, opts);
+    readLatest(ck, root, deferred);
+    derived(opts.toolVersion);
+    derived(gitOk(root, ["--version"], "git --version").toString("utf8").trim());
     return {
       findings: ck.findings,
       deferred,
       git: null,
+      root,
       label: opts.label ?? null,
       suppressed: ck.suppressed,
       render: () => {
@@ -665,12 +686,6 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
       },
     };
   }
-  const m = /^(.*?)\.\.(.*)$/.exec(range);
-  if (!m || range.includes("...")) throw new InspectionError("--range must have the form <from>..<to>");
-
-  const inside = runGit(opts.cwd, ["rev-parse", "--is-inside-work-tree"]);
-  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new InspectionError(`not inside a git work tree: ${opts.cwd}`);
-  const root = gitOk(opts.cwd, ["rev-parse", "--show-toplevel"], "finding the repository root").toString("utf8").trim();
 
   // Resolve both ends once; everything below uses the SHAs only.
   const from = resolveCommit(root, m[1] ?? "", "from");
@@ -681,8 +696,6 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
   const commits = gitOk(root, ["rev-list", "--reverse", "--topo-order", `${from.sha}..${to.sha}`], "listing commits").toString("utf8").split("\n").filter((l) => l.length > 0);
   if (commits.length === 0) throw new InspectionError("--range contains no commits");
 
-  /** A value aiqh derives (SHA, hash, version, time) is checked like any other rendered value (M2-1 R2). */
-  const derived = (value: string): Checked | Rejected => checkInto(ck, value, "packet metadata");
   const label = opts.label ?? derived(to.sha.slice(0, SHORT));
   // Option values that are rendered (range, label, globs, documents, file names) were checked by the caller
   // before this function was called (M2-1-R2-006); a glob is matched as given, in memory only.
@@ -837,7 +850,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
   }
 
   // ---- verify result of <to> (only when latest.json belongs to <to> and a clean tree)
-  const verification = readVerification(ck, root, to.sha, deferred);
+  const verification = verificationFor(ck, readLatest(ck, root, deferred), to.sha, deferred);
 
   // ---- the other values that are rendered, derived by aiqh (checked like the rest; M2-1 R2)
   const toCommit = gitOk(root, ["cat-file", "commit", to.sha], "reading <to>");
@@ -963,7 +976,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     return { text, findings, deferred: tooBig };
   };
 
-  return { findings: ck.findings, deferred, git: { root, fromSha: from.sha, toSha: to.sha, commits: commits.length, files }, label, suppressed: ck.suppressed, render };
+  return { findings: ck.findings, deferred, git: { fromSha: from.sha, toSha: to.sha, commits: commits.length, files }, root, label, suppressed: ck.suppressed, render };
 }
 
 /** The verify result of <to>, as checked values (rendered by renderVerification only when there is no finding). */
@@ -1001,14 +1014,18 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+const VERIFICATION_SOURCE = "verification (artifacts/verification/latest.json)";
+
+/** latest.json as far as it can be inspected without <to>: absent, nothing to show (a finding or a deferred error says why), or parsed. */
+type Latest = { kind: "absent" } | { kind: "none" } | { kind: "parsed"; text: string; value: unknown };
+
 /**
- * The verify result of <to>. latest.json that does not exist (ENOENT) is "no verify result"; one that cannot be read
- * for any other reason is an InspectionError (exit 2 even with findings); one that is not JSON, or not of the shape
- * that is rendered, is a deferred error, after its whole text was checked for raw characters and secret shapes
- * (M2-1-R3-003: a finding in it is reported, exit 1).
+ * The part of the verify result that does not depend on the range (M2-2-R1-001: also inspected when the range has a
+ * finding). latest.json that does not exist (ENOENT) is "absent"; one that cannot be read for any other reason is an
+ * InspectionError (exit 2 even with findings); invalid UTF-8 is a finding; text that is not JSON is checked whole
+ * for raw characters and secret shapes and is then a deferred error (M2-1-R3-003: a finding in it is reported, exit 1).
  */
-function readVerification(ck: Checker, root: string, toSha: string, deferred: DeferredError[]): Verification {
-  const source = "verification (artifacts/verification/latest.json)";
+function readLatest(ck: Checker, root: string, deferred: DeferredError[]): Latest {
   const file = path.join(root, "artifacts", "verification", "latest.json");
   let bytes: Buffer;
   try {
@@ -1021,19 +1038,31 @@ function readVerification(ck: Checker, root: string, toSha: string, deferred: De
     if (code === "ENOENT") return { kind: "absent" };
     throw new InspectionError(`cannot read artifacts/verification/latest.json: ${code ?? "error"}`);
   }
-  const decoded = decode(ck, bytes, source);
+  const decoded = decode(ck, bytes, VERIFICATION_SOURCE);
   if (decoded === null) return { kind: "none" };
-  const unusable = (reason: string): Verification => {
-    checkText(ck, decoded, source, null);
-    deferred.push(new DeferredError(`artifacts/verification/latest.json ${reason}`));
-    return { kind: "none" };
-  };
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(decoded);
+    return { kind: "parsed", text: decoded, value: JSON.parse(decoded) as unknown };
   } catch {
-    return unusable("is not valid JSON");
+    return unusable(ck, decoded, "is not valid JSON", deferred);
   }
+}
+
+/** latest.json whose rendered part cannot be known: its whole text is checked, then it is a deferred error (M2-1-R3-003). */
+function unusable(ck: Checker, text: string, reason: string, deferred: DeferredError[]): { kind: "none" } {
+  checkText(ck, text, VERIFICATION_SOURCE, null);
+  deferred.push(new DeferredError(`artifacts/verification/latest.json ${reason}`));
+  return { kind: "none" };
+}
+
+/**
+ * The part that depends on <to>: which values of latest.json are rendered. A report of <to> on a clean tree is
+ * rendered as its result (its shape checked with zod, a report of another shape is unusable); anything else is
+ * "No verify result for <to>", with its commit and dirty values checked like any other rendered value.
+ */
+function verificationFor(ck: Checker, latest: Latest, toSha: string, deferred: DeferredError[]): Verification {
+  if (latest.kind !== "parsed") return latest;
+  const source = VERIFICATION_SOURCE;
+  const parsed = latest.value;
   // Not an object, no git object, another commit or a dirty tree: "No verify result for <to>" (as before).
   const git = isRecord(parsed) ? parsed.git : undefined;
   const commit: unknown = isRecord(git) ? (git.commit ?? null) : null;
@@ -1043,7 +1072,7 @@ function readVerification(ck: Checker, root: string, toSha: string, deferred: De
     return { kind: "other", commit: commit !== null && commit !== "" ? checkInto(ck, String(commit).slice(0, SHORT), source) : null, dirty: checkInto(ck, String(dirty), source) };
   }
   const shaped = RENDERED_REPORT.safeParse(parsed);
-  if (!shaped.success) return unusable("does not have the shape of a verify result (tool an object, checks an array of objects)");
+  if (!shaped.success) return unusable(ck, latest.text, "does not have the shape of a verify result (tool an object, checks an array of objects)", deferred);
   const report = shaped.data;
   // The rendered table escapes raw characters (M2-1-R1-004), so the values are checked before rendering, as one
   // text (a finding's line is the value's line in it); each value is then Checked on its own for its renderer.
