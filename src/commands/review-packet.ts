@@ -45,7 +45,7 @@ export interface ReviewPacketOptions {
 /** Output file names: ASCII letters, digits, ".", "_", "-" only. */
 const OUTPUT_NAME = /^[A-Za-z0-9._-]+$/;
 
-/** The options that cli.ts registers for review-packet (commander attribute names). */
+/** The options that src/cli-program.ts registers for review-packet (commander attribute names). */
 type OptionName = "range" | "cwd" | "label" | "output" | "zip" | "zipOutput" | "request" | "review" | "doc" | "exclude" | "maxFileBytes" | "maxPacketBytes" | "config" | "json";
 
 interface OptionEntry {
@@ -65,8 +65,9 @@ interface OptionEntry {
 
 /**
  * Every option of `aiqh review-packet` and how its value is handled before anything is rendered or written
- * (M2-1 R2, ADR-0014). tests/regression-m2-1-r2-checked-inventory.test.ts compares the keys with the options
- * that cli.ts registers, so a new option cannot be added without deciding here how its value is checked.
+ * (M2-1 R2, ADR-0014). tests/regression-m2-2-r3-005-option-inventory.test.ts compares the keys with the options
+ * of the review-packet Command object that src/cli-program.ts builds (hidden and short-only options and positional
+ * arguments included, M2-1-R3-005), so a new input cannot be added without deciding here how its value is checked.
  */
 export const OPTION_INVENTORY: Readonly<Record<OptionName, OptionEntry>> = {
   range: { handling: "rendered", source: "range", rendered: (o) => [o.range] },

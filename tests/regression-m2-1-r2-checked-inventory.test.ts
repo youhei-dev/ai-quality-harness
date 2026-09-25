@@ -3,42 +3,29 @@
  * reach the packet renderers and the ZIP entry name only as `Checked` values, which only the check function
  * of src/review/checked.ts creates (raw characters and secret shapes); and every option of
  * `aiqh review-packet` is listed in one inventory that decides how its value is checked.
- *  - the inventory's keys equal the options that cli.ts registers (read from `--help`, so a new option
- *    without an inventory entry fails here)
+ *  - (M2-2) the inventory is compared with the review-packet Command object instead of `--help` text:
+ *    tests/regression-m2-2-r3-005-option-inventory.test.ts (M2-1-R3-005)
  *  - (M2-2) the text search for `as Checked` was replaced by the brand guard with the type checker and a
  *    run-time registry: tests/regression-m2-2-r3-004-brand-forgery.test.ts (M2-1-R3-004)
  *  - type level (npm run typecheck): a plain string is rejected by inlineCode / createStoredZip, and packet
  *    text is built with the `md` template, which takes only rendered fragments and numbers
  *  - the leak the typed template found: latest.json values of another commit were interpolated as is
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { OPTION_INVENTORY, runReviewPacket } from "../src/commands/review-packet.ts";
+import { runReviewPacket } from "../src/commands/review-packet.ts";
 import { checkValue } from "../src/review/checked.ts";
 import { inlineCode, md } from "../src/review/packet.ts";
 import { createStoredZip } from "../src/review/zip.ts";
 import { DEFAULT_SECURITY } from "../src/security/scan.ts";
 import { fake, makeTempDir } from "./helpers.ts";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.();
 });
-
-/** Long option names of `aiqh review-packet --help`, as commander attribute names (camelCase). */
-function registeredOptions(): string[] {
-  const r = spawnSync(process.execPath, [path.join(ROOT, "src", "cli.ts"), "review-packet", "--help"], { encoding: "utf8", timeout: 60_000, killSignal: "SIGKILL" });
-  expect(r.status, r.stderr).toBe(0);
-  const names = new Set<string>();
-  for (const line of r.stdout.split("\n")) {
-    const m = /^\s+(?:-\w,\s+)?--([a-z][a-z-]*)/.exec(line);
-    if (m?.[1] && m[1] !== "help") names.add(m[1].replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()));
-  }
-  return [...names].sort();
-}
 
 /** Never called: the @ts-expect-error lines fail `npm run typecheck` if a plain string becomes acceptable. */
 function typeLevel(): void {
@@ -55,10 +42,6 @@ function typeLevel(): void {
 void typeLevel;
 
 describe("M2-1 R2: checked strings and the option inventory", () => {
-  it("the inventory lists exactly the options registered for review-packet in cli.ts", () => {
-    expect(Object.keys(OPTION_INVENTORY).sort()).toEqual(registeredOptions());
-  });
-
   it("found by the typed template: latest.json values for another commit (git.commit, git.dirty) cannot change the Markdown", async () => {
     const t = makeTempDir("aiqh-r2-structure-");
     cleanups.push(t.cleanup);
