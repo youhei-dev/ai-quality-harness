@@ -1,33 +1,62 @@
 /**
- * Output-boundary guard (M2-2, M2-2-R2-001): with the type checker, every reference in the given files to something that
- * writes to the terminal —
+ * Output-boundary guard (M2-2, M2-2-R2-001, M2-2-R3-003): with the type checker, every way in the given files to reach
+ * the terminal —
  *  - the global `console` (also through `globalThis`, an alias, destructuring, element access or the `node:console` module)
  *  - `process.stdout` / `process.stderr` (also through an alias of `process`, destructuring, element access or the
  *    `node:process` module)
- *  - an fs write to file descriptor 1 / 2 or to /dev/stdout, /dev/stderr, /dev/fd/1, /dev/fd/2
- * src/output.ts, the boundary itself, is the only module of src/ allowed to have any: every other module prints
- * through createOutput / writeError / COMMANDER_OUTPUT, which escape raw characters and then mask secret shapes.
- * A reference is found by the declaration it resolves to (@types/node), not by its spelling.
+ *  - an object from which the terminal is one property away — `process`, `globalThis` / `global`, the `node:process`
+ *    module — used in any other way than reading a property by its name (R3-003): an element access whose key is not a
+ *    string literal of a property that is not the terminal (`process[key]`, `globalThis[key]`, whatever the key's type),
+ *    passing it to a function (`Reflect.get(process, …)`, `Object.getOwnPropertyDescriptor(globalThis, …)`), a type
+ *    assertion (`process as any`), an alias, a spread, destructuring with a computed key or a rest element (a value that
+ *    is discarded, such as the result of `process.on(…)`, is not a use)
+ *  - code the checker cannot see: `Function` (`new Function`, `Function()`, and a call of a value typed `Function`, such
+ *    as a function's `constructor`), `eval`, `require`, `createRequire`, `import()` of a module that is not a string
+ *    literal, `node:vm`
+ *  - a file descriptor: an fs write whose target is a number (whatever its value: it cannot be shown to be neither 1 nor 2)
+ *    and an `fd` option passed to any call; a `/dev/…` or `/proc/…` path literal in any fs call
+ *  - a child process whose stdio is not "pipe" / "ignore" for every stream (inherit, a descriptor, a stream, or left to
+ *    Node's default where that passes the terminal through: spawn, spawnSync, execFileSync, execSync, fork)
+ * In src/, only the two writers of src/output.ts (`emitOut`, `emitErr`) may reach the terminal, only as a call such as
+ * `console.log(text)` / `process.stdout.write(text)`, and only with arguments of type `Safe`. Only safeText / safeJson
+ * create a `Safe` string: a type assertion to it anywhere else, a type predicate for it and an `any` value where it is
+ * expected are violations. A reference is found by the declaration it resolves to (@types/node, the TypeScript
+ * library), not by its spelling.
  */
 import path from "node:path";
 import ts from "typescript";
-import { where, type Program } from "./typescript.ts";
+import { starter } from "./process-guard.ts";
+import { ownerName, where, type Program } from "./typescript.ts";
 
-/** Repository-relative files that may write to the terminal. */
+/** Repository-relative files that may write to the terminal (only inside WRITERS). */
 export const OUTPUT_ALLOWED = new Set(["src/output.ts"]);
+/** The two writers of src/output.ts: the only functions of src/ that reach the terminal (R3-003). */
+export const WRITERS: ReadonlySet<string> = new Set(["emitOut", "emitErr"]);
+/** The only functions of src/output.ts that may create a `Safe` string (a type assertion to it). */
+export const SAFE_CREATORS: ReadonlySet<string> = new Set(["safeText", "safeJson"]);
 
 export interface OutputReference {
   where: string;
-  /** "console", "process.stdout", "process.stderr", "import node:console", "fs <api> to <target>". */
+  /** "console", "process.stdout", "process.stderr", "import node:console", "fs <api> to <target>", or the dynamic form. */
   what: string;
 }
 
 const NODE_TYPES = /[\\/]@types[\\/]node[\\/]/;
-const FS_WRITERS = new Set(["writeSync", "write", "writeFileSync", "writeFile", "appendFileSync", "appendFile", "createWriteStream", "openSync", "open"]);
-const STD_PATHS = new Set(["/dev/stdout", "/dev/stderr", "/dev/fd/1", "/dev/fd/2", "/proc/self/fd/1", "/proc/self/fd/2"]);
+const TS_LIB = /[\\/]typescript[\\/]lib[\\/]lib\.[^\\/]*\.d\.ts$/;
+const FS_WRITERS = new Set(["writeSync", "write", "writev", "writevSync", "writeFileSync", "writeFile", "appendFileSync", "appendFile", "createWriteStream", "openSync", "open"]);
+const DEVICE_PATH = /^\/(dev|proc)\//;
+/** child_process functions whose default stdio (or stderr) is the parent's terminal, so stdio must be given. */
+const STDIO_REQUIRED = new Set(["spawn", "spawnSync", "execFileSync", "execSync", "fork"]);
+const STDIO_OK = new Set(["pipe", "ignore"]);
+const VM_MODULES = new Set(["vm", "node:vm"]);
+const SAFE_BRAND = /^__@safeBrand@/;
 
 function resolved(checker: ts.TypeChecker, sym: ts.Symbol | undefined): ts.Symbol | undefined {
   return sym !== undefined && sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym;
+}
+
+function declaredIn(sym: ts.Symbol | undefined, file: RegExp): boolean {
+  return (sym?.declarations ?? []).some((d) => file.test(d.getSourceFile().fileName));
 }
 
 /** "console" / "process.stdout" / "process.stderr" when `sym` is one of them as declared by @types/node, else null. */
@@ -40,49 +69,114 @@ function terminalSymbol(sym: ts.Symbol | undefined): string | null {
   return null;
 }
 
-/** The fs function a call resolves to (declared in @types/node fs), or null. */
-function fsWriter(checker: ts.TypeChecker, call: ts.CallExpression): string | null {
+/** The fs function a call resolves to (declared in @types/node fs or fs/promises), or null. */
+function fsFunction(checker: ts.TypeChecker, call: ts.CallExpression): string | null {
   const decl = checker.getResolvedSignature(call)?.getDeclaration();
   if (decl === undefined || !/[\\/]@types[\\/]node[\\/]fs(\.d\.ts|[\\/]promises\.d\.ts)$/.test(decl.getSourceFile().fileName)) return null;
   let fn: ts.Node | undefined = decl;
   while (fn !== undefined && !(ts.isFunctionDeclaration(fn) && fn.name !== undefined)) fn = fn.parent;
-  const name = fn !== undefined && ts.isFunctionDeclaration(fn) && fn.name !== undefined ? fn.name.text : "";
-  return FS_WRITERS.has(name) ? name : null;
+  return fn !== undefined && ts.isFunctionDeclaration(fn) && fn.name !== undefined ? fn.name.text : null;
 }
 
-/** The terminal target of an fs call's first argument, by its type: fd 1 / 2 or a /dev path. */
-function stdTarget(checker: ts.TypeChecker, arg: ts.Expression | undefined): string | null {
-  if (arg === undefined) return null;
-  const t = checker.getTypeAtLocation(arg);
-  if (t.isNumberLiteral() && (t.value === 1 || t.value === 2)) return `fd ${t.value}`;
-  if (t.isStringLiteral() && STD_PATHS.has(t.value)) return t.value;
-  return null;
+/** Whether `node` is written in a type (a type annotation, `typeof x` in a type). */
+function inTypePosition(node: ts.Node): boolean {
+  for (let n: ts.Node | undefined = node.parent; n !== undefined; n = n.parent) {
+    if (ts.isTypeNode(n)) return true;
+    if (ts.isStatement(n) || ts.isExpression(n)) return false;
+  }
+  return false;
 }
 
-export function outputReferences(p: Program, files: readonly ts.SourceFile[]): OutputReference[] {
+/** Whether an identifier names a declaration, a member or an import rather than referring to a value. */
+function nameOnly(id: ts.Identifier): boolean {
+  const p = id.parent;
+  const named =
+    ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isFunctionDeclaration(p) || ts.isFunctionExpression(p) || ts.isClassDeclaration(p) || ts.isClassExpression(p) ||
+    ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertyAssignment(p) || ts.isPropertySignature(p) || ts.isMethodSignature(p) || ts.isBindingElement(p) ||
+    ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p) || ts.isEnumMember(p) || ts.isInterfaceDeclaration(p) || ts.isTypeAliasDeclaration(p) || ts.isModuleDeclaration(p);
+  if (named && (p as ts.NamedDeclaration).name === id) return true;
+  if (ts.isBindingElement(p) && p.propertyName === id) return true;
+  if (ts.isImportSpecifier(p) || ts.isExportSpecifier(p) || ts.isImportClause(p) || ts.isNamespaceImport(p) || ts.isNamespaceExport(p)) return true;
+  if (ts.isPropertyAccessExpression(p) && p.name === id) return true;
+  return ts.isLabeledStatement(p) || ts.isBreakOrContinueStatement(p);
+}
+
+/** A string literal type's value, or null. */
+function literalKey(checker: ts.TypeChecker, e: ts.Expression): string | null {
+  const t = checker.getTypeAtLocation(e);
+  return t.isStringLiteral() ? t.value : null;
+}
+
+function hasSafe(t: ts.Type): boolean {
+  if (t.isUnionOrIntersection()) return t.types.some(hasSafe);
+  return t.getProperties().some((p) => SAFE_BRAND.test(p.getName()));
+}
+
+/** The label of an object from which the terminal is one property away (see the header), or null. */
+function holderOf(checker: ts.TypeChecker, cache: Map<ts.Type, boolean>, e: ts.Expression): string | null {
+  const t = checker.getNonNullableType(checker.getTypeAtLocation(e));
+  let holder = cache.get(t);
+  if (holder === undefined) {
+    holder = checker.getPropertiesOfType(t).some((prop) => terminalSymbol(resolved(checker, prop)) !== null);
+    cache.set(t, holder);
+  }
+  return holder ? e.getText().replace(/\s+/g, " ").slice(0, 40) : null;
+}
+
+/** What is wrong with a child process call's stdio, or null when every stream is "pipe" / "ignore". */
+function stdioProblem(checker: ts.TypeChecker, api: string, call: ts.CallExpression): string | null {
+  const name = api.split(" ")[0] ?? "";
+  if (!STDIO_REQUIRED.has(name)) return null;
+  const options = [...call.arguments].reverse().find(ts.isObjectLiteralExpression);
+  const stdio = options?.properties.find((prop): prop is ts.PropertyAssignment => ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === "stdio");
+  if (stdio === undefined) return `child process ${name} without stdio (the default passes the terminal through)`;
+  const init = stdio.initializer;
+  const ok = (e: ts.Expression): boolean => STDIO_OK.has(literalKey(checker, e) ?? "");
+  if (ts.isArrayLiteralExpression(init) ? init.elements.every(ok) : ok(init)) return null;
+  return `child process ${name} with stdio ${init.getText().slice(0, 40)}`;
+}
+
+interface Found extends OutputReference {
+  node: ts.Node;
+  file: string;
+  /** A reference to console / process.stdout / process.stderr (the only kind a writer may have). */
+  terminal: boolean;
+}
+
+function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
   const { checker } = p;
-  const out: OutputReference[] = [];
+  const out: Found[] = [];
   const seen = new Set<string>();
-  const add = (sf: ts.SourceFile, n: ts.Node, what: string): void => {
-    const at = where(p, sf, n);
-    const key = `${at} ${what} ${n.pos}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ where: at, what });
-  };
+  const holders = new Map<ts.Type, boolean>();
   for (const sf of files) {
+    const file = p.rel(sf).split(path.sep).join("/");
+    const add = (n: ts.Node, what: string, terminal = false): void => {
+      const at = where(p, sf, n);
+      const key = `${at} ${what} ${n.pos}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ where: at, what, node: n, file, terminal });
+    };
     const visit = (n: ts.Node): void => {
-      if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier) && (n.moduleSpecifier.text === "console" || n.moduleSpecifier.text === "node:console")) {
-        add(sf, n, "import node:console");
+      if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier)) {
+        const m = n.moduleSpecifier.text;
+        if (m === "console" || m === "node:console") add(n, "import node:console");
+        if (VM_MODULES.has(m)) add(n, "dynamic code: node:vm");
       }
       if (ts.isIdentifier(n)) {
-        const what = terminalSymbol(resolved(checker, checker.getSymbolAtLocation(n)));
-        if (what !== null) add(sf, n, what);
+        const sym = resolved(checker, checker.getSymbolAtLocation(n));
+        const what = terminalSymbol(sym);
+        if (what !== null) add(n, what, true);
+        // code the checker cannot see
+        if (!inTypePosition(n) && sym !== undefined) {
+          if ((sym.name === "Function" || sym.name === "eval") && declaredIn(sym, TS_LIB)) add(n, `dynamic code: ${sym.name}`);
+          if ((sym.name === "require" || sym.name === "createRequire") && declaredIn(sym, NODE_TYPES)) add(n, `dynamic code: ${sym.name}`);
+        }
       }
       // process["stdout"], console["log"]: the property named by a string
       if (ts.isElementAccessExpression(n)) {
         const what = terminalSymbol(resolved(checker, checker.getSymbolAtLocation(n.argumentExpression)));
-        if (what !== null) add(sf, n, what);
+        if (what !== null) add(n, what, true);
       }
       // const { stdout } = process; const { log } = console — the property the binding takes
       if (ts.isObjectBindingPattern(n)) {
@@ -92,13 +186,58 @@ export function outputReferences(p: Program, files: readonly ts.SourceFile[]): O
           const key = el.propertyName ?? el.name;
           if (!ts.isIdentifier(key) && !ts.isStringLiteral(key)) continue;
           const what = terminalSymbol(resolved(checker, type.getProperty(key.text)));
-          if (what !== null) add(sf, el, what);
+          if (what !== null) add(el, what, true);
+        }
+      }
+      // process, globalThis, the node:process module: only `x.name` (R3-003)
+      if (ts.isExpression(n) && !ts.isParenthesizedExpression(n.parent) && !inTypePosition(n) && !(ts.isIdentifier(n) && nameOnly(n))) {
+        const holder = holderOf(checker, holders, n);
+        if (holder !== null) {
+          const parent = n.parent;
+          if ((ts.isPropertyAccessExpression(parent) && parent.expression === n) || ts.isExpressionStatement(parent) || ts.isVoidExpression(parent)) {
+            // reading a property by its name (the name itself is checked above), or a value that is discarded
+            // (`process.on(…)` returns process)
+          } else if (ts.isElementAccessExpression(parent) && parent.expression === n) {
+            const key = literalKey(checker, parent.argumentExpression);
+            const prop = key === null ? undefined : checker.getNonNullableType(checker.getTypeAtLocation(n)).getProperty(key);
+            if (prop === undefined || terminalSymbol(resolved(checker, prop)) !== null) add(parent, `dynamic access to ${holder}`);
+          } else if (ts.isVariableDeclaration(parent) && parent.initializer === n && ts.isObjectBindingPattern(parent.name)) {
+            for (const el of parent.name.elements) {
+              const key = el.propertyName ?? el.name;
+              if (el.dotDotDotToken !== undefined || !(ts.isIdentifier(key) || ts.isStringLiteral(key))) add(el, `destructuring of ${holder} with a computed key or a rest element`);
+            }
+          } else {
+            add(n, `${holder} used as a value (${ts.SyntaxKind[parent.kind]})`);
+          }
         }
       }
       if (ts.isCallExpression(n)) {
-        const api = fsWriter(checker, n);
-        const target = api !== null ? stdTarget(checker, n.arguments[0]) : null;
-        if (api !== null && target !== null) add(sf, n, `fs ${api} to ${target}`);
+        // import() of a module that is not a string literal; import("node:vm")
+        if (n.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          const spec = n.arguments[0];
+          if (spec === undefined || !(ts.isStringLiteral(spec) || ts.isNoSubstitutionTemplateLiteral(spec))) add(n, "dynamic code: import() of a computed module");
+          else if (VM_MODULES.has(spec.text)) add(n, "dynamic code: node:vm");
+        }
+        // a call of a value typed Function (a function's `constructor`): an untyped call that can run a string
+        const callee = checker.getTypeAtLocation(n.expression).getSymbol();
+        if (callee?.name === "Function" && declaredIn(callee, TS_LIB)) add(n, "dynamic code: a call of a value typed Function");
+        const fs = fsFunction(checker, n);
+        if (fs !== null) {
+          const first = n.arguments[0];
+          const t = first === undefined ? undefined : checker.getTypeAtLocation(first);
+          if (FS_WRITERS.has(fs) && t !== undefined && (t.flags & ts.TypeFlags.NumberLike) !== 0) add(n, t.isNumberLiteral() ? `fs ${fs} to fd ${t.value}` : `fs ${fs} to a file descriptor`);
+          for (const a of n.arguments) {
+            const v = literalKey(checker, a);
+            if (v !== null && DEVICE_PATH.test(v)) add(n, `fs ${fs} to ${v}`);
+          }
+        }
+        const api = starter(checker, n);
+        const problem = api === null ? null : stdioProblem(checker, api, n);
+        if (problem !== null) add(n, problem);
+      }
+      // an `fd` option passed to any call or constructor (fs.createWriteStream, net.Socket, …)
+      if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && (n.arguments ?? []).some((a) => ts.isObjectLiteralExpression(a) && a.properties.some((prop) => prop.name !== undefined && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === "fd"))) {
+        add(n, "an fd option");
       }
       ts.forEachChild(n, visit);
     };
@@ -107,7 +246,51 @@ export function outputReferences(p: Program, files: readonly ts.SourceFile[]): O
   return out;
 }
 
-/** The references in files that are not allowed to write to the terminal. */
+export function outputReferences(p: Program, files: readonly ts.SourceFile[]): OutputReference[] {
+  return scan(p, files).map(({ where: at, what }) => ({ where: at, what }));
+}
+
+/**
+ * Whether a terminal reference is a write of the writers: `console.log(text)` / `process.stdout.write(text)` inside
+ * emitOut / emitErr of src/output.ts, every argument of type `Safe`.
+ */
+function writerCall(checker: ts.TypeChecker, f: Found): boolean {
+  if (!OUTPUT_ALLOWED.has(f.file) || !WRITERS.has(ownerName(f.node))) return false;
+  let target: ts.Node = f.node;
+  if (ts.isPropertyAccessExpression(target.parent) && target.parent.name === target) target = target.parent;
+  const member = target.parent;
+  const call = member.parent;
+  if (!ts.isPropertyAccessExpression(member) || member.expression !== target || !ts.isCallExpression(call) || call.expression !== member) return false;
+  return call.arguments.every((a) => hasSafe(checker.getTypeAtLocation(a)));
+}
+
+/** `Safe` made without safeText / safeJson: a type assertion elsewhere, a type predicate, an `any` value where it is expected. */
+function safeForgeries(p: Program, files: readonly ts.SourceFile[]): OutputReference[] {
+  const { checker } = p;
+  const out: OutputReference[] = [];
+  for (const sf of files) {
+    const file = p.rel(sf).split(path.sep).join("/");
+    const visit = (n: ts.Node): void => {
+      if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && hasSafe(checker.getTypeFromTypeNode(n.type)) && !(OUTPUT_ALLOWED.has(file) && SAFE_CREATORS.has(ownerName(n)))) {
+        out.push({ where: where(p, sf, n), what: "Safe made by a type assertion" });
+      }
+      if (ts.isTypePredicateNode(n) && n.type !== undefined && hasSafe(checker.getTypeFromTypeNode(n.type))) out.push({ where: where(p, sf, n), what: "Safe made by a type predicate" });
+      if (ts.isExpression(n) && !inTypePosition(n) && (checker.getTypeAtLocation(n).flags & ts.TypeFlags.Any) !== 0) {
+        const ctx = checker.getContextualType(n);
+        if (ctx !== undefined && hasSafe(ctx)) out.push({ where: where(p, sf, n), what: "an any value where Safe is expected" });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/**
+ * The violations in the given files: every way to reach the terminal except the writes of the two writers of
+ * src/output.ts, and every `Safe` made without safeText / safeJson.
+ */
 export function outputViolations(p: Program, files: readonly ts.SourceFile[]): OutputReference[] {
-  return outputReferences(p, files.filter((sf) => !OUTPUT_ALLOWED.has(p.rel(sf).split(path.sep).join("/"))));
+  const found = scan(p, files).filter((f) => !(f.terminal && writerCall(p.checker, f)));
+  return [...found.map(({ where: at, what }) => ({ where: at, what })), ...safeForgeries(p, files)];
 }

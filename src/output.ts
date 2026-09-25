@@ -10,8 +10,10 @@
  * is written as an explicit block: its lines stay, and each of them is processed like a line.
  * Before v0.5.2 only review-packet escaped raw characters; the other commands passed paths, file names, git output and
  * error messages to the terminal through the masker alone.
- * tests/structure/output-guard.ts allows `console`, `process.stdout` / `process.stderr` and writes to file descriptors
- * 1 and 2 only in this module.
+ * Only the two writers below (emitOut, emitErr) reach the terminal, and they take only `Safe` strings, which only
+ * safeText and safeJson create (M2-2-R3-003). tests/structure/output-guard.ts (type-aware) checks both: `console`,
+ * `process.stdout` / `process.stderr` nowhere else in src/, no dynamic or reflective way to reach them, and no `Safe`
+ * made by a type assertion elsewhere.
  */
 import { maskSecrets } from "./security/mask.ts";
 import { escapeRawChars, isForbiddenCodePoint } from "./security/raw-chars.ts";
@@ -35,6 +37,11 @@ export function escapeForDisplay(s: string, mode: LineMode): string {
   return out;
 }
 
+declare const safeBrand: unique symbol;
+
+/** A string that went through safeText or safeJson: the only kind the writers accept (M2-2-R3-003). */
+export type Safe = string & { readonly [safeBrand]: true };
+
 /**
  * What one written string is (M2-2-R3-001):
  * - line: one line; LF and TAB become notation like the forbidden characters
@@ -43,8 +50,8 @@ export function escapeForDisplay(s: string, mode: LineMode): string {
 export type TextShape = "line" | "block";
 
 /** Text for the terminal: raw characters escaped (for a line, LF and TAB as well), then secret shapes masked. */
-export function safeText(s: string, shape: TextShape = "line"): string {
-  return maskSecrets(shape === "line" ? escapeRawChars(s) : s.split("\n").map(escapeRawChars).join("\n"));
+export function safeText(s: string, shape: TextShape = "line"): Safe {
+  return maskSecrets(shape === "line" ? escapeRawChars(s) : s.split("\n").map(escapeRawChars).join("\n")) as Safe;
 }
 
 /**
@@ -69,8 +76,22 @@ function jsonSafe(value: unknown, mode: LineMode): unknown {
 }
 
 /** A JSON document for the terminal: every string and object key escaped, then masked, printed with two-space indentation. */
-export function safeJson(value: unknown, mode: LineMode = "keep"): string {
-  return JSON.stringify(jsonSafe(value, mode), null, 2);
+export function safeJson(value: unknown, mode: LineMode = "keep"): Safe {
+  return JSON.stringify(jsonSafe(value, mode), null, 2) as Safe;
+}
+
+/**
+ * The two writers: the only code in src/ that reaches the terminal. `line` ends the text with a newline
+ * (console.log / console.error); without it the text is written as given (commander's output ends with its own newline).
+ */
+function emitOut(text: Safe, line: boolean): void {
+  if (line) console.log(text);
+  else process.stdout.write(text);
+}
+
+function emitErr(text: Safe, line: boolean): void {
+  if (line) console.error(text);
+  else process.stderr.write(text);
 }
 
 /**
@@ -100,8 +121,8 @@ export interface Output {
  * of its JSON document treat LF and TAB ("escape" for review-packet).
  */
 export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): Output {
-  const out = sinks.log ?? ((text: string) => console.log(text));
-  const err = sinks.logError ?? ((text: string) => console.error(text));
+  const out = sinks.log ?? ((text: Safe) => emitOut(text, true));
+  const err = sinks.logError ?? ((text: Safe) => emitErr(text, true));
   return {
     log: (line) => out(safeText(line)),
     error: (line) => err(safeText(line)),
@@ -113,7 +134,7 @@ export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): O
 
 /** A line to standard error from outside a command run (signals, an unexpected error, an option parser). */
 export function writeError(line: string): void {
-  console.error(safeText(line));
+  emitErr(safeText(line), true);
 }
 
 /** The suggestion commander appends to a usage error as the last line of the message, e.g. `(Did you mean --json?)`. */
@@ -139,10 +160,10 @@ function commanderError(str: string): string {
  */
 export const COMMANDER_OUTPUT = {
   writeOut: (str: string): void => {
-    process.stdout.write(safeText(str, "block"));
+    emitOut(safeText(str, "block"), false);
   },
   writeErr: (str: string): void => {
-    process.stderr.write(safeText(str, "block"));
+    emitErr(safeText(str, "block"), false);
   },
   outputError: (str: string, write: (str: string) => void): void => {
     write(commanderError(str));

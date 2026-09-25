@@ -30,8 +30,8 @@ export interface ProcessCall {
   verdict: string;
 }
 
-/** The child_process function a call resolves to, or null. */
-function starter(checker: ts.TypeChecker, call: ts.CallExpression): string | null {
+/** The child_process function a call resolves to, or null (also used by output-guard.ts for the children's stdio). */
+export function starter(checker: ts.TypeChecker, call: ts.CallExpression): string | null {
   const decl = checker.getResolvedSignature(call)?.getDeclaration();
   if (decl === undefined || !/[\\/]@types[\\/]node[\\/]child_process\.d\.ts$/.test(decl.getSourceFile().fileName)) return null;
   let fn: ts.Node | undefined = decl;
