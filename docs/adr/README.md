@@ -15,6 +15,8 @@
 | [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
 | [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用 | 2026-09-18 |
-| [0012](0012-security-allow.md) | `security.allow` による例外指定と key-value 走査の方針 | 採用 | 2026-09-20 |
+| [0012](0012-security-allow.md) | `security.allow` による例外指定と key-value 走査の方針 | 採用（追記の一部を 0016 で置換） | 2026-09-20 |
 | [0013](0013-window-scan-completeness.md) | 窓走査の完全性不変条件と有界アンカー | 採用 | 2026-09-23 |
 | [0014](0014-review-packet.md) | review-packet は機械的に得た事実だけで作り、検査に通らなければ出さない | 採用 | 2026-09-23 |
+| [0015](0015-review-packet-exit-priority.md) | review-packet の終了コードは「検査不能 → 検出 → 出力しない判断」の順に決める | 採用 | 2026-09-25 |
+| [0016](0016-output-boundary.md) | 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする | 採用 | 2026-09-25 |

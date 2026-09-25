@@ -1,0 +1,34 @@
+# ADR-0016: 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする
+
+- 状態: 採用（ADR-0012 の追記〈M2-0-R2-002〉の「text 出力側でのエスケープは行わない」を置換）
+- 日付: 2026-09-25（M2-2、v0.5.2。M2-2 独立レビュー R2 の M2-2-R2-001）
+
+## 文脈
+v0.5.1 で読めない既定の設定ファイルを設定の誤り（exit 2）にしたところ、security-scan がそのパスを含むエラー文を標準エラーへ出し、パスの禁止文字
+（U+202E など）が生のまま出た（M2-2-R2-001、High）。security-scan の出力は masker だけを通していた。確かめると、同じことは security-scan の走査の出力
+（作業フォルダのパス、ファイル名。v0.4.4 でも起きる）、verify、init、commander の使い方エラー、オプションの値の解析でも起きた。禁止文字を表記にしていたのは
+review-packet（M2-1-R1-002）だけで、出力の出口が各コマンドに分散していた。
+
+ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマで制限することで、text 出力側のエスケープを不要とした。しかし端末に出る値は config だけでなく、
+パス・ファイル名・git の出力・Node のエラー文・argv にも由来し、入力側の制限だけでは防げない。
+
+## 決定
+1. 標準出力・標準エラーへ書く文字列は、すべて `src/output.ts` を通す。各コマンドは `createOutput()`（`log` / `error` / `json`）、`src/cli.ts` とオプションの解析は
+   `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`（サブコマンドを足す前に設定し、各コマンドに引き継がせる）
+2. 処理の順序: 禁止文字（`src/security/raw-chars.ts` の集合）を `\u{HEX}` の表記にする → masker（ADR-0006）。JSON は文字列を再帰的に表記にしてから `maskDeep`
+3. LF と TAB は禁止文字の集合に入っていない。既定では残す（複数行のメッセージ、check の出力の末尾、設定案、help の行と桁）。review-packet は「1 回の書き出し = 1 行」
+   なので LF と TAB も表記にする（従来どおり）
+4. 構造テスト `tests/structure/output-guard.ts`（型情報付き）: `src/` の中で大域の `console`、`process.stdout` / `process.stderr`、`node:console`、fd 1・2 や
+   `/dev/stdout` への fs の書き込みを参照してよいのは `src/output.ts` だけ。宣言に解決して判定する（別名・分割代入・要素アクセス・`globalThis`・`node:process` を含む）
+5. 禁止文字も秘密の形も無い出力は変えない（v0.5.1 とバイト単位で一致することを確かめた）
+6. `security.allow` の `reason` / `path` のスキーマでの禁止（ADR-0012 の追記）はそのまま残す
+
+## 代替案
+- security-scan だけを review-packet と同じ処理にする: verify・init・commander・オプションの解析の経路が残る。1 か所ずつ直すと漏れる（M2-1、M2-2-R1 の P2・O1 の教訓）
+- LF と TAB もすべてのコマンドで表記にする: verify の check の出力の末尾や設定エラーの詳細など、禁止文字の無い通常の出力が変わる
+- 禁止文字を取り除く: 何があったかが分からなくなる。表記にして残す
+
+## 影響
+- 禁止文字を含む出力は、その文字が表記になる（CHANGELOG v0.5.2）。verify の check の出力の末尾にある ESC（色付け）や CR も表記になる
+- ファイルへの出力（verify のレポート、init が書く設定）はこの ADR の対象外（ROADMAP のバックログ）
+- 回帰テスト: `tests/regression-m2-2-r2-001-output-boundary.test.ts`
