@@ -5,7 +5,30 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.1 — M2-2: independent review R1 — unreadable is not absent; a rejected range keeps the range-independent checks（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.1` / `git rev-parse v0.5.1` で確認し、次の release commit で記入）
+## v0.5.2 — M2-2: independent review R2 — one safe output boundary for every command（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.2` / `git rev-parse v0.5.2` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r2（`docs/reviews/m2-2/independent-review-r2.md`、範囲 v0.5.0..v0.5.1）: 前回の 2 件（R1-007、R1-001）は解消、新しい指摘は High 1 / Medium 0 / Low 0。
+  対応記録 `docs/reviews/m2-2/response-r2.md`
+- M2-2-R2-001（High）: security-scan の出力は masker だけを通していたため、作業フォルダ名などのパスの禁止文字（U+202E など）が生のまま端末に出た。
+  レビュアーの経路（読めない既定の設定ファイルのエラー）は v0.5.1 から、走査の出力（作業フォルダのパス、ファイル名）の経路は v0.4.4 でもあった（3 つの版で再現）。
+  同じことは verify・init・commander の使い方エラー・`--max-*-bytes` の解析でも起きた
+- 修正: すべてのコマンドの標準出力・標準エラーを 1 つの出口 `src/output.ts` に通す（禁止文字を `\u{HEX}` の表記 → masker。JSON は文字列を表記にしてから `maskDeep`）。
+  LF と TAB は残す（review-packet は従来どおり表記にする）。commander は `configureOutput` で同じ出口に通す。review-packet の `safeText()`・`escapeDeep()` は共通の出口に置き換えた。
+  型情報付きの構造テスト `tests/structure/output-guard.ts` が、`src/output.ts` 以外からの `console`・`process.stdout` / `process.stderr`・fd 1 / 2 への書き込みを禁止する。
+  新しい ADR-0016（ADR-0012 の追記の「text 出力側でのエスケープは行わない」を置換）
+- **出力の変化**（禁止文字が `\u{HEX}` の表記で出るようになるコマンドと経路）:
+  - security-scan: 走査の見出しの作業フォルダのパス、finding のファイル名、設定・走査のエラー（text・`--json`）
+  - verify: 進捗の行（project 名、設定のパス、git のブランチ名、check 名）、失敗した check の出力の末尾（ESC による色付け・CR を含む）、エラー
+  - init: root のパス、検出した名前、設定案、エラー（text・`--json`）
+  - commander の使い方エラー（未知のオプション名・コマンド名）、`--max-*-bytes` の正でない整数のエラー、`src/cli.ts` の予期しない例外
+  - review-packet の出力は変わらない
+- 禁止文字も秘密の形も無い出力は v0.5.1 とバイト単位で一致した（同じ fixture で 25 通り: help 6、`--version`、使い方エラー 4、security-scan 6、init 2、review-packet 3、verify 3）
+- ファイルへの出力（verify のレポート、init が書く設定）の禁止文字は、ROADMAP のバックログ 7 へ
+- 既存テストの期待値の変更は 0 件。回帰テスト 1 ファイル 21 件（`regression-m2-2-r2-001-output-boundary`。構造テストを含む）。テスト 593 件（95 ファイル）。
+  `package.json` version 0.5.2
+- 注記: v0.5.1 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.1 — commit c15ae92 / tag object 5b018b6 — M2-2: independent review R1 — unreadable is not absent; a rejected range keeps the range-independent checks
 
 - 独立レビュー m2-2-r1（`docs/reviews/m2-2/independent-review-r1.md`、範囲 v0.4.4..v0.5.0）: 前回の 5 件は解消 2 / 部分的に解消 3、新しい指摘は High 0 / Medium 6 / Low 1。
   7 件を修正の前に実コードで確かめ、6 件を再現した（R1-004 は再現せず: 規則 `widened-renderer` が検出する）。対応記録 `docs/reviews/m2-2/response-r1.md`
