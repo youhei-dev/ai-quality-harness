@@ -4,7 +4,11 @@
  * are checked as a first, separate pass and any finding returns exit 1 before contents and sizes are
  * looked at. The same rule — a detection (exit 1) comes before an error (exit 2) — is applied wherever
  * both can happen; only errors that make the check itself impossible (command-line parsing, the config
- * for the check, unreadable input files before the content check, git failures) stay exit 2.
+ * for the check, unreadable input files, git failures) stay exit 2.
+ * M2-2 (ADR-0015, M2-1-R3-002): an input that cannot be obtained is exit 2 even when a finding is already
+ * known (the findings are listed as incomplete), so a finding in a --request file name no longer hides that
+ * the file cannot be read; the inspection goes on to the end, and path findings no longer return early
+ * (tests/regression-m2-2-r3-002-exit-priority.test.ts).
  * Invalid bytes, forbidden characters and secret shapes are built at run time.
  */
 import { execFileSync, spawnSync } from "node:child_process";
@@ -158,11 +162,13 @@ describe("M2-1-R2-007: a detection comes before an error wherever both can happe
     expect(existsSync(path.join(r.dir, "artifacts", "ai-review"))).toBe(false);
   });
 
-  it("a raw character in the --request file name + the file cannot be read: exit 1 (request file name)", () => {
+  it("a raw character in the --request file name + the file cannot be read: exit 2, the name finding listed as incomplete (M2-2, ADR-0015)", () => {
     const r = repo();
     r.commit("x");
     const res = cli(r.dir, ["--range", `${r.base}..HEAD`, "--label", "p", "--request", `missing${ch(0x202e)}.md`]);
-    expect(res.code, res.out).toBe(1);
+    expect(res.code, res.out).toBe(2);
+    expect(res.out).toMatch(/cannot read .*: ENOENT/);
+    expect(res.out).toMatch(/incomplete/);
     expect(res.out).toMatch(/\[raw-char\] request file name:1 U\+202E/);
     nothingWritten(r);
   });

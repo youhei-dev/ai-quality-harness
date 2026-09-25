@@ -3,8 +3,8 @@
  * without the check. The brands are found by their unique-symbol property, so type aliases, `typeof`,
  * `Parameters<…>` and generics resolve to the same brand as the name `Checked`.
  *
- *  - assertion: `as` / `<T>` to a branded type (except in the issuers), to `any`, to `never`, or to a type
- *    parameter that no parameter of the function carries (a generic cast)
+ *  - assertion: `as` / `<T>` to a branded type (except where CREATORS allows it), to `any`, to `never`, or to a
+ *    type parameter that no parameter of the function carries (a generic cast)
  *  - type-predicate: `x is Checked` / `asserts x is Checked`
  *  - any-into-brand: an `any` value where a branded type is expected (JSON.parse, catch values, …)
  *  - widened-renderer: a function that takes a branded parameter passed where its parameter is a plain string
@@ -26,9 +26,16 @@ export interface Violation {
 
 const BRAND = /^__@(checkedBrand|mdBrand|rejectedBrand)@/;
 
+/** The only declarations whose code may assert a brand: the two issuers and the one Rejected value (M2-1-R3-002). */
+export const CREATORS: ReadonlyArray<{ file: string; owner: string }> = [
+  { file: "src/review/checked.ts", owner: "issue" },
+  { file: "src/review/checked.ts", owner: "REJECTED" },
+  { file: "src/review/packet.ts", owner: "issueMd" },
+];
+
 /** The functions that create a brand, and the only functions that may call them (by file and name). */
 export const ISSUERS: Readonly<Record<string, { file: string; callers: readonly string[] }>> = {
-  issue: { file: "src/review/checked.ts", callers: ["checkValue", "REJECTED"] },
+  issue: { file: "src/review/checked.ts", callers: ["checkValue"] },
   issueMd: { file: "src/review/packet.ts", callers: ["md", "joinMd", "inlineCode", "cellCode", "plainOrCode"] },
 };
 
@@ -100,8 +107,8 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
       if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText(sf) !== "const") {
         const target = checker.getTypeFromTypeNode(n.type);
         const owner = ownerName(n);
-        const issuer = Object.entries(ISSUERS).some(([name, v]) => name === owner && v.file === p.rel(sf));
-        if (hasBrand(checker, target) && !issuer) add(n, "assertion");
+        const creator = CREATORS.some((c) => c.owner === owner && c.file === p.rel(sf));
+        if (hasBrand(checker, target) && !creator) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.Any) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.Never) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.TypeParameter) {

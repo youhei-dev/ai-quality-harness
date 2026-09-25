@@ -7,8 +7,9 @@ import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
 import { DEFAULT_SECURITY } from "../security/scan.ts";
-import { REJECTED, checkValue, type Checked, type ValueFinding } from "../review/checked.ts";
-import { PacketError, buildPacket, type PacketFinding, type PacketOptions } from "../review/packet.ts";
+import { REJECTED, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
+import { DeferredError, InspectionError, decideOutcome } from "../review/outcome.ts";
+import { inspectPacket, type PacketFinding, type PacketInspection, type PacketOptions } from "../review/packet.ts";
 import { ZipError, createStoredZip } from "../review/zip.ts";
 
 export interface ReviewPacketOptions {
@@ -51,7 +52,7 @@ type OptionName = "range" | "cwd" | "label" | "output" | "zip" | "zipOutput" | "
 interface OptionEntry {
   /**
    * - rendered: the strings of `rendered` go into the packet or its ZIP; they are checked for raw characters and
-   *   secret shapes before git runs (finding, exit 1), which is the only way to the Checked values buildPacket takes
+   *   secret shapes before git runs (finding, exit 1), which is the only way to the Checked values inspectPacket takes
    * - path: a path that is resolved and used, never rendered; a forbidden character in the resolved path is exit 2
    * - config: a file that is read (errors are printed through the safe display)
    * - number / flag: not text
@@ -107,8 +108,10 @@ interface JsonSummary {
 
 /**
  * `aiqh review-packet`: 0 = packet written, 1 = findings (secret-shaped strings, raw characters,
- * invalid UTF-8) and nothing written, 2 = usage / git / size-limit / write error and nothing written
- * (fail closed). Printed lines and JSON go through the masker; findings never include values.
+ * invalid UTF-8) and nothing written, 2 = usage / configuration / inspection / deferred / write error and
+ * nothing written (fail closed). The order is ADR-0015's (src/review/outcome.ts): an input that cannot be
+ * obtained is exit 2 even with findings (listed as incomplete); findings come before the errors that did not
+ * stop the inspection. Printed lines and JSON go through the masker; findings never include values.
  */
 export async function runReviewPacket(options: ReviewPacketOptions): Promise<number> {
   const rawLog = options.log ?? ((line: string) => console.log(line));
@@ -121,6 +124,9 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     if (options.json) rawLog(JSON.stringify(maskDeep(escapeDeep(summary)), null, 2));
     return code;
   };
+  const printFindings = (findings: readonly PacketFinding[]): void => {
+    for (const f of findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.location ? ` (${f.location})` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
+  };
   const fail = (message: string): number => {
     summary.result = "error";
     summary.error = message;
@@ -130,67 +136,84 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     }
     return finish(EXIT_ERROR);
   };
-  const rejected = (findings: PacketFinding[]): number => {
+  const rejected = (findings: readonly PacketFinding[]): number => {
     summary.result = "findings";
-    summary.findings = findings;
+    summary.findings = [...findings];
     if (!options.json) {
       logError(`aiqh review-packet: ${findings.length} finding(s); no packet written (values are never shown)`);
-      for (const f of findings) logError(`  [${f.kind}] ${f.source}${f.line !== null ? `:${f.line}` : ""}${f.location ? ` (${f.location})` : ""}${f.detail ? ` ${f.detail}` : ""} (${f.stage})`);
+      printFindings(findings);
       logError("REVIEW PACKET: not written (findings)");
     }
     return finish(EXIT_FAILED);
   };
+  /** Inspection impossible (ADR-0015): exit 2, and the findings known so far as an incomplete list. */
+  const incomplete = (message: string, findings: readonly PacketFinding[]): number => {
+    summary.result = "error";
+    summary.error = message;
+    summary.findings = [...findings];
+    if (!options.json) {
+      logError(`aiqh review-packet: ${message}`);
+      if (findings.length > 0) {
+        logError(`aiqh review-packet: the inspection could not be completed, so this list of ${findings.length} finding(s) is incomplete (values are never shown):`);
+        printFindings(findings);
+      }
+      logError("REVIEW PACKET: not written (error)");
+    }
+    return finish(EXIT_ERROR);
+  };
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
   try {
-    // Order (M2-1-R2-007): a detection (exit 1) comes before an error (exit 2) whenever both are known. Only
-    // what the check itself needs comes first: the command line (commander) and the security configuration.
+    // ADR-0015: the configuration of the check itself comes first (exit 2); then every input is inspected.
     const security = readSecurity(cwd, options.configPath);
     const opt = checkOptionValues(options, cwd, security);
-    if (opt.findings.length > 0) return rejected(opt.findings);
+    const deferred: DeferredError[] = [];
+    // A forbidden character in the resolved --cwd does not stop the inspection (reported only without findings).
     const cwdProblem = rawCharsIn(options.cwd !== undefined ? "--cwd" : "--cwd (current directory)", cwd);
-    if (cwdProblem !== null) return fail(cwdProblem);
-    const packetOpts: PacketOptions = { cwd, range: nth(opt.checked, "range", 0), security, toolVersion: options.toolVersion };
-    if (options.label !== undefined) packetOpts.label = nth(opt.checked, "label", 0);
-    if (options.request !== undefined) packetOpts.request = { name: nth(opt.checked, "request", 0), bytes: readInput(cwd, options.request, options.stdin) };
-    packetOpts.reviews = (options.review ?? []).map((r, i) => ({ name: nth(opt.checked, "review", i), bytes: readInput(cwd, r, options.stdin) }));
-    packetOpts.docs = opt.checked.get("doc") ?? [];
-    packetOpts.excludes = opt.checked.get("exclude") ?? [];
-    if (options.maxFileBytes !== undefined) packetOpts.maxFileBytes = options.maxFileBytes;
-    if (options.maxPacketBytes !== undefined) packetOpts.maxPacketBytes = options.maxPacketBytes;
-    if (options.today !== undefined) packetOpts.today = options.today;
+    if (cwdProblem !== null) deferred.push(new DeferredError(cwdProblem));
 
-    const built = buildPacket(packetOpts);
-    if (!built.ok) return rejected(built.findings);
+    let inspection: PacketInspection;
+    try {
+      const packetOpts: PacketOptions = { cwd, range: nth(opt.checked, "range", 0), security, toolVersion: options.toolVersion, findings: opt.findings };
+      if (options.label !== undefined) packetOpts.label = nth(opt.checked, "label", 0);
+      if (options.request !== undefined) packetOpts.request = { name: nth(opt.checked, "request", 0), bytes: readInput(cwd, options.request, options.stdin) };
+      packetOpts.reviews = (options.review ?? []).map((r, i) => ({ name: nth(opt.checked, "review", i), bytes: readInput(cwd, r, options.stdin) }));
+      packetOpts.docs = opt.checked.get("doc") ?? [];
+      packetOpts.excludes = (options.exclude ?? []).map((pattern, i) => ({ pattern, shown: nth(opt.checked, "exclude", i) }));
+      if (options.maxFileBytes !== undefined) packetOpts.maxFileBytes = options.maxFileBytes;
+      if (options.maxPacketBytes !== undefined) packetOpts.maxPacketBytes = options.maxPacketBytes;
+      if (options.today !== undefined) packetOpts.today = options.today;
+      inspection = inspectPacket(packetOpts);
+    } catch (err) {
+      // inspectPacket's error carries every finding so far (the option findings included); a --request /
+      // --review that cannot be read stops before it, with the option findings only.
+      if (err instanceof InspectionError) return incomplete(err.message, err.findings.length > 0 ? err.findings : opt.findings);
+      throw err;
+    }
 
-    const output = path.resolve(cwd, options.output ?? path.join(built.root, "artifacts", "ai-review", `review-packet-${built.label}.md`));
-    // The ZIP entry name: checked through the inventory for -o, here for the default name (from the Checked label).
-    let entryName: Checked;
-    if (options.output !== undefined) entryName = nth(opt.checked, "output", 0);
-    else {
-      const r = checkValue(path.basename(output), security);
-      if (!r.ok) return rejected(asPacketFindings(r.findings, "output file name"));
-      entryName = r.value;
+    const findings = [...inspection.findings];
+    deferred.push(...inspection.deferred);
+    const out = outputTargets(options, cwd, inspection, opt.checked, security);
+    findings.push(...out.findings);
+    deferred.push(...out.deferred);
+    // Rendered (and checked as a whole) only without findings; the assembled packet can add findings and a size error.
+    const rendered = findings.length === 0 ? inspection.render() : null;
+    if (rendered !== null) {
+      findings.push(...rendered.findings);
+      deferred.push(...rendered.deferred);
     }
-    const zipWanted = options.zip === true || options.zipOutput !== undefined;
-    const zipPath = zipWanted ? path.resolve(cwd, options.zipOutput ?? output.replace(/\.md$/, "") + ".zip") : null;
-    for (const [label, p] of [
-      ["--output", output],
-      ["--zip-output", zipPath],
-    ] as const) {
-      if (p === null) continue;
-      const problem = rawCharsIn(label, p);
-      if (problem !== null) return fail(problem);
-      if (!OUTPUT_NAME.test(path.basename(p))) return fail(`output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}`);
-    }
-    // Early rejection by strings (before any directory is created); the final check is by dev + ino (M2-1-R3-001).
-    if (zipPath !== null && targetIdentity(zipPath) === targetIdentity(output)) {
-      return fail("--zip-output resolves to the same file as the packet path (compared through symbolic links in the parent directories, ignoring case)");
-    }
+    const decision = decideOutcome({ inspection: null, findings, deferred });
+    if (decision.category === "finding") return rejected(decision.findings);
+    if (decision.category === "deferred") return fail(decision.message);
+    if (decision.category === "inspection") return incomplete(decision.message, decision.findings);
+    const git = inspection.git;
+    if (rendered === null || git === null || out.output === null || out.entryName === null) throw new Error("internal: nothing to write without a finding or an error");
 
     // Both contents first, then one two-phase write for both files (M2-1-R1-003).
-    const bytes = Buffer.from(built.text, "utf8");
-    const zip = zipPath !== null ? createStoredZip([{ name: entryName, data: bytes }]) : null;
+    const output = out.output;
+    const zipPath = out.zipPath;
+    const bytes = Buffer.from(rendered.text, "utf8");
+    const zip = zipPath !== null ? createStoredZip([{ name: out.entryName, data: bytes }]) : null;
     const targets: WriteTarget[] = [{ label: "packet", path: output, data: bytes }];
     if (zipPath !== null && zip !== null) targets.push({ label: "zip", path: zipPath, data: zip });
     const { retainedBackups } = writeTogether(targets, options.writeHooks);
@@ -203,16 +226,16 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
       summary.zipSha256 = createHash("sha256").update(zip).digest("hex");
     }
     summary.result = "written";
-    summary.from = built.fromSha;
-    summary.to = built.toSha;
-    summary.commits = built.commits;
-    summary.files = built.files.length;
-    summary.suppressed = built.suppressed.length;
+    summary.from = git.fromSha;
+    summary.to = git.toSha;
+    summary.commits = git.commits;
+    summary.files = git.files.length;
+    summary.suppressed = inspection.suppressed.length;
     if (!options.json) {
-      log(`aiqh review-packet — ${built.fromSha.slice(0, 12)}..${built.toSha.slice(0, 12)} (${built.commits} commits, ${built.files.length} changed files)`);
+      log(`aiqh review-packet — ${git.fromSha.slice(0, 12)}..${git.toSha.slice(0, 12)} (${git.commits} commits, ${git.files.length} changed files)`);
       log(`packet: ${output} (${bytes.length} bytes, sha256 ${summary.sha256})`);
       if (summary.zip) log(`zip:    ${summary.zip} (sha256 ${summary.zipSha256})`);
-      if (built.suppressed.length > 0) log(`suppressed by security.allow: ${built.suppressed.length} (listed in the packet's Integrity section)`);
+      if (inspection.suppressed.length > 0) log(`suppressed by security.allow: ${inspection.suppressed.length} (listed in the packet's Integrity section)`);
       if (retainedBackups.length > 0) {
         // After the commit point (M2-1-R2-003): the new files are in place; only the old versions remain as well.
         logError(`aiqh review-packet: warning: the packet${summary.zip ? " and the ZIP were" : " was"} written, but ${retainedBackups.length} backup file(s) of the previous version could not be removed:`);
@@ -222,10 +245,59 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
     }
     return finish(EXIT_PASSED);
   } catch (err) {
-    if (err instanceof PacketError || err instanceof ConfigError || err instanceof ZipError || err instanceof InputError || err instanceof WriteError) return fail(err.message);
+    if (err instanceof InspectionError) return incomplete(err.message, err.findings);
+    if (err instanceof ConfigError || err instanceof ZipError || err instanceof WriteError) return fail(err.message);
     if (err instanceof Error && "code" in err) return fail(`write failed: ${err.message}`);
     throw err;
   }
+}
+
+/**
+ * Where the packet and the ZIP go (ADR-0015): the default file name, which becomes the ZIP entry name, is checked
+ * like -o's (a finding); a forbidden character in a resolved output path, a name outside [A-Za-z0-9._-] and the
+ * same file for both are deferred (the first one found, as before). Nothing when the path cannot be known yet
+ * (no -o and the range or the label has a finding).
+ */
+function outputTargets(options: ReviewPacketOptions, cwd: string, inspection: PacketInspection, checked: Map<OptionName, Array<Checked | Rejected>>, security: ResolvedSecurity): { findings: PacketFinding[]; deferred: DeferredError[]; output: string | null; zipPath: string | null; entryName: Checked | null } {
+  const findings: PacketFinding[] = [];
+  const deferred: DeferredError[] = [];
+  let output: string | null = null;
+  let entryName: Checked | null = null;
+  if (options.output !== undefined) {
+    output = path.resolve(cwd, options.output);
+    // The ZIP entry name: checked through the inventory for -o (its finding is already reported).
+    const name = nth(checked, "output", 0);
+    entryName = typeof name === "string" ? name : null;
+  } else if (inspection.git !== null && typeof inspection.label === "string") {
+    output = path.resolve(cwd, path.join(inspection.git.root, "artifacts", "ai-review", `review-packet-${inspection.label}.md`));
+    const r = checkValue(path.basename(output), security);
+    if (r.ok) entryName = r.value;
+    else findings.push(...asPacketFindings(r.findings, "output file name"));
+  }
+  if (output === null) return { findings, deferred, output, zipPath: null, entryName };
+  const zipWanted = options.zip === true || options.zipOutput !== undefined;
+  const zipPath = zipWanted ? path.resolve(cwd, options.zipOutput ?? output.replace(/\.md$/, "") + ".zip") : null;
+  for (const [label, p] of [
+    ["--output", output],
+    ["--zip-output", zipPath],
+  ] as const) {
+    if (p === null) continue;
+    const problem = rawCharsIn(label, p) ?? (!OUTPUT_NAME.test(path.basename(p)) ? `output file name must be ASCII letters, digits, ".", "_" or "-": ${path.basename(p)}` : null);
+    if (problem !== null) {
+      deferred.push(new DeferredError(problem));
+      return { findings, deferred, output, zipPath, entryName };
+    }
+  }
+  // Early rejection by strings (before any directory is created); the final check is by dev + ino (M2-1-R3-001).
+  try {
+    if (zipPath !== null && targetIdentity(zipPath) === targetIdentity(output)) {
+      deferred.push(new DeferredError("--zip-output resolves to the same file as the packet path (compared through symbolic links in the parent directories, ignoring case)"));
+    }
+  } catch (err) {
+    if (!(err instanceof Error && "code" in err)) throw err;
+    deferred.push(new DeferredError(`write failed: ${err.message}`));
+  }
+  return { findings, deferred, output, zipPath, entryName };
 }
 
 /** Safe display (forbidden characters, LF, TAB as `\u{...}`), then the masker. */
@@ -260,15 +332,15 @@ function rawCharsIn(option: string, resolved: string): string | null {
  * The rendered option values of OPTION_INVENTORY, checked for raw characters and secret shapes before git is
  * run and before anything is rendered (M2-1-R2-006; the packet's file name, which becomes the ZIP entry name,
  * M2-1-R2-001). The renderers turn raw characters into ASCII notation, so a value that is not checked here
- * would pass both stages; buildPacket takes only the Checked values returned here. Findings name the option,
- * never the value.
+ * would pass both stages; inspectPacket takes only the values returned here: Checked, or Rejected for a value
+ * with a finding (never passed to git; ADR-0015). Findings name the option, never the value.
  */
-function checkOptionValues(options: ReviewPacketOptions, cwd: string, security: ResolvedSecurity): { findings: PacketFinding[]; checked: Map<OptionName, Checked[]> } {
+function checkOptionValues(options: ReviewPacketOptions, cwd: string, security: ResolvedSecurity): { findings: PacketFinding[]; checked: Map<OptionName, Array<Checked | Rejected>> } {
   const findings: PacketFinding[] = [];
-  const checked = new Map<OptionName, Checked[]>();
+  const checked = new Map<OptionName, Array<Checked | Rejected>>();
   for (const [name, entry] of Object.entries(OPTION_INVENTORY) as Array<[OptionName, OptionEntry]>) {
     if (entry.handling !== "rendered" || entry.rendered === undefined) continue;
-    const values = entry.rendered(options, cwd).map((value, i) => {
+    const values = entry.rendered(options, cwd).map((value, i): Checked | Rejected => {
       const r = checkValue(value, security);
       if (r.ok) return r.value;
       findings.push(...asPacketFindings(r.findings, entry.repeatable === true ? `${entry.source ?? name} ${i + 1}` : (entry.source ?? name)));
@@ -283,8 +355,8 @@ function asPacketFindings(findings: ValueFinding[], source: string): PacketFindi
   return findings.map((f) => ({ kind: f.kind, source, line: f.line, detail: f.detail, location: null, stage: "input" }));
 }
 
-/** The i-th Checked value of an option (present by construction; a missing one is an internal error). */
-function nth(checked: Map<OptionName, Checked[]>, name: OptionName, i: number): Checked {
+/** The i-th checked value of an option (present by construction; a missing one is an internal error). */
+function nth(checked: Map<OptionName, Array<Checked | Rejected>>, name: OptionName, i: number): Checked | Rejected {
   const v = checked.get(name)?.[i];
   if (v === undefined) throw new Error(`internal: option ${name} value ${i + 1} was not checked`);
   return v;
@@ -295,18 +367,16 @@ function inputName(cwd: string, file: string): string {
   return file === "-" ? "(standard input)" : path.basename(path.resolve(cwd, file));
 }
 
-class InputError extends Error {
-  override readonly name = "InputError";
-}
-
-/** The bytes of a --request / --review file (its name is checked through OPTION_INVENTORY). */
+/**
+ * The bytes of a --request / --review file (its name is checked through OPTION_INVENTORY, and a finding in the
+ * name does not stop the reading: ADR-0015). A file that cannot be read is an InspectionError (exit 2).
+ */
 function readInput(cwd: string, file: string, stdin: (() => Buffer) | undefined): Uint8Array {
-  if (file === "-") return stdin ? stdin() : readFileSync(0);
-  const abs = path.resolve(cwd, file);
   try {
-    return readFileSync(abs);
+    if (file === "-") return stdin ? stdin() : readFileSync(0);
+    return readFileSync(path.resolve(cwd, file));
   } catch (err) {
-    throw new InputError(`cannot read ${file}: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
+    throw new InspectionError(`cannot read ${file === "-" ? "standard input" : file}: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }
 }
 

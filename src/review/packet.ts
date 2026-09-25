@@ -8,9 +8,13 @@
  * Fail closed: every input is checked for invalid UTF-8, forbidden raw characters (raw-chars.ts) and
  * secret-shaped strings (the shared scanner) before the packet is assembled, and the assembled packet
  * is checked again as a whole. Option values that are rendered are checked by the caller before this
- * module is called (runReviewPacket, M2-1-R2-006). Any finding means no packet (exit 1). Usage, git and size-limit
- * problems are PacketErrors (exit 2). Findings carry a source label, a line and a category or code
- * point — never the value or the line content.
+ * module is called (runReviewPacket, M2-1-R2-006). Any finding means no packet (exit 1). Findings carry a
+ * source label, a line and a category or code point — never the value or the line content.
+ *
+ * The inspection goes on to the end when there are findings (ADR-0015, M2-1-R3-002): an input that cannot
+ * be obtained is an InspectionError (exit 2, with the findings known so far), an error that does not stop
+ * the inspection (a size limit, a --doc that is not a file, …) is a DeferredError (exit 2 only without
+ * findings). A value with a finding is Rejected and is never passed to git: the step that needs it is skipped.
  *
  * git is run without a shell (argument arrays), paths are read with -z, contents come from blobs
  * (`git cat-file`), and every option that user or repository configuration could change is given
@@ -23,7 +27,8 @@ import path from "node:path";
 import type { ResolvedSecurity, VerificationReport } from "../types.ts";
 import { decodeUtf8Strict, findRawChars, formatCodePoint, isForbiddenCodePoint } from "../security/raw-chars.ts";
 import { findAllowRule, scanString, type ScanFinding } from "../security/scan.ts";
-import { REJECTED, UncheckedValueError, assertChecked, checkValue, type Checked } from "./checked.ts";
+import { REJECTED, UncheckedValueError, assertChecked, checkValue, settled, type Checked, type Rejected } from "./checked.ts";
+import { DeferredError, InspectionError } from "./outcome.ts";
 
 /** Lock files: full source and diff are left out by default (name-status, stat and SHA-256 stay). */
 export const LOCK_FILE_NAMES: readonly string[] = [
@@ -47,10 +52,6 @@ export const DEFAULT_MAX_PACKET_BYTES = 4 * 1024 * 1024;
 export const LABEL_PATTERN = /^[a-z0-9.-]{1,64}$/;
 const SHORT = 12;
 const TRAILER = /^(co-authored-by|claude-session):/i;
-
-export class PacketError extends Error {
-  override readonly name = "PacketError";
-}
 
 export type PacketFindingKind = "secret" | "oversized-candidate" | "raw-char" | "invalid-utf8";
 
@@ -81,59 +82,78 @@ export interface Suppression {
 }
 
 /**
- * Options for buildPacket. The values that are rendered are Checked (M2-1 R2): the caller checks them through
- * the option inventory of runReviewPacket before calling, so they cannot reach the renderers unchecked.
+ * Options for inspectPacket. The values that are rendered are checked by the caller through the option
+ * inventory of runReviewPacket (M2-1 R2): Checked, or Rejected when the value has a finding (ADR-0015) — a
+ * Rejected range stops every git step, a Rejected document is not looked up, a Rejected label is not
+ * shape-checked.
  */
 export interface PacketOptions {
   /** Directory inside the repository. */
   cwd: string;
   /** `<from>..<to>`. */
-  range: Checked;
-  label?: Checked;
+  range: Checked | Rejected;
+  label?: Checked | Rejected;
   /** Human-written request: file contents (already read) and the name to show. */
-  request?: { name: Checked; bytes: Uint8Array };
-  reviews?: Array<{ name: Checked; bytes: Uint8Array }>;
+  request?: { name: Checked | Rejected; bytes: Uint8Array };
+  reviews?: Array<{ name: Checked | Rejected; bytes: Uint8Array }>;
   /** Repository paths whose content at <to> is included in full. */
-  docs?: Checked[];
-  excludes?: Checked[];
+  docs?: Array<Checked | Rejected>;
+  /** `pattern`: the --exclude value as given, matched in memory only; `shown`: the checked value that is rendered. */
+  excludes?: Array<{ pattern: string; shown: Checked | Rejected }>;
   maxFileBytes?: number;
   maxPacketBytes?: number;
   security: ResolvedSecurity;
   toolVersion: string;
   /** YYYY-MM-DD used for allow-rule expiry (tests); default today. */
   today?: string;
+  /** Findings the caller made before (option values); they come first in the result. */
+  findings?: PacketFinding[];
 }
 
 export type ChangeKind = "text" | "binary" | "lock" | "excluded" | "submodule" | "deleted";
 
 export interface ChangedFile {
-  status: Checked;
-  path: Checked;
-  oldPath: Checked | null;
+  status: Checked | Rejected;
+  path: Checked | Rejected;
+  oldPath: Checked | Rejected | null;
   kind: ChangeKind;
   /** The --exclude glob that matched (kind "excluded"). */
-  excludedBy: Checked | null;
+  excludedBy: Checked | Rejected | null;
   size: number | null;
-  sha256: Checked | null;
+  sha256: Checked | Rejected | null;
   added: number | null;
   deleted: number | null;
 }
 
-export interface PacketResult {
-  ok: true;
-  text: string;
-  label: string;
+/** What git gave for the range (null in PacketInspection when the range has a finding and git was not run). */
+export interface PacketGit {
+  root: string;
   fromSha: string;
   toSha: string;
-  root: string;
   commits: number;
   files: ChangedFile[];
-  suppressed: Suppression[];
 }
 
-export interface PacketRejected {
-  ok: false;
+/**
+ * Everything that was inspected (ADR-0015). The caller adds its own findings and deferred errors, decides
+ * (decideOutcome), and calls render only when there is no finding.
+ */
+export interface PacketInspection {
   findings: PacketFinding[];
+  deferred: DeferredError[];
+  git: PacketGit | null;
+  /** The --label value, or the first 12 hex digits of <to>; null when there is neither. */
+  label: Checked | Rejected | null;
+  suppressed: Suppression[];
+  render: () => PacketRender;
+}
+
+export interface PacketRender {
+  text: string;
+  /** Findings in the assembled packet (stage "packet"). */
+  findings: PacketFinding[];
+  /** The packet over --max-packet-bytes. */
+  deferred: DeferredError[];
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -168,13 +188,13 @@ function runGit(cwd: string, args: string[], maxBuffer = 256 * 1024 * 1024): Git
     timeout: 120_000,
     killSignal: "SIGKILL",
   });
-  if (r.error) throw new PacketError(`git could not be run: ${r.error.message}`);
+  if (r.error) throw new InspectionError(`git could not be run: ${r.error.message}`);
   return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr.toString("utf8").split("\n")[0] ?? "" };
 }
 
 function gitOk(cwd: string, args: string[], what: string, maxBuffer?: number): Buffer {
   const r = runGit(cwd, args, maxBuffer);
-  if (r.status !== 0) throw new PacketError(`${what} failed (git exit ${r.status}): ${r.stderr}`);
+  if (r.status !== 0) throw new InspectionError(`${what} failed (git exit ${r.status}): ${r.stderr}`);
   return r.stdout;
 }
 
@@ -196,9 +216,9 @@ function splitZ(buf: Buffer): Buffer[] {
 }
 
 function resolveCommit(root: string, ref: string, side: string): { sha: string; tagObject: string | null } {
-  if (ref.length === 0) throw new PacketError(`--range: the ${side} revision is empty`);
+  if (ref.length === 0) throw new InspectionError(`--range: the ${side} revision is empty`);
   const commit = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`]);
-  if (commit.status !== 0) throw new PacketError(`--range: ${side} revision ${JSON.stringify(ref)} does not name a commit`);
+  if (commit.status !== 0) throw new InspectionError(`--range: ${side} revision ${JSON.stringify(ref)} does not name a commit`);
   const sha = commit.stdout.toString("utf8").trim();
   const obj = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", ref]).stdout.toString("utf8").trim();
   return { sha, tagObject: obj.length > 0 && obj !== sha ? obj : null };
@@ -404,7 +424,7 @@ function decode(ck: Checker, bytes: Uint8Array, source: string): string | null {
  * checkValue for a value that is rendered (M2-1 R2): findings go to `ck` with `source` (and `location`; `line`
  * false leaves the line out, as for paths); a rejected value becomes REJECTED so that checking can go on.
  */
-function checkInto(ck: Checker, value: string, source: string, at: { location?: string; line?: false } = {}): Checked {
+function checkInto(ck: Checker, value: string, source: string, at: { location?: string; line?: false } = {}): Checked | Rejected {
   const r = checkValue(value, ck.security);
   if (r.ok) return r.value;
   for (const f of r.findings) ck.findings.push({ kind: f.kind, source, line: at.line === false ? null : f.line, detail: f.detail, location: at.location ?? null, stage: "input" });
@@ -463,9 +483,19 @@ function diffOrigin(diff: string, newPath: string, oldPath: string): LineOrigin 
 // build
 
 interface RawChange {
-  status: Checked;
-  path: Checked;
-  oldPath: Checked | null;
+  status: Checked | Rejected;
+  path: Checked | Rejected;
+  oldPath: Checked | Rejected | null;
+  /**
+   * The strictly decoded path (null when it is not valid UTF-8). Matched in memory only (--exclude, lock file
+   * names, numstat, allow rules); a path with a finding is Rejected and is never passed to git (ADR-0015).
+   */
+  pathText: string | null;
+  oldPathText: string | null;
+  /** The path as git gave it (the sort key). */
+  pathBytes: Buffer;
+  /** `git diff --raw entry N`: names the change in findings and messages when its path is Rejected. */
+  where: string;
   oldMode: string;
   newMode: string;
   oldBlob: string;
@@ -478,16 +508,18 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
   for (let i = 0; i < parts.length; ) {
     const meta = (parts[i] ?? Buffer.alloc(0)).toString("latin1");
     const m = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])(\d*)$/.exec(meta);
-    if (!m) throw new PacketError("unexpected git diff --raw output");
+    if (!m) throw new InspectionError("unexpected git diff --raw output");
     const letter = m[5] ?? "";
     const where = `git diff --raw entry ${out.length + 1}`;
+    const blobs = { oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "", where };
     if (letter === "R" || letter === "C") {
       const oldPath = decodePath(ck, parts[i + 1], where);
       const newPath = decodePath(ck, parts[i + 2], where);
-      out.push({ status: checkInto(ck, `${letter}${m[6] ?? ""}`, "git diff --raw status"), oldPath, path: newPath, oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      out.push({ status: checkInto(ck, `${letter}${m[6] ?? ""}`, "git diff --raw status"), path: newPath.value, pathText: newPath.text, pathBytes: parts[i + 2] ?? Buffer.alloc(0), oldPath: oldPath.value, oldPathText: oldPath.text, ...blobs });
       i += 3;
     } else {
-      out.push({ status: checkInto(ck, letter, "git diff --raw status"), oldPath: null, path: decodePath(ck, parts[i + 1], where), oldMode: m[1] ?? "", newMode: m[2] ?? "", oldBlob: m[3] ?? "", newBlob: m[4] ?? "" });
+      const p = decodePath(ck, parts[i + 1], where);
+      out.push({ status: checkInto(ck, letter, "git diff --raw status"), path: p.value, pathText: p.text, pathBytes: parts[i + 1] ?? Buffer.alloc(0), oldPath: null, oldPathText: null, ...blobs });
       i += 2;
     }
   }
@@ -498,16 +530,16 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
  * A path from git, decoded strictly (M2-1-R1-001). Invalid UTF-8 is an `invalid-utf8` finding, a valid path
  * with a forbidden raw character (anything of raw-chars.ts; LF and TAB are allowed in paths) is a `raw-char`
  * finding and a secret-shaped path a `secret` finding (M2-1-R2-007: a path is rendered in the metadata, so it
- * is checked like other rendered values), all with the source `path`; the value is never reported. On a
- * finding the returned placeholder only keeps the path pass going until the findings are reported.
+ * is checked like other rendered values), all with the source `path`; the value is never reported. A path with
+ * a finding is Rejected (ADR-0015): the inspection goes on, but never with that path as a pathspec.
  */
-function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): Checked {
+function decodePath(ck: Checker, bytes: Buffer | undefined, where: string): { value: Checked | Rejected; text: string | null } {
   const d = decodeUtf8Strict(bytes ?? Buffer.alloc(0));
   if (!d.ok) {
     ck.findings.push({ kind: "invalid-utf8", source: "path", line: null, detail: null, location: where, stage: "input" });
-    return REJECTED;
+    return { value: REJECTED, text: null };
   }
-  return checkInto(ck, d.text, "path", { location: where, line: false });
+  return { value: checkInto(ck, d.text, "path", { location: where, line: false }), text: d.text };
 }
 
 /** Decode -z paths without reporting (numstat keys are only matched against paths already checked). */
@@ -576,59 +608,100 @@ function stripTrailers(message: string): string {
   return kept.join("\n");
 }
 
-/** Build the packet text, or the findings that stop it. Throws PacketError for usage / git / size problems. */
-export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected {
+/**
+ * Inspect everything a packet would contain (ADR-0015): all paths, contents, commit messages, human inputs,
+ * documents and the verify result, to the end even when there are findings. Returns the findings (the caller's
+ * first), the deferred errors and a render function for the case without findings. Throws InspectionError, with
+ * the findings known so far, when an input that must be inspected cannot be obtained.
+ */
+export function inspectPacket(opts: PacketOptions): PacketInspection {
+  const ck: Checker = { findings: [...(opts.findings ?? [])], suppressed: [], security: opts.security, today: opts.today };
+  try {
+    return inspect(opts, ck);
+  } catch (err) {
+    if (err instanceof InspectionError) err.findings = [...ck.findings];
+    throw err;
+  }
+}
+
+/** The request and previous reviews (already read by the caller): decoded and checked. */
+function checkHumanInputs(ck: Checker, opts: PacketOptions): { request: { name: Checked | Rejected; text: string | null } | null; reviews: Array<{ name: Checked | Rejected; text: string | null; source: string }> } {
+  const request = opts.request ? { name: opts.request.name, text: decode(ck, opts.request.bytes, "request") } : null;
+  if (request?.text) checkText(ck, request.text, "request", null);
+  const reviews = (opts.reviews ?? []).map((r, i) => {
+    // A review name with a finding is not part of a finding source (the source names the option instead).
+    const source = typeof r.name === "string" ? `review ${r.name}` : `review ${i + 1}`;
+    const text = decode(ck, r.bytes, source);
+    if (text !== null) checkText(ck, text, source, null);
+    return { name: r.name, text, source };
+  });
+  return { request, reviews };
+}
+
+function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
   const maxFile = opts.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const maxPacket = opts.maxPacketBytes ?? DEFAULT_MAX_PACKET_BYTES;
-  if (!Number.isSafeInteger(maxFile) || maxFile < 1) throw new PacketError("--max-file-bytes must be a positive integer");
-  if (!Number.isSafeInteger(maxPacket) || maxPacket < 1) throw new PacketError("--max-packet-bytes must be a positive integer");
-  if (opts.label !== undefined && !LABEL_PATTERN.test(opts.label)) {
-    throw new PacketError("--label may contain only lower-case letters, digits, \".\" and \"-\" (1-64 characters)");
+  if (!Number.isSafeInteger(maxFile) || maxFile < 1) throw new InspectionError("--max-file-bytes must be a positive integer");
+  if (!Number.isSafeInteger(maxPacket) || maxPacket < 1) throw new InspectionError("--max-packet-bytes must be a positive integer");
+  // Errors that do not stop the inspection: reported only when there is no finding (ADR-0015).
+  const deferred: DeferredError[] = [];
+  // An invalid --label is deferred; a label with a finding is not shape-checked (its finding stands for it).
+  if (typeof opts.label === "string" && !LABEL_PATTERN.test(opts.label)) {
+    deferred.push(new DeferredError("--label may contain only lower-case letters, digits, \".\" and \"-\" (1-64 characters)"));
   }
-  const m = /^(.*?)\.\.(.*)$/.exec(opts.range);
-  if (!m || opts.range.includes("...")) throw new PacketError("--range must have the form <from>..<to>");
+  const range = opts.range;
+  if (typeof range !== "string") {
+    // The range has a finding: no git step can run (blocked by that finding). The human inputs are still checked.
+    checkHumanInputs(ck, opts);
+    return {
+      findings: ck.findings,
+      deferred,
+      git: null,
+      label: opts.label ?? null,
+      suppressed: ck.suppressed,
+      render: () => {
+        throw new UncheckedValueError("internal: a packet without git (the range has a finding) cannot be rendered");
+      },
+    };
+  }
+  const m = /^(.*?)\.\.(.*)$/.exec(range);
+  if (!m || range.includes("...")) throw new InspectionError("--range must have the form <from>..<to>");
 
   const inside = runGit(opts.cwd, ["rev-parse", "--is-inside-work-tree"]);
-  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new PacketError(`not inside a git work tree: ${opts.cwd}`);
+  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new InspectionError(`not inside a git work tree: ${opts.cwd}`);
   const root = gitOk(opts.cwd, ["rev-parse", "--show-toplevel"], "finding the repository root").toString("utf8").trim();
 
   // Resolve both ends once; everything below uses the SHAs only.
   const from = resolveCommit(root, m[1] ?? "", "from");
   const to = resolveCommit(root, m[2] ?? "", "to");
   const anc = runGit(root, ["merge-base", "--is-ancestor", from.sha, to.sha]);
-  if (anc.status === 1) throw new PacketError(`--range: ${from.sha.slice(0, SHORT)} is not an ancestor of ${to.sha.slice(0, SHORT)}`);
-  if (anc.status !== 0) throw new PacketError(`--range: ancestry check failed: ${anc.stderr}`);
+  if (anc.status === 1) throw new InspectionError(`--range: ${from.sha.slice(0, SHORT)} is not an ancestor of ${to.sha.slice(0, SHORT)}`);
+  if (anc.status !== 0) throw new InspectionError(`--range: ancestry check failed: ${anc.stderr}`);
   const commits = gitOk(root, ["rev-list", "--reverse", "--topo-order", `${from.sha}..${to.sha}`], "listing commits").toString("utf8").split("\n").filter((l) => l.length > 0);
-  if (commits.length === 0) throw new PacketError("--range contains no commits");
+  if (commits.length === 0) throw new InspectionError("--range contains no commits");
 
-  const ck: Checker = { findings: [], suppressed: [], security: opts.security, today: opts.today };
   /** A value aiqh derives (SHA, hash, version, time) is checked like any other rendered value (M2-1 R2). */
-  const derived = (value: string): Checked => checkInto(ck, value, "packet metadata");
+  const derived = (value: string): Checked | Rejected => checkInto(ck, value, "packet metadata");
   const label = opts.label ?? derived(to.sha.slice(0, SHORT));
   // Option values that are rendered (range, label, globs, documents, file names) were checked by the caller
-  // before this function was called (M2-1-R2-006; they are Checked): the renderers escape raw characters.
+  // before this function was called (M2-1-R2-006); a glob is matched as given, in memory only.
   const excludes = opts.excludes ?? [];
-  const matchExclude = (p: string): Checked | null => excludes.find((g) => path.matchesGlob(p, g)) ?? null;
+  const matchExclude = (p: string | null): Checked | Rejected | null => (p === null ? null : (excludes.find((g) => path.matchesGlob(p, g.pattern))?.shown ?? null));
 
   // ---- paths first (M2-1-R2-007): every path of the changed-file list and of each commit's file list is
-  // decoded and checked as a separate pass; any path finding returns before contents and sizes are looked at.
+  // decoded and checked. A path with a finding is Rejected and never becomes a pathspec; the inspection goes
+  // on (ADR-0015: an input that cannot be obtained later is still an error, exit 2).
   const raw = parseRaw(gitOk(root, ["diff", "--raw", "-z", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "listing changes"), ck);
-  const commitFiles = new Map<string, Checked[]>();
+  const commitFiles = new Map<string, Array<Checked | Rejected>>();
   for (const sha of commits) {
     const parents = gitOk(root, ["rev-list", "--parents", "-n", "1", sha], "reading parents").toString("utf8").trim().split(" ").slice(1);
     const treeArgs = parents.length === 0 ? ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", "--root", sha] : ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--no-commit-id", parents[0] ?? "", sha];
-    commitFiles.set(sha, splitZ(gitOk(root, treeArgs, "listing commit files")).map((p, k) => decodePath(ck, p, `commit ${sha.slice(0, SHORT)} file list entry ${k + 1}`)));
+    commitFiles.set(sha, splitZ(gitOk(root, treeArgs, "listing commit files")).map((p, k) => decodePath(ck, p, `commit ${sha.slice(0, SHORT)} file list entry ${k + 1}`).value));
   }
-  if (ck.findings.length > 0) return { ok: false, findings: ck.findings };
-
-  // Errors found while inputs are being checked (sizes, a --doc that is not a file, an invalid latest.json)
-  // are reported only when no finding was made (M2-1-R2-007: a detection, exit 1, comes before an error, exit 2).
-  // git failures still stop at once (the check itself cannot be done).
-  const deferred: string[] = [];
 
   // ---- changes (two-point tree comparison from..to)
   const numstat = parseNumstat(gitOk(root, ["diff", "--numstat", "-z", "--text", "--no-ext-diff", "--no-textconv", "--no-relative", "-M50%", from.sha, to.sha], "counting changes"));
-  raw.sort((a, b) => Buffer.compare(Buffer.from(a.path, "utf8"), Buffer.from(b.path, "utf8")));
+  raw.sort((a, b) => Buffer.compare(a.pathBytes, b.pathBytes));
 
   interface Prepared {
     file: ChangedFile;
@@ -639,11 +712,14 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   const tooLarge: string[] = [];
   for (const r of raw) {
     const deleted = r.status === "D";
-    const counts = numstat.get(r.path) ?? { added: null, deleted: null };
+    // A Rejected path is named by its entry in sources and messages, never by its value.
+    const name = typeof r.path === "string" ? r.path : `(path of ${r.where})`;
+    const oldName = r.oldPath === null ? name : typeof r.oldPath === "string" ? r.oldPath : `(previous path of ${r.where})`;
+    const counts = (r.pathText !== null ? numstat.get(r.pathText) : undefined) ?? { added: null, deleted: null };
     const file: ChangedFile = { status: r.status, path: r.path, oldPath: r.oldPath, kind: "text", excludedBy: null, size: null, sha256: null, added: counts.added, deleted: counts.deleted };
     const blob = deleted ? r.oldBlob : r.newBlob;
     const mode = deleted ? r.oldMode : r.newMode;
-    const excludedBy = matchExclude(r.path) ?? (r.oldPath !== null ? matchExclude(r.oldPath) : null);
+    const excludedBy = matchExclude(r.pathText) ?? (r.oldPath !== null ? matchExclude(r.oldPathText) : null);
     // The displayed side decides (M2-1-R1-005): the old mode for a deletion, otherwise the new mode.
     if (mode === "160000") {
       file.kind = "submodule";
@@ -661,12 +737,12 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     }
     const size = blobSize(root, blob);
     file.size = size;
-    const isLock = LOCK_FILE_NAMES.includes(path.posix.basename(r.path));
+    const isLock = r.pathText !== null && LOCK_FILE_NAMES.includes(path.posix.basename(r.pathText));
     // A gitlink on the old side (submodule -> file) points to a commit, not a blob: that side is empty.
     const oldIsBlob = !ZERO.test(r.oldBlob) && !deleted && r.oldMode !== "160000";
     const oldSize = oldIsBlob ? blobSize(root, r.oldBlob) : 0;
     if (!isLock && (size > maxFile || oldSize > maxFile)) {
-      tooLarge.push(`${r.path} (${Math.max(size, oldSize)} bytes)`);
+      tooLarge.push(`${name} (${Math.max(size, oldSize)} bytes)`);
       prepared.push({ file, content: null, diff: null });
       continue;
     }
@@ -684,36 +760,43 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
       continue;
     }
     // No NUL: the file is text and must be valid UTF-8 (invalid ⇒ finding, exit 1; --exclude to leave it out).
-    const text = decode(ck, bytes, deleted ? `deleted file ${r.path}` : `full source ${r.path}`);
-    const oldText = oldBytes.length > 0 ? decode(ck, oldBytes, `previous version of ${r.oldPath ?? r.path}`) : "";
+    const text = decode(ck, bytes, deleted ? `deleted file ${name}` : `full source ${name}`);
+    const oldText = oldBytes.length > 0 ? decode(ck, oldBytes, `previous version of ${oldName}`) : "";
     if (text === null || oldText === null) {
       prepared.push({ file, content: null, diff: null });
       continue;
     }
     if (deleted) file.kind = "deleted";
-    // Only strictly decoded, checked paths reach this point (the path pass returned on any path finding).
-    const pathspec = [`:(literal)${r.path}`, ...(r.oldPath !== null ? [`:(literal)${r.oldPath}`] : [])];
-    const diffBytes = gitOk(root, [...DIFF_FLAGS, from.sha, to.sha, "--", ...pathspec], `diff of ${r.path}`);
+    if (typeof r.path !== "string" || (r.oldPath !== null && typeof r.oldPath !== "string")) {
+      // The path has a finding: no pathspec is built from it (blocked by that finding). The content, read by
+      // blob id, is still checked; allow rules see the decoded path in memory only.
+      if (!deleted) checkText(ck, text, `full source ${name}`, (i) => ({ path: r.pathText ?? "", line: i + 1 }));
+      prepared.push({ file, content: null, diff: null });
+      continue;
+    }
+    const checkedPath = r.path;
+    const pathspec = [`:(literal)${checkedPath}`, ...(r.oldPath !== null ? [`:(literal)${r.oldPath}`] : [])];
+    const diffBytes = gitOk(root, [...DIFF_FLAGS, from.sha, to.sha, "--", ...pathspec], `diff of ${checkedPath}`);
     // A changed file always has a diff header at least (mode-only changes, pure renames and empty files
     // included), so an empty diff means the pathspec missed the file: never write a packet without it.
-    if (diffBytes.length === 0) throw new PacketError(`git diff returned nothing for the changed file ${r.path} (status ${r.status}); nothing written`);
-    const diff = decode(ck, diffBytes, `diff ${r.path}`);
+    if (diffBytes.length === 0) throw new InspectionError(`git diff returned nothing for the changed file ${checkedPath} (status ${typeof r.status === "string" ? r.status : "?"}); nothing written`);
+    const diff = decode(ck, diffBytes, `diff ${checkedPath}`);
     prepared.push({ file, content: deleted ? null : text, diff });
-    if (!deleted) checkText(ck, text, `full source ${r.path}`, (i) => ({ path: r.path, line: i + 1 }));
-    if (diff !== null) checkText(ck, diff, `diff ${r.path}`, diffOrigin(diff, r.path, r.oldPath ?? r.path));
+    if (!deleted) checkText(ck, text, `full source ${checkedPath}`, (i) => ({ path: checkedPath, line: i + 1 }));
+    if (diff !== null) checkText(ck, diff, `diff ${checkedPath}`, diffOrigin(diff, checkedPath, r.oldPath ?? checkedPath));
   }
   if (tooLarge.length > 0) {
-    deferred.push(`changed file larger than --max-file-bytes (${maxFile}): ${tooLarge.join(", ")}; raise the limit or leave it out with --exclude`);
+    deferred.push(new DeferredError(`changed file larger than --max-file-bytes (${maxFile}): ${tooLarge.join(", ")}; raise the limit or leave it out with --exclude`));
   }
 
   // ---- commits
   interface CommitInfo {
     sha: string;
-    full: Checked;
-    short: Checked;
-    subject: Checked;
+    full: Checked | Rejected;
+    short: Checked | Rejected;
+    subject: Checked | Rejected;
     message: string;
-    files: Checked[];
+    files: Array<Checked | Rejected>;
   }
   const commitInfos: CommitInfo[] = [];
   for (const sha of commits) {
@@ -729,26 +812,22 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
   }
 
   // ---- human inputs and documents
-  const request = opts.request ? { name: opts.request.name, text: decode(ck, opts.request.bytes, "request") } : null;
-  if (request?.text) checkText(ck, request.text, "request", null);
-  const reviews = (opts.reviews ?? []).map((r) => {
-    const text = decode(ck, r.bytes, `review ${r.name}`);
-    if (text !== null) checkText(ck, text, `review ${r.name}`, null);
-    return { name: r.name, text };
-  });
+  const { request, reviews } = checkHumanInputs(ck, opts);
   const docs: Array<{ path: Checked; text: string | null }> = [];
   for (const d of opts.docs ?? []) {
+    // A document path with a finding is not looked up (blocked by that finding).
+    if (typeof d !== "string") continue;
     const ls = splitZ(gitOk(root, ["ls-tree", "-z", to.sha, "--", `:(literal)${d}`], `looking up --doc ${d}`)).map((e) => quietPath(e) ?? "");
     const entry = ls.find((e) => e.endsWith(`\t${d}`));
     const em = entry ? /^(\d{6}) blob ([0-9a-f]+)\t/.exec(entry) : null;
     if (!em) {
-      deferred.push(`--doc ${JSON.stringify(d)} is not a file at ${to.sha.slice(0, SHORT)}`);
+      deferred.push(new DeferredError(`--doc ${JSON.stringify(d)} is not a file at ${to.sha.slice(0, SHORT)}`));
       continue;
     }
     const blob = em[2] ?? "";
     const size = blobSize(root, blob);
     if (size > maxFile) {
-      deferred.push(`--doc ${d} is larger than --max-file-bytes (${size} > ${maxFile})`);
+      deferred.push(new DeferredError(`--doc ${d} is larger than --max-file-bytes (${size} > ${maxFile})`));
       continue;
     }
     const text = decode(ck, blobBytes(root, blob, size), `doc ${d}`);
@@ -773,152 +852,197 @@ export function buildPacket(opts: PacketOptions): PacketResult | PacketRejected 
     git: derived(gitOk(root, ["--version"], "git --version").toString("utf8").trim()),
   };
   const suppressed = ck.suppressed.map((s) => ({ source: derived(s.source), path: derived(s.path), category: derived(s.category), line: s.line, rule: s.rule }));
-
-  if (ck.findings.length > 0) return { ok: false, findings: ck.findings };
-  if (deferred.length > 0) throw new PacketError(deferred.join("; "));
-
-  // ---- assemble: only md, the renderers and numbers (M2-1 R2)
-  const b = new Builder();
   const files = prepared.map((p) => p.file);
-  const dash = md`-`;
-  const KIND: Record<ChangeKind, Md> = { text: md`text`, binary: md`binary`, lock: md`lock`, excluded: md`excluded`, submodule: md`submodule`, deleted: md`deleted` };
-  b.add(md`# Review Packet — ${plainOrCode(label)}\n\n`);
-  b.add(md`## Metadata\n\n`);
-  b.add(md`- Range: ${inlineCode(meta.range)} (commits in \`from..to\`; changes = \`git diff <from> <to>\`, a two-point tree comparison)\n`);
-  b.add(md`- Range as given: ${renderPath(opts.range)} (resolved once to the SHAs below)\n`);
-  b.add(md`- From: commit ${inlineCode(meta.from)}${meta.fromTag !== null ? md` (tag object ${inlineCode(meta.fromTag)})` : md``}\n`);
-  b.add(md`- To: commit ${inlineCode(meta.to)}${meta.toTag !== null ? md` (tag object ${inlineCode(meta.toTag)})` : md``}\n`);
-  b.add(md`- Committer time of <to>: ${plainOrCode(meta.time)} (UTC)\n`);
-  b.add(md`- Commits: ${commits.length}; changed files: ${files.length}\n`);
-  b.add(md`- Generated by: aiqh ${plainOrCode(meta.tool)}; ${plainOrCode(meta.git)}\n`);
-  b.add(md`- Options: label ${inlineCode(label)}; max file bytes ${maxFile}; max packet bytes ${maxPacket}`);
-  b.add(excludes.length > 0 ? md`; excludes ${joinMd(excludes.map((g) => inlineCode(g)), md`, `)}` : md`; excludes none`);
-  b.add(md`; documents ${docs.length}; request ${request ? md`given` : md`none`}; previous reviews ${reviews.length}\n\n`);
-  b.add(md`This packet contains no conclusion by the implementer about correctness. It holds the request and previous reviews as supplied by\n`);
-  b.add(md`a human, the commit messages, the changed-file list, per-file diffs, the full sources at <to>, selected documents and the verify\n`);
-  b.add(md`result that \`aiqh verify\` recorded for <to>. **Commit messages are written by the implementer (possibly an AI) and may contain its\n`);
-  b.add(md`explanations.** Every input was checked for invalid UTF-8, raw control / separator / bidi characters and secret-shaped strings.\n\n`);
 
-  b.add(md`# Request\n\n`);
-  if (request !== null && request.text !== null) {
-    b.add(md`Supplied by a human (${inlineCode(request.name)}), verbatim:\n\n`);
-    b.fenced(request.text, "markdown", "request", null);
-  } else b.add(md`Not supplied.\n`);
-  b.add(md`\n# Previous Reviews\n\n`);
-  if (reviews.length === 0) b.add(md`None supplied.\n`);
-  for (const r of reviews) {
-    b.add(md`## ${inlineCode(r.name)}\n\n`);
-    b.fenced(r.text ?? "", "markdown", `review ${r.name}`, null);
-    b.add(md`\n`);
-  }
+  // ---- assemble (only without findings): only md, the renderers and numbers (M2-1 R2); every value is settled
+  // (Checked) here, and a Rejected one would be an internal error.
+  const render = (): PacketRender => {
+    const S = settled;
+    const b = new Builder();
+    const dash = md`-`;
+    const KIND: Record<ChangeKind, Md> = { text: md`text`, binary: md`binary`, lock: md`lock`, excluded: md`excluded`, submodule: md`submodule`, deleted: md`deleted` };
+    const L = S(label);
+    b.add(md`# Review Packet — ${plainOrCode(L)}\n\n`);
+    b.add(md`## Metadata\n\n`);
+    b.add(md`- Range: ${inlineCode(S(meta.range))} (commits in \`from..to\`; changes = \`git diff <from> <to>\`, a two-point tree comparison)\n`);
+    b.add(md`- Range as given: ${renderPath(range)} (resolved once to the SHAs below)\n`);
+    b.add(md`- From: commit ${inlineCode(S(meta.from))}${meta.fromTag !== null ? md` (tag object ${inlineCode(S(meta.fromTag))})` : md``}\n`);
+    b.add(md`- To: commit ${inlineCode(S(meta.to))}${meta.toTag !== null ? md` (tag object ${inlineCode(S(meta.toTag))})` : md``}\n`);
+    b.add(md`- Committer time of <to>: ${plainOrCode(S(meta.time))} (UTC)\n`);
+    b.add(md`- Commits: ${commits.length}; changed files: ${files.length}\n`);
+    b.add(md`- Generated by: aiqh ${plainOrCode(S(meta.tool))}; ${plainOrCode(S(meta.git))}\n`);
+    b.add(md`- Options: label ${inlineCode(L)}; max file bytes ${maxFile}; max packet bytes ${maxPacket}`);
+    b.add(excludes.length > 0 ? md`; excludes ${joinMd(excludes.map((g) => inlineCode(S(g.shown))), md`, `)}` : md`; excludes none`);
+    b.add(md`; documents ${docs.length}; request ${request ? md`given` : md`none`}; previous reviews ${reviews.length}\n\n`);
+    b.add(md`This packet contains no conclusion by the implementer about correctness. It holds the request and previous reviews as supplied by\n`);
+    b.add(md`a human, the commit messages, the changed-file list, per-file diffs, the full sources at <to>, selected documents and the verify\n`);
+    b.add(md`result that \`aiqh verify\` recorded for <to>. **Commit messages are written by the implementer (possibly an AI) and may contain its\n`);
+    b.add(md`explanations.** Every input was checked for invalid UTF-8, raw control / separator / bidi characters and secret-shaped strings.\n\n`);
 
-  b.add(md`\n# Commits\n\n\`git rev-list --reverse --topo-order <from>..<to>\`. Messages without Co-Authored-By / Claude-Session trailers.\n\n`);
-  b.add(md`| # | Commit | Subject | Files |\n|---|---|---|---|\n`);
-  commitInfos.forEach((c, i) => b.add(md`| ${i + 1} | ${inlineCode(c.short)} | ${cellCode(c.subject)} | ${c.files.length} |\n`));
-  for (const c of commitInfos) {
-    b.add(md`\n## ${plainOrCode(c.full)}\n\nFiles: ${c.files.length === 0 ? md`none` : joinMd(c.files.map(renderPath), md`, `)}\n\n`);
-    b.fenced(c.message, "text", `commit ${c.sha.slice(0, SHORT)} message`, null);
-  }
+    b.add(md`# Request\n\n`);
+    if (request !== null && request.text !== null) {
+      b.add(md`Supplied by a human (${inlineCode(S(request.name))}), verbatim:\n\n`);
+      b.fenced(request.text, "markdown", "request", null);
+    } else b.add(md`Not supplied.\n`);
+    b.add(md`\n# Previous Reviews\n\n`);
+    if (reviews.length === 0) b.add(md`None supplied.\n`);
+    for (const r of reviews) {
+      b.add(md`## ${inlineCode(S(r.name))}\n\n`);
+      b.fenced(r.text ?? "", "markdown", r.source, null);
+      b.add(md`\n`);
+    }
 
-  b.add(md`\n# Changed Files\n\n\`git diff --raw -M50% <from> <to>\`, sorted by path. Kinds: text (full source and diff below), deleted (diff only),\n`);
-  b.add(md`binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n`);
-  b.add(md`| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n`);
-  files.forEach((f, i) => {
-    const kind = md`${f.kind === "excluded" && f.excludedBy !== null ? md`excluded (${cellCode(f.excludedBy)})` : KIND[f.kind]}${f.status === "T" ? md` (type change)` : md``}`;
-    const shown = f.kind === "text" || f.kind === "deleted";
-    const added = shown ? (f.added ?? dash) : dash;
-    const removed = shown ? (f.deleted ?? dash) : dash;
-    b.add(md`| ${i + 1} | ${plainOrCode(f.status)} | ${cellCode(f.path)} | ${f.oldPath !== null ? cellCode(f.oldPath) : md``} | ${kind} | ${f.size ?? dash} | ${added} | ${removed} |\n`);
-  });
+    b.add(md`\n# Commits\n\n\`git rev-list --reverse --topo-order <from>..<to>\`. Messages without Co-Authored-By / Claude-Session trailers.\n\n`);
+    b.add(md`| # | Commit | Subject | Files |\n|---|---|---|---|\n`);
+    commitInfos.forEach((c, i) => b.add(md`| ${i + 1} | ${inlineCode(S(c.short))} | ${cellCode(S(c.subject))} | ${c.files.length} |\n`));
+    for (const c of commitInfos) {
+      b.add(md`\n## ${plainOrCode(S(c.full))}\n\nFiles: ${c.files.length === 0 ? md`none` : joinMd(c.files.map((f) => renderPath(S(f))), md`, `)}\n\n`);
+      b.fenced(c.message, "text", `commit ${c.sha.slice(0, SHORT)} message`, null);
+    }
 
-  b.add(md`\n# Diff\n\nPer file: \`git diff --text --diff-algorithm=myers -U3 --full-index -M50% <from> <to> -- <path>\`.\n`);
-  for (const p of prepared) {
-    b.add(md`\n## ${renderPath(p.file.path)}\n\n`);
-    if (p.diff !== null) b.fenced(p.diff, "diff", `diff ${p.file.path}`, diffOrigin(p.diff, p.file.path, p.file.oldPath ?? p.file.path));
-    else b.add(md`Not shown (${KIND[p.file.kind]}).\n`);
-  }
+    b.add(md`\n# Changed Files\n\n\`git diff --raw -M50% <from> <to>\`, sorted by path. Kinds: text (full source and diff below), deleted (diff only),\n`);
+    b.add(md`binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n`);
+    b.add(md`| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n`);
+    files.forEach((f, i) => {
+      const status = S(f.status);
+      const kind = md`${f.kind === "excluded" && f.excludedBy !== null ? md`excluded (${cellCode(S(f.excludedBy))})` : KIND[f.kind]}${status === "T" ? md` (type change)` : md``}`;
+      const shown = f.kind === "text" || f.kind === "deleted";
+      const added = shown ? (f.added ?? dash) : dash;
+      const removed = shown ? (f.deleted ?? dash) : dash;
+      b.add(md`| ${i + 1} | ${plainOrCode(status)} | ${cellCode(S(f.path))} | ${f.oldPath !== null ? cellCode(S(f.oldPath)) : md``} | ${kind} | ${f.size ?? dash} | ${added} | ${removed} |\n`);
+    });
 
-  b.add(md`\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded and submodule entries have none).\n`);
-  for (const p of prepared) {
-    if (p.content === null) continue;
-    b.add(md`\n## ${renderPath(p.file.path)} (${lineCount(p.content)} lines)\n\n`);
-    b.fenced(p.content, langOf(p.file.path), `full source ${p.file.path}`, (i) => ({ path: p.file.path, line: i + 1 }));
-  }
+    b.add(md`\n# Diff\n\nPer file: \`git diff --text --diff-algorithm=myers -U3 --full-index -M50% <from> <to> -- <path>\`.\n`);
+    for (const p of prepared) {
+      const filePath = S(p.file.path);
+      b.add(md`\n## ${renderPath(filePath)}\n\n`);
+      if (p.diff !== null) b.fenced(p.diff, "diff", `diff ${filePath}`, diffOrigin(p.diff, filePath, p.file.oldPath !== null ? S(p.file.oldPath) : filePath));
+      else b.add(md`Not shown (${KIND[p.file.kind]}).\n`);
+    }
 
-  b.add(md`\n# Documents\n\n`);
-  if (docs.length === 0) b.add(md`None selected (--doc).\n`);
-  for (const d of docs) {
-    b.add(md`## ${renderPath(d.path)} (at ${inlineCode(meta.toShort)})\n\n`);
-    b.fenced(d.text ?? "", langOf(d.path), `doc ${d.path}`, (i) => ({ path: d.path, line: i + 1 }));
-    b.add(md`\n`);
-  }
+    b.add(md`\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded and submodule entries have none).\n`);
+    for (const p of prepared) {
+      if (p.content === null) continue;
+      const filePath = S(p.file.path);
+      b.add(md`\n## ${renderPath(filePath)} (${lineCount(p.content)} lines)\n\n`);
+      b.fenced(p.content, langOf(filePath), `full source ${filePath}`, (i) => ({ path: filePath, line: i + 1 }));
+    }
 
-  b.add(md`\n# Verification\n\n`);
-  b.addSource(verification, "verification (artifacts/verification/latest.json)", null);
+    b.add(md`\n# Documents\n\n`);
+    if (docs.length === 0) b.add(md`None selected (--doc).\n`);
+    for (const d of docs) {
+      b.add(md`## ${renderPath(d.path)} (at ${inlineCode(S(meta.toShort))})\n\n`);
+      b.fenced(d.text ?? "", langOf(d.path), `doc ${d.path}`, (i) => ({ path: d.path, line: i + 1 }));
+      b.add(md`\n`);
+    }
 
-  b.add(md`\n# Integrity\n\nSHA-256 of the blob at <to> (or at <from> for deleted files).\n\n| Path | Bytes | SHA-256 |\n|---|---|---|\n`);
-  for (const f of files) b.add(md`| ${cellCode(f.path)} | ${f.size ?? dash} | ${f.sha256 !== null ? plainOrCode(f.sha256) : dash} |\n`);
-  b.add(md`\nChecks before writing: invalid UTF-8 0, raw characters 0, secret-shaped strings 0 (after security.allow). Suppressed by security.allow: ${suppressed.length}.\n`);
-  for (const s of suppressed) b.add(md`- ${inlineCode(s.source)} → ${inlineCode(s.path)}:${s.line} ${inlineCode(s.category)} by rule #${s.rule + 1}\n`);
+    b.add(md`\n# Verification\n\n`);
+    b.addSource(renderVerification(verification), "verification (artifacts/verification/latest.json)", null);
 
-  const text = b.text();
+    b.add(md`\n# Integrity\n\nSHA-256 of the blob at <to> (or at <from> for deleted files).\n\n| Path | Bytes | SHA-256 |\n|---|---|---|\n`);
+    for (const f of files) b.add(md`| ${cellCode(S(f.path))} | ${f.size ?? dash} | ${f.sha256 !== null ? plainOrCode(S(f.sha256)) : dash} |\n`);
+    b.add(md`\nChecks before writing: invalid UTF-8 0, raw characters 0, secret-shaped strings 0 (after security.allow). Suppressed by security.allow: ${suppressed.length}.\n`);
+    for (const s of suppressed) b.add(md`- ${inlineCode(S(s.source))} → ${inlineCode(S(s.path))}:${s.line} ${inlineCode(S(s.category))} by rule #${s.rule + 1}\n`);
 
-  // ---- whole-packet check (stage 2)
-  const packetCk: Checker = { findings: [], suppressed: [], security: opts.security, today: opts.today };
-  const originOf: LineOrigin = (i) => {
-    const seg = b.segmentAt(i + 1);
-    return seg?.origin ? seg.origin(i + 1 - seg.startLine) : null;
-  };
-  checkText(packetCk, text, "packet", originOf, "packet");
-  if (packetCk.findings.length > 0) {
-    return {
-      ok: false,
-      findings: packetCk.findings.map((f) => {
-        const seg = f.line !== null ? b.segmentAt(f.line) : null;
-        return seg ? { ...f, source: seg.source, line: (f.line ?? seg.startLine) - seg.startLine + 1 } : { ...f, source: "packet template", line: f.line };
-      }),
+    const text = b.text();
+
+    // ---- whole-packet check (stage 2)
+    const packetCk: Checker = { findings: [], suppressed: [], security: opts.security, today: opts.today };
+    const originOf: LineOrigin = (i) => {
+      const seg = b.segmentAt(i + 1);
+      return seg?.origin ? seg.origin(i + 1 - seg.startLine) : null;
     };
-  }
-  const bytes = Buffer.byteLength(text, "utf8");
-  if (bytes > maxPacket) throw new PacketError(`the packet would be ${bytes} bytes, more than --max-packet-bytes (${maxPacket}); nothing written`);
-  return { ok: true, text, label, fromSha: from.sha, toSha: to.sha, root, commits: commits.length, files, suppressed: ck.suppressed };
+    checkText(packetCk, text, "packet", originOf, "packet");
+    const findings = packetCk.findings.map((f) => {
+      const seg = f.line !== null ? b.segmentAt(f.line) : null;
+      return seg ? { ...f, source: seg.source, line: (f.line ?? seg.startLine) - seg.startLine + 1 } : { ...f, source: "packet template", line: f.line };
+    });
+    const bytes = Buffer.byteLength(text, "utf8");
+    const tooBig = bytes > maxPacket ? [new DeferredError(`the packet would be ${bytes} bytes, more than --max-packet-bytes (${maxPacket}); nothing written`)] : [];
+    return { text, findings, deferred: tooBig };
+  };
+
+  return { findings: ck.findings, deferred, git: { root, fromSha: from.sha, toSha: to.sha, commits: commits.length, files }, label, suppressed: ck.suppressed, render };
 }
 
-/** The Verification section's text; an unreadable latest.json is added to `deferred` (reported only without findings). */
-function readVerification(ck: Checker, root: string, toSha: string, deferred: string[]): Md {
+/** The verify result of <to>, as checked values (rendered by renderVerification only when there is no finding). */
+type Verification =
+  | { kind: "absent" }
+  /** Nothing is shown: invalid UTF-8 or a value with a finding (a finding says why), or not JSON (deferred). */
+  | { kind: "none" }
+  | { kind: "other"; commit: Checked | Rejected | null; dirty: Checked | Rejected }
+  | {
+      kind: "result";
+      toShort: Checked | Rejected;
+      verdict: Checked | Rejected;
+      exitCode: Checked | Rejected;
+      tool: Checked | Rejected;
+      startedAt: Checked | Rejected;
+      finishedAt: Checked | Rejected;
+      checks: Array<Record<"name" | "kind" | "required" | "status" | "exitCode" | "durationMs", Checked | Rejected>>;
+    };
+
+/** The verify result of <to>; an unreadable latest.json is a deferred error (reported only without findings). */
+function readVerification(ck: Checker, root: string, toSha: string, deferred: DeferredError[]): Verification {
   const source = "verification (artifacts/verification/latest.json)";
   const file = path.join(root, "artifacts", "verification", "latest.json");
-  if (!existsSync(file)) return md`No verify result: \`artifacts/verification/latest.json\` does not exist.\n`;
+  if (!existsSync(file)) return { kind: "absent" };
   const decoded = decode(ck, readFileSync(file), source);
-  if (decoded === null) return md``;
+  if (decoded === null) return { kind: "none" };
   let report: VerificationReport;
   try {
     report = JSON.parse(decoded) as VerificationReport;
   } catch {
-    deferred.push("artifacts/verification/latest.json is not valid JSON");
-    return md``;
+    deferred.push(new DeferredError("artifacts/verification/latest.json is not valid JSON"));
+    return { kind: "none" };
   }
   const commit: unknown = report.git?.commit ?? null;
   const dirty: unknown = report.git?.dirty ?? null;
   if (commit !== toSha || dirty !== false) {
     // latest.json's own values for another commit are rendered like any other value (found by the typed template, M2-1 R2)
-    const shown = commit !== null && commit !== "" ? inlineCode(checkInto(ck, String(commit).slice(0, SHORT), source)) : md`unknown`;
-    return md`No verify result for <to>: latest.json is for commit ${shown} with dirty = ${plainOrCode(checkInto(ck, String(dirty), source))} (included only for <to> on a clean tree).\n`;
+    return { kind: "other", commit: commit !== null && commit !== "" ? checkInto(ck, String(commit).slice(0, SHORT), source) : null, dirty: checkInto(ck, String(dirty), source) };
   }
   // The rendered table escapes raw characters (M2-1-R1-004), so the values are checked before rendering, as one
   // text (a finding's line is the value's line in it); each value is then Checked on its own for its renderer.
   const values = [report.verdict, report.exitCode, report.tool?.name, report.tool?.version, report.startedAt, report.finishedAt, ...(report.checks ?? []).flatMap((c) => [c.name, c.kind, c.required, c.status, c.exitCode, c.durationMs])];
   const before = ck.findings.length;
   checkText(ck, values.map((v) => String(v)).join("\n"), source, null);
-  if (ck.findings.length > before) return md``;
-  const v = (value: unknown): Checked => checkInto(ck, String(value), source);
-  const parts: Md[] = [];
-  parts.push(md`\`aiqh verify\` result recorded in latest.json for ${inlineCode(v(toSha.slice(0, SHORT)))} (clean tree):\n\n`);
-  parts.push(md`- Verdict: ${inlineCode(v(report.verdict))}; exit code ${inlineCode(v(report.exitCode))}; tool ${inlineCode(v(`${String(report.tool?.name)} ${String(report.tool?.version)}`))}\n`);
-  parts.push(md`- Started: ${inlineCode(v(report.startedAt))}; finished: ${inlineCode(v(report.finishedAt))}\n\n`);
-  parts.push(md`| Check | Kind | Required | Status | Exit code | Duration (ms) |\n|---|---|---|---|---|---|\n`);
-  for (const c of report.checks ?? []) {
-    parts.push(md`| ${cellCode(v(c.name))} | ${cellCode(v(c.kind))} | ${cellCode(v(c.required))} | ${cellCode(v(c.status))} | ${cellCode(v(c.exitCode))} | ${cellCode(v(c.durationMs))} |\n`);
+  if (ck.findings.length > before) return { kind: "none" };
+  const v = (value: unknown): Checked | Rejected => checkInto(ck, String(value), source);
+  return {
+    kind: "result",
+    toShort: v(toSha.slice(0, SHORT)),
+    verdict: v(report.verdict),
+    exitCode: v(report.exitCode),
+    tool: v(`${String(report.tool?.name)} ${String(report.tool?.version)}`),
+    startedAt: v(report.startedAt),
+    finishedAt: v(report.finishedAt),
+    checks: (report.checks ?? []).map((c) => ({ name: v(c.name), kind: v(c.kind), required: v(c.required), status: v(c.status), exitCode: v(c.exitCode), durationMs: v(c.durationMs) })),
+  };
+}
+
+/** The Verification section's text (only without findings: every value is settled). */
+function renderVerification(ver: Verification): Md {
+  const S = settled;
+  switch (ver.kind) {
+    case "absent":
+      return md`No verify result: \`artifacts/verification/latest.json\` does not exist.\n`;
+    case "none":
+      return md``;
+    case "other": {
+      const shown = ver.commit !== null ? inlineCode(S(ver.commit)) : md`unknown`;
+      return md`No verify result for <to>: latest.json is for commit ${shown} with dirty = ${plainOrCode(S(ver.dirty))} (included only for <to> on a clean tree).\n`;
+    }
+    case "result": {
+      const parts: Md[] = [];
+      parts.push(md`\`aiqh verify\` result recorded in latest.json for ${inlineCode(S(ver.toShort))} (clean tree):\n\n`);
+      parts.push(md`- Verdict: ${inlineCode(S(ver.verdict))}; exit code ${inlineCode(S(ver.exitCode))}; tool ${inlineCode(S(ver.tool))}\n`);
+      parts.push(md`- Started: ${inlineCode(S(ver.startedAt))}; finished: ${inlineCode(S(ver.finishedAt))}\n\n`);
+      parts.push(md`| Check | Kind | Required | Status | Exit code | Duration (ms) |\n|---|---|---|---|---|---|\n`);
+      for (const c of ver.checks) {
+        parts.push(md`| ${cellCode(S(c.name))} | ${cellCode(S(c.kind))} | ${cellCode(S(c.required))} | ${cellCode(S(c.status))} | ${cellCode(S(c.exitCode))} | ${cellCode(S(c.durationMs))} |\n`);
+      }
+      return joinMd(parts, md``);
+    }
   }
-  return joinMd(parts, md``);
 }

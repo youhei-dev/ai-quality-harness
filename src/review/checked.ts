@@ -74,8 +74,23 @@ export function assertChecked(value: Checked): Checked {
   return value;
 }
 
+declare const rejectedBrand: unique symbol;
+
 /**
- * Stands in for a value that failed the check, so that checking can go on and report every finding. It is
- * never rendered: any finding stops the packet before rendering (and it would show no value if it were).
+ * A value that failed the check (M2-1-R3-002): its finding is reported, and it is not a string, so it cannot
+ * be passed to git, used as a path, shape-checked or rendered — the inspection that depends on it is skipped
+ * (blocked by the finding) and everything else goes on.
  */
-export const REJECTED = issue("<rejected>");
+export type Rejected = { readonly [rejectedBrand]: true };
+
+/** The one Rejected value (the structure test allows no other place to create the brand). */
+export const REJECTED = Object.freeze({ rejected: true }) as unknown as Rejected;
+
+/**
+ * A value about to be rendered: rendering happens only when there is no finding, and every Rejected value comes
+ * with a finding, so a Rejected value here is an internal error (fail closed).
+ */
+export function settled(value: Checked | Rejected): Checked {
+  if (typeof value !== "string") throw new UncheckedValueError("internal: a rejected value reached rendering");
+  return value;
+}

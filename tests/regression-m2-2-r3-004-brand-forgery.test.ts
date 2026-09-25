@@ -49,14 +49,14 @@ const FORMS: Record<string, string> = {
   b12_generic_cast: `${C}\n${P("inlineCode, type Md")}\n${RAW}\nfunction cast<T>(x: unknown): T {\n  return x as T;\n}\nexport const f = (): Md => inlineCode(cast<Checked>(raw));\nexport const r = REJECTED;\n`,
   b13_zip_json_parse: 'import { createStoredZip } from "../../../src/review/zip.ts";\nexport const f = (): Buffer => createStoredZip([{ name: JSON.parse(\'"n.md"\'), data: Buffer.alloc(0) }]);\n',
   b14_ts_ignore: `${P("inlineCode, type Md")}\n${RAW}\n// @ts-ignore -- bypass\nexport const f = (): Md => inlineCode(raw);\n`,
-  b15_typeof: `${C}\n${P("inlineCode, type Md")}\n${RAW}\nexport const f = (): Md => inlineCode(raw as typeof REJECTED);\nexport type T = Checked;\n`,
-  b16_array_json_parse: `${C}\n${P("renderPath, type Md")}\nexport const f = (): Md => {\n  const arr: Checked[] = JSON.parse('["x"]');\n  return renderPath(arr[0] ?? REJECTED);\n};\n`,
+  b15_typeof: `${C}\n${P("inlineCode, type Md")}\n${RAW}\ndeclare const known: Checked;\nexport const f = (): Md => inlineCode(raw as typeof known);\nexport const r = REJECTED;\n`,
+  b16_array_json_parse: `${C}\n${P("md, renderPath, type Md")}\nexport const f = (): Md => {\n  const arr: Checked[] = JSON.parse('["x"]');\n  const first = arr[0];\n  return first === undefined ? md\`\` : renderPath(first);\n};\nexport const r = REJECTED;\n`,
   b17_md_alias: `${P("md, type Md")}\n${RAW}\ntype M = Md;\nexport const f = (): Md => md\`\${raw as M}\`;\n`,
   b18_method_bivariance: `${P("inlineCode, type Md")}\n${RAW}\ninterface Renderer {\n  render(s: string): Md;\n}\nexport const f = (): Md => {\n  const r: Renderer = { render: inlineCode };\n  return r.render(raw);\n};\n`,
-  b19_array_covariance: `${C}\n${P("inlineCode, type Md")}\n${RAW}\nexport const f = (): Md => {\n  const cs: Checked[] = [];\n  const ss: string[] = cs;\n  ss.push(raw);\n  return inlineCode(cs[0] ?? REJECTED);\n};\n`,
+  b19_array_covariance: `${C}\n${P("inlineCode, md, type Md")}\n${RAW}\nexport const f = (): Md => {\n  const cs: Checked[] = [];\n  const ss: string[] = cs;\n  ss.push(raw);\n  const first = cs[0];\n  return first === undefined ? md\`\` : inlineCode(first);\n};\nexport const r = REJECTED;\n`,
   b20_property_covariance: `${C}\n${P("inlineCode, type Md")}\n${RAW}\nexport const f = (ok: Checked): Md => {\n  const o: { v: Checked } = { v: ok };\n  const w: { v: string } = o;\n  w.v = raw;\n  return inlineCode(o.v);\n};\nexport const r = REJECTED;\n`,
   b21_catch_value: `${C}\n${P("inlineCode, type Md")}\n${RAW}\nexport const f = (): Md => {\n  try {\n    throw new Error(raw);\n  } catch (e) {\n    return inlineCode(e as Checked);\n  }\n};\nexport const r = REJECTED;\n`,
-  b22_map_alias: `${C}\n${P("inlineCode, type Md")}\n${RAW}\ntype A = Checked;\nexport const f = (): Md => {\n  const m = new Map<string, A>();\n  m.set("k", raw as A);\n  return inlineCode(m.get("k") ?? REJECTED);\n};\n`,
+  b22_map_alias: `${C}\n${P("inlineCode, md, type Md")}\n${RAW}\ntype A = Checked;\nexport const f = (): Md => {\n  const m = new Map<string, A>();\n  m.set("k", raw as A);\n  const v = m.get("k");\n  return v === undefined ? md\`\` : inlineCode(v);\n};\nexport const r = REJECTED;\n`,
   b23_md_direct_call: `${P("md, type Md")}\n${RAW}\nexport const f = (): Md => md([raw] as unknown as TemplateStringsArray);\n`,
 };
 const FIXTURE_DIR = "tests/__fixtures__/brand";
