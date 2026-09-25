@@ -7,7 +7,7 @@ import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load
 import { maskDeep, maskSecrets } from "../security/mask.ts";
 import { escapeRawChars, findRawChars, formatCodePoint } from "../security/raw-chars.ts";
 import { DEFAULT_SECURITY } from "../security/scan.ts";
-import { REJECTED, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
+import { REJECTED, UncheckedValueError, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
 import { DeferredError, InspectionError, decideOutcome } from "../review/outcome.ts";
 import { inspectPacket, type PacketFinding, type PacketInspection, type PacketOptions } from "../review/packet.ts";
 import { ZipError, createStoredZip } from "../review/zip.ts";
@@ -247,6 +247,8 @@ export async function runReviewPacket(options: ReviewPacketOptions): Promise<num
   } catch (err) {
     if (err instanceof InspectionError) return incomplete(err.message, err.findings);
     if (err instanceof ConfigError || err instanceof ZipError || err instanceof WriteError) return fail(err.message);
+    // A value that reached a renderer without the check (M2-1-R3-004): an internal error, reported as review-packet's own.
+    if (err instanceof UncheckedValueError) return fail(err.message);
     if (err instanceof Error && "code" in err) return fail(`write failed: ${err.message}`);
     throw err;
   }

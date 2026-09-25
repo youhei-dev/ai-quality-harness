@@ -24,7 +24,8 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { ResolvedSecurity, VerificationReport } from "../types.ts";
+import { z } from "zod";
+import type { ResolvedSecurity } from "../types.ts";
 import { decodeUtf8Strict, findRawChars, formatCodePoint, isForbiddenCodePoint } from "../security/raw-chars.ts";
 import { findAllowRule, scanString, type ScanFinding } from "../security/scan.ts";
 import { REJECTED, UncheckedValueError, assertChecked, checkValue, settled, type Checked, type Rejected } from "./checked.ts";
@@ -968,7 +969,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
 /** The verify result of <to>, as checked values (rendered by renderVerification only when there is no finding). */
 type Verification =
   | { kind: "absent" }
-  /** Nothing is shown: invalid UTF-8 or a value with a finding (a finding says why), or not JSON (deferred). */
+  /** Nothing is shown: invalid UTF-8 or a value with a finding (a finding says why), or not JSON / another shape (deferred). */
   | { kind: "none" }
   | { kind: "other"; commit: Checked | Rejected | null; dirty: Checked | Rejected }
   | {
@@ -982,26 +983,63 @@ type Verification =
       checks: Array<Record<"name" | "kind" | "required" | "status" | "exitCode" | "durationMs", Checked | Rejected>>;
     };
 
-/** The verify result of <to>; an unreadable latest.json is a deferred error (reported only without findings). */
+/**
+ * The part of latest.json that is rendered for <to> (M2-1-R3-003): objects where properties are read, values of
+ * any type (they are rendered with String). A report of another shape is not rendered (deferred error).
+ */
+const U = z.unknown().optional();
+const RENDERED_REPORT = z.object({
+  verdict: U,
+  exitCode: U,
+  startedAt: U,
+  finishedAt: U,
+  tool: z.object({ name: U, version: U }).nullish(),
+  checks: z.array(z.object({ name: U, kind: U, required: U, status: U, exitCode: U, durationMs: U })).nullish(),
+});
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * The verify result of <to>. latest.json that cannot be read is an InspectionError (exit 2 even with findings);
+ * one that is not JSON, or not of the shape that is rendered, is a deferred error, after its whole text was
+ * checked for raw characters and secret shapes (M2-1-R3-003: a finding in it is reported, exit 1).
+ */
 function readVerification(ck: Checker, root: string, toSha: string, deferred: DeferredError[]): Verification {
   const source = "verification (artifacts/verification/latest.json)";
   const file = path.join(root, "artifacts", "verification", "latest.json");
   if (!existsSync(file)) return { kind: "absent" };
-  const decoded = decode(ck, readFileSync(file), source);
-  if (decoded === null) return { kind: "none" };
-  let report: VerificationReport;
+  let bytes: Buffer;
   try {
-    report = JSON.parse(decoded) as VerificationReport;
-  } catch {
-    deferred.push(new DeferredError("artifacts/verification/latest.json is not valid JSON"));
-    return { kind: "none" };
+    bytes = readFileSync(file);
+  } catch (err) {
+    throw new InspectionError(`cannot read artifacts/verification/latest.json: ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }
-  const commit: unknown = report.git?.commit ?? null;
-  const dirty: unknown = report.git?.dirty ?? null;
+  const decoded = decode(ck, bytes, source);
+  if (decoded === null) return { kind: "none" };
+  const unusable = (reason: string): Verification => {
+    checkText(ck, decoded, source, null);
+    deferred.push(new DeferredError(`artifacts/verification/latest.json ${reason}`));
+    return { kind: "none" };
+  };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoded);
+  } catch {
+    return unusable("is not valid JSON");
+  }
+  // Not an object, no git object, another commit or a dirty tree: "No verify result for <to>" (as before).
+  const git = isRecord(parsed) ? parsed.git : undefined;
+  const commit: unknown = isRecord(git) ? (git.commit ?? null) : null;
+  const dirty: unknown = isRecord(git) ? (git.dirty ?? null) : null;
   if (commit !== toSha || dirty !== false) {
     // latest.json's own values for another commit are rendered like any other value (found by the typed template, M2-1 R2)
     return { kind: "other", commit: commit !== null && commit !== "" ? checkInto(ck, String(commit).slice(0, SHORT), source) : null, dirty: checkInto(ck, String(dirty), source) };
   }
+  const shaped = RENDERED_REPORT.safeParse(parsed);
+  if (!shaped.success) return unusable("does not have the shape of a verify result (tool an object, checks an array of objects)");
+  const report = shaped.data;
   // The rendered table escapes raw characters (M2-1-R1-004), so the values are checked before rendering, as one
   // text (a finding's line is the value's line in it); each value is then Checked on its own for its renderer.
   const values = [report.verdict, report.exitCode, report.tool?.name, report.tool?.version, report.startedAt, report.finishedAt, ...(report.checks ?? []).flatMap((c) => [c.name, c.kind, c.required, c.status, c.exitCode, c.durationMs])];
