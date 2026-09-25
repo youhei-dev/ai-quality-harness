@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-09-15
+最終更新: 2026-09-25
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -136,11 +136,21 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 - テスト件数: 339（v0.3.5）→ 389（v0.4.0）→ 415 → 455 → 466（v0.4.3、v0.4.4 も同じ）。自己 verify 7 チェック PASS
 - 次の段階は **M2-2**（先頭は R3-002〜006）
 
+### M2-2 — 先頭: M2-1 R3 の持ち越し 5 件 — **v0.5.0**（2026-09-25。独立レビュー m2-2-r1 は未実施）
+- M2-1 独立レビュー R3 の Medium 5 件（R3-002〜006）を修正。SP1 で実コードの再現と設計を行い、人間の承認の後に実装した。対応記録 `docs/reviews/m2-1/response-r3.md`
+- R3-002 / R3-003: review-packet の終了コードの優先順位を ADR-0015 に（検査不能 → 検出 → 出力しない判断）。R3-004: `Checked` / `Md` を型情報付きの構造テストと
+  実行時の登録簿で固定。R3-005: `src/cli-program.ts` と `Command` オブジェクトとの比較。R3-006: 型情報付き AST と自己 verify の `unit-minpath`（自己 verify は 8 チェック）
+- テスト件数: 466（v0.4.4）→ 536（v0.5.0、91 ファイル）
+- 次: 独立レビュー m2-2-r1（範囲 `v0.4.4..v0.5.0`。原文と対応記録は `docs/reviews/m2-2/`）、その後は下のバックログの順
+
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
 対象リポジトリに 256 KiB を超える行が無いため後に回す。
+順序の変更（v0.5.0、人間の判断）: 「使い方エラーを exit 2 に揃える」と「review-packet テストの分割・並列化」を M2-0-R4-001 の前へ。前者は ADR-0015 で
+review-packet の終了コードの規則を決めた直後で、同じ文脈で小さく済む。後者は git を多数起動する回帰テストの増加と `unit-minpath`（全テストをもう一度実行）で
+自己 verify の所要時間が伸びたため、review-import の前に抑える。
 1. **M2-1 `aiqh review-packet`**（**完了**。完了ベースライン v0.4.3、記録タグ v0.4.4。R3 の Medium 5 件は M2-2 の先頭〈2〉。仕様は ADR-0014）
-2. **M2-2 の先頭: M2-1 独立レビュー R3 の持ち越し（Medium 5 件。`docs/reviews/m2-1/response-r3.md`）**。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
+2. **M2-2 の先頭: M2-1 独立レビュー R3 の持ち越し（Medium 5 件）— 完了（v0.5.0、ADR-0015。`docs/reviews/m2-1/response-r3.md`）**。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
    確定の直前の判定より後の同時の変更は信頼境界の外（README）。判定と rename を同じ実体に固定する（`openat` 相当）手段が Node の標準 API に無いため、必要になれば
    「確定の各段階の直前に再確認して窓を狭める」案を検討する
    - **M2-1-R3-002**: finding（オプションの値・パス）があるとき、後段の「検査そのものができない状態」（読めない `--request` / `--review`、欠けた git object）が exit 1 に隠れる。
@@ -149,7 +159,11 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
    - **M2-1-R3-004**: `Checked` / `Md` の偽造（`any`・型の別名・`JSON.parse` の代入）を AST で検出する（現在は `as Checked` の文字列検査のみ。現在のソースに該当なし）
    - **M2-1-R3-005**: オプション一覧のテストを help の解析ではなく commander の `Command` オブジェクトの `options` と比べる形にする（非表示・short-only を含める。CLI の組み立てを副作用のない関数に分ける）
    - **M2-1-R3-006**: テストの外部コマンドの検査を AST で行う（単一引用符・変数・テンプレート文字列・`promisify(execFile)` の別名を含める。probe と `it.skipIf` の対応も確かめる）
-3. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+3. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
+   review-packet は v0.4.0 で exit 2 にした）
+4. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
+   git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
+5. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -158,17 +172,13 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-4. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
-5. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+6. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+7. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
    key-value 誤検出の継続記録（下の「内容」）
-6. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
+8. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
    SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
    SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
    実測では `close` がパイプを握る子孫の終了を待つため消えていたが、stdio を手放した子孫には効かない。ARCHITECTURE は今回（v0.3.5）書き換えていない
-7. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
-   git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
-8. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
-   review-packet は v0.4.0 で exit 2 にした）
 9. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
 10. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）

@@ -5,7 +5,31 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.4.4 — M2-1 complete — completion record, R3-002〜006 carried over to M2-2（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.4.4` / `git rev-parse v0.4.4` で確認。最終報告に記載）
+## v0.5.0 — M2-2: M2-1 independent review R3 Medium findings fixed（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.0` / `git rev-parse v0.5.0` で確認し、次の release commit で記入）
+
+- M2-2 の先頭: M2-1 独立レビュー R3 の Medium 5 件（R3-002〜006）を修正。SP1 で 5 件とも実コードで再現してから設計し（人間の承認）、各件の回帰テストの
+  修正前 FAIL を記録した。対応記録 `docs/reviews/m2-1/response-r3.md`（「M2-2 での修正」）
+- M2-1-R3-002: review-packet の終了コードを「検査不能（exit 2。それまでの finding を不完全な一覧として出す）→ 検出（exit 1）→ 出力しない判断（exit 2。finding が
+  無いときだけ）」の順に決める（新しい ADR-0015。ADR-0014 §11 を置換）。finding があっても検査を最後まで続け、finding のある値（文字列でない `Rejected`）に
+  依存する処理だけを飛ばす。`--cwd` の禁止文字と `--label` の形の誤りは検査を止めない。**終了コードが変わる組み合わせ**: オプションの値・パスの finding と
+  検査不能（読めない `--request` / `--review`、作業ツリー外、解決できない ref、欠けた git object、読めない `latest.json`）が 1 → 2、中身・パスの finding と
+  `--cwd` の禁止文字・`--label` の形の誤りが 2 → 1。`--json` は、検査不能のとき `"result": "error"` で `findings` が空でないことがある
+- M2-1-R3-003: JSON として壊れた `latest.json`、または `<to>` の結果として描画するのに形が合わない `latest.json` は、全文を生文字と秘密の形で検査してから
+  出力しない判断にする（形は zod で確認）。読めない `latest.json` は検査不能（`cannot read …`。以前は `write failed` と表示）。`null` などの `latest.json` での
+  内部エラー（`--json` で JSON が出ない、`VERIFY ERROR` と表示）を解消
+- M2-1-R3-004: `Checked` / `Md` の偽造を、型情報付きの構造テスト（`tests/structure/brand-guard.ts`）と、実行時の登録簿（描画関数・`md`・組み立て・ZIP の
+  エントリ名が確かめる）で防ぐ。brand を作るのは `issue` / `REJECTED` / `issueMd` だけ
+- M2-1-R3-005: CLI の組み立てを副作用のない `src/cli-program.ts` に分け、`OPTION_INVENTORY` を review-packet の `Command` オブジェクト（非表示・short-only・
+  位置引数を含む）と比べる。help と使い方エラーの出力は変わらない（13 通りでバイト一致）
+- M2-1-R3-006: テストの外部コマンドを型情報付き AST（`tests/structure/process-guard.ts`）で検査し、PATH を node と git だけにした全テストを自己 verify の
+  新しいチェック `unit-minpath`（`npm run test:minpath`）で実行する。**自己 verify は 8 チェック**
+- パケットの組み立ては変えていない（版の表記が同じ状態で、v0.4.4 と同じ範囲・入力から作ったパケットと ZIP の SHA-256 が一致）
+- 既存テストの期待値の変更は 1 件（`regression-m2-1-r2-007` の「ファイル名の finding + 読めない `--request`」が 1 → 2）。置き換え: `regression-m2-1-r2-checked-inventory` の
+  2 件、`regression-m2-1-r2-004-external-commands`（ファイルごと）
+- テスト 536 件（91 ファイル）。`package.json` version 0.5.0
+- 注記: v0.4.4 の見出しに commit / tag object の SHA を記入し、`docs/reports/M2-1_COMPLETION.md` の空欄も埋めた
+
+## v0.4.4 — commit d21c793 / tag object 07b4cca — M2-1 complete — completion record, R3-002〜006 carried over to M2-2
 
 - 独立レビュー R4（`docs/reviews/m2-1/independent-review-r4.md`）: M2-1-R3-001 は解消、新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-1/response-r4.md`
 - 事前の基準（R<N> で High が無ければ完了）により **M2-1 完了**。完了ベースライン v0.4.3（commit 6cf3199 / tag object 8ee5f54）、完了記録は本タグ

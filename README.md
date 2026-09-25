@@ -27,7 +27,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**M2-1 完了（v0.4.4）。次は M2-2**（`aiqh review-packet`: 完了ベースライン `v0.4.3`、完了記録 `v0.4.4`。独立レビュー R1〜R4 を反映し、R3 の Medium 5 件は M2-2 へ持ち越し。仕様は [ADR-0014](docs/adr/0014-review-packet.md)、総括は [`docs/reports/M2-1_COMPLETION.md`](docs/reports/M2-1_COMPLETION.md)）。M2-0「スキャナ保守」は完了（完了ベースライン `v0.3.3`、記録タグ `v0.3.4`。独立レビュー R1〜R3 を反映し、R4 の 1 件は M2-1 以降へ持ち越し。[`docs/reports/M2-0_COMPLETION.md`](docs/reports/M2-0_COMPLETION.md)）。v0.3.5 で不安定テストを修正し、バックログの順序を review-packet 優先に変更した（「窓走査は正規表現の境界の文脈を保つ」はその後）。M1（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）では`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
+**M2-2 進行中（v0.5.0: M2-1 独立レビュー R3 の Medium 5 件を修正。終了コードの優先順位は [ADR-0015](docs/adr/0015-review-packet-exit-priority.md)、自己 verify は 8 チェック）**。M2-1 は完了（`aiqh review-packet`: 完了ベースライン `v0.4.3`、完了記録 `v0.4.4`。独立レビュー R1〜R4 を反映し、R3 の Medium 5 件は M2-2 の先頭として v0.5.0 で修正。仕様は [ADR-0014](docs/adr/0014-review-packet.md)、総括は [`docs/reports/M2-1_COMPLETION.md`](docs/reports/M2-1_COMPLETION.md)）。M2-0「スキャナ保守」は完了（完了ベースライン `v0.3.3`、記録タグ `v0.3.4`。独立レビュー R1〜R3 を反映し、R4 の 1 件は M2-1 以降へ持ち越し。[`docs/reports/M2-0_COMPLETION.md`](docs/reports/M2-0_COMPLETION.md)）。v0.3.5 で不安定テストを修正し、バックログの順序を review-packet 優先に変更した（「窓走査は正規表現の境界の文脈を保つ」はその後）。M1（完了ベースライン `v0.2.2`、記録タグ `v0.2.3`）では`aiqh verify` の中核（M0、独立レビュー 7 ラウンドを反映した最終版 v0.1.7）に加えて、
 チェックアダプタ、`aiqh init`、内蔵の `aiqh security-scan` を実装し、Node 系と Python 系の対象リポジトリに適用済みです。
 M1 の独立レビュー R1（10 件、High 3）を v0.2.1、R2（5 件、High 1）を v0.2.2 で反映し、R3（5 件、High 0）は M2-0 へ持ち越しました。
 各タグの内容は [`CHANGELOG.md`](CHANGELOG.md)、M0 の総括は [`docs/reports/M0_COMPLETION.md`](docs/reports/M0_COMPLETION.md)、
@@ -42,7 +42,7 @@ M1 の総括は [`docs/reports/M1_COMPLETION.md`](docs/reports/M1_COMPLETION.md)
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
-| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | M2-1 完了（v0.4.4。完了ベースライン v0.4.3） |
+| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.5.0（M2-2: R3 の Medium 5 件を修正。M2-1 完了は完了ベースライン v0.4.3、記録 v0.4.4） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | M2-2 以降予定 |
 | GitHub Actions 再利用ワークフロー | M3 予定 |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
