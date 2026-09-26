@@ -89,3 +89,73 @@ export function checked(value: string): Checked {
   if (!r.ok) throw new Error(`test value does not pass the pre-render check: ${JSON.stringify(r.findings)}`);
   return r.value;
 }
+
+/**
+ * Extra time for something the clean-up stopped to end, beyond its own grace period (M2-2-R5-001). After an abort the
+ * runner sends SIGKILL within its grace period; then only the leader's `close` is left. 5 s is longer than the product's
+ * own waits after SIGKILL (terminateActiveChildren 2 s, the CLI's safety valve 3 s), and the largest bound
+ * (20 s grace + 5 s) stays within hookTimeout (30 s, vitest.config.ts).
+ */
+export const SETTLE_MARGIN_MS = 5_000;
+
+/**
+ * Run a test file's clean-ups newest first, awaiting each, so a run is stopped before its directory is removed
+ * (M2-2-R5-001). Every clean-up runs even if another throws; the first error is thrown afterwards.
+ */
+export async function runCleanups(cleanups: Array<() => void | Promise<void>>): Promise<void> {
+  const errors: unknown[] = [];
+  while (cleanups.length > 0) {
+    try {
+      await cleanups.pop()?.();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  if (errors.length > 0) throw errors[0];
+}
+
+/**
+ * A clean-up for something a test started and may not have seen end (M2-2-R5-001): unless `done` has settled, call
+ * `stop` and wait for `done` at most `ms`; past that, call `onLate` and fail (the clean-up never passes silently).
+ * vitest stops the worker when a test file ends, so a pending run's own timers never fire after a failed test, and a
+ * `finally` in the test does not run on a test timeout; afterEach does. `stop` acts through the runner's
+ * AbortController or the ChildProcess handle, never through a pid read from a file (it may be reused once the
+ * process is gone).
+ */
+export function stopper(done: Promise<unknown>, stop: () => void, ms: number, what: string, onLate?: () => void): () => Promise<void> {
+  let settled = false;
+  const ended = done.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  return async () => {
+    if (settled) return;
+    stop();
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<"late">((resolve) => {
+      timer = setTimeout(() => resolve("late"), ms);
+    });
+    const outcome = await Promise.race([ended.then(() => "ended" as const), late]);
+    clearTimeout(timer);
+    if (outcome === "late") {
+      onLate?.();
+      throw new Error(`clean-up: ${what} did not end within ${ms} ms after it was stopped`);
+    }
+  };
+}
+
+/**
+ * waitForPid, failing as a precondition ("precondition: <what>: …", never a skip) when the process never became ready
+ * (v0.5.6; shared since M2-2-R5-001).
+ */
+export async function waitReady(file: string, ms: number, what: string): Promise<number> {
+  try {
+    return await waitForPid(file, ms);
+  } catch (err) {
+    throw new Error(`precondition: ${what}: ${(err as Error).message}`, { cause: err });
+  }
+}

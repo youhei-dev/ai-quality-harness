@@ -4,39 +4,25 @@
  * two-check config; SIGINT / SIGTERM is sent while check 1 runs. Afterwards: check 2 must not have
  * started, no descendant of check 1 may survive, the exit code is 130 / 143, and the output has no
  * "PASSED". This replaces the R2 test that called terminateActiveChildren() directly.
+ * v0.5.8 (M2-2-R5-001): a CLI still running when the test fails or times out is stopped by the clean-up in afterEach,
+ * before the project directory is removed; no pid read from a file is signalled any more (it may be reused).
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_KILL_GRACE_MS } from "../src/runner/execute.ts";
 import type { VerificationReport } from "../src/types.ts";
-import { assertSignalablePid, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { assertSignalablePid, makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
 
 const CLI = path.resolve(import.meta.dirname, "..", "src", "cli.ts");
-const cleanups: Array<() => void> = [];
-afterEach(() => {
-  // Run every clean-up even if one throws (e.g. the pid guard), then report the first error.
-  const errors: unknown[] = [];
-  while (cleanups.length > 0) {
-    try {
-      cleanups.pop()?.();
-    } catch (err) {
-      errors.push(err);
-    }
-  }
-  if (errors.length > 0) throw errors[0];
-});
+/** The CLI's own bound on its exit after SIGINT / SIGTERM: the grace period, then its safety valve 3 s later (src/cli.ts). */
+const CLI_EXIT_BOUND_MS = DEFAULT_KILL_GRACE_MS + 3_000;
 
-function killIfAlive(pidFile: string): void {
-  if (!existsSync(pidFile)) return;
-  const pid = Number(readFileSync(pidFile, "utf8"));
-  assertSignalablePid(pid);
-  try {
-    process.kill(pid, "SIGKILL");
-  } catch {
-    // already gone
-  }
-}
+const cleanups: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+  await runCleanups(cleanups);
+});
 
 function alive(pid: number): boolean {
   assertSignalablePid(pid);
@@ -64,18 +50,10 @@ interface ScenarioOptions {
 
 function project(options: ScenarioOptions = {}): { dir: string; one: { started: string; pid: string }; two: { started: string; pid: string } } {
   const t = makeTempDir("aiqh-r3-cli-");
+  cleanups.push(t.cleanup);
   const dir = t.dir;
   const one = { started: path.join(dir, "one.started"), pid: path.join(dir, "one.pid") };
   const two = { started: path.join(dir, "two.started"), pid: path.join(dir, "two.pid") };
-  cleanups.push(() => {
-    // The temp dir is removed even when the pid guard in killIfAlive throws.
-    try {
-      killIfAlive(one.pid);
-      killIfAlive(two.pid);
-    } finally {
-      t.cleanup();
-    }
-  });
   // check 1: marks start, records its pid, sleeps; dies on SIGTERM (default) -> the runner moves on quickly.
   // check 2: marks start, records its pid, ignores SIGTERM and lingers -> must never be started.
   // "; true" makes the shell fork node as a grandchild (separate pid from the group leader).
@@ -117,10 +95,15 @@ async function runScenario(signal: "SIGINT" | "SIGTERM", options: ScenarioOption
   cli.stdout.on("data", (d: Buffer) => (output += d.toString()));
   cli.stderr.on("data", (d: Buffer) => (output += d.toString()));
   const exited = new Promise<number | null>((resolve) => cli.on("exit", (code) => resolve(code)));
+  // M2-2-R5-001: if the test fails before the signal below, the clean-up sends the CLI SIGTERM through its handle (nothing
+  // is sent once the CLI has been reaped) and waits for its exit; the CLI's own clean-up ends the checks and writes its
+  // report before the project directory is removed. This relies on the CLI's SIGTERM handling (the path under test): if
+  // that is broken, the SIGKILL and the clean-up error make it visible, and its checks may live out their own lifetime (at most 10 s).
+  cleanups.push(stopper(exited, () => cli.kill("SIGTERM"), CLI_EXIT_BOUND_MS + SETTLE_MARGIN_MS, "the CLI", () => cli.kill("SIGKILL")));
 
-  expect(await waitFor(() => existsSync(one.started), 8000)).toBe(true);
+  expect(await waitFor(() => existsSync(one.started), 8000), "precondition: check 1 did not start within 8000 ms (overloaded machine?)").toBe(true);
   // M2-1: wait for a valid pid, not for the file to exist (see the delayed-write case below).
-  const onePid = await waitForPid(one.pid, 8000);
+  const onePid = await waitReady(one.pid, 8000, "check 1 did not write its pid within 8000 ms (overloaded machine?)");
   await new Promise((r) => setTimeout(r, 100));
   cli.kill(signal);
 

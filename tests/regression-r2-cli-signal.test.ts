@@ -2,15 +2,16 @@
  * Regression tests for independent review R2 — R2-002 (CLI signal path)
  * (docs/reviews/m0/independent-review-r2.md). The CLI's SIGINT / SIGTERM handling must use the
  * same clean-up path: SIGTERM to every active group → grace → SIGKILL → exit.
+ * v0.5.8 (M2-2-R5-001): the run is ended by the clean-up in afterEach when the test fails before terminateActiveChildren().
  */
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { executeCommand, terminateActiveChildren } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { DEFAULT_KILL_GRACE_MS, executeCommand, terminateActiveChildren } from "../src/runner/execute.ts";
+import { makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
 
-const cleanups: Array<() => void> = [];
-afterEach(() => {
-  while (cleanups.length > 0) cleanups.pop()?.();
+const cleanups: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+  await runCleanups(cleanups);
 });
 
 describe("R2-002 terminateActiveChildren (CLI signal path)", () => {
@@ -22,9 +23,13 @@ describe("R2-002 terminateActiveChildren (CLI signal path)", () => {
       `process.on("SIGTERM", () => {}); const fs = require("fs"); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); fs.closeSync(1); fs.closeSync(2); setTimeout(() => {}, 8000)`,
     )}; true`;
 
-    const running = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000 });
+    // M2-2-R5-001: the controller is only for the clean-up (a failure before terminateActiveChildren() below), which aborts
+    // the run through the runner; the function under test is not relied on to clean up after its own failure.
+    const controller = new AbortController();
+    const running = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, signal: controller.signal });
+    cleanups.push(stopper(running, () => controller.abort("clean-up"), DEFAULT_KILL_GRACE_MS + SETTLE_MARGIN_MS, "the run"));
     // M2-1: wait for a valid pid, not for the file to exist (Number("") = 0 would probe our own group).
-    const grandchildPid = await waitForPid(pidFile, 8000);
+    const grandchildPid = await waitReady(pidFile, 8000, "the grandchild was not ready within 8000 ms (overloaded machine?)");
 
     const started = Date.now();
     await terminateActiveChildren(300);

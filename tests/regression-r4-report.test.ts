@@ -4,32 +4,21 @@
  * execution in the report: timedOut and outputTruncated.
  * v0.5.6: the order of the events is observed instead of assumed (under load in the v0.5.5 release verification the
  * child of scenario B was not ready before the 300 ms timeout, so the run settled before the abort).
+ * v0.5.8 (M2-2-R5-001): a run is ended by the clean-up in afterEach when the test fails or times out before its abort.
  */
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
 import { toCheckResult } from "../src/runner/run-checks.ts";
 import type { ResolvedCheck } from "../src/types.ts";
-import { assertSignalablePid, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { assertSignalablePid, makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
 
 /** The runner's timeout counts from spawn: a timeout-triggered scenario needs the child ready well before it. */
 const READY_MARGIN_MS = 3000;
 
-/** waitForPid, naming the precondition when the child never became ready (the timeout ended it first). */
-async function waitReady(file: string): Promise<number> {
-  try {
-    return await waitForPid(file, 10_000);
-  } catch (err) {
-    throw new Error(
-      `precondition: the child was not ready before the ${READY_MARGIN_MS} ms timeout (overloaded machine?): ${(err as Error).message}`,
-      { cause: err },
-    );
-  }
-}
-
-const cleanups: Array<() => void> = [];
-afterEach(() => {
-  while (cleanups.length > 0) cleanups.pop()?.();
+const cleanups: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+  await runCleanups(cleanups);
 });
 
 function check(command: string, cwd: string, timeoutSec: number): ResolvedCheck {
@@ -47,15 +36,18 @@ describe("R4-002 interrupted checks keep timedOut / outputTruncated", () => {
       `const fs = require("fs"); process.on("SIGTERM", () => {}); let out = ""; for (let i = 0; i < 3000; i++) out += "line-" + i + "\\n"; process.stdout.write(out, () => fs.writeFileSync(${JSON.stringify(ready)}, String(process.pid))); setTimeout(() => {}, 30000)`,
     )}; true`;
     const controller = new AbortController();
+    const killGraceMs = 200;
     const pending = executeCommand({
       command,
       cwd: t.dir,
       timeoutMs: 20_000,
-      killGraceMs: 200,
+      killGraceMs,
       maxOutputBytes: 4096,
       signal: controller.signal,
     });
-    await waitForPid(ready, 10_000);
+    // M2-2-R5-001: if the test fails before the abort below, the clean-up aborts the run and waits for it to settle.
+    cleanups.push(stopper(pending, () => controller.abort("clean-up"), killGraceMs + SETTLE_MARGIN_MS, "the run"));
+    await waitReady(ready, 10_000, "the child was not ready within 10000 ms (overloaded machine?)");
     controller.abort("SIGINT");
     const exec = await pending;
     expect(exec.interruptedBy).toBe("SIGINT");
@@ -81,35 +73,29 @@ describe("R4-002 interrupted checks keep timedOut / outputTruncated", () => {
     )}; true`;
     const controller = new AbortController();
     let settled = false;
-    let childPid: number | null = null;
-    cleanups.push(() => {
-      if (childPid === null) return;
-      assertSignalablePid(childPid);
-      try {
-        process.kill(childPid, "SIGKILL");
-      } catch {
-        // already gone
-      }
-    });
+    const killGraceMs = 20_000;
     const pending = executeCommand({
       command,
       cwd: t.dir,
       timeoutMs: READY_MARGIN_MS,
-      killGraceMs: 20_000,
+      killGraceMs,
       signal: controller.signal,
     }).then((r) => {
       settled = true;
       return r;
     });
-    childPid = await waitReady(ready);
-    await waitForPid(term, 10_000);
+    // M2-2-R5-001: a failure before the abort (a precondition below, or a test timeout) leaves the run in its grace period;
+    // the clean-up aborts it and waits for it to settle. A settled run is not signalled (the pid may be reused).
+    cleanups.push(stopper(pending, () => controller.abort("clean-up"), killGraceMs + SETTLE_MARGIN_MS, "the run"));
+    const childPid = await waitReady(ready, 10_000, `the child was not ready before the ${READY_MARGIN_MS} ms timeout (overloaded machine?)`);
+    await waitReady(term, 10_000, "the child did not report the timeout's SIGTERM within 10000 ms (overloaded machine?)");
     expect(settled, "precondition: the run is still in the grace period when the abort is sent").toBe(false);
     controller.abort("SIGINT");
     // End the child ourselves (the runner would SIGKILL it after the grace period); the run settles once the group is gone.
+    // The child is alive here (it ignores SIGTERM, the run has not settled, the runner's SIGKILL is 20 s away), and it is
+    // signalled only here: the clean-up acts through the runner, never on this pid.
     assertSignalablePid(childPid);
     process.kill(childPid, "SIGKILL");
-    // Not signalled again by the clean-up: the pid may be reused once the child is gone.
-    childPid = null;
     const exec = await pending;
     expect(exec.timedOut).toBe(true);
     expect(exec.interruptedBy).toBe("SIGINT");

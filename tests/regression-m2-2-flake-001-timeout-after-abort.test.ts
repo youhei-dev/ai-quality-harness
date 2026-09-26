@@ -6,32 +6,21 @@
  * within 5 s of a Ctrl+C was reported with "timeout had already been reached" (latest.json / latest.md). The status
  * (SKIPPED), the verdict (ERROR) and the exit code (130 / 143) were right. Now the interruption cancels the pending
  * timeout.
+ * v0.5.8 (M2-2-R5-001): the run is ended by the clean-up in afterEach when a precondition fails before the abort.
  */
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
 import { toCheckResult } from "../src/runner/run-checks.ts";
 import type { ResolvedCheck } from "../src/types.ts";
-import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
 
 /** The runner's timeout counts from spawn: the child must be ready, and the abort sent, well before it. */
 const READY_MARGIN_MS = 3000;
 
-/** waitForPid, naming the precondition when the child never became ready (the timeout ended it first). */
-async function waitReady(file: string): Promise<number> {
-  try {
-    return await waitForPid(file, 10_000);
-  } catch (err) {
-    throw new Error(
-      `precondition: the child was not ready before the ${READY_MARGIN_MS} ms timeout (overloaded machine?): ${(err as Error).message}`,
-      { cause: err },
-    );
-  }
-}
-
-const cleanups: Array<() => void> = [];
-afterEach(() => {
-  while (cleanups.length > 0) cleanups.pop()?.();
+const cleanups: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+  await runCleanups(cleanups);
 });
 
 describe("M2-2-FLAKE-001 a timeout that expires after the interruption is not recorded", () => {
@@ -48,14 +37,18 @@ describe("M2-2-FLAKE-001 a timeout that expires after the interruption is not re
     )}; true`;
     const controller = new AbortController();
     const started = performance.now();
+    const killGraceMs = READY_MARGIN_MS + 1000;
     const pending = executeCommand({
       command,
       cwd: t.dir,
       timeoutMs: READY_MARGIN_MS,
-      killGraceMs: READY_MARGIN_MS + 1000,
+      killGraceMs,
       signal: controller.signal,
     });
-    await waitReady(ready);
+    // M2-2-R5-001: if a precondition below fails before the abort, the clean-up aborts the run and waits for it to settle
+    // (vitest stops the worker when the file ends, so the runner's timers would not end the child).
+    cleanups.push(stopper(pending, () => controller.abort("clean-up"), killGraceMs + SETTLE_MARGIN_MS, "the run"));
+    await waitReady(ready, 10_000, `the child was not ready before the ${READY_MARGIN_MS} ms timeout (overloaded machine?)`);
     const abortAt = performance.now() - started;
     expect(abortAt, "precondition: the abort is sent well before the timeout").toBeLessThan(READY_MARGIN_MS - 500);
     controller.abort("SIGINT");
