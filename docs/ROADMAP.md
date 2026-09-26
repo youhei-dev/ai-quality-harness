@@ -136,7 +136,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 - テスト件数: 339（v0.3.5）→ 389（v0.4.0）→ 415 → 455 → 466（v0.4.3、v0.4.4 も同じ）。自己 verify 7 チェック PASS
 - 次の段階は **M2-2**（先頭は R3-002〜006）
 
-### M2-2 — 先頭: M2-1 R3 の持ち越し 5 件 — **v0.5.0**（2026-09-25）／独立レビュー m2-2-r1 の反映 — **v0.5.1**／m2-2-r2 の反映 — **v0.5.2**／m2-2-r3 の記録と区切り — **v0.5.3**／m2-2-r3 の 3 件の修正 — **v0.5.4**／m2-2-r4 の記録と区切り — **v0.5.5**（2026-09-25）
+### M2-2 — 先頭: M2-1 R3 の持ち越し 5 件 — **v0.5.0**（2026-09-25）／独立レビュー m2-2-r1 の反映 — **v0.5.1**／m2-2-r2 の反映 — **v0.5.2**／m2-2-r3 の記録と区切り — **v0.5.3**／m2-2-r3 の 3 件の修正 — **v0.5.4**／m2-2-r4 の記録と区切り — **v0.5.5**（2026-09-25）／テストの不安定の解消と runner の `timedOut` の修正（M2-2-FLAKE-001）— **v0.5.6**（2026-09-26）
 - M2-1 独立レビュー R3 の Medium 5 件（R3-002〜006）を修正。SP1 で実コードの再現と設計を行い、人間の承認の後に実装した。対応記録 `docs/reviews/m2-1/response-r3.md`
 - 持ち越し 5 件の内容（v0.5.4 でバックログの完了済みの項目をこの節へ移した）。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
   確定の直前の判定より後の同時の変更は信頼境界の外（README）。判定と rename を同じ実体に固定する（`openat` 相当）手段が Node の標準 API に無いため、必要になれば
@@ -149,7 +149,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - **M2-1-R3-006**: テストの外部コマンドの検査を AST で行う（単一引用符・変数・テンプレート文字列・`promisify(execFile)` の別名を含める。probe と `it.skipIf` の対応も確かめる）
 - R3-002 / R3-003: review-packet の終了コードの優先順位を ADR-0015 に（検査不能 → 検出 → 出力しない判断）。R3-004: `Checked` / `Md` を型情報付きの構造テストと
   実行時の登録簿で固定。R3-005: `src/cli-program.ts` と `Command` オブジェクトとの比較。R3-006: 型情報付き AST と自己 verify の `unit-minpath`（自己 verify は 8 チェック）
-- テスト件数: 466（v0.4.4）→ 536（v0.5.0、91 ファイル）→ 572（v0.5.1、94 ファイル）→ 593（v0.5.2、95 ファイル）→ 593（v0.5.3、docs だけ）→ 618（v0.5.4、98 ファイル）→ 618（v0.5.5、docs だけ）
+- テスト件数: 466（v0.4.4）→ 536（v0.5.0、91 ファイル）→ 572（v0.5.1、94 ファイル）→ 593（v0.5.2、95 ファイル）→ 593（v0.5.3、docs だけ）→ 618（v0.5.4、98 ファイル）→ 618（v0.5.5、docs だけ）→ 619（v0.5.6、99 ファイル）
 - 独立レビュー m2-2-r1（範囲 `v0.4.4..v0.5.0`。原文と対応記録は `docs/reviews/m2-2/`）: 前回の 5 件は解消 2 / 部分的に解消 3、新しい指摘は
   High 0 / Medium 6 / Low 1。実コードの確認で 6 件を再現した（R1-004 は再現せず: 規則 `widened-renderer` が検出する）
 - v0.5.1: **M2-2-R1-007 を人間の判断で High として扱い修正**（読めない `latest.json` を `existsSync()` で「無い」とし、exit 0 で「does not exist」と
@@ -180,6 +180,24 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 - v0.5.5（docs だけ）: 完了基準「High が無ければ区切り、Medium 以下はバックログへ」により、**出力の出口の強化（v0.5.2〜v0.5.4、R2〜R4）をここで区切り**。
   R4 の記録（`docs/reviews/m2-2/response-r4.md`）、ADR-0017 の既知の限界に 2 件を追記（「`node:vm` を検出する」と読める記述を、import の検出と直した）、
   R4 の 2 件と構造ガードの既知の限界をバックログの 2・3 へ。リリースの検証で見つかった unit-minpath の不安定なテストを先頭（1）へ
+- v0.5.6: **バックログ 1（unit-minpath のテストの不安定）を解消し、その調査で見つけた runner の不具合 M2-2-FLAKE-001 を直した**（SP1 で原因を実測で確定して設計し、
+  人間の承認の後に実装）
+  - 不安定の原因（確定）: 負荷の下で、子が SIGTERM を無視する処理を登録する前に 300ms のタイムアウトの SIGTERM で終わり、600ms の中断の前に結果が確定して
+    `interruptedBy` が null になった。テストの前提（子の準備が短いタイムアウトより前）の崩れだけで説明でき、同じ前提を持つテストは 4 ファイル 5 件だった
+    （`regression-r2-cli-signal.test.ts` は子の準備完了の印を待ってから始めるので直さない）
+  - M2-2-FLAKE-001: 中断の後、後始末の猶予の間にタイムアウトの時刻が来ると `timedOut` が true になった（ARCHITECTURE の R4-002 の定義「中断前にタイムアウトへ
+    到達していたか」に合わない。既定の猶予 5 秒でも起き、`latest.json`・`latest.md` に「timeout had already been reached」と書かれた。status・verdict・終了コードは
+    正しかった）。中断のときにタイムアウトのタイマーを止める（`src/runner/execute.ts` に 1 行）。ほぼ同時のときは runner のイベントループで先に処理した方を先とする。
+    回帰テスト `tests/regression-m2-2-flake-001-timeout-after-abort.test.ts`（修正前に 5 回とも FAIL）
+  - テストの方針（各テストの冒頭のコメント）: 中断が引き金のテストは、子の準備完了の印を待ってから中断する。タイムアウトが引き金のテストは、runner のタイムアウトが
+    spawn から数えるので子の準備に 3 秒の余裕を置き、前提が崩れたときは「precondition: …」の文言で FAIL する（SKIP にしない）。r4 の B は、子がタイムアウトの SIGTERM を
+    受けた印を見てから中断し、テストが子を終わらせる
+  - 確かめ: (a) 子の準備を人為的に遅らせた写し（tmp の中だけ）で、v0.5.5 の 5 件は 1200ms の遅れで 5 回とも FAIL、直した 5 件は 0ms・1200ms で 5 回とも PASS、回帰テストは
+    修正前に FAIL・修正後に PASS。3500ms（余裕を超える）では、タイムアウトが引き金の 4 件と回帰テストが前提の文言で FAIL（中断が引き金の A は PASS）。(b) 起動の嵐 16 の下で、
+    直した 4 ファイルと回帰テストを 1 ファイルずつ 393 回（各 76〜82 回。通常 PATH 35〜40 回、最小 PATH 38〜42 回）実行して失敗 0（v0.5.5 のテストは同じ条件で
+    `regression-r4-report.test.ts` が 67 回中 3 回失敗）
+  - この方針の後も不安定が残ったときの次の手は、runner の時計とタイマーを差し替えられるようにすること（SP1 の案 D。`src/` の変更）
+  - ARCHITECTURE の R4-002 の項: ほぼ同時のときの決め方、出力の末尾の文言（プロセスグループが終わるまでに取得した出力。実装に合わせた）、exit と close の間の中断の今の挙動
 - 次: バックログから選ぶ（未定）
 
 ### M2-1 以降のバックログ（上から順に扱う）
@@ -194,19 +212,22 @@ review-packet の終了コードの規則を決めた直後で、同じ文脈で
 （3 件とも v0.5.4 で完了し、バックログから外した）。verify の check への `NO_COLOR` を「ファイルへの出力の禁止文字」の直後（v0.5.5 の番号で 11）へ。既存の項目の順序は変えていない。
 順序の変更（v0.5.5、人間の判断）: M2-2 独立レビュー R4 の Medium 2 件を先頭へ（v0.5.5 の番号で 2・3）。3 には ADR-0017 の既知の限界（v0.5.4 の SP2 報告で次の docs の版で足すとしたもの）を含めた。既存の項目の順序は変えていない。
 順序の変更（v0.5.5 のリリースの検証、人間の判断）: unit-minpath の不安定なテストを先頭（1）へ。R4 の 2 件は 2・3 になった。既存の項目の順序は変えていない。
-1. **テストの不安定（unit-minpath）: `tests/regression-r4-report.test.ts` の「R4-002 interrupted checks keep timedOut / outputTruncated > timedOut stays true
-   when an abort overlaps a timeout」**。起きたこと: 負荷の高いとき（負荷平均 71〜82、8 コア）に FAIL する。v0.5.5 のリリースの検証で 7 回中 2 回、`exec.interruptedBy` が
-   null だった（`docs/reviews/m2-2/response-r4.md`）。着手時にやること: 負荷の下で、子プロセスが SIGTERM を無視する処理を登録し終えるまでの時間を測り、原因を確定する。
-   `src/runner/execute.ts` 側の不具合でないことを確かめる。子の準備完了の印を待ってから時間を測る形などに直す。同じく短いタイムアウトを使う 4 ファイル
-   （`execute.test.ts`、`regression-r1-runner.test.ts`、`regression-r2-runner.test.ts`、`regression-r4-report.test.ts`）も確認する。先頭に置く理由: 自己 verify（品質のゲート）の
-   信頼性に関わるため
-2. **M2-2-R4-001（Medium）: `safeJson()` の入力を JSON のデータに限る**。関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object
+順序の変更（v0.5.6、人間の判断）: 1（テストの不安定）を v0.5.6 で解消して外した（記録は上の M2-2 の節）。R4 の 2 件は 1・2 になった。v0.5.6 の調査で見つけた kill の EPERM の
+経路を 3 に足した。4 以降の番号は変わらない。ADR-0017 と ARCHITECTURE の参照は v0.5.6 の番号に直した。CHANGELOG の過去の版の項と `docs/reviews/` の番号は当時の番号のまま。
+1. **M2-2-R4-001（Medium）: `safeJson()` の入力を JSON のデータに限る**。関数・`symbol`・`bigint`・`toJSON` を持つ値・プロトタイプが普通でない object
    （`Object.prototype` / null 以外）は、fail closed で拒否する（v0.5.5 で確認: 自分の `toJSON` に関数の値があると `JSON.stringify()` がそれを呼び、戻り値は表記・mask を
    通らずに出る。今の各コマンドの `--json` は JSON のデータだけ。`docs/reviews/m2-2/response-r4.md`、ADR-0017 の既知の限界）
-3. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
+2. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
    と、同じ種類（`process.dlopen`、`process.report.writeReport("stdout")` など。v0.5.5 の洗い出し、`docs/reviews/m2-2/response-r4.md`）を同じ規則で検査する。process の
    書き出す関数（`emitWarning` など）の禁止も含む。既知の限界の `worker_threads`、`node:repl`・`node:test`、`tty.WriteStream(fd)`、`util.debuglog`、実行時に組み立てた
    パスへの fs の書き込みも、この項目で扱う。今の `src/` は 6 つ（child_process・crypto・fs・path・string_decoder・zlib）だけを読み込み、どの方法も使わない
+3. **kill の EPERM で `spawnError` になり、早く確定する経路**（v0.5.6 の調査で見つけた。読み取りだけで、未再現）。グループへの kill が EPERM で失敗すると、子への直接の
+   kill（`src/runner/execute.ts` の `killTree` の `child.kill()`）に落ち、これも EPERM だと Node は `error` イベントを出す。その処理が `spawnError: "spawn failed: kill EPERM"`
+   で結果を確定するので、グループが残っていても確定する（グループの中に signal を送れないプロセスがあり、先頭にも送れないときだけ）。fail closed は緩めない（中断なら
+   SKIPPED、タイムアウトなら FAIL。verdict・終了コードは変わらない）。直すときの設計: 子への直接の kill を `process.kill(child.pid, signal)`（例外を try/catch で受ける）に
+   変え、`error` イベントを spawn の失敗だけに限る（`groupAlive` が EPERM を「生きている」と数えるので、SIGKILL を送るまで確定しない）。直すときの注意: signal を送れない
+   プロセスが出力の pipe を持ち続けると `close` が来ず確定しない。中断なら CLI の安全弁（猶予 + 3 秒）で終わるが、タイムアウトの経路には安全弁が無いので、合わせて設計する。
+   回帰テストには別のユーザーのプロセスが要る
 4. **M2-2-R1-002（Medium）: オプション一覧に short 別名を含める**。一覧と `Command` オブジェクトの比較は `attributeName`・位置引数・値の有無だけを見るため、
    `-o` → `-p` の変更や `-c` の削除を検出しない（v0.5.1 で確認）。一覧に long と short の対応を持たせ、`Command` の `short` / `long` / `flags` と比べる
 5. **M2-2-R1-003（Medium）: probe を 1 ツール = 1 変数に制限する**。1 つの変数に python3 と unzip の probe を OR で混ぜると、その `skipIf` の中の python3 の起動を

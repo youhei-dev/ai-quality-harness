@@ -428,7 +428,13 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   コードポイント境界に揃えるため、保持量は上限より**最大 3 バイト少なくなる**ことがある（R5-004、v0.1.5）。
 - **中断されたチェックのレポート項目（R4-002）**: 中断されたチェックは `status: "SKIPPED"` だが、実行の事実は保持する。
   `timedOut` は「中断前にタイムアウトへ到達していたか」、`outputTruncated` は「取得済み出力が上限（メモリ 10MiB / 末尾 200 行 64KB）で
-  切り詰められたか」を表し、`stdoutTail` / `stderrTail` は中断時点までの末尾。`errorSummary` に中断理由（シグナル名）を書く
+  切り詰められたか」を表し、`stdoutTail` / `stderrTail` はプロセスグループが終わるまでに取得した出力の末尾（中断の後、後始末の猶予の間の出力を含む。v0.5.6 で
+  実装に合わせて文言を直した）。`errorSummary` に中断理由（シグナル名）を書く。
+  タイムアウトと中断がほぼ同時のときは、runner のイベントループで先に処理した方を先とする（中断を先に処理すると、まだ来ていないタイムアウトは取り消され、
+  記録されない。`timedOut: true` は runner がタイムアウトの処理〈SIGTERM〉を実際に行ったことと一致する。v0.5.6、M2-2-FLAKE-001）
+- **exit と close の間の中断**: `executeCommand` は子の `exit` ではなく `close`（標準出力・標準エラーが閉じた後）で結果を確定する。そのため、子が OS の上では
+  終わっていても、runner が `close` を処理する前に中断が来たチェックは、中断されたチェックとして SKIPPED になる（終了コードは記録しない）。安全側で、
+  verdict は中断により ERROR になる。挙動は変えない（v0.5.6 で明記）
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
   祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。
@@ -449,7 +455,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
   v0.5.5 で追記（M2-2 独立レビュー R4）: `safeJson()` は JSON のデータでない値を処理しない（自分の `toJSON` の関数の戻り値は表記・mask を通らない。今の各コマンドの
   `--json` は JSON のデータだけ）。構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 2・3
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 1・2（v0.5.6 の番号。v0.5.5 では 2・3）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
