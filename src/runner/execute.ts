@@ -152,6 +152,9 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     const onAbort = (): void => {
       if (interruptedBy !== null) return;
       interruptedBy = abortReason(options.signal);
+      // R4-002: timedOut of an interrupted command means "the timeout was reached before the
+      // interruption". A timeout that would expire during the clean-up after it is not recorded.
+      clearTimeout(timeoutTimer);
       escalate();
     };
     options.signal?.addEventListener("abort", onAbort, { once: true });
