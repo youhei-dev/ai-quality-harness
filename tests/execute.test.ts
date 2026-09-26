@@ -81,6 +81,9 @@ describe("executeCommand", () => {
   });
 
   it("times out and kills the whole process group, including grandchildren", async () => {
+    // Timing policy (v0.5.6): the timeout is the trigger and counts from spawn, so the grandchild gets a 3 s readiness
+    // margin and a missed margin fails with a "precondition: …" message (never a skip).
+    const readyMarginMs = 3000;
     const dir = tempDir();
     const pidFile = path.join(dir, "grandchild.pid");
     // `; true` forces the shell to fork node as a grandchild instead of exec-ing it.
@@ -89,12 +92,12 @@ describe("executeCommand", () => {
     )}; true`;
 
     const started = Date.now();
-    const r = await executeCommand({ command, cwd: dir, timeoutMs: 800, killGraceMs: 500 });
+    const r = await executeCommand({ command, cwd: dir, timeoutMs: readyMarginMs, killGraceMs: 500 });
     const elapsed = Date.now() - started;
 
     expect(r.timedOut).toBe(true);
     expect(elapsed).toBeLessThan(10_000);
-    expect(existsSync(pidFile)).toBe(true);
+    expect(existsSync(pidFile), `precondition: the grandchild was ready before the ${readyMarginMs} ms timeout (overloaded machine?)`).toBe(true);
 
     // M2-1: never pass an empty / half-written pid file (Number("") = 0) to process.kill.
     const grandchildPid = await waitForPid(pidFile, 2000);
