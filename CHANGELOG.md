@@ -5,7 +5,28 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.6 — M2-2: the unit-minpath flake fixed; an interruption cancels the pending timeout (M2-2-FLAKE-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.6` / `git rev-parse v0.5.6` で確認し、次の release commit で記入）
+## v0.5.7 — M2-2: independent review R5 — the flake and M2-2-FLAKE-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.7` / `git rev-parse v0.5.7` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r5（`docs/reviews/m2-2/independent-review-r5.md`、ChatGPT、範囲 v0.5.5..v0.5.6）: 前回の指摘で判定の対象は無し（M2-2-R4-001・002 はバックログのまま）。
+  新しい指摘は High 0 / Medium 1 / Low 1。対応記録 `docs/reviews/m2-2/response-r5.md`
+  - M2-2-R5-001: テストの前提が崩れて失敗したとき、実行中の `executeCommand()` を止める後始末が無い箇所がある（`regression-r4-report.test.ts` のシナリオ A の
+    準備の待ち〈失敗の文言も「precondition: …」でない〉、M2-2-FLAKE-001 の回帰テストの前提の assert）
+  - M2-2-R5-002: ARCHITECTURE の `stdoutTail` / `stderrTail` の文言「プロセスグループが終わるまでに取得した出力」が、実装の確定の条件（グループの消滅、または
+    SIGKILL の送信）より強い
+- 区切る前に R5-001 の前提を実測した（再現した。High の基準には当たらない）: 一時 worktree の写しで子の準備を遅らせると、シナリオ A は「precondition: …」でない
+  文言で失敗し、どちらのテストも中断に届かない。vitest はテストファイルが終わるとワーカーを止めるので、runner のタイムアウト・猶予も働かず、子は自分の寿命まで
+  残った（M2-2-FLAKE-001 の回帰テストで約 30 秒。vitest の終了の後も）。寿命を超えては残らず、全体の実行 2 回でほかの 617 件の結果は変わらなかった。
+  `tests/` 全体の同じ種類の箇所も表にした
+- ARCHITECTURE の runner の節の 3 か所を実装の確定の条件に合わせた（出力の末尾は stdout / stderr が閉じるまでに取得した出力。runner は `close` の後、グループの
+  消滅または SIGKILL の送信で確定し、SIGKILL の後はグループの消滅を待たない）。§10 の表の「消滅確認の後に終了」はバックログ 18 のまま
+- v0.5.6 の SP2 で観測した r4 の B の 23 秒の 1 回（393 回中 1 回、失敗ではない）を、response-r5 とバックログ 18（SIGKILL の経路のグループの消滅の確認）に記録した
+- ROADMAP: M2-2-R5-001 をバックログの先頭（1）へ。既存の項目は 2〜20 に（v0.5.6 の 1〜19）。ADR-0017・ARCHITECTURE・M2-2 の節の番号の参照を直した
+  （過去の版の項と `docs/reviews/` は当時の番号のまま）
+- 完了基準「High が無ければ区切り、Medium 以下はバックログへ」により、テストの不安定と M2-2-FLAKE-001 の作業（v0.5.6、独立レビュー R5）をここで区切る
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 619 件（99 ファイル）。`package.json` version 0.5.7（`package-lock.json` は変えていない）
+- 注記: v0.5.6 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.6 — commit 6def387 / tag object 0efff5c — M2-2: the unit-minpath flake fixed; an interruption cancels the pending timeout (M2-2-FLAKE-001)
 
 - **M2-2-FLAKE-001（runner の不具合）を修正**: 中断されたチェックの `timedOut` は「中断前にタイムアウトへ到達していたか」（ARCHITECTURE、R4-002）だが、runner は
   タイムアウトのタイマーを結果の確定のときにだけ止めていたため、中断の後、後始末の猶予（既定 5 秒）の間にタイムアウトの時刻が来ると true になった（R4-002 を実装した v0.1.3 から）。
