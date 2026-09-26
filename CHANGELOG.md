@@ -5,7 +5,29 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.7 — M2-2: independent review R5 — the flake and M2-2-FLAKE-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.7` / `git rev-parse v0.5.7` で確認し、次の release commit で記入）
+## v0.5.8 — M2-2: tests end what they start on failure paths (M2-2-R5-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.8` / `git rev-parse v0.5.8` で確認し、次の release commit で記入）
+
+- **M2-2-R5-001（Medium、独立レビュー m2-2-r5）を修正**（`tests/` だけ。製品のコードは変えていない）: テストが途中で失敗すると、実行中の `executeCommand()`・CLI を
+  止める処理に届かない箇所があった。vitest はテストファイルが終わるとワーカーを止めるので runner のタイマーは働かず、子は自分の寿命まで残った（M2-2-FLAKE-001 の
+  回帰テストで約 30 秒）。テストのタイムアウトではテストの中の `finally` も当てにならない（ファイルの最後のテストでは実行されず、途中のテストでは次のテストの実行中に
+  遅れて実行される）ので、後始末を `afterEach` に置いた
+  - `tests/helpers.ts`: `runCleanups`・`stopper`・`waitReady`・`SETTLE_MARGIN_MS`（5 秒）。止めた相手の確定を猶予 ＋ 5 秒まで待ち、超えたらテストを失敗にする。
+    止めるのは runner の AbortController か ChildProcess の handle だけで、ファイルから読んだ pid には signal を送らない
+  - 直したテスト: `regression-r4-report`（A・B）、`regression-m2-2-flake-001-timeout-after-abort`、`regression-r2-cli-signal`（後始末のためだけの AbortController）、
+    `regression-r3-cli`（CLI を SIGTERM で止めて終了を待つ）。準備の待ちの失敗は「precondition: …」の文言にした。r3-cli の `afterEach` が PASS の回にも消えた後の
+    pid へ送っていた SIGKILL と、r4 の B の後始末の SIGKILL（確定の後に消えた pid へ届いていた）をやめた
+  - r3-cli が失敗すると、孤立した CLI が消された一時ディレクトリを作り直してレポートを書き、`$TMPDIR/aiqh-r3-cli-*` が残っていた（SP1 で発見）。これも直った
+  - 新しい単体テスト `tests/regression-m2-2-r5-001-test-cleanup.test.ts`（M2-2-R5-001、5 件）: 変更前の helpers では 5 件とも FAIL
+  - 確かめ（写しで準備を遅らせる・テスト側で待つ 9 ケース。本体のテストに仕掛けは入れていない）: 修正前は失敗から約 2〜30 秒、vitest の終了後も最長約 30 秒残って
+    いた子・孫・CLI が、修正後はすべてそのテストの `afterEach` の中で消えた。一時ディレクトリの残り 0、消えた pid への signal 0。後始末の待ちが最も長い r4 の B でも
+    20.0 秒（上限 25 秒、`hookTimeout` 30 秒）
+  - 製品の動きの期待値（assert の値）は変えていない
+- docs: ARCHITECTURE の runner の項目の終わりに、テストの後始末の方針を書いた。response-r5 に対応の記録。ROADMAP: バックログ 1 を外し、2〜20 → 1〜19、テストの
+  後始末の残り（低）を 20 に足した。ADR-0017・ARCHITECTURE・M2-2 の節の番号の参照を直した（過去の版の項と `docs/reviews/` は当時の番号のまま）
+- テスト 624 件（100 ファイル。619 ＋ 新しい単体テスト 5）。`package.json` version 0.5.8（`package-lock.json` は変えていない）
+- 注記: v0.5.7 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.7 — commit 16927aa / tag object 142e04a — M2-2: independent review R5 — the flake and M2-2-FLAKE-001 work is closed (docs only)
 
 - 独立レビュー m2-2-r5（`docs/reviews/m2-2/independent-review-r5.md`、ChatGPT、範囲 v0.5.5..v0.5.6）: 前回の指摘で判定の対象は無し（M2-2-R4-001・002 はバックログのまま）。
   新しい指摘は High 0 / Medium 1 / Low 1。対応記録 `docs/reviews/m2-2/response-r5.md`
