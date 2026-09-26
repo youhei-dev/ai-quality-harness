@@ -437,6 +437,10 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **exit と close の間の中断**: `executeCommand` は子の `exit` ではなく `close`（標準出力・標準エラーが閉じた後）で結果を確定する。そのため、子が OS の上では
   終わっていても、runner が `close` を処理する前に中断が来たチェックは、中断されたチェックとして SKIPPED になる（終了コードは記録しない）。安全側で、
   verdict は中断により ERROR になる。挙動は変えない（v0.5.6 で明記）
+- **テストの後始末（v0.5.8、M2-2-R5-001）**: テストの後始末は、失敗・タイムアウトの経路でも `afterEach` の中で終える（ワーカーの寿命に任せない。vitest は
+  テストファイルが終わるとワーカーを止めるので、実行中の runner のタイマーは働かず、テストのタイムアウトではテストの中の `finally` も実行されない）。
+  止めるのは runner の AbortController か ChildProcess の handle だけで、ファイルから読んだ pid には signal を送らない（`tests/helpers.ts` の `stopper`・
+  `runCleanups`。止めた相手の確定は、その猶予 ＋ 5 秒まで待ち、超えたらテストを失敗にする）
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
   祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。
@@ -457,7 +461,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
   v0.5.5 で追記（M2-2 独立レビュー R4）: `safeJson()` は JSON のデータでない値を処理しない（自分の `toJSON` の関数の戻り値は表記・mask を通らない。今の各コマンドの
   `--json` は JSON のデータだけ）。構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 2・3（v0.5.7 の番号。v0.5.6 では 1・2）
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 1・2（v0.5.8 の番号。v0.5.7 では 2・3）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
