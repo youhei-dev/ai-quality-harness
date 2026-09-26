@@ -392,14 +392,15 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   2. タイムアウト → グループへ SIGTERM（leader の生死にかかわらず `kill(-pgid)`）
   3. 猶予（既定 5 秒、`killGraceMs`）→ グループへ SIGKILL
   4. 「SIGKILL 送信済み」または `kill(-pgid, 0)` が ESRCH（グループ消滅）を返すまで、runner の Promise は解決しない。
-     leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、後始末が完了するまで待つ）
+     leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、SIGKILL の送信かグループの消滅まで待つ。SIGKILL の送信で解決するときは、
+     グループの消滅を確かめない。v0.5.7 で文言を実装に合わせた）
   5. エスカレーション待ちのタイマーは `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
 - **中断機構（R3-002）**: SIGINT / SIGTERM を受けた CLI は次の順で動く。
   1. `AbortController.abort(<シグナル名>)` で中断状態を立てる。この `AbortSignal` は `runVerify → runChecks → executeCommand`
      に渡されており、`runChecks` は各チェックの開始前に、`executeCommand` は spawn の直前と直後に中断を確認する。
      中断後に新しいプロセスが起動することはない
-  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認。
-     実行中の `executeCommand` 自身も abort を受けて同じエスカレーションを行う）
+  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認〈最大 2 秒〉。
+     実行中の `executeCommand` 自身も abort を受けて SIGTERM → 猶予 → SIGKILL を行い、上の 4 の条件で確定する〈SIGKILL の後の消滅は確かめない〉）
   3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
      `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する。
      未実行チェックは開始表示（`$ <command>`）を出さず `[n/total] name — SKIPPED (reason)` とだけ表示する（R4-003）
@@ -428,8 +429,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   コードポイント境界に揃えるため、保持量は上限より**最大 3 バイト少なくなる**ことがある（R5-004、v0.1.5）。
 - **中断されたチェックのレポート項目（R4-002）**: 中断されたチェックは `status: "SKIPPED"` だが、実行の事実は保持する。
   `timedOut` は「中断前にタイムアウトへ到達していたか」、`outputTruncated` は「取得済み出力が上限（メモリ 10MiB / 末尾 200 行 64KB）で
-  切り詰められたか」を表し、`stdoutTail` / `stderrTail` はプロセスグループが終わるまでに取得した出力の末尾（中断の後、後始末の猶予の間の出力を含む。v0.5.6 で
-  実装に合わせて文言を直した）。`errorSummary` に中断理由（シグナル名）を書く。
+  切り詰められたか」を表し、`stdoutTail` / `stderrTail` は stdout / stderr が閉じる（`close`）までに取得した出力の末尾（中断の後、後始末の猶予の間に
+  取得できた出力を含む。runner は `close` の後、プロセスグループの消滅、または SIGKILL の送信で結果を確定し、SIGKILL の送信で確定するときはグループの消滅を
+  待たない。v0.5.6・v0.5.7 で実装に合わせて文言を直した）。`errorSummary` に中断理由（シグナル名）を書く。
   タイムアウトと中断がほぼ同時のときは、runner のイベントループで先に処理した方を先とする（中断を先に処理すると、まだ来ていないタイムアウトは取り消され、
   記録されない。`timedOut: true` は runner がタイムアウトの処理〈SIGTERM〉を実際に行ったことと一致する。v0.5.6、M2-2-FLAKE-001）
 - **exit と close の間の中断**: `executeCommand` は子の `exit` ではなく `close`（標準出力・標準エラーが閉じた後）で結果を確定する。そのため、子が OS の上では
@@ -455,7 +457,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
   v0.5.5 で追記（M2-2 独立レビュー R4）: `safeJson()` は JSON のデータでない値を処理しない（自分の `toJSON` の関数の戻り値は表記・mask を通らない。今の各コマンドの
   `--json` は JSON のデータだけ）。構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 1・2（v0.5.6 の番号。v0.5.5 では 2・3）
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。どちらも ROADMAP のバックログの 2・3（v0.5.7 の番号。v0.5.6 では 1・2）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
