@@ -5,7 +5,31 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.5 — M2-2: independent review R4 — the output boundary work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.5` / `git rev-parse v0.5.5` で確認し、次の release commit で記入）
+## v0.5.6 — M2-2: the unit-minpath flake fixed; an interruption cancels the pending timeout (M2-2-FLAKE-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.6` / `git rev-parse v0.5.6` で確認し、次の release commit で記入）
+
+- **M2-2-FLAKE-001（runner の不具合）を修正**: 中断されたチェックの `timedOut` は「中断前にタイムアウトへ到達していたか」（ARCHITECTURE、R4-002）だが、runner は
+  タイムアウトのタイマーを結果の確定のときにだけ止めていたため、中断の後、後始末の猶予（既定 5 秒）の間にタイムアウトの時刻が来ると true になった（R4-002 を実装した v0.1.3 から）。
+  中断のときにタイマーを止める（`src/runner/execute.ts` の `onAbort` に 1 行）。タイムアウトと中断がほぼ同時のときは、runner のイベントループで先に処理した方を先とする
+  - 影響の範囲: 中断の後の猶予の間にタイムアウトの時刻が来る場合だけ、その check の `timedOut`（true → false）、errorSummary（「; timeout had already been reached」が
+    消える）、`latest.md`（「- Timed out after Ns」の行が出なくなり、Summary の文も同じく変わる）、CLI の SKIP の行の理由の文が変わる。status（SKIPPED）・verdict（ERROR）・
+    終了コード（130 / 143）は変わらない
+  - 回帰テスト `tests/regression-m2-2-flake-001-timeout-after-abort.test.ts`（M2-2-FLAKE-001）: 修正前に 5 回とも FAIL（`exec.timedOut` が true）、修正後に 5 回とも PASS
+- **テストの不安定（v0.5.5 のバックログ 1、unit-minpath）を解消**: 原因は確定（負荷の下で、子が SIGTERM を無視する処理を登録する前に 300ms のタイムアウトの SIGTERM で
+  終わり、600ms の中断の前に結果が確定した）。同じ前提（子の準備が短いタイムアウトより前）を持つ 4 ファイル 5 件を、事象の順を観測で決める形に直した: 中断が引き金の
+  テストは子の準備完了の印を待ってから中断し、タイムアウトが引き金のテストは子の準備に 3 秒の余裕を置き、前提が崩れたら「precondition: …」の文言で FAIL する（SKIP に
+  しない）。`regression-r4-report.test.ts` の B は、子がタイムアウトの SIGTERM を受けた印を見てから中断する。製品の動きの期待値は変えていない（足した assert は A の
+  `exec.timedOut` が false、B の status SKIPPED と errorSummary）
+  - (a) 子の準備を人為的に遅らせた写し（tmp の中だけ）: v0.5.5 の 5 件は 1200ms の遅れで 5 回とも FAIL、直した 5 件は 0ms・1200ms で 5 回とも PASS（修正の前後とも）、
+    3500ms（余裕を超える）ではタイムアウトが引き金の 4 件と回帰テストが前提の文言で FAIL
+  - (b) 起動の嵐 16（`node -e 0` を繰り返し起動する子 16 本）の下で、直した 4 ファイルと回帰テストを 1 ファイルずつ 393 回（各 76〜82 回。通常 PATH 35〜40 回、
+    最小 PATH 38〜42 回）実行して失敗 0（v0.5.5 のテストは同じ条件で `regression-r4-report.test.ts` が 67 回中 3 回失敗）
+- docs: ARCHITECTURE の R4-002 の項に、ほぼ同時のときの決め方、exit と close の間の中断の今の挙動（終わっていた check も SKIPPED、verdict は ERROR）を書き、出力の末尾の
+  文言を実装に合わせた（中断時点まで → プロセスグループが終わるまでに取得した出力。後始末の猶予の間の出力を含む）。ROADMAP: バックログ 1 を外し、R4 の 2 件を 1・2 へ、
+  調査で見つけた kill の EPERM の経路を 3 へ（4 以降は変わらない）。ADR-0017 と ARCHITECTURE の番号の参照を直した（過去の版の項と `docs/reviews/` は当時の番号のまま）
+- テスト 619 件（99 ファイル）。`package.json` version 0.5.6（`package-lock.json` は変えていない）
+- 注記: v0.5.5 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.5 — commit ea03fc6 / tag object 85ede6d — M2-2: independent review R4 — the output boundary work is closed (docs only)
 
 - 独立レビュー m2-2-r4（`docs/reviews/m2-2/independent-review-r4.md`、ChatGPT、範囲 v0.5.3..v0.5.4）: 前回の 3 件は R3-001 が解消、R3-002・R3-003 が部分的に解消。
   新しい指摘は High 0 / Medium 2 / Low 0。対応記録 `docs/reviews/m2-2/response-r4.md`
