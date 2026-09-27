@@ -3,7 +3,8 @@
  * aiqh writes to standard output or standard error goes through here. Forbidden raw characters (raw-chars.ts: C0
  * controls other than TAB and LF, DEL, C1 controls, U+2028 / U+2029, the bidi controls, U+FEFF) first become the ASCII
  * notation `\u{HEX}`, then the masker redacts secret shapes (it is idempotent, so text a command masked already is
- * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002).
+ * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002), and only
+ * JSON data is accepted: anything else is refused before printing (M2-2-R4-001).
  * One written line is one line (M2-2-R3-001): LF and TAB in a line become notation as well, so a value embedded in it (a
  * path, a file name, an error message, a line of a check's output) cannot start a line or a column of its own. A
  * command's own multi-line text — the proposed config, the details of a config error, commander's help and messages —
@@ -54,28 +55,74 @@ export function safeText(s: string, shape: TextShape = "line"): Safe {
   return maskSecrets(shape === "line" ? escapeRawChars(s) : s.split("\n").map(escapeRawChars).join("\n")) as Safe;
 }
 
-/**
- * A copy of a JSON value in which every string — object keys included (M2-2-R3-002) — is escaped, then masked. Two keys
- * of one object that become the same string are an error, never a merge (fail closed: nothing is printed; the CLI
- * reports it as an unexpected error, exit 2). The objects of the copy have no prototype, so a key such as "__proto__"
- * stays a key.
- */
-function jsonSafe(value: unknown, mode: LineMode): unknown {
-  if (typeof value === "string") return maskSecrets(escapeForDisplay(value, mode));
-  if (Array.isArray(value)) return value.map((v: unknown) => jsonSafe(v, mode));
-  if (value !== null && typeof value === "object") {
-    const out = Object.create(null) as Record<string, unknown>;
-    for (const [k, v] of Object.entries(value)) {
-      const key = maskSecrets(escapeForDisplay(k, mode));
-      if (Object.hasOwn(out, key)) throw new Error(`JSON output refused: two object keys are the same after escaping and masking ("${escapeRawChars(key)}")`);
-      out[key] = jsonSafe(v, mode);
-    }
-    return out;
-  }
-  return value;
+/** Nesting deeper than this is refused (the copy is recursive; v0.5.9 overflowed the stack at 1,000–2,000 levels of arrays). */
+export const MAX_JSON_DEPTH = 100;
+
+/** The refusal of a value that is not JSON data (M2-2-R4-001). The message names the kind only, never a key or a value. */
+function notJsonData(what: string): Error {
+  return new Error(`JSON output refused: ${what} is not JSON data`);
 }
 
-/** A JSON document for the terminal: every string and object key escaped, then masked, printed with two-space indentation. */
+/** An own property that is JSON data: a data property (never an accessor, which is not called) and enumerable. */
+function ownDataValue(o: object, key: string, missing: string): unknown {
+  const d = Object.getOwnPropertyDescriptor(o, key);
+  if (d === undefined) throw notJsonData(missing);
+  if (!("value" in d)) throw notJsonData("an accessor property");
+  if (d.enumerable !== true) throw notJsonData("a non-enumerable property");
+  return d.value as unknown;
+}
+
+/**
+ * A copy of JSON data in which every string — object keys included (M2-2-R3-002) — is escaped, then masked. JSON data
+ * (M2-2-R4-001): a string, a finite number, a boolean, null, an array (prototype Array.prototype, no holes, no other
+ * keys) or an object (prototype Object.prototype or null) whose own properties are enumerable data properties with
+ * string keys, all of them JSON data, without a cycle and at most MAX_JSON_DEPTH deep. Anything else is refused, never
+ * converted: each property is read once, getters and toJSON are never called, and JSON.stringify only sees the copy,
+ * whose arrays are plain and whose objects have no prototype (so a key such as "__proto__" or "toJSON" stays a key).
+ * Two keys of one object that become the same string are an error, never a merge. A refusal is fail closed: nothing is
+ * printed; the CLI reports it as an unexpected error, exit 2.
+ */
+function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unknown {
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "string") return maskSecrets(escapeForDisplay(value, mode));
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw notJsonData("a number that is not finite");
+    return value;
+  }
+  if (typeof value !== "object") throw notJsonData(`a value of type ${typeof value}`);
+  if (ancestors.includes(value)) throw notJsonData("a circular reference");
+  if (ancestors.length >= MAX_JSON_DEPTH) throw notJsonData(`nesting deeper than ${MAX_JSON_DEPTH}`);
+  ancestors.push(value);
+  const proto: unknown = Object.getPrototypeOf(value);
+  const keys = Reflect.ownKeys(value);
+  let copy: unknown;
+  if (Array.isArray(value)) {
+    if (proto !== Array.prototype) throw notJsonData("an array whose prototype is not Array.prototype");
+    const length = value.length;
+    if (keys.length !== length + 1) throw notJsonData("an array with a hole or a key that is not an index");
+    const out: unknown[] = [];
+    for (let i = 0; i < length; i++) out.push(jsonSafe(ownDataValue(value, String(i), "an array with a hole"), mode, ancestors));
+    copy = out;
+  } else {
+    if (proto !== Object.prototype && proto !== null) throw notJsonData("an object whose prototype is not Object.prototype or null");
+    const out = Object.create(null) as Record<string, unknown>;
+    for (const k of keys) {
+      if (typeof k === "symbol") throw notJsonData("a symbol key");
+      const v = ownDataValue(value, k, "a property that disappeared while it was read");
+      const key = maskSecrets(escapeForDisplay(k, mode));
+      if (Object.hasOwn(out, key)) throw new Error(`JSON output refused: two object keys are the same after escaping and masking ("${escapeRawChars(key)}")`);
+      out[key] = jsonSafe(v, mode, ancestors);
+    }
+    copy = out;
+  }
+  ancestors.pop();
+  return copy;
+}
+
+/**
+ * A JSON document for the terminal: JSON data only (anything else is refused, M2-2-R4-001), every string and object key
+ * escaped, then masked, printed with two-space indentation.
+ */
 export function safeJson(value: unknown, mode: LineMode = "keep"): Safe {
   return JSON.stringify(jsonSafe(value, mode), null, 2) as Safe;
 }

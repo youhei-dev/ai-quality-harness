@@ -79,7 +79,7 @@ describe("M2-2-R3-002: object keys go through the boundary like values", () => {
     const v053 = (v: unknown, mode: LineMode): string => JSON.stringify(maskDeep(escapeStrings(v, mode)), null, 2);
     const value = {
       root: `/tmp/作業/dir${RLO}x`,
-      findings: [{ file: `a${TAB}b${LF}c.ts`, line: 1, message: `x ${SECRET()}`, endLine: undefined }],
+      findings: [{ file: `a${TAB}b${LF}c.ts`, line: 1, message: `x ${SECRET()}` }],
       configText: `// comment${LF}{${LF}  "version": 1${LF}}${LF}`,
       count: 3,
       ok: true,
