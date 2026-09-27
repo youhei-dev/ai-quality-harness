@@ -5,7 +5,25 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.14 — M2-2: the CLI's top-level catch never throws and always exits 2 (backlog 1)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.14` / `git rev-parse v0.5.14` で確認し、次の release commit で記入）
+## v0.5.15 — M2-2: the CLI catch regression test owns each CLI run and stops it in afterEach (M2-2-CLI-CATCH-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.15` / `git rev-parse v0.5.15` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-cli-catch-r1（`docs/reviews/m2-2/independent-review-cli-catch-r1.md`、ChatGPT、範囲 v0.5.13..v0.5.14）: 新しい指摘は High 0 / Medium 1 / Low 0。
+  製品コード `src/cli.ts` の修正には新しい不具合は無かった。対応記録 `docs/reviews/m2-2/response-cli-catch-r1.md`
+- **M2-2-CLI-CATCH-R1-001（Medium）を修正**（`tests/regression-m2-2-cli-catch-001-thrown-value.test.ts` だけ。製品のコードは変えていない）: v0.5.14 の新しい回帰テストは
+  CLI を `execFile()` で起こすが、ChildProcess の handle を持たず、`afterEach` が無く（実行は `runs` の map で共有）、一時ディレクトリを `afterAll` で消していた。
+  v0.5.14 の写しで終わらない CLI を作ると、テストの失敗・タイムアウトの後も CLI は vitest の終了から約 38 秒残り、一時ディレクトリは CLI より先に消えた
+  （M2-2-R5-001 と同じく、ワーカーが止められると `execFile` のタイマーは働かない）
+  - 各 `it` が自分の実行を持ち、一時ディレクトリは実行ごと。起動の直後に `stopper`（handle への SIGKILL と、上限つきの確定の待ち）を積み、`afterEach` の
+    `runCleanups` で CLI を止めてから一時ディレクトリを消す。`execFile` の `timeout`・`killSignal` は二重の安全弁として残した
+  - 確かめ（写しだけ。本体のテストに仕掛けは入れていない）: 修正後は 2 回とも、CLI はそのテストの `afterEach` の中で消え、vitest の終了の後の残り 0、
+    一時ディレクトリは CLI の後に消えた（修正前の v0.5.14 は満たさない）
+  - preload と 25 件の本文・期待値は変えていない（`shown()` から末尾まで v0.5.14 とバイト単位で同じ）。ほかのテストも変えていない
+- レビュアーの「未確認の範囲」（`src/` 全体の棚卸しの網羅性、`src/output.ts` の全文）は、新しい作業を起こさずに記録した（パケットが変更したファイルの全文しか含まないため）
+- docs: レビュー原文の収録（変更した行 0）と対応記録。ROADMAP: M2-2 の節に r1 の結果と v0.5.15。バックログは項目も番号も変えていない。ARCHITECTURE は変えていない
+- テスト 700 件（103 ファイル。件数は変わらない）。`package.json` version 0.5.15（`package-lock.json` は変えていない）
+- 注記: v0.5.14 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.14 — commit d98a5a6 / tag object 7b3d83b — M2-2: the CLI's top-level catch never throws and always exits 2 (backlog 1)
 
 - **ROADMAP のバックログ 1（CLI の最上位の catch、Medium。v0.5.12 の SP1 で発見）を修正**（`src/` は `src/cli.ts` だけ）
   - 最上位の catch は、最初に exit 2 を決め、投げられた値を調べる操作（`instanceof`・`message` の読み取り・文字列への変換）と 1 行目の組み立てを try の中でだけ行う。
