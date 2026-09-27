@@ -5,7 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.15 — M2-2: the CLI catch regression test owns each CLI run and stops it in afterEach (M2-2-CLI-CATCH-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.15` / `git rev-parse v0.5.15` で確認し、次の release commit で記入）
+## v0.5.16 — M2-2: independent review cli-catch-r2 — the CLI catch work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.16` / `git rev-parse v0.5.16` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-cli-catch-r2（`docs/reviews/m2-2/independent-review-cli-catch-r2.md`、ChatGPT、範囲 v0.5.14..v0.5.15）: 前回の M2-2-CLI-CATCH-R1-001 は解消。
+  新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-2/response-cli-catch-r2.md`
+- 事前に決めていた人間の判断（High が 0 なら終える）により、CLI の最上位の catch の作業（v0.5.14・v0.5.15）を終える（m2-2-cli-catch-r3 は行わない。
+  レビューパケットも作らない）
+- パケットには `--doc` で `tests/helpers.ts`・`docs/ARCHITECTURE.md`・`vitest.config.ts` の全文を載せた。r1 で「未確認の範囲」になった後始末の仕組みと、上限 5 秒と
+  `hookTimeout` 30 秒の関係まで確認された
+- レビュアーの「未確認の範囲」は、新しい作業を起こさずに記録した
+  - 修正の前後の実測値そのもの: レビュアーは独立に再実行していない。条件と方法は妥当と判定され、数値は response-cli-catch-r1 に残っている
+  - `src/` 全体の棚卸し、`src/cli.ts` の最上位の catch、バックログ 19 などの既知のバックログ、Windows・所要時間・過去の記録の言い回し: 依頼文で範囲外
+- ROADMAP: M2-2 の節に cli-catch-r2 の結果と v0.5.16 を書いた。バックログは項目も番号も変えていない
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 700 件（103 ファイル）。`package.json` version 0.5.16（`package-lock.json` は変えていない）
+- 注記: v0.5.15 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.15 — commit d27f6cd / tag object 1c1a658 — M2-2: the CLI catch regression test owns each CLI run and stops it in afterEach (M2-2-CLI-CATCH-R1-001)
 
 - 独立レビュー m2-2-cli-catch-r1（`docs/reviews/m2-2/independent-review-cli-catch-r1.md`、ChatGPT、範囲 v0.5.13..v0.5.14）: 新しい指摘は High 0 / Medium 1 / Low 0。
   製品コード `src/cli.ts` の修正には新しい不具合は無かった。対応記録 `docs/reviews/m2-2/response-cli-catch-r1.md`
