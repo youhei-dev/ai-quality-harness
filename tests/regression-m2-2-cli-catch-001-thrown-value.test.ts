@@ -8,14 +8,16 @@
  * here into a temporary directory (no test hook in src/), makes process.cwd() throw the chosen value when it is called
  * from src/commands/security-scan.ts (the command's first step), so the value reaches the top-level catch unchanged. It
  * records every operation on the value; none may follow the first failure (the value is not read again).
+ * M2-2-CLI-CATCH-R1-001 (v0.5.15): every test starts and owns its run; the run is stopped in afterEach through its
+ * ChildProcess handle, also after a failure or a test timeout, before its directory is removed (M2-2-R5-001's rule).
  * Forbidden characters and secret shapes are built at run time; a failing expectation shows the output in notation.
  */
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
-import { fake, makeTempDir } from "./helpers.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { fake, makeTempDir, runCleanups, SETTLE_MARGIN_MS, stopper } from "./helpers.ts";
 
 const CLI = path.resolve(import.meta.dirname, "..", "src", "cli.ts");
 const RLO = String.fromCodePoint(0x202e);
@@ -28,7 +30,7 @@ const MARK_SHOWN = "marker-cc \\u{202E}\\u{A} [REDACTED:aws]";
 const FIXED = "(the thrown value could not be inspected)";
 const VERDICT_LINE = "VERIFY ERROR (internal error)\n";
 const report = (message: string): string => `aiqh: unexpected error: ${message}\n${VERDICT_LINE}`;
-/** A child that does not end is killed (the test then fails on its exit code) before the test's own timeout. */
+/** execFile's own limit: a second safety valve only (the clean-up in afterEach is what stops a run). */
 const CHILD_TIMEOUT_MS = 20_000;
 
 /**
@@ -88,10 +90,10 @@ if (kind === "console-error-throws") {
 }
 `;
 
-const tmp = makeTempDir("aiqh-cli-catch-");
-afterAll(() => tmp.cleanup());
-const preload = path.join(tmp.dir, "preload.mjs");
-writeFileSync(preload, PRELOAD);
+const cleanups: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+  await runCleanups(cleanups);
+});
 
 interface Run {
   code: number | null;
@@ -101,16 +103,22 @@ interface Run {
   log: string[];
 }
 
-const runs = new Map<string, Promise<Run>>();
-
-/** One CLI run per kind, shared by the tests that look at it. */
+/**
+ * One CLI run, owned by the test that calls it (M2-2-CLI-CATCH-R1-001): its own temporary directory, and a clean-up
+ * registered right after the start, before the first await. The clean-ups run newest first: unless the run has ended,
+ * SIGKILL through the ChildProcess handle (the CLI's own signal handling is not what this file tests) and a bounded wait
+ * for its end, then the directory is removed.
+ */
 function run(kind: string): Promise<Run> {
-  const known = runs.get(kind);
-  if (known !== undefined) return known;
-  const log = path.join(tmp.dir, `${kind}.log`);
+  const tmp = makeTempDir("aiqh-cli-catch-");
+  cleanups.push(tmp.cleanup);
+  const preload = path.join(tmp.dir, "preload.mjs");
+  const log = path.join(tmp.dir, "record.log");
+  writeFileSync(preload, PRELOAD);
   writeFileSync(log, "");
-  const started = new Promise<Run>((resolve) => {
-    execFile(
+  let child: ChildProcess | undefined;
+  const done = new Promise<Run>((resolve) => {
+    child = execFile(
       process.execPath,
       ["--import", pathToFileURL(preload).href, CLI, "security-scan", "--json"],
       {
@@ -126,8 +134,8 @@ function run(kind: string): Promise<Run> {
       },
     );
   });
-  runs.set(kind, started);
-  return started;
+  cleanups.push(stopper(done, () => child?.kill("SIGKILL"), SETTLE_MARGIN_MS, "the CLI"));
+  return done;
 }
 
 /** The text with the secret replaced and every character outside printable ASCII as notation (safe to show). */
