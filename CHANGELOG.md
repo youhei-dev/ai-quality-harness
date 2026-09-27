@@ -5,7 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.8 — M2-2: tests end what they start on failure paths (M2-2-R5-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.8` / `git rev-parse v0.5.8` で確認し、次の release commit で記入）
+## v0.5.9 — M2-2: independent review R6 — the M2-2-R5-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.9` / `git rev-parse v0.5.9` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r6（`docs/reviews/m2-2/independent-review-r6.md`、ChatGPT、範囲 v0.5.7..v0.5.8）: 前回の M2-2-R5-001 は解消。新しい指摘は High 0 / Medium 0 / Low 0。
+  対応記録 `docs/reviews/m2-2/response-r6.md`
+- 新しい指摘が無いので、前提の実測（再現）は行っていない。High 0・指摘 0 のため、M2-2-R5-001 の作業（v0.5.8、独立レビュー R6）をここで区切る
+- 最初の依頼ではパケットが添付されず、レビュー未実施の出力が返ったため、依頼し直した。収録したのは依頼し直した回の出力（response-r6 の補足）
+- ROADMAP: M2-2 の節に R6 の結果と v0.5.9 を書いた。バックログは項目も番号も変えていない（先頭は M2-2-R4-001）
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 624 件（100 ファイル）。`package.json` version 0.5.9（`package-lock.json` は変えていない）
+- 注記: v0.5.8 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.8 — commit ea3ef71 / tag object a0e7307 — M2-2: tests end what they start on failure paths (M2-2-R5-001)
 
 - **M2-2-R5-001（Medium、独立レビュー m2-2-r5）を修正**（`tests/` だけ。製品のコードは変えていない）: テストが途中で失敗すると、実行中の `executeCommand()`・CLI を
   止める処理に届かない箇所があった。vitest はテストファイルが終わるとワーカーを止めるので runner のタイマーは働かず、子は自分の寿命まで残った（M2-2-FLAKE-001 の
