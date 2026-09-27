@@ -5,7 +5,27 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.11 — M2-2: independent review R7 — the M2-2-R4-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.11` / `git rev-parse v0.5.11` で確認し、次の release commit で記入）
+## v0.5.12 — M2-2: safeJson reads array length and keys exactly and fixes failed inspections (M2-2-R7-001..003)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.12` / `git rev-parse v0.5.12` で確認し、次の release commit で記入）
+
+- **M2-2-R7-001〜003（Medium、独立レビュー m2-2-r7）を修正**（`src/` は `src/output.ts` だけ。ADR-0018 の決定は変えず、実装を合わせた）
+  - R7-001: 配列の `length` を、ほかのプロパティと同じく記述子から読む（数えられない、0〜2^32−1 の整数）。Proxy の `get` のトラップは呼ばない
+  - R7-002: 配列の自分のキーは、添字 `0`〜`length-1` と `length` にちょうど一致することを確かめる（`length + 1` 個で、どれも `"length"` か `length` 未満の正規の添字）。
+    記述子を読むのはその添字だけ。`ownKeys()` で `symbol` や添字でないキーを見せる Proxy の配列は拒否する
+  - R7-003: 値を調べる操作（`getPrototypeOf`・`ownKeys`・`Array.isArray`・記述子の読み取り）が投げたら、何を投げても、投げられた値を束縛も読み取りもせず
+    （`cause` にも入れない）、固定の拒否にする。Proxy のトラップの例外、操作の内側の利用者のコード、トラップの答えを検査するエンジンの TypeError（利用者のキーを
+    引用することがある）、取り消し済みの Proxy が対象
+  - 新しい拒否の種類: `a value whose structure could not be inspected`、`an array whose length is not a valid array length`（CLI は従来どおり unexpected error、**exit 2**）
+  - 今の通常の出力は変わらない（v0.5.4 のバイト比較の 42 通り〈`--json` の 5 通りと init `--write` のファイルを含む〉が v0.5.11 と一致）
+  - 新しい回帰テスト `tests/regression-m2-2-r7-json-data-proxy.test.ts`（17 件）: v0.5.11 では 15 件 FAIL（PASS の 2 件は対照）。既存テストの期待値は変えていない
+- SP1 の新しい発見: 投げられた値を調べると例外になる値（`getPrototypeOf` が投げる Proxy、`message` の getter が投げる Error）では、`src/cli.ts` の最上位の catch の
+  中で例外になり、Node の既定の表示で生の文字列が出て exit 1 になった。`safeJson()` を通る経路は、この版で固定の拒否（exit 2）になった。CLI の catch そのものは、
+  ROADMAP のバックログ 1 に入れた（利用者の入力からは届かない。Medium）。v0.5.11 の「端末では `writeError()` で表記・mask される」の訂正を response-r7 と ADR-0018 に書いた
+- docs: ADR-0018 の v0.5.11 の注記に「v0.5.12 で解消」、決定 3 の具体化、既知の限界の解消と訂正。ARCHITECTURE の出力の出口。response-r7 に v0.5.12 の節。
+  ROADMAP: バックログ 1 を CLI の最上位の catch の項目に入れ替えた（ほかの番号は変わらない）
+- テスト 675 件（102 ファイル。658 ＋ 新しい回帰テスト 17）。`package.json` version 0.5.12（`package-lock.json` は変えていない）
+- 注記: v0.5.11 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.11 — commit 41a0930 / tag object d44270f — M2-2: independent review R7 — the M2-2-R4-001 work is closed (docs only)
 
 - 独立レビュー m2-2-r7（`docs/reviews/m2-2/independent-review-r7.md`、ChatGPT、範囲 v0.5.9..v0.5.10）: 前回の M2-2-R4-001 は解消。新しい指摘は High 0 / Medium 3 / Low 0。
   対応記録 `docs/reviews/m2-2/response-r7.md`
