@@ -5,7 +5,25 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.10 — M2-2: safeJson accepts JSON data only (M2-2-R4-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.10` / `git rev-parse v0.5.10` で確認し、次の release commit で記入）
+## v0.5.11 — M2-2: independent review R7 — the M2-2-R4-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.11` / `git rev-parse v0.5.11` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r7（`docs/reviews/m2-2/independent-review-r7.md`、ChatGPT、範囲 v0.5.9..v0.5.10）: 前回の M2-2-R4-001 は解消。新しい指摘は High 0 / Medium 3 / Low 0。
+  対応記録 `docs/reviews/m2-2/response-r7.md`
+  - M2-2-R7-001: 配列の `length` を `value.length` で読むので、Proxy の配列では `get` のトラップが呼ばれる（ADR-0018 の「記述子で 1 回だけ読む」と合わない）
+  - M2-2-R7-002: 配列の自分のキーを個数だけで確かめるので、`ownKeys()` と記述子が食い違う Proxy の配列を受け付ける（ADR-0018 の配列の定義と合わない）
+  - M2-2-R7-003: Proxy のトラップ自身が投げた例外が、種類だけの拒否に変わらずに伝わる（ADR-0018 の失敗の形と合わない）
+- 区切る前に 3 件の前提を実測した（3 件とも再現した。High の基準には当たらない）: 受け付けた Proxy の配列の出力は、記述子が見せた JSON のデータで、表記・mask を通る。
+  トラップの例外は、CLI の最上位で `writeError()` を通り、端末では表記・mask される（一時 worktree の写しで実測。exit 2、標準出力は空）。利用者の入力
+  （jsonc-parser・zod・`JSON.parse`・git の出力・ファイル名）から、Proxy・accessor・普通でないプロトタイプがコマンドの値に届く経路は無い
+- ADR-0018: 既知の限界に R7 の 3 件を追記し、決定 1〜3 と Proxy の既知の限界の文に、実装の事実の注記を足した（決定は変えていない）。ARCHITECTURE の出力の出口も同じ
+- ROADMAP: R7 の 3 件を 1 項目にまとめてバックログの先頭（1）へ。既存の項目は 2〜20 に（v0.5.10 の 1〜19）。ADR-0017・ADR-0018・ARCHITECTURE の番号の参照を直した。
+  M2-2 の節の版の無い「下のバックログ N」も今の番号に合わせた（v0.5.1・v0.5.2 の記録の分は付け替えの後の番号と一致するので文字は変わらない。v0.5.10 の記録の 9 は 10 に）。
+  過去の版の項、`docs/reviews/`、ROADMAP の版つきの番号と行ったことの記録は当時の番号のまま
+- 完了基準「High が無ければ区切り、Medium 以下はバックログへ」により、M2-2-R4-001 の作業（v0.5.10、独立レビュー R7）をここで区切る
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 658 件（101 ファイル）。`package.json` version 0.5.11（`package-lock.json` は変えていない）
+- 注記: v0.5.10 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.10 — commit 2af8738 / tag object 46494f0 — M2-2: safeJson accepts JSON data only (M2-2-R4-001)
 
 - **M2-2-R4-001（Medium、独立レビュー m2-2-r4）を修正**（`src/` は `src/output.ts` だけ。ADR-0018）: `safeJson()` は値を `Object.entries()` と `map()` で写して
   `JSON.stringify()` に渡していたので、写しに残った関数を `JSON.stringify()` が呼び、戻り値が表記・mask を通らずに出た（自分の `toJSON` の関数など。今の各コマンドの
