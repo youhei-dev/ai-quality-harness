@@ -63,7 +63,7 @@
   そのような定義があれば `JSON.stringify()` が呼ぶ
 - ファイルへの出力は対象外（ADR-0016・ADR-0017 と同じ）。verify のレポートを写す `maskDeep()` も同じ構造で、`toJSON` を持つ関数を写し、`JSON.stringify()` が
   それを呼ぶ。また、写しが普通の object なので、`__proto__` という名前のキーは消える。レポートの値とキーに利用者由来の関数・キーは入らないので、今は起きない。
-  ROADMAP のバックログ（ファイルへの出力の禁止文字。v0.5.11 の番号で 10）
+  ROADMAP のバックログ（ファイルへの出力の禁止文字。v0.5.14 の番号で 9）
 - **v0.5.11 で追記（M2-2 独立レビュー R7。`docs/reviews/m2-2/response-r7.md`）**。どれも Proxy のときだけ起きる。利用者の入力の入り口（jsonc-parser・zod・`JSON.parse`・
   git の出力・ファイル名）は Proxy を作らず、今のコマンドの値に Proxy は無い。ROADMAP のバックログ 1（v0.5.11 の番号）
   - M2-2-R7-001: 配列の `length` を `value.length` で読むので、Proxy の配列では `get` のトラップ（利用者のコード）が 1 回呼ばれる。`get` の `length` で長さを偽ると、
@@ -81,6 +81,10 @@
     CLI の最上位の catch の中で例外になり、Node の未処理の例外の表示として生の文字列（禁止文字・mask されない秘密の形）が標準エラーに出て、exit 1 になった
     （v0.5.11 は Error だけを試していた）。`safeJson()` を通る経路は v0.5.12 で固定の拒否（exit 2）になった。CLI の最上位の catch そのものは ROADMAP の
     バックログ 1（v0.5.12 の番号）
+  - **v0.5.14 で解消（`docs/reviews/m2-2/response-r7.md` の v0.5.14 の節）**: CLI の最上位の catch は、最初に exit 2 を決め、投げられた値を調べる操作
+    （`instanceof`・`message` の読み取り・文字列への変換）と 1 行目の組み立てを try の中でだけ行う。失敗したら固定の文
+    `aiqh: unexpected error: (the thrown value could not be inspected)` にし、投げられた値も、調べる途中で投げられた値も読み直さない（決定 3 の、値を調べる操作が
+    投げたときと同じ考え方）。書けない行は飛ばし、判定の行は書こうとする。普通の値の出力は変わらない。上の訂正の文は v0.5.12 の時点の記録として残す
 
 ## 影響
 - JSON のデータでない値を `safeJson()` に渡すと、何も出さずに例外になる（CLI は exit 2）。今の各コマンドの `--json` の出力は変わらない

@@ -136,7 +136,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 - テスト件数: 339（v0.3.5）→ 389（v0.4.0）→ 415 → 455 → 466（v0.4.3、v0.4.4 も同じ）。自己 verify 7 チェック PASS
 - 次の段階は **M2-2**（先頭は R3-002〜006）
 
-### M2-2 — 先頭: M2-1 R3 の持ち越し 5 件 — **v0.5.0**（2026-09-25）／独立レビュー m2-2-r1 の反映 — **v0.5.1**／m2-2-r2 の反映 — **v0.5.2**／m2-2-r3 の記録と区切り — **v0.5.3**／m2-2-r3 の 3 件の修正 — **v0.5.4**／m2-2-r4 の記録と区切り — **v0.5.5**（2026-09-25）／テストの不安定の解消と runner の `timedOut` の修正（M2-2-FLAKE-001）— **v0.5.6**（2026-09-26）／m2-2-r5 の記録と区切り — **v0.5.7**（2026-09-26）／m2-2-r5 の Medium 1 件（テストの失敗の経路の後始末、M2-2-R5-001）の修正 — **v0.5.8**（2026-09-26）／m2-2-r6 の記録と区切り — **v0.5.9**（2026-09-27）／`safeJson()` の入力を JSON のデータに限る（M2-2-R4-001）— **v0.5.10**（2026-09-27）／m2-2-r7 の記録と区切り — **v0.5.11**（2026-09-27）／`safeJson()` の Proxy のときの不足（M2-2-R7-001〜003）の修正 — **v0.5.12**（2026-09-27）／m2-2-r8 の記録と safeJson のレビューの区切り — **v0.5.13**（2026-09-27）
+### M2-2 — 先頭: M2-1 R3 の持ち越し 5 件 — **v0.5.0**（2026-09-25）／独立レビュー m2-2-r1 の反映 — **v0.5.1**／m2-2-r2 の反映 — **v0.5.2**／m2-2-r3 の記録と区切り — **v0.5.3**／m2-2-r3 の 3 件の修正 — **v0.5.4**／m2-2-r4 の記録と区切り — **v0.5.5**（2026-09-25）／テストの不安定の解消と runner の `timedOut` の修正（M2-2-FLAKE-001）— **v0.5.6**（2026-09-26）／m2-2-r5 の記録と区切り — **v0.5.7**（2026-09-26）／m2-2-r5 の Medium 1 件（テストの失敗の経路の後始末、M2-2-R5-001）の修正 — **v0.5.8**（2026-09-26）／m2-2-r6 の記録と区切り — **v0.5.9**（2026-09-27）／`safeJson()` の入力を JSON のデータに限る（M2-2-R4-001）— **v0.5.10**（2026-09-27）／m2-2-r7 の記録と区切り — **v0.5.11**（2026-09-27）／`safeJson()` の Proxy のときの不足（M2-2-R7-001〜003）の修正 — **v0.5.12**（2026-09-27）／m2-2-r8 の記録と safeJson のレビューの区切り — **v0.5.13**（2026-09-27）／CLI の最上位の catch の修正（バックログ 1）— **v0.5.14**（2026-09-27）
 - M2-1 独立レビュー R3 の Medium 5 件（R3-002〜006）を修正。SP1 で実コードの再現と設計を行い、人間の承認の後に実装した。対応記録 `docs/reviews/m2-1/response-r3.md`
 - 持ち越し 5 件の内容（v0.5.4 でバックログの完了済みの項目をこの節へ移した）。R3 の 6 件のうち High の R3-001 は v0.4.3 で直した（ファイルシステムの同一性〈`dev`+`ino`〉による判定）。
   確定の直前の判定より後の同時の変更は信頼境界の外（README）。判定と rename を同じ実体に固定する（`openat` 相当）手段が Node の標準 API に無いため、必要になれば
@@ -156,12 +156,12 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   書いていた → ENOENT だけを「無い」とし、それ以外は検査不能）。M2-2-R1-001（Medium）も修正（Rejected の `--range` でも、作業ツリー・root・
   `latest.json` の読取など範囲に依存しない検査を行う。ADR-0015 を改訂）。確認で見つけた同じ種類の既定の設定ファイルの読み込み（review-packet と
   security-scan。security-scan は検査が弱まり exit 1 のところ exit 0）も、1 つの関数 `loadSecurityConfig` にまとめて修正。残りの R1-002〜006 は
-  下のバックログ 4〜8、残りの同じ種類の箇所はバックログ 9
+  下のバックログ 3〜7、残りの同じ種類の箇所はバックログ 8
 - 独立レビュー m2-2-r2（範囲 `v0.5.0..v0.5.1`）: 前回の 2 件（R1-007、R1-001）は解消、新しい指摘は **High 1（M2-2-R2-001）**/ Medium 0 / Low 0。
   security-scan の出力は masker だけを通していたため、パス（作業フォルダ、ファイル名、設定のエラー）の禁止文字が生のまま端末に出た（v0.5.1 の設定のエラーの経路。
   走査の出力の経路は v0.4.4 でもあった）。同じことは verify・init・commander の使い方エラー・オプションの解析でも起きた
 - v0.5.2: **M2-2-R2-001 を High のまま修正**。すべてのコマンドの標準出力・標準エラーを 1 つの出口 `src/output.ts` に通す（禁止文字を `\u{HEX}` の表記 → masker。
-  ADR-0016）。型情報付きの構造テストが、`src/output.ts` 以外からの書き出しを禁止する。禁止文字の無い出力は v0.5.1 とバイト一致。ファイルへの出力は下のバックログ 10
+  ADR-0016）。型情報付きの構造テストが、`src/output.ts` 以外からの書き出しを禁止する。禁止文字の無い出力は v0.5.1 とバイト一致。ファイルへの出力は下のバックログ 9
 - 独立レビュー m2-2-r3（範囲 `v0.5.1..v0.5.2`）: 前回の R2-001 は解消、新しい指摘は **High 0** / Medium 3（R3-001〜003）/ Low 0。3 件とも実コードで再現した
   （LF・TAB は見た目だけで、終了コードと `--json` は正しい。各コマンドの `--json` に利用者由来のキーは無い。構造ガードの穴を使う書き出しは `src/` に無い）
 - v0.5.3（docs だけ）: 完了基準「High が無ければ区切り、Medium 以下は次へ」により、**M2-1 からの持ち越し作業（v0.5.0〜v0.5.2、R1〜R3）をここで区切り**。
@@ -233,7 +233,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
     getter、Array のサブクラス、`Symbol.species` の差し替え、Proxy）。どれも今のコマンドの値には入らない（実行時の確認で 0 件）
   - 今の出力は変わらない（v0.5.4 のバイト比較の 42 通り〈`--json` の 5 通りと init `--write` のファイルを含む〉が v0.5.9 と一致）。新しい回帰テスト 34 件
     （v0.5.9 では 33 件 FAIL、PASS の 1 件は対照）。R3-002 の回帰テストの対照から `endLine: undefined` を外した（今は拒否する値）
-  - ファイルへの出力（verify のレポートを写す `maskDeep()` も同じ構造）は扱わず、下のバックログ 10 に足した。記録 `docs/reviews/m2-2/response-r4.md`
+  - ファイルへの出力（verify のレポートを写す `maskDeep()` も同じ構造）は扱わず、下のバックログ 9 に足した。記録 `docs/reviews/m2-2/response-r4.md`
 - 独立レビュー m2-2-r7（範囲 `v0.5.9..v0.5.10`。原文と対応記録は `docs/reviews/m2-2/`）: 前回の M2-2-R4-001 は **解消**。新しい指摘は **High 0** / Medium 3
   （R7-001: 配列の `length` を `value.length` で読み、Proxy の配列では `get` のトラップが呼ばれる。R7-002: 配列のキーを個数だけで確かめ、`ownKeys()` と記述子が食い違う
   Proxy の配列を受け付ける。R7-003: Proxy のトラップ自身の例外が、種類だけのメッセージに変わらずに伝わる）/ Low 0。区切る前に 3 件の前提を実測した（3 件とも再現した。
@@ -249,14 +249,28 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
     固定の拒否 `a value whose structure could not be inspected` にする（R7-003）
   - SP1 の新しい発見: エンジンがトラップの答えを検査して投げる TypeError のメッセージにも、利用者由来のキーが入る（8 形のうち 3 形。これも固定の拒否になった）。
     投げられた値を調べると例外になる値では、CLI の最上位の catch が例外になり、Node の既定の表示で生の文字列が出て exit 1 になる（`safeJson()` を通る経路は閉じた。
-    CLI の catch そのものは下のバックログ 1）。v0.5.11 の「端末では `writeError()` で表記・mask される」は、この形では成り立たなかった（response-r7 と ADR-0018 に訂正）
+    CLI の catch そのものは v0.5.14 で直した〈下の v0.5.14 の記録〉）。v0.5.11 の「端末では `writeError()` で表記・mask される」は、この形では成り立たなかった（response-r7 と ADR-0018 に訂正）
   - 今の出力は変わらない（v0.5.4 のバイト比較の 42 通りが v0.5.11 と一致）。新しい回帰テスト 17 件（v0.5.11 では 15 件 FAIL、PASS の 2 件は対照）。
     既存テストの期待値は変わらない
 - 独立レビュー m2-2-r8（範囲 `v0.5.11..v0.5.12`。原文と対応記録は `docs/reviews/m2-2/`）: 前回の M2-2-R7-001〜003 は 3 件とも **解消**。新しい指摘は
   **High 0 / Medium 0 / Low 0**。レビュアーの「未確認の範囲」（`src/cli.ts` のすべての throw の箇所、42 通りのバイト比較の中身、変更していないコマンドの
   `--json` の値）は、新しい作業を起こさずに記録した（`docs/reviews/m2-2/response-r8.md`）
 - v0.5.13（docs だけ）: 人間の判断で、**M2-2 の safeJson に関するレビューを R8 で終える**（R9 は行わない。レビューパケットも作らない）。R8 の記録、
-  CHANGELOG の v0.5.12 の見出しの SHA。バックログは項目も番号も変えていない（先頭は下のバックログ 1〈CLI の最上位の catch〉）
+  CHANGELOG の v0.5.12 の見出しの SHA。バックログは項目も番号も変えていない（先頭は CLI の最上位の catch〈v0.5.13 の番号で 1。v0.5.14 で解消〉）
+- v0.5.14: **バックログ 1（CLI の最上位の catch: 投げられた値を調べると例外になる場合の扱い）を修正**（`src/` は `src/cli.ts` だけ。SP1 で再現・`src/` 全体の
+  同じ種類の棚卸し・テスト先行・試作と設計を行い、人間の承認の後に実装。ADR-0018 の既知の限界に注記）
+  - 最上位の catch は、最初に exit 2 を決め、投げられた値を調べる操作（`instanceof`・`message` の読み取り・文字列への変換）と 1 行目の組み立てを try の中でだけ行う。
+    失敗したら固定の文 `aiqh: unexpected error: (the thrown value could not be inspected)` にし、投げられた値も、調べる途中で投げられた値も読み直さない。
+    書けない行は飛ばし（行ごとの try）、判定の行 `VERIFY ERROR (internal error)` は書こうとする
+  - SP1 の再現（v0.5.13 の一時 worktree の写し）: v0.5.12 の SP1 と同じ差し込みは `safeJson()` の固定の拒否（exit 2）になった。値をコマンドからそのまま投げると、
+    14 通りのうち 9 通りが exit 1（そのうち 6 通りは生の U+202E と mask されない秘密の形）。v0.5.12 の記録の 2 形のほかに 7 形（文字列を投げるトラップ、`toString`・
+    `Symbol.toPrimitive` が投げる object、取り消し済みの Proxy、プロトタイプの無い object、`message` が symbol か `toString` が投げる object の Error）
+  - `src/` 全体の棚卸し: 投げられた値を調べる 32 か所のうち、利用者の入力から届く所は 0（`src/` の `throw` は自前の Error か受けた例外の投げ直しだけ）。
+    ほかの箇所は変えない（表は `docs/reviews/m2-2/response-r7.md` の v0.5.14 の節）
+  - 普通の値（Error・文字列・`toString` を持つ object・symbol）の出力は変わらない（対照のテストと、v0.5.4 のバイト比較の 42 通りが v0.5.13 と一致）。
+    新しい回帰テスト 25 件（実物の CLI を子プロセスで起こし、preload で値を届ける。`src/` に差し込み口は足さない。v0.5.13 では 13 件 FAIL、PASS の 12 件は対照 5 件と
+    読み直しを数える 7 件）。既存テストの期待値は変わらない。テスト件数 675（102 ファイル）→ 700（103 ファイル）
+  - バックログは 1 を外し、v0.5.13 の 2〜20 は 1〜19 になった
 - 次: バックログから選ぶ（未定）
 
 ### M2-1 以降のバックログ（上から順に扱う）
@@ -286,48 +300,46 @@ ADR-0017・ARCHITECTURE・上の M2-2 の節の参照は v0.5.7 の番号に直�
 CHANGELOG の過去の版の項、`docs/reviews/`、上の M2-2 の節の版つきの番号と行ったことの記録、既存の順序の変更の注記は当時の番号のまま。
 順序の変更（v0.5.12、人間の判断）: 1（M2-2-R7-001〜003）を v0.5.12 で解消して外し、同じ位置 1 に「CLI の最上位の catch」の項目（v0.5.12 の SP1 で発見）を入れた。
 ほかの項目の番号は変わらない（ADR-0017・ADR-0018・ARCHITECTURE と、上の M2-2 の節の版の無い参照も変わらない）。
-1. **CLI の最上位の catch：投げられた値を調べると例外になる場合の扱い（v0.5.12 の SP1 で発見）**（Medium。`docs/reviews/m2-2/response-r7.md` の v0.5.12 の節、
-   ADR-0018 の既知の限界）。`src/cli.ts` の最上位の catch は、投げられた値を `err instanceof Error ? err.message : String(err)` で調べる。それ自体が例外になる値
-   （`getPrototypeOf` が投げる Proxy、`message` の getter が投げる Error）だと catch の中の例外になり、Node の未処理の例外の表示で生の文字列（禁止文字・mask されない
-   秘密の形）が標準エラーに出て、exit 1 になる（v0.5.12 の SP1 で、一時 worktree の写しの CLI で実測）。同じプロセスの中で作った値が要り、利用者の入力からは届かない。
-   `safeJson()` を通る経路は v0.5.12 で閉じた。直すときは、投げられた値を調べる所を try で包み、失敗したら固定の文にして、catch の中から例外を出さずに必ず exit 2 にする
-2. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
+順序の変更（v0.5.14、人間の判断）: 1（CLI の最上位の catch）を v0.5.14 で解消して外した（記録は上の M2-2 の節）。既存の項目は 1 つずつ上がった（v0.5.13 の 2〜20 → 1〜19）。
+ADR-0017・ADR-0018・ARCHITECTURE の参照と、上の M2-2 の節の版の無い参照（「下のバックログ N」）は v0.5.14 の番号に合わせた（外した項目を指していた v0.5.12・v0.5.13 の
+記録の 2 か所は、v0.5.14 の記録を指す形に直した）。CHANGELOG の過去の版の項、`docs/reviews/`、上の M2-2 の節の版つきの番号と行ったことの記録、既存の順序の変更の注記は当時の番号のまま。
+1. **M2-2-R4-002（Medium）と ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールを一覧（allowlist）で限定する**。import・`require`・`process.getBuiltinModule`
    と、同じ種類（`process.dlopen`、`process.report.writeReport("stdout")` など。v0.5.5 の洗い出し、`docs/reviews/m2-2/response-r4.md`）を同じ規則で検査する。process の
    書き出す関数（`emitWarning` など）の禁止も含む。既知の限界の `worker_threads`、`node:repl`・`node:test`、`tty.WriteStream(fd)`、`util.debuglog`、実行時に組み立てた
    パスへの fs の書き込みも、この項目で扱う。今の `src/` は 6 つ（child_process・crypto・fs・path・string_decoder・zlib）だけを読み込み、どの方法も使わない
-3. **kill の EPERM で `spawnError` になり、早く確定する経路**（v0.5.6 の調査で見つけた。読み取りだけで、未再現）。グループへの kill が EPERM で失敗すると、子への直接の
+2. **kill の EPERM で `spawnError` になり、早く確定する経路**（v0.5.6 の調査で見つけた。読み取りだけで、未再現）。グループへの kill が EPERM で失敗すると、子への直接の
    kill（`src/runner/execute.ts` の `killTree` の `child.kill()`）に落ち、これも EPERM だと Node は `error` イベントを出す。その処理が `spawnError: "spawn failed: kill EPERM"`
    で結果を確定するので、グループが残っていても確定する（グループの中に signal を送れないプロセスがあり、先頭にも送れないときだけ）。fail closed は緩めない（中断なら
    SKIPPED、タイムアウトなら FAIL。verdict・終了コードは変わらない）。直すときの設計: 子への直接の kill を `process.kill(child.pid, signal)`（例外を try/catch で受ける）に
    変え、`error` イベントを spawn の失敗だけに限る（`groupAlive` が EPERM を「生きている」と数えるので、SIGKILL を送るまで確定しない）。直すときの注意: signal を送れない
    プロセスが出力の pipe を持ち続けると `close` が来ず確定しない。中断なら CLI の安全弁（猶予 + 3 秒）で終わるが、タイムアウトの経路には安全弁が無いので、合わせて設計する。
    回帰テストには別のユーザーのプロセスが要る
-4. **M2-2-R1-002（Medium）: オプション一覧に short 別名を含める**。一覧と `Command` オブジェクトの比較は `attributeName`・位置引数・値の有無だけを見るため、
+3. **M2-2-R1-002（Medium）: オプション一覧に short 別名を含める**。一覧と `Command` オブジェクトの比較は `attributeName`・位置引数・値の有無だけを見るため、
    `-o` → `-p` の変更や `-c` の削除を検出しない（v0.5.1 で確認）。一覧に long と short の対応を持たせ、`Command` の `short` / `long` / `flags` と比べる
-5. **M2-2-R1-003（Medium）: probe を 1 ツール = 1 変数に制限する**。1 つの変数に python3 と unzip の probe を OR で混ぜると、その `skipIf` の中の python3 の起動を
+4. **M2-2-R1-003（Medium）: probe を 1 ツール = 1 変数に制限する**。1 つの変数に python3 と unzip の probe を OR で混ぜると、その `skipIf` の中の python3 の起動を
    `guarded` と誤って判定する（v0.5.1 で確認。現在の `tests/` にこの形は無い）
-6. **M2-2-R1-006（Medium）: `test:minpath` をプロセスグループで起動し、グループごと止める**。単独で実行して SIGTERM を受けると vitest の直接の子プロセスだけを止め、
+5. **M2-2-R1-006（Medium）: `test:minpath` をプロセスグループで起動し、グループごと止める**。単独で実行して SIGTERM を受けると vitest の直接の子プロセスだけを止め、
    テストが起動した子孫が残る（v0.5.1 で確認。自己 verify の中では runner がプロセスグループごと止める）
-7. **M2-2-R1-005（Medium）: 最小 PATH の保証の強化**。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
+6. **M2-2-R1-005（Medium）: 最小 PATH の保証の強化**。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
    v0.5.1 では保証の記述を「PATH の名前解決で起動する、宣言していないコマンドを検出する」に狭めた（README・ARCHITECTURE）
-8. **M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
-9. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
+7. **M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
+8. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
    O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）、
    P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）、O3（git の失敗を「not a git repository」と記述）、
    O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・P4（書き込みの失敗の後の一時ファイルの一覧）
-10. **ファイルへの出力の禁止文字**（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
+9. **ファイルへの出力の禁止文字**（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
    表記にするか、どの形で残すか（レポートの JSON は機械が読む）を着手時に決める。
    あわせて、verify のレポートを写す `maskDeep()` を `safeJson()` と同じ形（JSON のデータの写し、ADR-0018）にする（v0.5.10 の SP1: `toJSON` を持つ関数を写し、
    `JSON.stringify()` がそれを呼ぶ。写しが普通の object なので、`__proto__` という名前のキーが消える。今のレポートの値とキーに利用者由来の関数・キーは入らない）
-11. **verify の check に `NO_COLOR` を渡す**（v0.5.2 の SP2 報告 §12-3 の人間の判断）: v0.5.2 から check の出力の末尾の ESC（色付け）は `\u{1B}` の
+10. **verify の check に `NO_COLOR` を渡す**（v0.5.2 の SP2 報告 §12-3 の人間の判断）: v0.5.2 から check の出力の末尾の ESC（色付け）は `\u{1B}` の
    表記になる。check の出力は非 TTY なので多くのツールは色を付けないが、利用者の環境で `FORCE_COLOR` が設定されていると表記が並ぶ
-12. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
+11. **verify / init / security-scan の使い方エラーを exit 2 に揃える**（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
    review-packet は v0.4.0 で exit 2 にした）
-13. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
+12. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
    git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
-14. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+13. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -336,20 +348,20 @@ CHANGELOG の過去の版の項、`docs/reviews/`、上の M2-2 の節の版つ�
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-15. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
-16. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
+14. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+15. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
    key-value 誤検出の継続記録（下の「内容」）
-17. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
+16. **SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
    SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
    SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
    実測では `close` がパイプを握る子孫の終了を待つため消えていたが、stdio を手放した子孫には効かない。ARCHITECTURE は今回（v0.3.5）書き換えていない
    関連する観測（v0.5.6 の SP2、失敗ではない）: r4 の B が 393 回中 1 回、23 秒かかった（テストが子を SIGKILL した後の `close` の時点でグループがまだ残っていると
    判定され、確定が猶予の終わりの SIGKILL のタイマーまで延びたと推定。`docs/reviews/m2-2/response-r5.md`。同じ記録の R5-002 の表に、この項目で合わせる文言〈§10 の表、
    `src/runner/execute.ts`・`src/cli.ts` のコメント〉も書いた）
-18. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
+17. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
-19. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
-20. **テストの後始末の残り（低）**（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
+18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
+19. **テストの後始末の残り（低）**（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
    (a) 孫までタイムアウトで止めるテスト（`execute.test.ts`・`regression-r1-runner.test.ts`・`regression-r2-runner.test.ts` の各 1 件）は、製品が孫を止め損なったときだけ、
    孫が自分の寿命（30 秒）まで残る。(b) CLI をすぐ await するテスト（`cli.test.ts`・`cli-init-scan.test.ts`）は、CLI が終わらないときだけ、テストのタイムアウトの後も
    CLI が残る。(c) signal 0 の probe（`process.kill(pid, 0)`、5 か所）は、pid が再利用されていると「生きている」と誤る（signal は届かない。誤る向きはテストの失敗）

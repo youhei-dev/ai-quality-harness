@@ -463,13 +463,14 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。構造テストは `worker_threads`・`node:repl`・
   `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
   v0.5.5 で追記（M2-2 独立レビュー R4）: 構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。ROADMAP のバックログの 2（v0.5.11 の番号。v0.5.10 では 1）。
+  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。ROADMAP のバックログの 1（v0.5.14 の番号。v0.5.11〜v0.5.13 では 2）。
   `safeJson()` が JSON のデータでない値を処理しない件（同じく v0.5.5 で追記した既知の限界）は、v0.5.10 で解消した（ADR-0018。ファイルへの出力の `maskDeep()` は
-  バックログの 10）。
+  バックログの 9）。
   v0.5.11 で追記（M2-2 独立レビュー R7）した Proxy の 3 件（配列の `length` を `get` で読む、配列のキーを個数だけで確かめる、トラップの例外をそのまま伝える）は、
   v0.5.12 で解消した（ADR-0018）。v0.5.12 で追記: CLI の最上位の catch（`src/cli.ts`）は、調べると例外になる投げられた値（同じプロセスの中で作った Proxy など）では
   それ自体が例外になり、Node の既定の表示で生の文字列が出て exit 1 になる（`safeJson()` を通る経路は v0.5.12 で閉じた。今のコマンドにそのような値は無い）。
-  ROADMAP のバックログの 1
+  v0.5.14 で解消した: 最上位の catch は最初に exit 2 を決め、投げられた値を調べる操作と 1 行目の組み立てを try の中でだけ行い、失敗したら固定の文
+  `(the thrown value could not be inspected)` にする（値は読み直さない。書けない行は飛ばす。ADR-0018）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →

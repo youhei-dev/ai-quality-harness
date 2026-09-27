@@ -201,3 +201,80 @@ SP1（再現・同じ種類の洗い出し・試作と設計）の後、人間�
   自分の固定の文に変える
 - **エンジンのエラーも利用者の文字列を運ぶ**: 不変条件の TypeError は、問題のキーを引用する。「エンジンの文だから安全」とは言えない
 - **端末までの確かめは、投げられる値の種類ごとに行う**: v0.5.11 は Error だけを試して「表記・mask される」とした。Error でない値や、調べると例外になる値で、結果が変わった
+
+## CLI の最上位の catch の対応（v0.5.14、2026-09-27。`src/` は `src/cli.ts` だけ）
+
+v0.5.12 の SP1 で見つけ、ROADMAP のバックログ 1 に入れた件（上の「SP1 の新しい発見」2）を直した。SP1（再現・`src/` 全体の同じ種類の棚卸し・テスト先行・試作と設計）の
+後、人間の承認を得て実装した。作業の記録は `tmp/cli-catch/`（git 管理外）。ADR-0018 の考え方（値を調べる操作の失敗は、値を読まずに固定の文にする）を、最上位の catch に
+当てた。
+
+### 人間の判断（SP1 の承認）
+
+- テストは、実物の CLI を子プロセスで起こし、preload で値を届ける（`src/` にテスト用の差し込み口を足さない）
+- 範囲は最上位の catch だけ。下の棚卸しのほかの箇所は変えず、表をこの節に記録する
+- 固定の文は `aiqh: unexpected error: (the thrown value could not be inspected)`
+- `writeError()` が投げたときは、行ごとの try（判定の行 `VERIFY ERROR (internal error)` は書こうとする）
+- `process.on("uncaughtException")` / `"unhandledRejection"` の全体の受け皿は入れない（別の設計として扱う）
+- ADR は足さず、ADR-0018 の既知の限界に注記する
+
+### 修正の中身
+
+- catch の最初に `process.exitCode = EXIT_ERROR`（2）を決める。その後は、中身がすべて try の中にある関数だけを呼ぶ
+- `unexpectedErrorLine()`: `instanceof`・`message` の読み取り・文字列への変換と、1 行目のテンプレートの連結を try の中で行う
+  - 何かが投げたら、値を束縛しない `catch` で受け、固定の行にする。投げられた値も、調べる途中で投げられた値も読み直さない
+  - 普通の値では、変換の回数と順序は v0.5.13 と同じ
+- `tryWriteError()`: 1 行ずつ `writeError()`（表記・mask）に渡し、投げたらその行を飛ばして次の行へ進む
+- 既知の性質: `tryWriteError()` は `writeError()` の例外を黙って捨てるので、仮に表記・mask の側に不具合があっても 1 行目が出ずに判定の行だけになる（exit 2 は守られる）。
+  原因を追うときは、標準エラーに 1 行目が無いことが手がかりになる
+- 新しい回帰テスト `tests/regression-m2-2-cli-catch-001-thrown-value.test.ts`（25 件）。既存テストは変えていない
+  - `node --import <preload> src/cli.ts security-scan --json` を子プロセスで起こす。preload はテストが一時ディレクトリに書き、`process.cwd` を差し替えて、
+    `src/commands/security-scan.ts` から呼ばれたときだけ選んだ値を投げる
+  - 値を投げたことと、記録する値への操作（handler 自体を Proxy にして、すべてのトラップを通す）と失敗を記録し、失敗の後の操作が 0 回であることを確かめる
+
+### SP1 の再現（v0.5.13 の一時 worktree の写し）
+
+- v0.5.12 の SP1 と同じ差し込み（`--json` の値の Proxy のトラップが投げる、6 通り）は、`safeJson()` の固定の拒否（exit 2）になり、exit 1 は出なかった
+- 値をコマンドからそのまま投げると、14 通りのうち 9 通りが exit 1 になった（どれも判定の行を出さなかった）
+  - 生の U+202E と mask されない秘密の形が出た 6 通り: `getPrototypeOf` が投げる Proxy、同じトラップが文字列を投げる Proxy、`message` の getter が投げる Error、
+    `toString` が投げる object、`Symbol.toPrimitive` が投げる object、`message` が「`toString` が投げる object」の Error
+  - エンジンの固定の TypeError の 3 通り: 取り消し済みの Proxy、プロトタイプの無い object、`message` が symbol の Error
+  - `message` が symbol か「`toString` が投げる object」の 2 通りは、`instanceof` の行ではなく 1 行目のテンプレートで落ちた
+  - 普通の 5 通り（Error・文字列・`toString` を持つ object・symbol・`message` が `toString` を持つ object の Error）は exit 2 で、表記・mask された
+- 上の発見 2 の 2 形のほかに、7 形が同じく exit 1 だった
+
+### `src/` 全体の同じ種類の棚卸し（v0.5.13 の行番号）
+
+- `src/` の `throw` は、`throw new <Error のクラス>(組み立てた文字列)`・`throw err;`（受けた例外の投げ直し）・`throw r.error`（`spawnSync` の Node の Error）・
+  Error を返す関数（`notJsonData`・`prepareError`）だけ（ほかの形は 0 件）。`.abort(` は `src/cli.ts:38` の 1 か所で、値は `"SIGINT"` か `"SIGTERM"`
+- 利用者のコードは同じプロセスの中では動かない（設定の JSONC・`package.json`・git の出力はデータとして読むだけで、check は子プロセス）。このため、調べると例外になる値を
+  利用者の入力から作る経路は無い
+
+| # | 箇所 | 調べ方 | 利用者の入力から届くか | 扱い |
+|---|---|---|---|---|
+| 1 | `src/cli.ts:76-82`（最上位の catch） | `instanceof Error` → `.message`、または `String(err)`。結果をテンプレートへ | 届かない | **v0.5.14 で直した** |
+| 2 | `commands/review-packet.ts:493/514`、`:560-563`（`prepareError`。`:474` の catch から） | 同じ式 → `WriteError` | 届かない | 変えない。投げたら最上位の catch へ上がり、exit 2 で閉じる |
+| 3 | `commands/review-packet.ts:189/249/301/366/402/423`、`commands/security-scan.ts:36/48`、`commands/verify.ts:70/144`、`commands/init.ts:152/161/192/211`、`config/load.ts:73/218`、`security/scan.ts:165/370/489/501/564/590`、`review/packet.ts:194/624/1032`、`runner/execute.ts:63/114/247` | `instanceof`（自前のクラス）、`.message`・`.code`・`.summary`・`.status` など。当たらなければ投げ直す | 届かない（try の中は Node の fs・child_process・git と自前の Error） | 変えない。同上 |
+| 4 | `runner/execute.ts:188`（`child.on("error")` のリスナー） | `err.message` をテンプレートへ（try の外） | 届かない（Node の ChildProcess の Error） | 変えない。リスナーなので最上位の catch を通らない |
+| 5 | `runner/execute.ts:68-72`（`abortReason`）、`commands/verify.ts:173-176`・`runner/run-checks.ts:67-69`（`describeAbort`） | 文字列ならそのまま。`execute.ts` は `instanceof Error` → `.message` も（try の外） | 届かない（値は必ず文字列） | 変えない |
+| 6 | 値を束縛しない `catch {}` 21 か所（`src/output.ts` の `inspect()` を含む） | 触らない | — | — |
+
+- 投げられた値を調べる箇所は 32（`catch (err)` 29 ＋ `AbortSignal.reason` 3）。利用者の入力から届く所は 0
+
+### 修正の前後の実測
+
+| 確かめたこと | v0.5.13 | v0.5.14 |
+|---|---|---|
+| 新しい回帰テスト（25 件） | 13 件 FAIL（固定の文の 11 件は exit 1、読み直しの 1 件、書けない行の 1 件）。PASS は対照 5 件と、読み直しを数える 7 件 | 25 件 PASS |
+| CLI に値をそのまま投げる 14 通り | exit 2 が 5 通り、exit 1 が 9 通り（6 通りは生の禁止文字・mask されない秘密の形） | 14 通りとも exit 2、標準出力 0、生の禁止文字 0、mask されない秘密の形 0。調べると例外になる 9 通りは固定の文、普通の 5 通りは v0.5.13 と同じバイト |
+| v0.5.12 の SP1 と同じ差し込み 6 通り | exit 2（`safeJson()` の固定の拒否） | 同じ |
+| v0.5.4 のバイト比較の 42 通り | 基準 | 42 通りすべてバイト単位で一致 |
+
+- テスト件数: 675（v0.5.13、102 ファイル）→ 700（v0.5.14、103 ファイル）
+
+### 教訓（v0.5.14）
+
+- **再現の手順を使い回す前に、経路が閉じていないかを確かめる**: v0.5.12 の差し込みは `safeJson()` の固定の拒否に変わっていて、exit 1 は出なかった。値を直接届ける
+  差し込みを足して再現した
+- **文字列への変換も「調べる操作」**: `instanceof` と `message` の読み取りだけでなく、`String()` とテンプレートも利用者のコードを走らせる。値そのものだけでなく、
+  `message` の値（symbol、`toString` が投げる object）の形も試す
+- **最後の受け皿は、自分から例外を出さない形にする**: 終了コードを先に決め、残りはすべて try の中の関数にする
