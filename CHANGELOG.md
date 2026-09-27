@@ -5,7 +5,29 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.9 — M2-2: independent review R6 — the M2-2-R5-001 work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.9` / `git rev-parse v0.5.9` で確認し、次の release commit で記入）
+## v0.5.10 — M2-2: safeJson accepts JSON data only (M2-2-R4-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.10` / `git rev-parse v0.5.10` で確認し、次の release commit で記入）
+
+- **M2-2-R4-001（Medium、独立レビュー m2-2-r4）を修正**（`src/` は `src/output.ts` だけ。ADR-0018）: `safeJson()` は値を `Object.entries()` と `map()` で写して
+  `JSON.stringify()` に渡していたので、写しに残った関数を `JSON.stringify()` が呼び、戻り値が表記・mask を通らずに出た（自分の `toJSON` の関数など。今の各コマンドの
+  `--json` には無い値）
+  - `jsonSafe()` は JSON のデータ（文字列・有限の数・真偽値・null・配列〈プロトタイプが `Array.prototype`、穴や添字でないキーが無い〉・object〈プロトタイプが
+    `Object.prototype` か null、自分のプロパティは文字列のキーの数えられるデータのプロパティ〉。循環なし、深さ 100 段まで）だけを受け付ける
+  - それ以外（関数・`symbol`・`bigint`・`undefined`・`NaN` / `Infinity`・getter / setter・数えられないプロパティ・`symbol` のキー・普通でないプロトタイプ・
+    穴のある配列・循環・101 段以上の入れ子など）は、出力の前に拒否する（fail closed）。メッセージは `JSON output refused: <種類> is not JSON data` で、キー・値・パスを
+    載せない。CLI は最上位の unexpected error で **exit 2**（R3-002 のキーの衝突と同じ経路）
+  - 各プロパティは記述子で 1 回だけ読み、getter と `toJSON` は呼ばない。`map()` を使わない（`Symbol.species` を通らない）
+  - 今の通常の出力は変わらない（v0.5.4 のバイト比較の 42 通り〈`--json` の 5 通りと init `--write` のファイルを含む〉が v0.5.9 と一致）
+  - 新しい回帰テスト `tests/regression-m2-2-r4-001-json-data.test.ts`（M2-2-R4-001、34 件）: v0.5.9 では 33 件 FAIL（PASS の 1 件は対照）
+  - 期待値の変更: `tests/regression-m2-2-r3-002-json-keys.test.ts` の対照の値から `endLine: undefined` を外した（今は拒否する値）
+  - SP1 の洗い出しで、v0.5.5 の記録（そのまま出るのは自分の `toJSON` の 2 形だけ）に 6 種類の漏れがあった（`toJSON` を持つ関数・クラス、`toJSON` を持つ関数を返す
+    getter、Array のサブクラス、`Symbol.species` の差し替え、Proxy）。どれも今のコマンドの値には入らない
+- docs: ADR-0018（新規）。ADR-0017 の決定 3 の但し書きと既知の限界の R4-001 を ADR-0018 で置換。ADR の索引、ARCHITECTURE の出力の出口、response-r4 に v0.5.10 の節。
+  ROADMAP: バックログ 1 を外し、2〜20 → 1〜19。ファイルへの出力の禁止文字（9）に `maskDeep()` の 1 行を足した（ADR-0017・ARCHITECTURE の番号の参照を直した。
+  過去の版の項、`docs/reviews/`、ROADMAP の各版の記録は当時の番号のまま）
+- テスト 658 件（101 ファイル。624 ＋ 新しい回帰テスト 34）。`package.json` version 0.5.10（`package-lock.json` は変えていない）
+- 注記: v0.5.9 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.9 — commit 11c0d51 / tag object 6c27dea — M2-2: independent review R6 — the M2-2-R5-001 work is closed (docs only)
 
 - 独立レビュー m2-2-r6（`docs/reviews/m2-2/independent-review-r6.md`、ChatGPT、範囲 v0.5.7..v0.5.8）: 前回の M2-2-R5-001 は解消。新しい指摘は High 0 / Medium 0 / Low 0。
   対応記録 `docs/reviews/m2-2/response-r6.md`
