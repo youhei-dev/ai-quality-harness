@@ -24,6 +24,8 @@
    - 数: `NaN`・`Infinity`・`-Infinity` は拒否する。`-0` は受け付ける（`JSON.stringify()` が `0` と書く。従来と同じ出力）
    - 配列: `Array.isArray()` が true で、プロトタイプが `Array.prototype`（サブクラスは拒否）。自分のキーは `0`〜`length-1` の添字と `length` だけ
      （穴・添字でないキー・`symbol` のキーは拒否）。各要素は数えられるデータのプロパティ
+     （v0.5.11 で注記: 実装は、自分のキーの個数が `length + 1` であることと、添字 `0`〜`length-1` の記述子で確かめる。キーの集合は照合しないので、`ownKeys()` と
+     記述子で食い違う答えを返す Proxy の配列は、定義から外れても受け付けられる。既知の限界の M2-2-R7-002）
    - object: プロトタイプが `Object.prototype` か `null`。自分のプロパティは、文字列のキーの、数えられるデータのプロパティだけ（`symbol` のキー・数えられないもの・
      getter / setter は拒否。getter は呼ばない）。`toJSON`・`__proto__`・`constructor`・`prototype` という名前のキーも、値が JSON のデータなら普通のキー
    - 循環参照は拒否する（祖先の列で判定）。循環でない共有の参照は受け付ける（従来どおり 2 回書く）
@@ -31,8 +33,11 @@
 2. **方式（1 回の読み取りで検査しながら写す）**: `jsonSafe()` は、各プロパティを記述子（`Object.getOwnPropertyDescriptor`）で 1 回だけ読み、検査してから写す。
    getter と `toJSON` を呼ばず、`map()` を使わない（`Symbol.species` を通らない）。写しは新しい配列とプロトタイプの無い object だけで、`JSON.stringify()` は
    写しだけを見る。文字列とキーは従来どおり表記 → mask
+   （v0.5.11 で注記: 配列の `length` だけは記述子でなく `value.length` で読むので、Proxy の配列では `get` のトラップが 1 回呼ばれる。既知の限界の M2-2-R7-001）
 3. **失敗の形**: 拒否は `JSON output refused: <種類> is not JSON data` の例外。種類は固定の語で、キー・値・パスは載せない。`JSON.stringify()` の前に投げるので、
    何も出ない。CLI は最上位の「unexpected error」で exit 2（ADR-0017 のキーの衝突と同じ経路。キーの衝突のメッセージは従来どおり、表記・mask の後のキーを載せる）
+   （v0.5.11 で注記: 種類だけのメッセージは、検査が自分で見つけた拒否のとき。Proxy のトラップ自身が投げた例外は、固定の種類に変えずにそのまま伝わる。既知の限界の
+   M2-2-R7-003）
 4. JSON のデータの出力は変えない（v0.5.4 のバイト比較の 42 通り〈`--json` の 5 通りと init `--write` のファイルを含む〉で、v0.5.9 と一致することを確かめた）
 
 ## 代替案
@@ -47,12 +52,22 @@
 
 ## 既知の限界
 - Proxy は検出しない（検出には `node:util` の読み込みが要る）。トラップ（`ownKeys`・`getPrototypeOf`・`getOwnPropertyDescriptor`）が見せるものを 1 回ずつ読み、
-  検査してから写す。`get` のトラップは使わないので、`get` と記述子が食い違う Proxy では、記述子が見せるデータが出る
+  検査してから写す。`get` のトラップは、配列の `length` を読むとき（M2-2-R7-001）のほかは使わないので、`get` と記述子が食い違う Proxy では、
+  記述子が見せるデータが出る
 - 同じプロセスの中のプロトタイプの汚染（`Array.prototype.toJSON`、`BigInt.prototype.toJSON` など）は、脅威モデルの外。写しの配列は `Array.prototype` を持つので、
   そのような定義があれば `JSON.stringify()` が呼ぶ
 - ファイルへの出力は対象外（ADR-0016・ADR-0017 と同じ）。verify のレポートを写す `maskDeep()` も同じ構造で、`toJSON` を持つ関数を写し、`JSON.stringify()` が
   それを呼ぶ。また、写しが普通の object なので、`__proto__` という名前のキーは消える。レポートの値とキーに利用者由来の関数・キーは入らないので、今は起きない。
-  ROADMAP のバックログ（ファイルへの出力の禁止文字。v0.5.10 の番号で 9）
+  ROADMAP のバックログ（ファイルへの出力の禁止文字。v0.5.11 の番号で 10）
+- **v0.5.11 で追記（M2-2 独立レビュー R7。`docs/reviews/m2-2/response-r7.md`）**。どれも Proxy のときだけ起きる。利用者の入力の入り口（jsonc-parser・zod・`JSON.parse`・
+  git の出力・ファイル名）は Proxy を作らず、今のコマンドの値に Proxy は無い。ROADMAP のバックログ 1（v0.5.11 の番号）
+  - M2-2-R7-001: 配列の `length` を `value.length` で読むので、Proxy の配列では `get` のトラップ（利用者のコード）が 1 回呼ばれる。`get` の `length` で長さを偽ると、
+    記述子が見せる要素より少ない配列として受け付けられる（出るのは JSON のデータ）
+  - M2-2-R7-002: 配列の自分のキーは個数だけを確かめ、集合を照合しない。`ownKeys()` で `symbol` や添字でないキーを見せ、記述子のトラップで添字を見せる Proxy の配列を
+    受け付ける（v0.5.11 で実測: 3 形。出力は記述子が見せた JSON のデータで、表記・mask を通る）
+  - M2-2-R7-003: Proxy のトラップ（`getPrototypeOf`・`ownKeys`・`getOwnPropertyDescriptor`、配列の `length` の `get`）自身が投げた例外は、固定の種類の拒否に変えずに
+    そのまま伝わり、利用者由来の文字列を含むメッセージになりうる。何も出力しない点と exit 2 は同じ。端末へは CLI の最上位の `writeError()` を通り、表記・mask される
+    （v0.5.11 で実測）
 
 ## 影響
 - JSON のデータでない値を `safeJson()` に渡すと、何も出さずに例外になる（CLI は exit 2）。今の各コマンドの `--json` の出力は変わらない

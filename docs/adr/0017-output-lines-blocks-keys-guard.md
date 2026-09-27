@@ -73,7 +73,7 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
 - 構造ガードは、端末に書く次の方法を扱わない（今の `src/` はどれも使わない。`src/` が読み込む Node の組み込みモジュールは child_process・crypto・fs・path・
   string_decoder・zlib だけ）: `worker_threads`（Worker の標準出力は既定で親の端末へ）、`node:repl`・`node:test`（既定で標準出力へ）、
   `tty.WriteStream(fd)`、`util.debuglog`、`process.emitWarning`、実行時に組み立てたパス（`/dev/tty` など）への fs の書き込み。
-  扱う場合の案は、`src/` が読み込める組み込みモジュールを一覧で限定すること（v0.5.5 で ROADMAP のバックログ 3 に入れた。v0.5.10 の番号で 1）
+  扱う場合の案は、`src/` が読み込める組み込みモジュールを一覧で限定すること（v0.5.5 で ROADMAP のバックログ 3 に入れた。v0.5.11 の番号で 2）
 - **v0.5.5 で追記（M2-2 独立レビュー R4。`docs/reviews/m2-2/response-r4.md`）**
   - M2-2-R4-001: `safeJson()` は JSON のデータでない値を処理しない。自分の `toJSON` に関数の値があると（関数を返す数えられる getter も同じ）、`JSON.stringify()` が
     それを呼び、戻り値は表記・mask を通らずに出る。ほかの JSON のデータでない値は、消える（関数・`symbol`・`undefined`・数えられないプロパティ）、形が変わる
@@ -87,7 +87,7 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
     `node:vm`（動的なコード）・`node:worker_threads` などを取れる（名前を変数で渡す形も）。同じ種類で検出しないもの: `process.dlopen`（ネイティブのアドオン）、
     `process.report.writeReport("stdout")`（診断レポートを標準出力へ書く）。`process.binding`・`process._linkedBinding`・`process._rawDebug` は型に無く、使うには
     キャストが要るので検出する。`getBuiltinModule` で取った `child_process`・`fs` の呼び出しは型で解決するので、stdio・fd の規則で検出する。
-    今の `src/` はどれも使わない。ROADMAP のバックログ 1（読み込めるモジュールの一覧で限定し、import・`require`・`getBuiltinModule` を同じ規則で検査する）
+    今の `src/` はどれも使わない。ROADMAP のバックログ 2（読み込めるモジュールの一覧で限定し、import・`require`・`getBuiltinModule` を同じ規則で検査する）
 - ファイルへの出力（verify のレポート、init が書く設定の JSON の値）の禁止文字は、この ADR でも対象外（ROADMAP のバックログ）。init の設定案の
   コメントの値だけは決定 2 で表記にした
 
