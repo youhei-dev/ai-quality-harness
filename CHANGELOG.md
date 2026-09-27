@@ -5,7 +5,20 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.12 — M2-2: safeJson reads array length and keys exactly and fixes failed inspections (M2-2-R7-001..003)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.12` / `git rev-parse v0.5.12` で確認し、次の release commit で記入）
+## v0.5.13 — M2-2: independent review R8 — the safeJson review is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.13` / `git rev-parse v0.5.13` で確認し、次の release commit で記入）
+
+- 独立レビュー m2-2-r8（`docs/reviews/m2-2/independent-review-r8.md`、ChatGPT、範囲 v0.5.11..v0.5.12）: 前回の M2-2-R7-001〜003 は 3 件とも解消。
+  新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-2/response-r8.md`
+- 人間の判断で、M2-2 の safeJson に関するレビューを R8 で終える（R9 は行わない。レビューパケットも作らない）
+- レビュアーの「未確認の範囲」は、新しい作業を起こさずに記録した
+  - `src/cli.ts` のすべての throw の箇所: 既知の限界としてバックログ 1（CLI の最上位の catch）で扱う
+  - 42 通りのバイト比較: リポジトリのテストではなく git 管理外の道具で、v0.5.12 の SP2 で実測済み（各 commit と HEAD で一致）
+  - 変更していないコマンドの `--json` の値: 既存の回帰テストと ADR-0018 の範囲で扱う
+- ROADMAP: M2-2 の節に R8 の結果と v0.5.13 を書いた。バックログは項目も番号も変えていない
+- `src/`・`tests/`・`scripts/`・設定は変えていない（docs だけ）。テスト 675 件（102 ファイル）。`package.json` version 0.5.13（`package-lock.json` は変えていない）
+- 注記: v0.5.12 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.12 — commit 0231ab0 / tag object 4048afc — M2-2: safeJson reads array length and keys exactly and fixes failed inspections (M2-2-R7-001..003)
 
 - **M2-2-R7-001〜003（Medium、独立レビュー m2-2-r7）を修正**（`src/` は `src/output.ts` だけ。ADR-0018 の決定は変えず、実装を合わせた）
   - R7-001: 配列の `length` を、ほかのプロパティと同じく記述子から読む（数えられない、0〜2^32−1 の整数）。Proxy の `get` のトラップは呼ばない
