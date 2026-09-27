@@ -453,8 +453,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   だけを block で書く（init の設定案、設定の検証エラーの zod の詳細、commander の help と使い方エラーの提案の行）。block は行を保ち、各行を 1 行と同じく処理する。
   設定案のコメントに入る値は作る所で表記にする（`--write` で書くファイルも同じ）。`ConfigError` は見出し（1 行）と詳細（block）を分けて持つ。
   JSON は JSON のデータだけを受け付ける（v0.5.10、ADR-0018: 文字列・有限の数・真偽値・null・配列・プロトタイプが `Object.prototype` か null の object。
-  各プロパティを記述子で 1 回だけ読み〈配列の `length` を除く〉、getter と `toJSON` を呼ばない。関数・`undefined`・`NaN`・accessor・循環・101 段以上の入れ子などは、
-  出力の前に拒否して exit 2。メッセージは種類だけ〈Proxy のトラップ自身が投げた例外を除く〉）。
+  各プロパティを記述子で 1 回だけ読み、getter・`toJSON`・Proxy の `get` のトラップを呼ばない。関数・`undefined`・`NaN`・accessor・循環・101 段以上の入れ子などは、
+  出力の前に拒否して exit 2。メッセージは種類だけ〈値を調べる操作が投げたときも、投げられた値を読まずに固定の種類にする。v0.5.12〉）。
   キーと文字列を表記にしてから mask し、変換の後にキーが衝突したら出さない（exit 2）。端末に書くのは `emitOut` / `emitErr` の 2 つだけで、
   引数は `safeText` / `safeJson` だけが作る型 `Safe`。型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr` の
   参照を 2 つの基本関数の中だけに限り、端末に 1 つのプロパティで届くオブジェクト（`process`・`globalThis`）の動的・反射的な扱い、型検査で中身が見えないコード
@@ -466,8 +466,10 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。ROADMAP のバックログの 2（v0.5.11 の番号。v0.5.10 では 1）。
   `safeJson()` が JSON のデータでない値を処理しない件（同じく v0.5.5 で追記した既知の限界）は、v0.5.10 で解消した（ADR-0018。ファイルへの出力の `maskDeep()` は
   バックログの 10）。
-  v0.5.11 で追記（M2-2 独立レビュー R7、ADR-0018 の既知の限界）: Proxy の配列の `length` は `get` のトラップで読む。配列のキーは個数だけを確かめ、`ownKeys()` と
-  記述子が食い違う Proxy の配列を受け付ける。トラップ自身の例外は種類のメッセージに変えない（端末へは `writeError()` で表記・mask される）。ROADMAP のバックログの 1
+  v0.5.11 で追記（M2-2 独立レビュー R7）した Proxy の 3 件（配列の `length` を `get` で読む、配列のキーを個数だけで確かめる、トラップの例外をそのまま伝える）は、
+  v0.5.12 で解消した（ADR-0018）。v0.5.12 で追記: CLI の最上位の catch（`src/cli.ts`）は、調べると例外になる投げられた値（同じプロセスの中で作った Proxy など）では
+  それ自体が例外になり、Node の既定の表示で生の文字列が出て exit 1 になる（`safeJson()` を通る経路は v0.5.12 で閉じた。今のコマンドにそのような値は無い）。
+  ROADMAP のバックログの 1
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
   Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
