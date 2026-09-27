@@ -63,24 +63,57 @@ function notJsonData(what: string): Error {
   return new Error(`JSON output refused: ${what} is not JSON data`);
 }
 
+/**
+ * One reflective operation on a value that may be a Proxy (M2-2-R7-003): whatever it throws — the trap's own exception, or
+ * the engine's error about the trap's answer, which can quote a key — becomes the fixed refusal. The thrown value is never
+ * read (reading it could run the value's code again), so nothing of it reaches the message.
+ */
+function inspect<T>(op: () => T): T {
+  try {
+    return op();
+  } catch {
+    throw notJsonData("a value whose structure could not be inspected");
+  }
+}
+
 /** An own property that is JSON data: a data property (never an accessor, which is not called) and enumerable. */
 function ownDataValue(o: object, key: string, missing: string): unknown {
-  const d = Object.getOwnPropertyDescriptor(o, key);
+  const d = inspect(() => Object.getOwnPropertyDescriptor(o, key));
   if (d === undefined) throw notJsonData(missing);
   if (!("value" in d)) throw notJsonData("an accessor property");
   if (d.enumerable !== true) throw notJsonData("a non-enumerable property");
   return d.value as unknown;
 }
 
+/** The largest length of an array (2^32 - 1). */
+const MAX_ARRAY_LENGTH = 2 ** 32 - 1;
+
+/** An array index in its canonical form: "0", or digits without a leading zero ("01", "1.0", "-0", "+1" and "1e3" are not). */
+const ARRAY_INDEX = /^(?:0|[1-9][0-9]*)$/;
+
+/**
+ * An array's length, read from its own data descriptor like every other property (M2-2-R7-001): never through a getter or
+ * a Proxy's get trap. It is a non-enumerable data property whose value is an integer from 0 to 2^32 - 1.
+ */
+function arrayLength(a: object): number {
+  const d = inspect(() => Object.getOwnPropertyDescriptor(a, "length"));
+  const n: unknown = d !== undefined && "value" in d && d.enumerable === false ? d.value : undefined;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > MAX_ARRAY_LENGTH) throw notJsonData("an array whose length is not a valid array length");
+  return n;
+}
+
 /**
  * A copy of JSON data in which every string — object keys included (M2-2-R3-002) — is escaped, then masked. JSON data
- * (M2-2-R4-001): a string, a finite number, a boolean, null, an array (prototype Array.prototype, no holes, no other
- * keys) or an object (prototype Object.prototype or null) whose own properties are enumerable data properties with
- * string keys, all of them JSON data, without a cycle and at most MAX_JSON_DEPTH deep. Anything else is refused, never
- * converted: each property is read once, getters and toJSON are never called, and JSON.stringify only sees the copy,
- * whose arrays are plain and whose objects have no prototype (so a key such as "__proto__" or "toJSON" stays a key).
- * Two keys of one object that become the same string are an error, never a merge. A refusal is fail closed: nothing is
- * printed; the CLI reports it as an unexpected error, exit 2.
+ * (M2-2-R4-001): a string, a finite number, a boolean, null, an array (prototype Array.prototype, own keys exactly its
+ * indices 0 to length - 1 and "length") or an object (prototype Object.prototype or null) whose own properties are
+ * enumerable data properties with string keys, all of them JSON data, without a cycle and at most MAX_JSON_DEPTH deep.
+ * Anything else is refused, never converted: each property — an array's length included — is read once from its
+ * descriptor, so getters, toJSON and a Proxy's get trap are never called (M2-2-R7-001 / R7-002), and JSON.stringify only
+ * sees the copy, whose arrays are plain and whose objects have no prototype (so a key such as "__proto__" or "toJSON"
+ * stays a key). When an operation that inspects the value throws (a Proxy's trap, or the engine checking a trap's
+ * answer), the refusal is the fixed one and the thrown value is not read (M2-2-R7-003). Two keys of one object that
+ * become the same string are an error, never a merge. A refusal is fail closed: nothing is printed; the CLI reports it
+ * as an unexpected error, exit 2.
  */
 function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unknown {
   if (value === null || typeof value === "boolean") return value;
@@ -93,13 +126,19 @@ function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unk
   if (ancestors.includes(value)) throw notJsonData("a circular reference");
   if (ancestors.length >= MAX_JSON_DEPTH) throw notJsonData(`nesting deeper than ${MAX_JSON_DEPTH}`);
   ancestors.push(value);
-  const proto: unknown = Object.getPrototypeOf(value);
-  const keys = Reflect.ownKeys(value);
+  const proto: unknown = inspect(() => Object.getPrototypeOf(value));
+  const keys = inspect(() => Reflect.ownKeys(value));
   let copy: unknown;
-  if (Array.isArray(value)) {
+  if (inspect(() => Array.isArray(value))) {
     if (proto !== Array.prototype) throw notJsonData("an array whose prototype is not Array.prototype");
-    const length = value.length;
+    const length = arrayLength(value);
+    // The own keys are exactly "0" to "length-1" and "length" (M2-2-R7-002): there are length + 1 of them, none repeats
+    // (the engine refuses a repeated key from a Proxy), and each is "length" or a canonical index below length. Only these
+    // indices' descriptors are read.
     if (keys.length !== length + 1) throw notJsonData("an array with a hole or a key that is not an index");
+    for (const k of keys) {
+      if (k !== "length" && (typeof k !== "string" || !ARRAY_INDEX.test(k) || Number(k) >= length)) throw notJsonData("an array with a hole or a key that is not an index");
+    }
     const out: unknown[] = [];
     for (let i = 0; i < length; i++) out.push(jsonSafe(ownDataValue(value, String(i), "an array with a hole"), mode, ancestors));
     copy = out;
