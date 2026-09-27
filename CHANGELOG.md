@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.13 — M2-2: independent review R8 — the safeJson review is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.13` / `git rev-parse v0.5.13` で確認し、次の release commit で記入）
+## v0.5.14 — M2-2: the CLI's top-level catch never throws and always exits 2 (backlog 1)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.14` / `git rev-parse v0.5.14` で確認し、次の release commit で記入）
+
+- **ROADMAP のバックログ 1（CLI の最上位の catch、Medium。v0.5.12 の SP1 で発見）を修正**（`src/` は `src/cli.ts` だけ）
+  - 最上位の catch は、最初に exit 2 を決め、投げられた値を調べる操作（`instanceof`・`message` の読み取り・文字列への変換）と 1 行目の組み立てを try の中でだけ行う。
+    失敗したら固定の文 `aiqh: unexpected error: (the thrown value could not be inspected)` にし、投げられた値も、調べる途中で投げられた値も読み直さない
+  - 書けない行は飛ばす（行ごとの try）。判定の行 `VERIFY ERROR (internal error)` は書こうとする
+  - v0.5.13 では、調べると例外になる値（`getPrototypeOf` が投げる Proxy、`message` の getter が投げる Error、`toString`・`Symbol.toPrimitive` が投げる object、
+    取り消し済みの Proxy など 9 通り）で catch 自体が例外になり、Node の既定の表示で生の文字列が出て exit 1 になった（6 通りは生の U+202E と mask されない秘密の形）。
+    利用者の入力からは届かない（`src/` 全体の棚卸しで、投げられた値を調べる 32 か所とも届く経路が無い。ほかの箇所は変えていない）
+  - 普通の値（Error・文字列・`toString` を持つ object・symbol）の出力は変わらない（v0.5.4 のバイト比較の 42 通りが v0.5.13 と一致）
+  - 新しい回帰テスト `tests/regression-m2-2-cli-catch-001-thrown-value.test.ts`（25 件）: 実物の CLI を子プロセスで起こし、preload で値を届ける（`src/` に差し込み口は
+    足さない）。v0.5.13 では 13 件 FAIL（PASS の 12 件は対照 5 件と、読み直しを数える 7 件）。既存テストの期待値は変えていない
+- docs: ADR-0018 の既知の限界に「v0.5.14 で解消」。ARCHITECTURE の出力の出口。response-r7 に v0.5.14 の節（`src/` 全体の棚卸しの表を含む）、response-r8 の
+  「未確認の範囲」1 に v0.5.14 の追記 1 行。ROADMAP: バックログ 1 を外し、2〜20 は 1〜19 になった（ADR-0017・ADR-0018・ARCHITECTURE と版の無い参照を合わせた）
+- テスト 700 件（103 ファイル。675 ＋ 新しい回帰テスト 25）。`package.json` version 0.5.14（`package-lock.json` は変えていない）
+- 注記: v0.5.13 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.13 — commit 18c4c95 / tag object 3d83c7b — M2-2: independent review R8 — the safeJson review is closed (docs only)
 
 - 独立レビュー m2-2-r8（`docs/reviews/m2-2/independent-review-r8.md`、ChatGPT、範囲 v0.5.11..v0.5.12）: 前回の M2-2-R7-001〜003 は 3 件とも解消。
   新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-2/response-r8.md`
