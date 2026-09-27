@@ -73,10 +73,36 @@ function onVerdictFixed(): void {
 // The commands and options (side-effect free, src/cli-program.ts; M2-1-R3-005).
 const program = buildProgram({ version: VERSION, signal: interruption.signal, onVerdictFixed });
 
+/** The first line for a thrown value whose inspection throws (ROADMAP backlog 1, v0.5.14). */
+const UNINSPECTABLE_THROWN_LINE = "aiqh: unexpected error: (the thrown value could not be inspected)";
+
+/**
+ * The first line for a value thrown out of a command: an Error's message, anything else as a string. Every inspection
+ * (instanceof, reading message, the conversion to a string) and the line itself are made inside the try; if one throws,
+ * the fixed line is used and neither the value nor what it threw is read again (the rule of inspect() in src/output.ts,
+ * ADR-0018).
+ */
+function unexpectedErrorLine(err: unknown): string {
+  try {
+    return `aiqh: unexpected error: ${err instanceof Error ? err.message : String(err)}`;
+  } catch {
+    return UNINSPECTABLE_THROWN_LINE;
+  }
+}
+
+/** One line to standard error through the output boundary; a line that cannot be written is left out, nothing is read. */
+function tryWriteError(line: string): void {
+  try {
+    writeError(line);
+  } catch {
+    // The exit code is already set; what was thrown is not inspected.
+  }
+}
+
+// The last handler never throws: an exception here would be Node's unhandled rejection (the value printed raw, exit 1).
 program.parseAsync(process.argv).catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  // Through the output boundary like every other line (src/output.ts): a message can quote a path.
-  writeError(`aiqh: unexpected error: ${message}`);
-  writeError("VERIFY ERROR (internal error)");
   process.exitCode = EXIT_ERROR;
+  // Through the output boundary like every other line (src/output.ts): a message can quote a path.
+  tryWriteError(unexpectedErrorLine(err));
+  tryWriteError("VERIFY ERROR (internal error)");
 });
