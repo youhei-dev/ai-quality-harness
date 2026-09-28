@@ -1,6 +1,6 @@
 # ADR-0017: 端末への 1 回の書き出しは 1 行、複数行はコマンド自身の block。JSON のキーも出口を通し、端末には 2 つの基本関数だけが書く
 
-- 状態: 採用（ADR-0016 の決定 3 と「既知の限界」を置換）。決定 3 の JSON のデータについての但し書きと、既知の限界の M2-2-R4-001 は ADR-0018 で置換（v0.5.10）
+- 状態: 採用（ADR-0016 の決定 3 と「既知の限界」を置換）。決定 3 の JSON のデータについての但し書きと、既知の限界の M2-2-R4-001 は ADR-0018 で置換（v0.5.10）。既知の限界のうち構造ガードの項（`worker_threads` などの列挙と、v0.5.5 で追記した M2-2-R4-002）は ADR-0019 で置換（v0.5.17）
 - 日付: 2026-09-25（M2-2、v0.5.4。M2-2 独立レビュー R3 の M2-2-R3-001〜003）
 
 ## 文脈
@@ -74,6 +74,8 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
   string_decoder・zlib だけ）: `worker_threads`（Worker の標準出力は既定で親の端末へ）、`node:repl`・`node:test`（既定で標準出力へ）、
   `tty.WriteStream(fd)`、`util.debuglog`、`process.emitWarning`、実行時に組み立てたパス（`/dev/tty` など）への fs の書き込み。
   扱う場合の案は、`src/` が読み込める組み込みモジュールを一覧で限定すること（v0.5.5 で ROADMAP のバックログ 3 に入れた。v0.5.14 の番号で 1）
+  - **v0.5.17 で ADR-0019 により置換（解消）**: `src/` が実行時に読み込むモジュールを一覧で限り、`process` の 6 つのメンバーを違反にした。実行時に組み立てたパスへの
+    fs の書き込みは、ADR-0019 の既知の限界として残る。上の文は当時の記録として残す
 - **v0.5.5 で追記（M2-2 独立レビュー R4。`docs/reviews/m2-2/response-r4.md`）**
   - M2-2-R4-001: `safeJson()` は JSON のデータでない値を処理しない。自分の `toJSON` に関数の値があると（関数を返す数えられる getter も同じ）、`JSON.stringify()` が
     それを呼び、戻り値は表記・mask を通らずに出る。ほかの JSON のデータでない値は、消える（関数・`symbol`・`undefined`・数えられないプロパティ）、形が変わる
@@ -88,6 +90,9 @@ commander の help の 2 経路と使い方エラーの提案）。コマンド�
     `process.report.writeReport("stdout")`（診断レポートを標準出力へ書く）。`process.binding`・`process._linkedBinding`・`process._rawDebug` は型に無く、使うには
     キャストが要るので検出する。`getBuiltinModule` で取った `child_process`・`fs` の呼び出しは型で解決するので、stdio・fd の規則で検出する。
     今の `src/` はどれも使わない。ROADMAP のバックログ 1（読み込めるモジュールの一覧で限定し、import・`require`・`getBuiltinModule` を同じ規則で検査する）
+    - **v0.5.17 で ADR-0019 により置換（解消。ROADMAP のバックログ 1 は番号を詰めずに「解消」として残した）**。v0.5.17 の SP1 の洗い出しでは、同じ種類は上の列挙より
+      多かった（`process.execve`・`process.stdin`・`node:wasi`・`node:cluster`・`export … from`・`data:` と `.mjs` の副作用の import など。`docs/reviews/m2-2/response-r4.md` の
+      v0.5.17 の節）。上の文は v0.5.5 の時点の記録として残す
 - ファイルへの出力（verify のレポート、init が書く設定の JSON の値）の禁止文字は、この ADR でも対象外（ROADMAP のバックログ）。init の設定案の
   コメントの値だけは決定 2 で表記にした
 

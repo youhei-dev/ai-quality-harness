@@ -459,11 +459,17 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   引数は `safeText` / `safeJson` だけが作る型 `Safe`。型情報付きの構造テスト（`tests/structure/output-guard.ts`）が、`console`・`process.stdout` / `process.stderr` の
   参照を 2 つの基本関数の中だけに限り、端末に 1 つのプロパティで届くオブジェクト（`process`・`globalThis`）の動的・反射的な扱い、型検査で中身が見えないコード
   （`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm` の読み込み）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない子プロセス、
-  `safeText` / `safeJson` の外で作る `Safe` を禁止する。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
-  既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。構造テストは `worker_threads`・`node:repl`・
-  `node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning`・実行時に組み立てたパスへの書き込みを扱わない（今の `src/` は使わない）。
-  v0.5.5 で追記（M2-2 独立レビュー R4）: 構造テストは `process.getBuiltinModule(…)`（`node:console`・`node:vm` などを取れる）、`process.dlopen`、
-  `process.report.writeReport("stdout")` も扱わない（今の `src/` は使わない）。ROADMAP のバックログの 1（v0.5.14 の番号。v0.5.11〜v0.5.13 では 2）。
+  `safeText` / `safeJson` の外で作る `Safe` を禁止する。v0.5.17 から（ADR-0019）、同じ構造テストが、`src/` が実行時に読み込むモジュールを一覧で限る（組み込みは
+  `node:` 付きの child_process・crypto・fs・path・string_decoder・zlib だけ。ほかに許すのは `src/` のソースファイルと package.json の `dependencies`。`import type` は
+  見ない）。`process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（`getBuiltinModule` は名前を問わない）。
+  一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
+  既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
+  既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
+  自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外は、Node の既定の表示で
+  出口を通らずに標準エラーへ出る（範囲の外。ROADMAP のバックログ 20）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない
+  （グローバルの `fetch` などは残る）。
+  v0.5.4〜v0.5.16 の既知の限界だった `worker_threads`・`node:repl`・`node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning` と、v0.5.5 で追記した
+  `process.getBuiltinModule(…)`・`process.dlopen`・`process.report.writeReport("stdout")` は、v0.5.17 で解消した（バックログ 1）。
   `safeJson()` が JSON のデータでない値を処理しない件（同じく v0.5.5 で追記した既知の限界）は、v0.5.10 で解消した（ADR-0018。ファイルへの出力の `maskDeep()` は
   バックログの 9）。
   v0.5.11 で追記（M2-2 独立レビュー R7）した Proxy の 3 件（配列の `length` を `get` で読む、配列のキーを個数だけで確かめる、トラップの例外をそのまま伝える）は、

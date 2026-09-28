@@ -213,3 +213,74 @@ v0.5.5 の「同じ種類の洗い出し」の表と ADR-0017 の既知の限界
   写しは、新しい配列とプロトタイプの無い object に自分で入れる
 - **洗い出しの表は、型の分類（関数・getter・Proxy・サブクラス）ごとに組み合わせまで作る**: v0.5.5 は `toJSON` を持つ object だけを見て、`toJSON` を持つ関数や
   配列のサブクラスを落とした
+
+## M2-2-R4-002 の対応（v0.5.17、2026-09-28。`src/` は変えない）
+
+SP1（洗い出し・写しでの実測・試作・設計）の後、人間の承認を得て実装した。ROADMAP のバックログ 1 を、順番どおりに人間が選んだ。作業の記録は `tmp/builtin-allowlist/`
+（git 管理外）。決定は ADR-0019。
+
+### 人間の判断（SP1 の承認）
+
+- 設計は案 A（読み込みの行き先の一覧 ＋ `process` の 6 つのメンバーを宣言で判定。`getBuiltinModule` は名前を問わず違反）
+- 一覧を変えるときは ADR-0019 への追記を必須にし、独立レビューの対象にする。一覧と `src/` の実際が一致することを確かめる回帰テストも、この手続きの一部
+- 依存のパッケージは package.json の `dependencies` から読む（ADR-0008 の依存の承認とそろえ、二重に管理しない）
+- 文字列リテラルの `import()` は、一覧の中なら許す（行き先の規則は静的な import と同じ）
+- `process.stdin` を違反に含める（stdin が端末なら端末に書けることを実測したため）
+- ROADMAP のバックログ 1 は「v0.5.17 で解消」として残し、番号を詰めない（番号は docs の多くの箇所から参照されている）
+- SP1 で見つけた未処理の例外の表示は、ROADMAP のバックログ 20 に足す（この版では直さない）
+
+### 修正の中身
+
+- `tests/structure/output-guard.ts`: 読み込みの行き先の規則（一覧 `BUILTIN_ALLOWED`・package.json の `dependencies`・`src/` のソースファイル）と、`process` のメンバーの
+  規則（一覧 `PROCESS_MEMBERS`。`@types/node` の `process.d.ts` の宣言で判定）を足した。違反の種類は、一覧の外の組み込み、`node:` の無い組み込み、URL、`src/` の
+  ソースファイルでないモジュール、依存に無いパッケージ、`import = require()`、`process` のメンバー
+- 新しい回帰テスト `tests/regression-m2-2-r4-002-builtin-allowlist.test.ts`（61 件）: 49 形は報告される、対照 8 形は報告されない、fixture の型検査（`data:` の `import()` だけは
+  型検査で止まる）、本物の `src/` に違反が無い、一覧と `src/` の実際の一致、6 つのメンバーが今の `@types/node` の宣言に解決すること
+- SP1 の試作との違いは、`src/` のソースファイルに解決しない相対 import の文言（「checker に見えない」は `tests/` などのファイルには当てはまらないので、
+  「`src/` のソースファイルでない」にした）と、コメントだけ
+
+### 洗い出しと実測（v0.5.17 の SP1。写し）
+
+同じ種類の 63 形を fixture にして、v0.5.16 のガードと試作のガードに当てた。代表の形は、別のスクリプトで実行時に動かし、終了コード・出力のバイト数・印がどちらの
+ストリームに出たかだけを記録した（診断レポートは環境変数を含むので、中身を表示せずバイト数だけ。ポートを開く形〈inspector、SIGUSR1〉は動かしていない）。
+
+| 分類 | 形の数 | v0.5.16 が検出 | v0.5.17 が検出 | 実行時の実測（見逃していた形） |
+|---|---|---|---|---|
+| `process.getBuiltinModule`（文字列・変数・組み立て・`node:` なし・`globalThis`・別名・分割代入・要素アクセス・`node:process` の import など） | 15 | 3（child_process の stdio、fs の fd、`node:process` の stdout を、ほかの規則で） | 15 | console の `log` と vm の `runInThisContext` は標準出力に出た |
+| `process` のほかのメンバー（`dlopen`、`report` の 4 形、`emitWarning` の 3 形、`execve`、`stdin`、キャスト 2、`mainModule.require`） | 14 | 3（キャスト 2、`require`） | 14 | `report.writeReport("stdout")` は標準出力に 45,658 バイト、`emitWarning` は標準エラー、`execve` は標準出力、`stdin.write` は stdin が端末なら端末に出た |
+| `node:module` と `require`（`Module._load`・`require.cache`・`register`） | 3 | 1（`require`） | 3 | — |
+| `import()`（`node:console`・`node:worker_threads` の文字列、置換つきのテンプレート） | 3 | 1（計算された `import()`） | 3 | Worker は標準出力に出た |
+| 静的な import と `export … from`（`worker_threads`・`repl`・`test`・`inspector`・`tty`・`util.debuglog`・`wasi`・`cluster`・`node:` の無い `fs`・再エクスポート・`data:` と `.mjs` の副作用の import・`import { type X }`） | 13 | 0 | 13 | Worker・repl・test・`tty.WriteStream(1)`・`cluster.fork` の子・`data:` の import は標準出力、`util.debuglog` は `NODE_DEBUG` を設定したときだけ標準エラーに出た |
+| fs のリテラルの装置のパス（`/dev/fd/1`） | 1 | 1 | 1 | — |
+| 計 | **49** | **9** | **49** | 見逃していた形のうち動かした 13 形は、どれも端末に届いた |
+
+- ほかに、`import()` に `data:` の URL を渡す形は型検査で止まる（`Cannot find module`）。対照 8 形（許可済みの 6 つの組み込み、`import type`、`process` の普通の使い方、
+  依存の 3 つ、`src/` の相対 import、型の中の参照、許可済みの `import()`、`import.meta.resolve`）は、v0.5.16・v0.5.17 ともに報告しない
+- 塞げない・範囲外として測った 5 形（実行時に組み立てたパス 3、自分自身への SIGUSR1、タイマーの中の未処理の例外）は、ADR-0019 の既知の限界。組み立てた `/dev/stdout` への
+  書き込みは標準出力に、未処理の例外は生のメッセージとソースの行が標準エラーに出た（exit 1）。SIGUSR1 はポートが開くので動かしていない
+- 今の `src/` はどの形も使わない（`git grep` と、v0.5.17 のガードを `src/` に当てた違反 0 件）
+
+### v0.5.5 の記録の不足（v0.5.17 の SP1 の洗い出し）
+
+v0.5.5 の「再現と同じ種類の洗い出し」の表（上の M2-2-R4-002 の節）と ADR-0017 の既知の限界に無かった形: `process.execve`（今のプロセスを置き換え、端末を引き継ぐ）、
+`process.stdin`（stdin が端末なら書ける）、`process.report` の設定とファイルへの書き出し、`node:wasi`（stdout の既定は fd 1）、`node:cluster`（子が端末を引き継ぐ）、
+`export … from`、`data:` と `.mjs` の副作用の import、`node:` の無い組み込み、`import { type X }`（実行時にモジュールを読む）、`Module._load` と `register`。
+v0.5.5 の表は当時の記録として残す。
+
+### 修正の前後の実測
+
+| 確かめたこと | v0.5.16 | v0.5.17 |
+|---|---|---|
+| 新しい回帰テスト（61 件） | 42 件 FAIL（見逃していた 40 形と、一覧の一致・メンバーの宣言）。PASS の 19 件は、既に検出していた 9 形・対照 8・fixture の型検査・`src/` の違反 0 | 61 件 PASS |
+| 本物の `src/` への違反 | 0 | 0 |
+| 既存のガードのテスト（r2-001 の 21 件、r3-003 の 7 件） | PASS | PASS（期待値は変えていない） |
+
+- テスト件数: 700（v0.5.16、103 ファイル）→ 761（v0.5.17、104 ファイル）
+
+### 教訓（v0.5.17）
+
+- **能力を一覧で許すときは、読み込みの「方法」ではなく「行き先」で決める**: import・`require`・`getBuiltinModule` と方法を列挙すると、`data:` の副作用の import や
+  再エクスポートのように、別の方法が残る。読み込むすべての行き先を、一覧（組み込み・自分のソース・承認済みの依存）と照らす
+- **グローバルのオブジェクトのメンバーも、モジュールと同じく能力として数える**: `process` は import なしで使え、`execve`・`stdin`・`report` のように端末やほかのプログラムに
+  届くメンバーを持つ。宣言で見つけて、別名・分割代入でも同じ規則にする
+- **宣言のファイル名で判定する規則には、宣言が見つかることの自己検査を置く**: `@types/node` の構成が変わると、規則が黙って効かなくなる
