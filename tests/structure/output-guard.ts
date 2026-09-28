@@ -17,16 +17,41 @@
  *    and an `fd` option passed to any call; a `/dev/…` or `/proc/…` path literal in any fs call
  *  - a child process whose stdio is not "pipe" / "ignore" for every stream (inherit, a descriptor, a stream, or left to
  *    Node's default where that passes the terminal through: spawn, spawnSync, execFileSync, execSync, fork)
+ *  - a module that is not in the allowlist (backlog 1, M2-2-R4-002, ADR-0019): every module a file loads at run time (an import or
+ *    `export … from` that is not `import type` / `export type`, and `import()` of a string literal) must be a built-in
+ *    of BUILTIN_ALLOWED (written with `node:`), a source file of src/ in the program, or a runtime dependency of
+ *    package.json. A built-in without `node:`, a URL (`data:` …) and a file that is not a source file of src/ (a `.mjs`
+ *    file, a declaration file, a file outside src/, or one that does not resolve) are violations
+ *  - the members of `process` that reach the terminal or another program without a module (PROCESS_MEMBERS:
+ *    getBuiltinModule, dlopen, report, emitWarning, execve, stdin, …), found by their declaration like the terminal
  * In src/, only the two writers of src/output.ts (`emitOut`, `emitErr`) may reach the terminal, only as a call such as
  * `console.log(text)` / `process.stdout.write(text)`, and only with arguments of type `Safe`. Only safeText / safeJson
  * create a `Safe` string: a type assertion to it anywhere else, a type predicate for it and an `any` value where it is
  * expected are violations. A reference is found by the declaration it resolves to (@types/node, the TypeScript
  * library), not by its spelling.
  */
+import { readFileSync } from "node:fs";
+import { isBuiltin } from "node:module";
 import path from "node:path";
 import ts from "typescript";
 import { starter } from "./process-guard.ts";
-import { ownerName, where, type Program } from "./typescript.ts";
+import { ownerName, ROOT, where, type Program } from "./typescript.ts";
+
+/**
+ * The Node built-in modules src/ may load (backlog 1, ADR-0019): exactly the ones src/ uses (a test checks both ways).
+ * None of them reaches the terminal except through the rules below (fs: a descriptor or a device path; child_process:
+ * stdio). Adding one needs its ways to the terminal and to other programs, and the rules they need, written into
+ * ADR-0019 and reviewed independently.
+ */
+export const BUILTIN_ALLOWED: ReadonlySet<string> = new Set(["node:child_process", "node:crypto", "node:fs", "node:path", "node:string_decoder", "node:zlib"]);
+/** The runtime dependencies of package.json (ADR-0008 approves them); src/ may load these packages. */
+export const RUNTIME_PACKAGES: ReadonlySet<string> = new Set(Object.keys((JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")) as { dependencies?: Record<string, string> }).dependencies ?? {}));
+/**
+ * Members of `process` that reach the terminal, load code or replace the program, without a module. binding,
+ * _linkedBinding and _rawDebug are not declared by @types/node today (a cast is needed, which is a violation already).
+ */
+export const PROCESS_MEMBERS: ReadonlySet<string> = new Set(["getBuiltinModule", "dlopen", "report", "emitWarning", "execve", "stdin", "binding", "_linkedBinding", "_rawDebug"]);
+const PROCESS_TYPES = /[\\/]@types[\\/]node[\\/]process\.d\.ts$/;
 
 /** Repository-relative files that may write to the terminal (only inside WRITERS). */
 export const OUTPUT_ALLOWED = new Set(["src/output.ts"]);
@@ -67,6 +92,26 @@ function terminalSymbol(sym: ts.Symbol | undefined): string | null {
   if (sym.name === "console" && files.some((f) => /[\\/](globals|console)\.d\.ts$/.test(f))) return "console";
   if ((sym.name === "stdout" || sym.name === "stderr") && files.some((f) => /[\\/]process\.d\.ts$/.test(f))) return `process.${sym.name}`;
   return null;
+}
+
+/** "process.<name>" when `sym` is one of PROCESS_MEMBERS as declared by @types/node, else null. */
+function processMember(sym: ts.Symbol | undefined): string | null {
+  if (sym === undefined || !PROCESS_MEMBERS.has(sym.name)) return null;
+  return (sym.declarations ?? []).some((d) => PROCESS_TYPES.test(d.getSourceFile().fileName)) ? `process.${sym.name}` : null;
+}
+
+/** What is wrong with a module a file loads at run time (see the header), or null. */
+function moduleProblem(p: Program, spec: ts.StringLiteralLike): string | null {
+  const m = spec.text;
+  if (m.startsWith("node:")) return BUILTIN_ALLOWED.has(m) ? null : `a built-in module outside the allowlist: ${m}`;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(m)) return `a module by URL: ${m.slice(0, 40)}`;
+  if (isBuiltin(m)) return `a built-in module without node: ${m}`;
+  if (m.startsWith(".") || m.startsWith("/")) {
+    const target = p.checker.getSymbolAtLocation(spec)?.valueDeclaration;
+    return target !== undefined && ts.isSourceFile(target) && !target.isDeclarationFile && p.rel(target).startsWith("src/") ? null : `a module that is not a source file of src/: ${m.slice(0, 40)}`;
+  }
+  const name = m.startsWith("@") ? m.split("/").slice(0, 2).join("/") : (m.split("/")[0] ?? m);
+  return RUNTIME_PACKAGES.has(name) ? null : `a package that is not a runtime dependency: ${name}`;
 }
 
 /** The fs function a call resolves to (declared in @types/node fs or fs/promises), or null. */
@@ -162,11 +207,23 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         const m = n.moduleSpecifier.text;
         if (m === "console" || m === "node:console") add(n, "import node:console");
         if (VM_MODULES.has(m)) add(n, "dynamic code: node:vm");
+        // the allowlist (backlog 1): `import type` is erased; `import { type X }` still loads the module
+        if (n.importClause?.isTypeOnly !== true) {
+          const why = moduleProblem(p, n.moduleSpecifier);
+          if (why !== null) add(n, why);
+        }
       }
+      if (ts.isExportDeclaration(n) && !n.isTypeOnly && n.moduleSpecifier !== undefined && ts.isStringLiteral(n.moduleSpecifier)) {
+        const why = moduleProblem(p, n.moduleSpecifier);
+        if (why !== null) add(n, why);
+      }
+      if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) add(n, "dynamic code: import = require()");
       if (ts.isIdentifier(n)) {
         const sym = resolved(checker, checker.getSymbolAtLocation(n));
         const what = terminalSymbol(sym);
         if (what !== null) add(n, what, true);
+        const member = inTypePosition(n) ? null : processMember(sym);
+        if (member !== null) add(n, member);
         // code the checker cannot see
         if (!inTypePosition(n) && sym !== undefined) {
           if ((sym.name === "Function" || sym.name === "eval") && declaredIn(sym, TS_LIB)) add(n, `dynamic code: ${sym.name}`);
@@ -175,8 +232,11 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
       }
       // process["stdout"], console["log"]: the property named by a string
       if (ts.isElementAccessExpression(n)) {
-        const what = terminalSymbol(resolved(checker, checker.getSymbolAtLocation(n.argumentExpression)));
+        const keySym = resolved(checker, checker.getSymbolAtLocation(n.argumentExpression));
+        const what = terminalSymbol(keySym);
         if (what !== null) add(n, what, true);
+        const member = processMember(keySym);
+        if (member !== null) add(n, member);
       }
       // const { stdout } = process; const { log } = console — the property the binding takes
       if (ts.isObjectBindingPattern(n)) {
@@ -185,8 +245,11 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         for (const el of n.elements) {
           const key = el.propertyName ?? el.name;
           if (!ts.isIdentifier(key) && !ts.isStringLiteral(key)) continue;
-          const what = terminalSymbol(resolved(checker, type.getProperty(key.text)));
+          const prop = resolved(checker, type.getProperty(key.text));
+          const what = terminalSymbol(prop);
           if (what !== null) add(el, what, true);
+          const member = processMember(prop);
+          if (member !== null) add(el, member);
         }
       }
       // process, globalThis, the node:process module: only `x.name` (R3-003)
@@ -216,7 +279,11 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         if (n.expression.kind === ts.SyntaxKind.ImportKeyword) {
           const spec = n.arguments[0];
           if (spec === undefined || !(ts.isStringLiteral(spec) || ts.isNoSubstitutionTemplateLiteral(spec))) add(n, "dynamic code: import() of a computed module");
-          else if (VM_MODULES.has(spec.text)) add(n, "dynamic code: node:vm");
+          else {
+            if (VM_MODULES.has(spec.text)) add(n, "dynamic code: node:vm");
+            const why = moduleProblem(p, spec);
+            if (why !== null) add(n, why);
+          }
         }
         // a call of a value typed Function (a function's `constructor`): an untyped call that can run a string
         const callee = checker.getTypeAtLocation(n.expression).getSymbol();
