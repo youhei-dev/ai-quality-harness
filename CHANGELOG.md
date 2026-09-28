@@ -5,7 +5,26 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.16 — M2-2: independent review cli-catch-r2 — the CLI catch work is closed (docs only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.16` / `git rev-parse v0.5.16` で確認し、次の release commit で記入）
+## v0.5.17 — M2-2: the output guard allowlists the modules src loads and forbids six process members (backlog 1, M2-2-R4-002)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.17` / `git rev-parse v0.5.17` で確認し、次の release commit で記入）
+
+- **ROADMAP のバックログ 1（M2-2-R4-002、Medium、ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールの一覧）を修正**（`tests/` と docs だけ。`src/` は変えていない）
+  - 構造ガード（`tests/structure/output-guard.ts`）は、`src/` が実行時に読み込むモジュールの行き先を一覧で限る: 組み込みは `node:` 付きの child_process・crypto・fs・path・
+    string_decoder・zlib だけ、ほかは `src/` のソースファイルと package.json の `dependencies`。`import type` は見ない。一覧の外の組み込み、`node:` の無い組み込み、
+    URL（`data:` など）、`src/` のソースファイルでないモジュール、依存に無いパッケージは違反
+  - `process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（別名・分割代入・要素アクセス・`globalThis.process`・
+    `node:process` の import も同じ。`getBuiltinModule` は名前を問わない）
+  - v0.5.16 のガードは、SP1 で洗い出した同じ種類の 49 形（型検査を通るもの）のうち 40 形を見逃していた（見逃した形のうち実行時に動かした 13 形は、どれも端末に届いた）。
+    今の `src/` はどの形も使っていなかった（違反 0 件）
+  - 新しい回帰テスト `tests/regression-m2-2-r4-002-builtin-allowlist.test.ts`（61 件）: 49 形は報告される、対照 8 形は報告されない、fixture の型検査、`src/` の違反 0、
+    一覧と `src/` の実際の一致、6 つのメンバーが今の `@types/node` の宣言に解決すること。v0.5.16 のガードでは 42 件 FAIL（PASS の 19 件は、既に検出していた 9 形・
+    対照 8・型検査・`src/` の違反 0）。既存テストの期待値は変えていない
+- docs: ADR-0019（新規。一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。既知の限界 6 つ）。ADR-0017 の状態の行と既知の限界に「v0.5.17 で ADR-0019 により置換」。
+  ARCHITECTURE の出力の出口。response-r4 に v0.5.17 の節。ROADMAP: バックログ 1 を「v0.5.17 で解消」として残し、番号を詰めない。20（コールバックの中の未処理の例外の表示）を
+  末尾に足した。2〜19 は変えていない
+- テスト 761 件（104 ファイル。700 ＋ 新しい回帰テスト 61）。`package.json` version 0.5.17（`package-lock.json` は変えていない）
+- 注記: v0.5.16 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.16 — commit 764fdf2 / tag object 13c0468 — M2-2: independent review cli-catch-r2 — the CLI catch work is closed (docs only)
 
 - 独立レビュー m2-2-cli-catch-r2（`docs/reviews/m2-2/independent-review-cli-catch-r2.md`、ChatGPT、範囲 v0.5.14..v0.5.15）: 前回の M2-2-CLI-CATCH-R1-001 は解消。
   新しい指摘は High 0 / Medium 0 / Low 0。対応記録 `docs/reviews/m2-2/response-cli-catch-r2.md`
