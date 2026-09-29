@@ -461,7 +461,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   （`Function`・`eval`・`require`・`createRequire`・計算された `import()`・`node:vm` の読み込み）、fd への書き込みと `/dev/` のパス、`stdio` が pipe / ignore でない子プロセス、
   `safeText` / `safeJson` の外で作る `Safe` を禁止する。v0.5.17 から（ADR-0019）、同じ構造テストが、`src/` が実行時に読み込むモジュールを一覧で限る（組み込みは
   `node:` 付きの child_process・crypto・fs・path・string_decoder・zlib だけ。ほかに許すのは `src/` のソースファイルと package.json の `dependencies`。`import type` は
-  見ない）。`process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（`getBuiltinModule` は名前を問わない）。
+  見ない）。`process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（`getBuiltinModule` は名前を問わない。
+  要素アクセスのキーの型が 1 つの文字列リテラルに決まるときも、そのメンバーの名前で違反にする。v0.5.18、M2-2-BUILTIN-R1-001）。
   一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
   既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
