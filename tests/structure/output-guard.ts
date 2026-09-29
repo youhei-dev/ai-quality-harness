@@ -261,9 +261,13 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
             // reading a property by its name (the name itself is checked above), or a value that is discarded
             // (`process.on(…)` returns process)
           } else if (ts.isElementAccessExpression(parent) && parent.expression === n) {
+            // the property the key names when its type is one string literal (a literal, a const, `as const`, a parameter, a
+            // narrowed union, …): a member of PROCESS_MEMBERS is reported by its name (M2-2-BUILTIN-R1-001)
             const key = literalKey(checker, parent.argumentExpression);
-            const prop = key === null ? undefined : checker.getNonNullableType(checker.getTypeAtLocation(n)).getProperty(key);
-            if (prop === undefined || terminalSymbol(resolved(checker, prop)) !== null) add(parent, `dynamic access to ${holder}`);
+            const prop = key === null ? undefined : resolved(checker, checker.getNonNullableType(checker.getTypeAtLocation(n)).getProperty(key));
+            const member = processMember(prop);
+            if (member !== null) add(parent, member);
+            else if (prop === undefined || terminalSymbol(prop) !== null) add(parent, `dynamic access to ${holder}`);
           } else if (ts.isVariableDeclaration(parent) && parent.initializer === n && ts.isObjectBindingPattern(parent.name)) {
             for (const el of parent.name.elements) {
               const key = el.propertyName ?? el.name;
