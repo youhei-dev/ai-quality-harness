@@ -5,7 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.17 — M2-2: the output guard allowlists the modules src loads and forbids six process members (backlog 1, M2-2-R4-002)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.17` / `git rev-parse v0.5.17` で確認し、次の release commit で記入）
+## v0.5.18 — M2-2: the output guard reports process members taken by an element access whose key type names them (M2-2-BUILTIN-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.18` / `git rev-parse v0.5.18` で確認し、次の release commit で記入）
+
+- **独立レビュー m2-2-builtin-r1（`docs/reviews/m2-2/independent-review-builtin-r1.md`、ChatGPT、範囲 v0.5.16..v0.5.17）の Medium 1 件（M2-2-BUILTIN-R1-001）を修正**
+  （`tests/` と docs だけ。`src/` は変えていない）。前回の M2-2-R4-002 は「部分的に解消」、新しい指摘は High 0 / Medium 1 / Low 0
+  - 構造ガード（`tests/structure/output-guard.ts`）は、`process[key]` のキーの型が 1 つの文字列リテラルに決まるとき（const・`as const`・型注釈・引数・readonly のプロパティ・
+    タプルの要素・テンプレートリテラル・絞り込んだユニオンなど）、取れたプロパティが `process` の 6 つのメンバーなら、メンバーの名前（`process.getBuiltinModule` など）で
+    報告する（+6 / −2 行）。v0.5.17 はキーが文字列リテラルのときだけ検出していた。キーの型が 1 つに決まらない形は従来どおり `dynamic access to …`
+  - v0.5.17 のガードは、SP1 で洗い出した 31 形のうち 18 形を見逃していた（代表の形は実行時に標準出力へ届いた）。今の `src/` は `process[…]` の形を使わない（違反 0 件）
+  - 新しい回帰テスト `tests/regression-m2-2-builtin-r1-001-literal-typed-key.test.ts`（39 件）: v0.5.17 のガードでは 20 件 FAIL（PASS の 19 件は、既に検出していた形・対照・
+    型検査・`src/` の違反 0）。既存のガードのテストの期待値は変えていない
+- docs: response-builtin-r1（新規）、独立レビューの原文の収録。ADR-0019 の決定 2 を実装に合わせて正確にし、v0.5.17 の不足を注記した。ARCHITECTURE の出力の出口、ROADMAP
+  （バックログは項目も番号も変えていない）
+- テスト 800 件（105 ファイル。761 ＋ 新しい回帰テスト 39）。`package.json` version 0.5.18（`package-lock.json` は変えていない）
+- 注記: v0.5.17 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.17 — commit 830c4f5 / tag object 91a88f9 — M2-2: the output guard allowlists the modules src loads and forbids six process members (backlog 1, M2-2-R4-002)
 
 - **ROADMAP のバックログ 1（M2-2-R4-002、Medium、ADR-0017 の既知の限界: `src/` が読み込める組み込みモジュールの一覧）を修正**（`tests/` と docs だけ。`src/` は変えていない）
   - 構造ガード（`tests/structure/output-guard.ts`）は、`src/` が実行時に読み込むモジュールの行き先を一覧で限る: 組み込みは `node:` 付きの child_process・crypto・fs・path・
