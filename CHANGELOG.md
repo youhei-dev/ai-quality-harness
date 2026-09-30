@@ -5,7 +5,25 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.18 — M2-2: the output guard reports process members taken by an element access whose key type names them (M2-2-BUILTIN-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.18` / `git rev-parse v0.5.18` で確認し、次の release commit で記入）
+## v0.5.19 — M2-2: only a key written as a string literal is safe; a type is not the value (M2-2-BUILTIN-R2-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.19` / `git rev-parse v0.5.19` で確認し、次の release commit で記入）
+
+- **独立レビュー m2-2-builtin-r2（`docs/reviews/m2-2/independent-review-builtin-r2.md`、ChatGPT、範囲 v0.5.17..v0.5.18）の High 1 件（M2-2-BUILTIN-R2-001）を修正**
+  （`tests/` と docs だけ。`src/` は変えていない）。前回の M2-2-BUILTIN-R1-001 は「解消」、新しい指摘は High 1 / Medium 0 / Low 0
+  - 構造ガード（`tests/structure/output-guard.ts`）の許可の根拠を、型でなく構文か宣言の解決にした（ADR-0019 の決定 2 の改訂と決定 7）。`process[key]` などの要素アクセスは、キーが
+    ソース上の文字列リテラルでなければ、キーの型がどうでも違反にする（`as`・`any`・`JSON.parse`・引数・戻り値・オーバーロード・`declare const` で型だけ安全なリテラルに見せた値が、
+    実行時に危険なメンバーを取り、端末に届いていた。v0.5.4 からの既存の問題）。同じ系統の 5 つの規則も同時に足した: child の `stdio` はソース上のリテラルだけ、型が `any` の値の
+    呼び出しと fs の書き込み先、`.constructor` の読み取り、リテラルのキーの `eval`・`Function`・`require`・`createRequire`、`Safe` を作る総称型の cast は違反。fs のリテラルのパスは
+    `.`・`//`・`x/../` を畳んでから `/dev/`・`/proc/` を見る（+55 / −20 行、先頭のコメントを含む）
+  - 洗い出しは 2 巡: 1 巡目 51 形（v0.5.18 は塞ぐべき 36 形のうち 30 形を見逃し、実行時に端末へ届いた）、2 巡目 82 形（構文の形と、holder を別の経路で得る形。パスの書き方の 5 形を塞ぎ、
+    EventEmitter の `this` と組み立てたパスを既知の限界にした）
+  - 新しい回帰テスト `tests/regression-m2-2-builtin-r2-001-type-is-not-the-value.test.ts`（100 件）: v0.5.18 のガードでは 39 件 FAIL。R1 の回帰テストの対照 3 件（型がリテラルのキー）を、
+    構文上のリテラルの対照へ置き換えた（人間の承認）。ほかの既存のガードのテストの期待値は変えていない。本物の `src/` への違反は 0
+- docs: response-builtin-r2（新規）、独立レビューの原文の収録。ADR-0019 に決定 7 と既知の限界を足し、決定 2 を改訂した。ARCHITECTURE の出力の出口、ROADMAP
+  （バックログは項目も番号も変えていない）
+- テスト 900 件（106 ファイル。800 ＋ 新しい回帰テスト 100）。`package.json` version 0.5.19（`package-lock.json` は変えていない）
+- 注記: v0.5.18 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.18 — commit 275dbd6 / tag object 9e7b0d5 — M2-2: the output guard reports process members taken by an element access whose key type names them (M2-2-BUILTIN-R1-001)
 
 - **独立レビュー m2-2-builtin-r1（`docs/reviews/m2-2/independent-review-builtin-r1.md`、ChatGPT、範囲 v0.5.16..v0.5.17）の Medium 1 件（M2-2-BUILTIN-R1-001）を修正**
   （`tests/` と docs だけ。`src/` は変えていない）。前回の M2-2-R4-002 は「部分的に解消」、新しい指摘は High 0 / Medium 1 / Low 0
