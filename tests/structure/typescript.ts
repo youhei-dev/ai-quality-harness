@@ -62,6 +62,24 @@ export function where(p: Program, sf: ts.SourceFile, node: ts.Node): string {
   return `${p.rel(sf)}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
 }
 
+/**
+ * The name of the outermost declaration (a direct child of the file: a function, a class or a variable) that encloses `node`, "" when
+ * there is none. Authorizations (a writer, a creator of a brand) use this, not ownerName: a declaration of the same name that is
+ * nested in another declaration (a local const, a method) is not the top-level one (M2-2-BUILTIN-R3-002).
+ */
+export function topOwnerName(node: ts.Node): string {
+  for (let n: ts.Node | undefined = node; n !== undefined; n = n.parent) {
+    if (n.parent === undefined || !ts.isSourceFile(n.parent)) continue;
+    if (ts.isFunctionDeclaration(n) || ts.isClassDeclaration(n)) return n.name?.text ?? "";
+    if (ts.isVariableStatement(n)) {
+      const d = n.declarationList.declarations.find((x) => x.pos <= node.pos && node.end <= x.end);
+      return d !== undefined && ts.isIdentifier(d.name) ? d.name.text : "";
+    }
+    return "";
+  }
+  return "";
+}
+
 /** The name of the function or variable declaration that encloses `node` ("" at the top level). */
 export function ownerName(node: ts.Node): string {
   for (let n: ts.Node | undefined = node; n !== undefined; n = n.parent) {

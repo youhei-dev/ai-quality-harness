@@ -16,12 +16,19 @@
  *    as a function's `constructor`), a read of `.constructor` and a call of a value typed `any` (nothing is checked about
  *    what it calls), `eval`, `require`, `createRequire`, `import()` of a module that is not a string
  *    literal, `node:vm`
- *  - a file descriptor: an fs write whose target is a number (whatever its value: it cannot be shown to be neither 1 nor 2)
- *    or `any`, and an `fd` option passed to any call; a `/dev/…` or `/proc/…` path literal in any fs call (also spelled
- *    `/./dev/…`, `//dev/…`, `/x/../dev/…` or `../../dev/…`)
+ *  - a file descriptor: an fs write whose target is a number (whatever its value: it cannot be shown to be neither 1 nor 2),
+ *    `any`, or an expression whose static type was set by an assertion / `satisfies` (M2-2-BUILTIN-R3-005: a number shown
+ *    as a `string` by a plain annotation is not seen; ADR-0019), and an `fd` option passed to any call (an argument whose type
+ *    has an `fd` property — an object literal, a variable, a spread — or a computed `fd` name); a `/dev/…` or `/proc/…` path
+ *    literal (also spelled `/./dev/…`, `//dev/…`, `/x/../dev/…` or `../../dev/…`) in the first argument of an fs writer
+ *    (the path or fd; the rest is data and options) and in every argument of any other fs function (M2-2-BUILTIN-R3-008)
  *  - a child process whose stdio is not written in the source as "pipe" / "ignore" for every stream (inherit, a descriptor,
- *    a stream, a value that only its type says is "pipe", or left to Node's default where that passes the terminal
- *    through: spawn, spawnSync, execFileSync, execSync, fork)
+ *    a stream, a value that only its type says is "pipe", a spread after `stdio` that can override it, or left to Node's
+ *    default where that passes the terminal through: spawn, spawnSync, execFileSync, execSync, fork). A wrapper that changes
+ *    only the static type (`as const`, `satisfies`, `!`, parentheses) is looked through
+ *  - an fs / child_process function used other than as the callee of a call (M2-2-BUILTIN-R3-006): a copy typed as another
+ *    function, `.call` / `.apply` / `Reflect.apply`, a value in an object. The call rules above see only a call that
+ *    resolves to the @types/node declaration
  *  - a module that is not in the allowlist (backlog 1, M2-2-R4-002, ADR-0019): every module a file loads at run time (an import or
  *    `export … from` that is not `import type` / `export type`, and `import()` of a string literal) must be a built-in
  *    of BUILTIN_ALLOWED (written with `node:`), a source file of src/ in the program, or a runtime dependency of
@@ -29,20 +36,23 @@
  *    file, a declaration file, a file outside src/, or one that does not resolve) are violations
  *  - the members of `process` that reach the terminal or another program without a module (PROCESS_MEMBERS:
  *    getBuiltinModule, dlopen, report, emitWarning, execve, stdin, …), found by their declaration like the terminal
- * In src/, only the two writers of src/output.ts (`emitOut`, `emitErr`) may reach the terminal, only as a call such as
- * `console.log(text)` / `process.stdout.write(text)`, and only with arguments of type `Safe`. Only safeText / safeJson
- * create a `Safe` string: a type assertion to it anywhere else, a type predicate for it and an `any` value where it is
- * expected are violations, and so is a type assertion to a type parameter that no parameter of the function carries.
+ * In src/, only the two writers of src/output.ts (`emitOut`, `emitErr`: top-level declarations, not a local declaration of the
+ * same name) may reach the terminal, only as the calls of WRITER_CALLS (`console.log` / `process.stdout.write` for emitOut,
+ * `console.error` / `process.stderr.write` for emitErr), with one argument whose type is `Safe` in every branch (M2-2-BUILTIN-R3-001,
+ * R3-002). Only safeText / safeJson (top-level declarations) create a `Safe` string: a type assertion to it anywhere else, a
+ * type predicate for it and an `any` value where it is expected are violations, and so is a type assertion to a type parameter
+ * unless a required parameter of the function (no default, not rest) is of type T itself (M2-2-BUILTIN-R3-003).
  * A reference is found by the declaration it resolves to (@types/node, the TypeScript library), not by its spelling.
- * A type is used only to find a violation, never to decide that something is safe (ADR-0019, decision 7): a permission
- * rests on the syntax (a string literal) or on the declaration a name resolves to.
+ * ADR-0019, decision 7: a permission rests on the syntax (a string literal; a wrapper that changes only the static type is
+ * looked through for stdio and `.constructor`) or on the name of the top-level declaration. What still rests on a static type
+ * (the fd target, the parameter of a generic cast) is a known limit and is listed in the ADR.
  */
 import { readFileSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import path from "node:path";
 import ts from "typescript";
 import { starter } from "./process-guard.ts";
-import { ownerName, ROOT, where, type Program } from "./typescript.ts";
+import { ROOT, topOwnerName, where, type Program } from "./typescript.ts";
 
 /**
  * The Node built-in modules src/ may load (backlog 1, ADR-0019): exactly the ones src/ uses (a test checks both ways).
@@ -64,6 +74,8 @@ const PROCESS_TYPES = /[\\/]@types[\\/]node[\\/]process\.d\.ts$/;
 export const OUTPUT_ALLOWED = new Set(["src/output.ts"]);
 /** The two writers of src/output.ts: the only functions of src/ that reach the terminal (R3-003). */
 export const WRITERS: ReadonlySet<string> = new Set(["emitOut", "emitErr"]);
+/** The terminal calls each writer may make, with exactly one argument that is `Safe` in every branch of its type (M2-2-BUILTIN-R3-001). */
+export const WRITER_CALLS: Readonly<Record<string, readonly string[]>> = { emitOut: ["console.log", "process.stdout.write"], emitErr: ["console.error", "process.stderr.write"] };
 /** The only functions of src/output.ts that may create a `Safe` string (a type assertion to it). */
 export const SAFE_CREATORS: ReadonlySet<string> = new Set(["safeText", "safeJson"]);
 
@@ -161,6 +173,13 @@ function writtenKey(e: ts.Expression): string | null {
   return ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x) ? x.text : null;
 }
 
+/** The expression without the wrappers that change only the static type (parentheses, `as`, `<T>`, `satisfies`, `!`): the value at run time is the same. */
+function unwrapped(e: ts.Expression): ts.Expression {
+  let x = e;
+  while (ts.isParenthesizedExpression(x) || ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isSatisfiesExpression(x) || ts.isNonNullExpression(x)) x = x.expression;
+  return x;
+}
+
 /** A string literal type's value, or null. */
 function literalKey(checker: ts.TypeChecker, e: ts.Expression): string | null {
   const t = checker.getTypeAtLocation(e);
@@ -170,6 +189,21 @@ function literalKey(checker: ts.TypeChecker, e: ts.Expression): string | null {
 function hasSafe(t: ts.Type): boolean {
   if (t.isUnionOrIntersection()) return t.types.some(hasSafe);
   return t.getProperties().some((p) => SAFE_BRAND.test(p.getName()));
+}
+
+/** A type that is `Safe` in every branch: a union only when all of its members are (an intersection with a `Safe` is one). */
+function allSafe(t: ts.Type): boolean {
+  if (t.isUnion()) return t.types.every(allSafe);
+  if (t.isIntersection()) return t.types.some(allSafe);
+  return t.getProperties().some((p) => SAFE_BRAND.test(p.getName()));
+}
+
+/** Whether an argument is an object that has an `fd` property (by its type, or a computed `fd` name in an object literal). */
+function hasFdProperty(checker: ts.TypeChecker, a: ts.Expression): boolean {
+  const lit = unwrapped(a);
+  if (ts.isObjectLiteralExpression(lit) && lit.properties.some((prop) => prop.name !== undefined && ts.isComputedPropertyName(prop.name) && writtenKey(prop.name.expression) === "fd")) return true;
+  const t = checker.getTypeAtLocation(a);
+  return (t.flags & ts.TypeFlags.Object) !== 0 && checker.getPropertyOfType(t, "fd") !== undefined;
 }
 
 /** The label of an object from which the terminal is one property away (see the header), or null. */
@@ -190,8 +224,9 @@ function stdioProblem(api: string, call: ts.CallExpression): string | null {
   const options = [...call.arguments].reverse().find(ts.isObjectLiteralExpression);
   const stdio = options?.properties.find((prop): prop is ts.PropertyAssignment => ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === "stdio");
   if (stdio === undefined) return `child process ${name} without stdio (the default passes the terminal through)`;
-  const init = stdio.initializer;
-  const ok = (e: ts.Expression): boolean => STDIO_OK.has(writtenKey(e) ?? "");
+  if (options?.properties.slice(options.properties.indexOf(stdio) + 1).some(ts.isSpreadAssignment)) return `child process ${name} with a spread after stdio (it can override stdio)`;
+  const init = unwrapped(stdio.initializer);
+  const ok = (e: ts.Expression): boolean => STDIO_OK.has(writtenKey(unwrapped(e)) ?? "");
   if (ts.isArrayLiteralExpression(init) ? init.elements.every(ok) : ok(init)) return null;
   return `child process ${name} with stdio ${init.getText().slice(0, 40)}`;
 }
@@ -245,6 +280,17 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
           if ((sym.name === "require" || sym.name === "createRequire") && declaredIn(sym, NODE_TYPES)) add(n, `dynamic code: ${sym.name}`);
         }
       }
+      // an fs / child_process function used other than as the callee of a call (a retyped copy, `.call`, `Reflect.apply`, a value in an object) is not seen by the call rules (M2-2-BUILTIN-R3-006)
+      if (ts.isIdentifier(n) && !inTypePosition(n)) {
+        const sym = resolved(checker, checker.getSymbolAtLocation(n));
+        const decl = sym?.declarations?.find(ts.isFunctionDeclaration);
+        if (decl !== undefined && /[\\/]@types[\\/]node[\\/](fs|child_process)\.d\.ts$/.test(decl.getSourceFile().fileName) && !ts.isImportSpecifier(n.parent) && !ts.isExportSpecifier(n.parent)) {
+          let ref: ts.Node = n;
+          if (ts.isPropertyAccessExpression(n.parent) && n.parent.name === n) ref = n.parent;
+          while (ts.isParenthesizedExpression(ref.parent)) ref = ref.parent;
+          if (!(ts.isCallExpression(ref.parent) && ref.parent.expression === ref)) add(n, `an ${decl.name?.text ?? "fs"} function of fs / child_process used other than as the callee of a call`);
+        }
+      }
       // process["stdout"], console["log"]: the property named by a string
       if (ts.isElementAccessExpression(n)) {
         const keySym = resolved(checker, checker.getSymbolAtLocation(n.argumentExpression));
@@ -268,7 +314,7 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         }
       }
       // `x.constructor` reaches Function without naming it (a cast of it hides the call from the Function rule)
-      if ((ts.isPropertyAccessExpression(n) && n.name.text === "constructor") || (ts.isElementAccessExpression(n) && writtenKey(n.argumentExpression) === "constructor")) add(n, "dynamic code: constructor");
+      if ((ts.isPropertyAccessExpression(n) && n.name.text === "constructor") || (ts.isElementAccessExpression(n) && writtenKey(unwrapped(n.argumentExpression)) === "constructor")) add(n, "dynamic code: constructor");
       // process, globalThis, the node:process module: only `x.name` (R3-003)
       if (ts.isExpression(n) && !ts.isParenthesizedExpression(n.parent) && !inTypePosition(n) && !(ts.isIdentifier(n) && nameOnly(n))) {
         const holder = holderOf(checker, holders, n);
@@ -318,9 +364,12 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         if (fs !== null) {
           const first = n.arguments[0];
           const t = first === undefined ? undefined : checker.getTypeAtLocation(first);
+          // a target whose static type was set by an assertion or `satisfies` says nothing about the run-time value (a number fd shown as a string)
+          if (FS_WRITERS.has(fs) && first !== undefined && /* a wrapper that changes only the type */ unwrapped(first) !== first && !ts.isStringLiteralLike(unwrapped(first))) add(n, `fs ${fs} to a target whose type was set by an assertion`);
           if (FS_WRITERS.has(fs) && t !== undefined && (t.flags & ts.TypeFlags.Any) !== 0) add(n, `fs ${fs} to an untyped (any) target`);
           if (FS_WRITERS.has(fs) && t !== undefined && (t.flags & ts.TypeFlags.NumberLike) !== 0) add(n, t.isNumberLiteral() ? `fs ${fs} to fd ${t.value}` : `fs ${fs} to a file descriptor`);
-          for (const a of n.arguments) {
+          // the writers take the path (or fd) as the first argument; the rest is data and options. Every other fs function: all arguments
+          for (const a of FS_WRITERS.has(fs) ? n.arguments.slice(0, 1) : n.arguments) {
             const v = literalKey(checker, a);
             if (v !== null && DEVICE_PATH.test(path.posix.normalize(v))) add(n, `fs ${fs} to ${v}`);
           }
@@ -330,7 +379,8 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
         if (problem !== null) add(n, problem);
       }
       // an `fd` option passed to any call or constructor (fs.createWriteStream, net.Socket, …)
-      if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && (n.arguments ?? []).some((a) => ts.isObjectLiteralExpression(a) && a.properties.some((prop) => prop.name !== undefined && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === "fd"))) {
+      // (the argument's type is used to find it: an object literal, a variable, a spread — anything whose type has an `fd` property; and a computed name)
+      if ((ts.isCallExpression(n) || ts.isNewExpression(n)) && (n.arguments ?? []).some((a) => hasFdProperty(checker, a))) {
         add(n, "an fd option");
       }
       ts.forEachChild(n, visit);
@@ -349,13 +399,15 @@ export function outputReferences(p: Program, files: readonly ts.SourceFile[]): O
  * emitOut / emitErr of src/output.ts, every argument of type `Safe`.
  */
 function writerCall(checker: ts.TypeChecker, f: Found): boolean {
-  if (!OUTPUT_ALLOWED.has(f.file) || !WRITERS.has(ownerName(f.node))) return false;
+  const allowed = WRITER_CALLS[topOwnerName(f.node)];
+  if (!OUTPUT_ALLOWED.has(f.file) || allowed === undefined) return false;
   let target: ts.Node = f.node;
   if (ts.isPropertyAccessExpression(target.parent) && target.parent.name === target) target = target.parent;
   const member = target.parent;
   const call = member.parent;
   if (!ts.isPropertyAccessExpression(member) || member.expression !== target || !ts.isCallExpression(call) || call.expression !== member) return false;
-  return call.arguments.every((a) => hasSafe(checker.getTypeAtLocation(a)));
+  const first = call.arguments[0];
+  return allowed.includes(member.getText().replace(/\s+/g, "")) && call.arguments.length === 1 && first !== undefined && allSafe(checker.getTypeAtLocation(first));
 }
 
 /** A type assertion to a type parameter that no parameter of the enclosing function mentions: `<T>(x: unknown): T => x as T` turns anything into any type. */
@@ -365,8 +417,9 @@ function genericCast(checker: ts.TypeChecker, n: ts.AsExpression | ts.TypeAssert
   let fn: ts.Node | undefined = n.parent;
   while (fn !== undefined && !ts.isFunctionLike(fn)) fn = fn.parent;
   if (fn === undefined || !ts.isFunctionLike(fn)) return true;
-  const mentions = (x: ts.Node): boolean => (ts.isIdentifier(x) && checker.getSymbolAtLocation(x) === target.symbol) || ts.forEachChild(x, (c) => (mentions(c) ? true : undefined)) === true;
-  return !fn.parameters.some((prm) => prm.type !== undefined && mentions(prm.type));
+  // only a required, non-default, non-rest parameter whose type is T itself shows that the caller supplied a value of T
+  const carries = (prm: ts.ParameterDeclaration): boolean => prm.questionToken === undefined && prm.initializer === undefined && prm.dotDotDotToken === undefined && prm.type !== undefined && ts.isTypeReferenceNode(prm.type) && checker.getSymbolAtLocation(prm.type.typeName) === target.symbol;
+  return !fn.parameters.some(carries);
 }
 
 /** `Safe` made without safeText / safeJson: a type assertion elsewhere, a type predicate, an `any` value where it is expected. */
@@ -376,7 +429,7 @@ function safeForgeries(p: Program, files: readonly ts.SourceFile[]): OutputRefer
   for (const sf of files) {
     const file = p.rel(sf).split(path.sep).join("/");
     const visit = (n: ts.Node): void => {
-      if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && hasSafe(checker.getTypeFromTypeNode(n.type)) && !(OUTPUT_ALLOWED.has(file) && SAFE_CREATORS.has(ownerName(n)))) {
+      if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && hasSafe(checker.getTypeFromTypeNode(n.type)) && !(OUTPUT_ALLOWED.has(file) && SAFE_CREATORS.has(topOwnerName(n)))) {
         out.push({ where: where(p, sf, n), what: "Safe made by a type assertion" });
       }
       if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && genericCast(checker, n)) out.push({ where: where(p, sf, n), what: "a type assertion to a type parameter that no parameter carries (a generic cast)" });

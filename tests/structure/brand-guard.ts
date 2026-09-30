@@ -4,7 +4,8 @@
  * `Parameters<…>` and generics resolve to the same brand as the name `Checked`.
  *
  *  - assertion: `as` / `<T>` to a branded type (except where CREATORS allows it), to `any`, to `never`, or to a
- *    type parameter that no parameter of the function carries (a generic cast)
+ *    type parameter unless a required parameter of the function (no default, not rest) is of type T itself (a generic cast).
+ *    The creators and the callers of the issuers are the top-level declarations of those names (M2-2-BUILTIN-R3-002)
  *  - type-predicate: `x is Checked` / `asserts x is Checked`
  *  - any-into-brand: an `any` value where a branded type is expected (JSON.parse, catch values, …)
  *  - widened-renderer: a function that takes a branded parameter passed where its parameter is a plain string
@@ -16,7 +17,7 @@
  *  - md-not-tag: `md` used other than as a template tag
  */
 import ts from "typescript";
-import { ownerName, where, type Program } from "./typescript.ts";
+import { ownerName, topOwnerName, where, type Program } from "./typescript.ts";
 
 export interface Violation {
   where: string;
@@ -70,12 +71,6 @@ function enclosingFunction(node: ts.Node): ts.SignatureDeclaration | undefined {
   return undefined;
 }
 
-/** Whether a type node mentions the type parameter symbol `sym`. */
-function mentions(checker: ts.TypeChecker, node: ts.Node, sym: ts.Symbol): boolean {
-  if (ts.isTypeReferenceNode(node) && checker.getSymbolAtLocation(node.typeName) === sym) return true;
-  return ts.forEachChild(node, (c) => (mentions(checker, c, sym) ? true : undefined)) ?? false;
-}
-
 function inTypePosition(node: ts.Node): boolean {
   for (let n: ts.Node | undefined = node.parent; n !== undefined; n = n.parent) {
     if (ts.isTypeNode(n)) return true;
@@ -106,7 +101,7 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
     const visit = (n: ts.Node): void => {
       if ((ts.isAsExpression(n) || ts.isTypeAssertionExpression(n)) && n.type.getText(sf) !== "const") {
         const target = checker.getTypeFromTypeNode(n.type);
-        const owner = ownerName(n);
+        const owner = topOwnerName(n);
         const creator = CREATORS.some((c) => c.owner === owner && c.file === p.rel(sf));
         if (hasBrand(checker, target) && !creator) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.Any) add(n, "assertion");
@@ -114,7 +109,9 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         else if (target.flags & ts.TypeFlags.TypeParameter) {
           const fn = enclosingFunction(n);
           const sym = target.getSymbol();
-          if (fn === undefined || sym === undefined || !fn.parameters.some((param) => param.type !== undefined && mentions(checker, param.type, sym))) add(n, "assertion");
+          // only a required, non-default, non-rest parameter typed T itself shows that the caller supplied a value of T
+          const carries = (param: ts.ParameterDeclaration): boolean => param.questionToken === undefined && param.initializer === undefined && param.dotDotDotToken === undefined && param.type !== undefined && ts.isTypeReferenceNode(param.type) && checker.getSymbolAtLocation(param.type.typeName) === sym;
+          if (fn === undefined || sym === undefined || !fn.parameters.some(carries)) add(n, "assertion");
         }
       }
       if (ts.isTypePredicateNode(n) && n.type !== undefined && hasBrand(checker, checker.getTypeFromTypeNode(n.type))) add(n, "type-predicate");
@@ -131,7 +128,7 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         const fn = declaredFunction(p, n);
         if (fn !== null && !declaration) {
           const issuer = ISSUERS[fn.name];
-          if (issuer !== undefined && issuer.file === fn.file && !(ts.isCallExpression(parent) && parent.expression === n && issuer.callers.includes(ownerName(n)))) add(n, "issuer-call");
+          if (issuer !== undefined && issuer.file === fn.file && !(ts.isCallExpression(parent) && parent.expression === n && issuer.callers.includes(topOwnerName(n)))) add(n, "issuer-call");
           if (fn.name === "md" && fn.file === "src/review/packet.ts" && !(ts.isTaggedTemplateExpression(parent) && parent.tag === n)) add(n, "md-not-tag");
         }
         if (!declaration && !callee && takesBrand(checker, checker.getTypeAtLocation(n))) {
