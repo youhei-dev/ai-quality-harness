@@ -462,12 +462,19 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `safeText` / `safeJson` の外で作る `Safe` を禁止する。v0.5.17 から（ADR-0019）、同じ構造テストが、`src/` が実行時に読み込むモジュールを一覧で限る（組み込みは
   `node:` 付きの child_process・crypto・fs・path・string_decoder・zlib だけ。ほかに許すのは `src/` のソースファイルと package.json の `dependencies`。`import type` は
   見ない）。`process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（`getBuiltinModule` は名前を問わない。
-  要素アクセスのキーの型が 1 つの文字列リテラルに決まるときも、そのメンバーの名前で違反にする。v0.5.18、M2-2-BUILTIN-R1-001）。
+  要素アクセスのキーは、ソース上の文字列リテラルだけを安全とし、それ以外は型がどうでも違反にする〈型は実行時の値を保証しない〉。キーの型がメンバーの名前 1 つに決まるときは、その名前で
+  報告する。v0.5.19、M2-2-BUILTIN-R2-001、ADR-0019 の決定 2・7）。同じ考え方で、構造テストは型の情報を「違反を見つける」ためにだけ使い、「違反でない」と決める根拠にしない（`stdio` は
+  ソース上のリテラル `"pipe"`・`"ignore"` だけを安全とし、型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、`Safe` を作る総称型の cast、リテラルのキーの
+  `eval`・`Function`・`require`・`createRequire` は違反。fs のリテラルのパスは `.`・`//`・`x/../` を畳んでから `/dev/`・`/proc/` を見る）。
   一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
   既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
   自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外は、Node の既定の表示で
-  出口を通らずに標準エラーへ出る（範囲の外。ROADMAP のバックログ 20）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない
+  出口を通らずに標準エラーへ出る（範囲の外。ROADMAP のバックログ 20）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない。
+  構造テストは、悪意のあるコードに対する保証ではなく、実装 AI の不注意・安易な迂回を止める機械的な検査である（ADR-0019 の既知の限界）。名前を書かずに `Function` を得て関数型へ cast する経路
+  （`Reflect.get(fn, "constructor")`、`obj[k]`）、EventEmitter の `this`（`process.on` に渡した関数は `process` を `this` として呼ばれる）、URL オブジェクトや実行時に組み立てた fs のパス、
+  `process`・`globalThis` を値として得る未知の経路は、塞がない・保証しない。端末への出力の境界は、構造テストのほかに、CLI を子プロセスとして動かして出力を確かめる回帰テストと、
+  `src/output.ts` の 2 つの基本関数に支えられている
   （グローバルの `fetch` などは残る）。
   v0.5.4〜v0.5.16 の既知の限界だった `worker_threads`・`node:repl`・`node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning` と、v0.5.5 で追記した
   `process.getBuiltinModule(…)`・`process.dlopen`・`process.report.writeReport("stdout")` は、v0.5.17 で解消した（バックログ 1）。
