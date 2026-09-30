@@ -5,7 +5,23 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.19 — M2-2: only a key written as a string literal is safe; a type is not the value (M2-2-BUILTIN-R2-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.19` / `git rev-parse v0.5.19` で確認し、次の release commit で記入）
+## v0.5.20 — M2-2: a permission of the structure guards rests on syntax or a top-level declaration, not on a name or a static type (M2-2-BUILTIN-R3)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.20` / `git rev-parse v0.5.20` で確認し、次の release commit で記入）
+
+- **独立レビュー m2-2-builtin-r3（`docs/reviews/m2-2/independent-review-builtin-r3.md`、ChatGPT、範囲 v0.5.18..v0.5.19）の High 7 / Medium 1（M2-2-BUILTIN-R3-001〜008）を修正**
+  （`tests/` と docs、依存関係の 1 件だけ。`src/` は変えていない）。前回の M2-2-BUILTIN-R2-001 は「解消」。原文は、v0.5.19 の広い保証（許可の根拠は型でなく構文か宣言）が現コード全体では成立していない、という指摘
+  - C0: `brace-expansion` の high の advisory 3 件を `npm audit fix` だけで直した（5.0.9 → 5.0.12。`package-lock.json` の 1 か所）
+  - 8 件を 1 件ずつ 3 つの箱に仕分けた。箱 1（直した）: writer は正確な組（`emitOut` = `console.log`・`process.stdout.write`、`emitErr` = `console.error`・`process.stderr.write`）+ 全枝 `Safe`（R3-001）、
+    認可は最上位の宣言の名前（R3-002、brand-guard も）、総称型の cast は必須の T の引数だけ（R3-003）、`stdio` の後ろの spread（R3-004）、fs・child の関数は callee だけ（R3-006。`.call`・`.apply`・
+    `Reflect.apply` を含む）、`.constructor` の wrapper（R3-007）、device path は fs の writer の先頭の引数だけ（R3-008）、fd option（型が `fd` を持つ引数、計算された名前。2 巡目の K1）、
+    brand-guard の呼び出し元の名前（K2）。R3-005 は部分規則（型アサーション・`satisfies` の形）。箱 2（既知の限界）: R3-005 の残り、EventEmitter の `this`（狭い規則を試作したが採らなかった）、
+    brand-guard の広げ（K3。バックログ 21）、読み取りの device path の誤検出
+  - 新しい回帰テスト `tests/regression-m2-2-builtin-r3-allow-branches.test.ts`（116 件）: v0.5.19 のガードでは 52 件 FAIL。既存の 900 件の期待値は変えていない。本物の `src/` への違反は 0
+- docs: response-builtin-r3（新規。EventEmitter の試作の付録つき）、独立レビューの原文の収録。ADR-0019 の決定 7 を許可の分岐の表と 1 対 1 に書き直し、既知の限界を足した。ARCHITECTURE・README・CHANGELOG（v0.5.19 の節）
+  の「許可の根拠は型でなく構文か宣言」の文を訂正した。ROADMAP（バックログ 21 を足し、レビューを終える基準を記録）
+- テスト 1,016 件（107 ファイル。900 ＋ 新しい回帰テスト 116）。`package.json` version 0.5.20（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.19 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.19 — commit be06222 / tag object 625ed0d — M2-2: only a key written as a string literal is safe; a type is not the value (M2-2-BUILTIN-R2-001)
 
 - **独立レビュー m2-2-builtin-r2（`docs/reviews/m2-2/independent-review-builtin-r2.md`、ChatGPT、範囲 v0.5.17..v0.5.18）の High 1 件（M2-2-BUILTIN-R2-001）を修正**
   （`tests/` と docs だけ。`src/` は変えていない）。前回の M2-2-BUILTIN-R1-001 は「解消」、新しい指摘は High 1 / Medium 0 / Low 0
