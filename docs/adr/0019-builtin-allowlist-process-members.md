@@ -1,7 +1,7 @@
 # ADR-0019: `src/` が実行時に読み込むモジュールを一覧で限り、`process` の 6 つのメンバーを使わない（構造ガード）
 
 - 状態: 採用（ADR-0017 の既知の限界のうち、構造ガードの項〈`worker_threads` などの列挙と、v0.5.5 で追記した M2-2-R4-002〉を置換）
-- 日付: 2026-09-28（M2-2、v0.5.17。M2-2 独立レビュー R4 の M2-2-R4-002。ROADMAP のバックログ 1）。2026-09-30（v0.5.18。決定 2 の要素アクセスのキーの扱いを実装に合わせて正確にした。M2-2 独立レビュー builtin-r1 の M2-2-BUILTIN-R1-001）。2026-09-30（v0.5.19。決定 2 の要素アクセスのキーを、型でなくソース上の文字列リテラルで判定するように改訂し、決定 7 を追加した。M2-2 独立レビュー builtin-r2 の M2-2-BUILTIN-R2-001）
+- 日付: 2026-09-28（M2-2、v0.5.17。M2-2 独立レビュー R4 の M2-2-R4-002。ROADMAP のバックログ 1）。2026-09-30（v0.5.18。決定 2 の要素アクセスのキーの扱いを実装に合わせて正確にした。M2-2 独立レビュー builtin-r1 の M2-2-BUILTIN-R1-001）。2026-09-30（v0.5.19。決定 2 の要素アクセスのキーを、型でなくソース上の文字列リテラルで判定するように改訂し、決定 7 を追加した。M2-2 独立レビュー builtin-r2 の M2-2-BUILTIN-R2-001）。2026-09-30（v0.5.20。決定 7 の範囲を、実際の許可の分岐に合わせて正確にし、許可の分岐の表を足した。M2-2 独立レビュー builtin-r3 の M2-2-BUILTIN-R3-001〜008）
 
 ## 文脈
 - ADR-0017 の決定 5 の構造ガード（`tests/structure/output-guard.ts`）は、端末への参照（`console`・`process.stdout` / `process.stderr`）、端末に 1 つのプロパティで届く
@@ -52,18 +52,27 @@
    決定 4 のテストにより、一覧・`src/`・テストは同じ commit で変わる。依存のパッケージは package.json の `dependencies` から読む（ADR-0008 の依存の承認とそろえ、
    二重に管理しない）
 6. 構造ガードの置き場所と当てる範囲は、ADR-0017 の決定 5 のまま（`tests/structure/output-guard.ts`、`src/`）。`src/` は変えない
-7. **許可の根拠は、型でなく構文か宣言の解決にする**（v0.5.19、M2-2-BUILTIN-R2-001）: 構造ガードは、型の情報を「違反を見つける」ためにだけ使い、「違反でないと決める」根拠にしない。
-   ADR-0017 の決定 5 の規則の考え方（型検査器で宣言に解決して判定する）を明文化したもので、決定 5 を置き換えない。型は実行時の値を保証しないので、型だけ安全に見せた値で、
-   許可の分岐が外れる。具体的には
-   - 要素アクセスのキーは、決定 2 のとおり
-   - child の `stdio` は、ソース上の文字列リテラル `"pipe"`・`"ignore"`（配列の要素も）だけを安全とする。引数・変数・型注釈は、型が `"pipe"` でも違反
-   - 型が `any` の値の呼び出し（`import()` を除く）と、型が `any` の fs の書き込み先は違反（呼び出し先・書き込み先について何も確かめられない）
-   - `.constructor` の読み取り（名前。リテラルのキーの要素アクセスを含む）は違反（`Function` の名前を書かずに `Function` に届く）
-   - `Safe` を作る総称型の型アサーション（どの引数の型にも含まれない型パラメーターへの `as`）は違反
-   - fs のリテラルのパスは、`path.posix.normalize` で `.`・`//`・`x/../` を畳んでから、`/dev/`・`/proc/`、または先頭の `../` の連なりのあとの `dev/`・`proc/` を違反にする
-     （`/./dev/stdout`・`//dev/stdout`・`../../dev/stdout` のように、リテラルの書き方の違いで外れない）
+7. **許可の根拠は、構文か最上位の宣言の名前にする。型は、違反を見つけるために使う**（v0.5.19、M2-2-BUILTIN-R2-001。v0.5.20 で、実際の許可の分岐に合わせて範囲を正確にした: M2-2-BUILTIN-R3）:
+   ADR-0017 の決定 5 の規則の考え方（型検査器で宣言に解決して判定する）を明文化したもので、決定 5 を置き換えない。型は実行時の値を保証しないので、型だけ安全に見せた値で許可の分岐が外れる。
+   v0.5.19 は「型は違反を見つけるためだけに使う」と広く書いたが、実際にそうなっていたのは要素アクセスのキーと child の `stdio` だけで、writer・生成者の許可は名前、fd の判定は型、fs・child の API の判定は
+   call の signature の declaration に基づいていた（M2-2-BUILTIN-R3）。**この決定の文は、次の「許可の分岐の表」と 1 対 1 で書く。表にない許可は書かない。**
 
-   許可の根拠が構文か宣言の解決でないもの（型を信じる場所）は、ここに書く。新しく足すときは、許可の分岐を全部数える（`docs/reviews/m2-2/response-builtin-r2.md` の教訓）
+   **許可の分岐の表**（`tests/structure/`。許可 = 違反を返さない判断）
+
+   | 許可 | 根拠 |
+   |---|---|
+   | 要素アクセスのキー（`process[…]`・`globalThis[…]`・`node:process`） | 構文: ソース上の文字列リテラル（決定 2）。wrapper を剥がした式は使わない（`process["platform" as const]` は違反。安全側の誤検出） |
+   | child の `stdio` | 構文: ソース上の文字列リテラル `"pipe"`・`"ignore"`（配列の要素も）。実行時の値を変えない wrapper（括弧・`as`・`<T>`・`satisfies`・`!`）は剥がして見る。`stdio` より**後ろ**に spread があれば違反（前の spread は許す） |
+   | 端末への書き込み（writer） | src/output.ts の**最上位の宣言** `emitOut`（`console.log`・`process.stdout.write`）・`emitErr`（`console.error`・`process.stderr.write`）の、その組の呼び出しだけ。引数は 1 つで、型が全枝で `Safe`（`WRITER_CALLS`）。同名の局所の宣言・メソッドは許可されない |
+   | `Safe`・`Checked`・`Md`・`Rejected` を作る型アサーションと、issuer の呼び出し元 | ファイル + **最上位の宣言の名前**（`topOwnerName`。`safeText`・`safeJson`・`issue`・`issueMd`・`REJECTED`、issuer の callers）。同名の局所の宣言・メソッドは許可されない |
+   | fs・child_process の関数 | 呼び出しの callee としてだけ。持ち替え・代入・引数・object の値・`.call`・`.apply`・`Reflect.apply` は違反（call の規則が、`@types/node` の declaration に解決した呼び出しだけを見るため） |
+   | 総称型の型アサーション（`as T`） | 必須・既定値なし・rest でない、型が T そのものの引数があるとき（両ガード） |
+   | fs の device path の検査の対象 | `FS_WRITERS` の API は先頭の引数（path または fd）だけ。ほかの fs の関数は全引数。`.`・`//`・`x/../` を畳んでから `/dev/`・`/proc/`、先頭の `../` の連なりを見る |
+
+   型の情報は、次の**検出**に使う（許可の根拠ではない）: 型が `any` の値の呼び出し・fs の書き込み先、`Function` 型の呼び出し、数値型の fs の書き込み先、型が `fd` プロパティを持つ引数（fd option。
+   object literal・変数・spread。計算された名前 `"fd"` も）、型アサーション・`satisfies` を付けた fs の writer の先頭の引数、リテラル型の device path、`.constructor` の読み取り
+   （wrapper を剥がした式のリテラルのキーを含む）、`Safe` の偽造。**保証しないもの**（型・名前に基づく、または塞がない）は、既知の限界の節に書く: fd の判定（静的な型）、総称型の残る形、EventEmitter の `this`、
+   brand-guard の広げ、読み取りの device path の誤検出
 
 ## 代替案
 - 組み込みだけの一覧（`node:` の指定子と `node:` の無い組み込み名だけを見る）＋ `process` のメンバー: `data:` の副作用の import（実行時に端末に書けることを実測）と、
@@ -98,6 +107,15 @@
 - **ガードの位置づけ**: 構造ガードは、悪意のあるコードに対する保証ではなく、実装 AI の不注意・安易な迂回を止める機械的な検査である。端末への出力の境界は、構造ガードのほかに、CLI を子プロセスとして
   動かして出力を確かめる回帰テストと、`src/output.ts` の 2 つの基本関数に支えられている
 - **`tests/` の外部コマンドの宣言**（process-guard の `commandOf`）: 文字列リテラル型を信じる。`src/` の保証ではなく、最小 PATH のテストが補う（この ADR の範囲外）
+- **path と fd の両方を受ける fs の書き込みの先頭の引数**（M2-2-BUILTIN-R3-005）: 実行時の値が数値（fd）でも、静的な型が `string` なら、ガードは fd として見ない（`as unknown as string` の二重 assertion、
+  `JSON.parse` の any を `string` の注釈へ入れる形など。実測: 標準出力へ届く）。検出するのは、静的な型が数値または `any` のときと、型アサーション・`satisfies` を付けた形（部分規則）だけ。
+  assertion・`satisfies` を付けない形（`const target: string = JSON.parse("1")`）は残る。これは「実行時に組み立てた path」の限界とは別で、実行時の値が path でなく fd である
+- **総称型の型アサーション**: 必須の T の引数があっても、cast する値が別（`<T>(_x: T, raw: string): T => raw as T`）なら塞がない（値の流れを追わない）。逆に、T を `T[]`・`{ v: T }` の中に持つ引数の cast は違反になる
+- **brand-guard の広げ**（M2-2-BUILTIN-R3 の 2 巡目 K3。ROADMAP のバックログ 21）: `Checked` / `Md` を持つ container を、式本体のアロー関数の戻り値で、または 5 段より深い入れ子で、ブランドの無い型へ広げる形は検出しない
+  （`return` 文で広げる形は検出する）。意図的な設計が要る形で、`src/` は使わない
+- **読み取りの device path**: 読み取り専用の fs の関数（`readFileSync("/proc/self/status")`・`existsSync("/dev/null")` など）のリテラルの device path は、誤検出として違反になる（fail closed のまま。`src/` は使わない）
+- **EventEmitter の `this`**（前の項の補足）: v0.5.20 で、`process.on` / `once` / `addListener` / `prependListener` に渡す listener の本体が `this` を使うときだけ違反にする狭い規則を試作し、`src/` と両立すること
+  （`src/cli-signals.ts`・`src/cli.ts` の listener は `this` を使わず、違反 0）と誤検出が無いことを確かめたが、Record に入れて要素アクセスで登録する形が残るので採らなかった（試作は `docs/reviews/m2-2/response-builtin-r3.md` の付録）
 - **ネットワーク**: 一覧は `node:http` などの組み込みを塞ぐが、グローバルの `fetch` などは残る。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは
   保証しない
 
@@ -117,3 +135,9 @@
     `string` 型のキーを `===` で絞った `process[key]`（実行時に安全でも）、型が `"pipe"` の変数や引数を渡した child の `stdio`（実行時に安全でも）、先頭が `../` の連なりで
     `dev/`・`proc/` に続くリテラルのパス（`../dev/notes.txt` のような通常の相対パスでも）
   - R1 の回帰テストの対照 3 件は、型がリテラルのキーの形から、構文上のリテラルの形へ置き換えた（型がリテラルのキーは、v0.5.19 では違反）
+- v0.5.20（M2-2-BUILTIN-R3）: 変えたのは `tests/structure/output-guard.ts`（先頭の説明コメントを含めて +75 / −22 行）・`typescript.ts`（+18 行、`topOwnerName`）・`brand-guard.ts`（+8 / −11 行）と、新しい回帰テスト
+  `tests/regression-m2-2-builtin-r3-allow-branches.test.ts` だけ（`src/` は変えない。C0 で `package-lock.json` の `brace-expansion` を更新）。回帰テスト 116 件（113 形 + fixture の型検査 2 + `src/` の違反 0）。
+  v0.5.19 のガードでは 52 件 FAIL。既存の 900 件の期待値は変えていない。テスト件数は 900（106 ファイル）から 1,016（107 ファイル）
+  - **代償として違反になる形**（`src/` には無い。受け入れる）: `stdio` より後ろの spread、fs・child_process の関数の callee 以外の参照（`.call`・DI の注入を含む）、
+    `process["platform" as const]`（holder のキーは wrapper を剥がさない。今までどおり違反）、writer に新しい terminal member を足すときの `WRITER_CALLS` の変更（この ADR の手続き）、T を `T[]`・`{ v: T }` に持つ引数の総称型の cast、fs の writer の先頭の引数に付けた
+    型アサーション、型が `fd` プロパティを持つ引数（fd option 以外でも。`fs.WriteStream` などを引数に渡す形）

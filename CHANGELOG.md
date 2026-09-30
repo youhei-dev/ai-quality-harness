@@ -9,7 +9,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 
 - **独立レビュー m2-2-builtin-r2（`docs/reviews/m2-2/independent-review-builtin-r2.md`、ChatGPT、範囲 v0.5.17..v0.5.18）の High 1 件（M2-2-BUILTIN-R2-001）を修正**
   （`tests/` と docs だけ。`src/` は変えていない）。前回の M2-2-BUILTIN-R1-001 は「解消」、新しい指摘は High 1 / Medium 0 / Low 0
-  - 構造ガード（`tests/structure/output-guard.ts`）の許可の根拠を、型でなく構文か宣言の解決にした（ADR-0019 の決定 2 の改訂と決定 7）。`process[key]` などの要素アクセスは、キーが
+  - 構造ガード（`tests/structure/output-guard.ts`）の許可の根拠を、型でなく構文か宣言の解決にした（ADR-0019 の決定 2 の改訂と決定 7）。**（v0.5.20 で範囲を訂正: この版で実際に構文に基づくようになったのは、要素アクセスのキーと child の `stdio` などで、writer・生成者の許可は名前、fd の判定は型、fs・child の API の判定は call の signature の declaration に基づいたままだった。M2-2-BUILTIN-R3、ADR-0019 の決定 7 の表）**`process[key]` などの要素アクセスは、キーが
     ソース上の文字列リテラルでなければ、キーの型がどうでも違反にする（`as`・`any`・`JSON.parse`・引数・戻り値・オーバーロード・`declare const` で型だけ安全なリテラルに見せた値が、
     実行時に危険なメンバーを取り、端末に届いていた。v0.5.4 からの既存の問題）。同じ系統の 5 つの規則も同時に足した: child の `stdio` はソース上のリテラルだけ、型が `any` の値の
     呼び出しと fs の書き込み先、`.constructor` の読み取り、リテラルのキーの `eval`・`Function`・`require`・`createRequire`、`Safe` を作る総称型の cast は違反。fs のリテラルのパスは
