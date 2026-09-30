@@ -66,13 +66,19 @@ const REPORTED: Record<string, string> = {
   k32_terminal_globalthis_stderr: `const key = "stderr" as const;\nexport const f = (): boolean => globalThis.process[key].write("x");\n`,
 };
 
-/** Not violations: the key names a member that is not one of the six, a plain object, a type position, an assignment. */
+/**
+ * Not violations: a key written in the source as a string literal, a plain object, a type position, an assignment.
+ * c01, c04 and c05 were keys whose type was a literal (`const key = "platform" as const; process[key]`) in v0.5.18 and were
+ * not reported. A type does not promise the value at run time (M2-2-BUILTIN-R2-001), so such a key is reported now (the
+ * r1c01, r1c04 and r1c05 entries of KEYS in the R2-001 test); the controls are the same accesses with the key written as a
+ * literal.
+ */
 const CONTROLS: Record<string, string> = {
-  c01_platform: `const key = "platform" as const;\nexport const f = (): string => process[key];\n`,
+  c01_platform: `export const f = (): string => process["platform"];\n`,
   c02_plain_object_same_name: `const obj = { getBuiltinModule: (): number => 0, report: { writeReport: (): string => "" } };\nconst key = "getBuiltinModule" as const;\nconst r = "report" as const;\nexport const f = (): string => \`\${obj[key]()} \${obj[r].writeReport()}\`;\n`,
   c03_type_positions: `const key = "getBuiltinModule" as const;\nexport type G = (typeof process)["getBuiltinModule"];\nexport type H = (typeof process)[typeof key];\nexport type I = NodeJS.Process["report"];\n`,
-  c04_exitcode_assignment: `const key = "exitCode" as const;\nexport const f = (): void => {\n  process[key] = 1;\n};\n`,
-  c05_globalthis_process_platform: `const p = "process" as const;\nexport const f = (): string => globalThis[p].platform;\n`,
+  c04_exitcode_assignment: `export const f = (): void => {\n  process.exitCode = 1;\n};\n`,
+  c05_globalthis_process_platform: `export const f = (): string => globalThis["process"].platform;\n`,
 };
 
 /** An enum member as the key: tsc rejects the syntax (erasableSyntaxOnly), so it cannot be in src/. */
