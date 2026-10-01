@@ -151,7 +151,7 @@ const XB: Record<string, Case> = {
   xb22_callee_comma: { reported: true, src: `import { writeFileSync } from "node:fs";\nexport const f = (): void => {\n  (Math.max(0), writeFileSync)("/dev/stdout", "x");\n};\n` },
   xb23_callee_paren: { reported: true, src: `import { writeFileSync } from "node:fs";\nexport const f = (): void => {\n  (writeFileSync)("/dev/stdout", "x");\n};\n` },
   xb24_callee_optional: { reported: true, src: `import { writeFileSync } from "node:fs";\nexport const f = (): void => {\n  writeFileSync?.("/dev/stdout", "x");\n};\n` },
-  xb25_stdio_options_paren: { reported: true, src: `import { spawnSync } from "node:child_process";\nexport const f = (): void => {\n  spawnSync("node", ["-e", "0"], ({ stdio: "pipe" }));\n};\n` },
+  xb25_stdio_options_paren: { reported: false, src: `import { spawnSync } from "node:child_process";\nexport const f = (): void => {\n  spawnSync("node", ["-e", "0"], ({ stdio: "pipe" }));\n};\n` },
   xb01_holder_key_as_const: { reported: true, src: `export const f = (): string => process["platform" as const];\n` },
   xb02_holder_key_satisfies: { reported: true, src: `export const f = (): string => process["platform" satisfies string];\n` },
   xb03_holder_key_nonnull: { reported: true, src: `export const f = (): string => process["platform"!];\n` },

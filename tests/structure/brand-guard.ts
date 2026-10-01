@@ -4,8 +4,9 @@
  * `Parameters<…>` and generics resolve to the same brand as the name `Checked`.
  *
  *  - assertion: `as` / `<T>` to a branded type (except where CREATORS allows it), to `any`, to `never`, or to a
- *    type parameter unless a required parameter of the function (no default, not rest) is of type T itself (a generic cast).
- *    The creators and the callers of the issuers are the top-level declarations of those names (M2-2-BUILTIN-R3-002)
+ *    type parameter (or a union / intersection with one: `as T | undefined`, `NonNullable<T>`; M2-2-BUILTIN-R4) unless a
+ *    required parameter of the function (no default, not rest) is of type T itself, for each such type parameter (a generic
+ *    cast). The creators and the callers of the issuers are the top-level declarations of those names (M2-2-BUILTIN-R3-002)
  *  - type-predicate: `x is Checked` / `asserts x is Checked`
  *  - any-into-brand: an `any` value where a branded type is expected (JSON.parse, catch values, …)
  *  - widened-renderer: a function that takes a branded parameter passed where its parameter is a plain string
@@ -106,12 +107,14 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         if (hasBrand(checker, target) && !creator) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.Any) add(n, "assertion");
         else if (target.flags & ts.TypeFlags.Never) add(n, "assertion");
-        else if (target.flags & ts.TypeFlags.TypeParameter) {
+        else {
+          // the type parameters of the target and of the branches of a union / intersection (`as T | undefined`: M2-2-BUILTIN-R4 SP1)
+          const branches = (t: ts.Type): ts.Type[] => (t.isUnionOrIntersection() ? t.types.flatMap(branches) : [t]);
+          const syms = branches(target).filter((t) => (t.flags & ts.TypeFlags.TypeParameter) !== 0).map((t) => t.getSymbol());
           const fn = enclosingFunction(n);
-          const sym = target.getSymbol();
           // only a required, non-default, non-rest parameter typed T itself shows that the caller supplied a value of T
-          const carries = (param: ts.ParameterDeclaration): boolean => param.questionToken === undefined && param.initializer === undefined && param.dotDotDotToken === undefined && param.type !== undefined && ts.isTypeReferenceNode(param.type) && checker.getSymbolAtLocation(param.type.typeName) === sym;
-          if (fn === undefined || sym === undefined || !fn.parameters.some(carries)) add(n, "assertion");
+          const carries = (param: ts.ParameterDeclaration, sym: ts.Symbol | undefined): boolean => param.questionToken === undefined && param.initializer === undefined && param.dotDotDotToken === undefined && param.type !== undefined && ts.isTypeReferenceNode(param.type) && checker.getSymbolAtLocation(param.type.typeName) === sym;
+          if (syms.some((sym) => fn === undefined || sym === undefined || !fn.parameters.some((param) => carries(param, sym)))) add(n, "assertion");
         }
       }
       if (ts.isTypePredicateNode(n) && n.type !== undefined && hasBrand(checker, checker.getTypeFromTypeNode(n.type))) add(n, "type-predicate");

@@ -16,19 +16,25 @@
  *    as a function's `constructor`), a read of `.constructor` and a call of a value typed `any` (nothing is checked about
  *    what it calls), `eval`, `require`, `createRequire`, `import()` of a module that is not a string
  *    literal, `node:vm`
- *  - a file descriptor: an fs write whose target is a number (whatever its value: it cannot be shown to be neither 1 nor 2),
- *    `any`, or an expression whose static type was set by an assertion / `satisfies` (M2-2-BUILTIN-R3-005: a number shown
- *    as a `string` by a plain annotation is not seen; ADR-0019), and an `fd` option passed to any call (an argument whose type
- *    has an `fd` property — an object literal, a variable, a spread — or a computed `fd` name); a `/dev/…` or `/proc/…` path
- *    literal (also spelled `/./dev/…`, `//dev/…`, `/x/../dev/…` or `../../dev/…`) in the first argument of an fs writer
- *    (the path or fd; the rest is data and options) and in every argument of any other fs function (M2-2-BUILTIN-R3-008)
+ *  - a file descriptor: an fs write whose target is a number, or can be one in any branch of its type (a union, an
+ *    intersection, a type parameter's constraint: `string | number`, `PathOrFileDescriptor`; M2-2-BUILTIN-R4-001), `any`,
+ *    or an expression whose static type was set by an assertion / `satisfies` (parentheses and `!` alone are not one:
+ *    M2-2-BUILTIN-R4-005; a number shown as a `string` by a plain annotation is not seen: M2-2-BUILTIN-R3-005, ADR-0019),
+ *    and an `fd` option passed to any call (an argument whose type has an `fd` property in any branch — an object literal,
+ *    a variable, a spread — or a computed `fd` name: M2-2-BUILTIN-R4-002); an fs call with an argument whose keys are not
+ *    known (a string index signature, a computed name that is not written as a string: rule K, fs calls only); a `/dev/…`
+ *    or `/proc/…` path (a literal, or any literal branch of the type; also spelled `/./dev/…`, `//dev/…`, `/x/../dev/…` or
+ *    `../../dev/…`) in the first argument of an fs writer (the path or fd; the rest is data and options) and in every argument
+ *    of any other fs function (M2-2-BUILTIN-R3-008)
  *  - a child process whose stdio is not written in the source as "pipe" / "ignore" for every stream (inherit, a descriptor,
- *    a stream, a value that only its type says is "pipe", a spread after `stdio` that can override it, or left to Node's
- *    default where that passes the terminal through: spawn, spawnSync, execFileSync, execSync, fork). A wrapper that changes
- *    only the static type (`as const`, `satisfies`, `!`, parentheses) is looked through
- *  - an fs / child_process function used other than as the callee of a call (M2-2-BUILTIN-R3-006): a copy typed as another
- *    function, `.call` / `.apply` / `Reflect.apply`, a value in an object. The call rules above see only a call that
- *    resolves to the @types/node declaration
+ *    a stream, a value that only its type says is "pipe", a spread or a computed name after `stdio` that can override it,
+ *    or left to Node's default where that passes the terminal through: spawn, spawnSync, execFileSync, execSync, fork).
+ *    A wrapper that changes only the static type (`as const`, `satisfies`, `!`, parentheses) is looked through, also on
+ *    the options object (M2-2-BUILTIN-R4-004, R4-005)
+ *  - an fs / child_process function (fs/promises too) used other than as the callee of a call (M2-2-BUILTIN-R3-006): a copy
+ *    typed as another function, `.call` / `.apply` / `Reflect.apply`, a value in an object, and the function taken by an
+ *    element access (`fs["writeFileSync"]`) or a destructuring of the module (M2-2-BUILTIN-R4-003). The call rules above see
+ *    only a call that resolves to the @types/node declaration
  *  - a module that is not in the allowlist (backlog 1, M2-2-R4-002, ADR-0019): every module a file loads at run time (an import or
  *    `export … from` that is not `import type` / `export type`, and `import()` of a string literal) must be a built-in
  *    of BUILTIN_ALLOWED (written with `node:`), a source file of src/ in the program, or a runtime dependency of
@@ -41,11 +47,17 @@
  * `console.error` / `process.stderr.write` for emitErr), with one argument whose type is `Safe` in every branch (M2-2-BUILTIN-R3-001,
  * R3-002). Only safeText / safeJson (top-level declarations) create a `Safe` string: a type assertion to it anywhere else, a
  * type predicate for it and an `any` value where it is expected are violations, and so is a type assertion to a type parameter
- * unless a required parameter of the function (no default, not rest) is of type T itself (M2-2-BUILTIN-R3-003).
+ * (or to a union / intersection with one: `as T | undefined`, `NonNullable<T>`) unless a required parameter of the function
+ * (no default, not rest) is of type T itself, for each such type parameter (M2-2-BUILTIN-R3-003, R4).
  * A reference is found by the declaration it resolves to (@types/node, the TypeScript library), not by its spelling.
  * ADR-0019, decision 7: a permission rests on the syntax (a string literal; a wrapper that changes only the static type is
- * looked through for stdio and `.constructor`) or on the name of the top-level declaration. What still rests on a static type
- * (the fd target, the parameter of a generic cast) is a known limit and is listed in the ADR.
+ * looked through for stdio and `.constructor`), on the name of a top-level declaration, or on the resolution of a reference to
+ * a declaration. Of the static types only two are a ground for a permission (the writer's argument, `Safe` in every branch;
+ * the carrier of a generic cast, a parameter of type T itself); every other use of a type is to find a violation, and a type
+ * is taken apart into the branches of a union / intersection and the constraint of a type parameter (any one dangerous branch
+ * is a violation). What still rests on a static type (the fd target shown as a string by a plain annotation, a conditional or
+ * mapped type in a generic cast) is a known limit and is listed in the ADR. The ADR's table covers the permissions that
+ * decision 7 concerns, not every permission of this file.
  */
 import { readFileSync } from "node:fs";
 import { isBuiltin } from "node:module";
@@ -94,6 +106,8 @@ const DEVICE_PATH = /^(\/|(\.\.\/)+)(dev|proc)\//;
 const STDIO_REQUIRED = new Set(["spawn", "spawnSync", "execFileSync", "execSync", "fork"]);
 const STDIO_OK = new Set(["pipe", "ignore"]);
 const VM_MODULES = new Set(["vm", "node:vm"]);
+/** The declaration files of the fs and child_process functions (fs/promises too: `promises.writeFile`). */
+const NODE_FUNCTIONS = /[\\/]@types[\\/]node[\\/](fs|child_process|fs[\\/]promises)\.d\.ts$/;
 const SAFE_BRAND = /^__@safeBrand@/;
 
 function resolved(checker: ts.TypeChecker, sym: ts.Symbol | undefined): ts.Symbol | undefined {
@@ -186,6 +200,30 @@ function literalKey(checker: ts.TypeChecker, e: ts.Expression): string | null {
   return t.isStringLiteral() ? t.value : null;
 }
 
+/** Every string literal a value of type `t` can be: a literal, the literal branches of a union / intersection, a type parameter's constraint (M2-2-BUILTIN-R4-001). */
+function literalValues(checker: ts.TypeChecker, t: ts.Type): string[] {
+  if (t.isStringLiteral()) return [t.value];
+  if (t.isUnionOrIntersection()) return t.types.flatMap((x) => literalValues(checker, x));
+  const c = t.flags & ts.TypeFlags.TypeParameter ? checker.getBaseConstraintOfType(t) : undefined;
+  return c !== undefined ? literalValues(checker, c) : [];
+}
+
+/** Whether a value of type `t` can be a number (a file descriptor): a number branch of a union / intersection, or a type parameter's constraint (M2-2-BUILTIN-R4-001). */
+function mayBeNumber(checker: ts.TypeChecker, t: ts.Type): boolean {
+  if ((t.flags & ts.TypeFlags.NumberLike) !== 0) return true;
+  if (t.isUnionOrIntersection()) return t.types.some((x) => mayBeNumber(checker, x));
+  const c = t.flags & ts.TypeFlags.TypeParameter ? checker.getBaseConstraintOfType(t) : undefined;
+  return c !== undefined && mayBeNumber(checker, c);
+}
+
+/** Whether `as`, `<T>` or `satisfies` sets the static type of the expression, through parentheses and `!` (M2-2-BUILTIN-R4-005: those two alone do not). */
+function typeWrapped(e: ts.Expression): boolean {
+  for (let x = e; ts.isParenthesizedExpression(x) || ts.isAsExpression(x) || ts.isTypeAssertionExpression(x) || ts.isSatisfiesExpression(x) || ts.isNonNullExpression(x); x = x.expression) {
+    if (!ts.isParenthesizedExpression(x) && !ts.isNonNullExpression(x)) return true;
+  }
+  return false;
+}
+
 function hasSafe(t: ts.Type): boolean {
   if (t.isUnionOrIntersection()) return t.types.some(hasSafe);
   return t.getProperties().some((p) => SAFE_BRAND.test(p.getName()));
@@ -202,7 +240,26 @@ function allSafe(t: ts.Type): boolean {
 function hasFdProperty(checker: ts.TypeChecker, a: ts.Expression): boolean {
   const lit = unwrapped(a);
   if (ts.isObjectLiteralExpression(lit) && lit.properties.some((prop) => prop.name !== undefined && ts.isComputedPropertyName(prop.name) && writtenKey(prop.name.expression) === "fd")) return true;
-  const t = checker.getTypeAtLocation(a);
+  return fdBranch(checker, checker.getTypeAtLocation(a));
+}
+
+/** Whether an argument can hold keys that are not known statically: a string index signature (in any branch), or an object literal with a computed name that is not written as a string (M2-2-BUILTIN-R4-002). */
+function openKeys(checker: ts.TypeChecker, a: ts.Expression): boolean {
+  const lit = unwrapped(a);
+  if (ts.isObjectLiteralExpression(lit) && lit.properties.some((prop) => prop.name !== undefined && ts.isComputedPropertyName(prop.name) && writtenKey(prop.name.expression) === null)) return true;
+  const open = (t: ts.Type): boolean => {
+    if (t.isUnionOrIntersection()) return t.types.some(open);
+    const c = t.flags & ts.TypeFlags.TypeParameter ? checker.getBaseConstraintOfType(t) : undefined;
+    return c !== undefined ? open(c) : checker.getIndexInfosOfType(t).some((i) => (i.keyType.flags & ts.TypeFlags.String) !== 0);
+  };
+  return open(checker.getTypeAtLocation(a));
+}
+
+/** Whether a type has an `fd` property, also in a branch of a union / intersection or a type parameter's constraint (M2-2-BUILTIN-R4-002). */
+function fdBranch(checker: ts.TypeChecker, t: ts.Type): boolean {
+  if (t.isUnionOrIntersection()) return t.types.some((x) => fdBranch(checker, x));
+  const c = t.flags & ts.TypeFlags.TypeParameter ? checker.getBaseConstraintOfType(t) : undefined;
+  if (c !== undefined) return fdBranch(checker, c);
   return (t.flags & ts.TypeFlags.Object) !== 0 && checker.getPropertyOfType(t, "fd") !== undefined;
 }
 
@@ -221,10 +278,13 @@ function holderOf(checker: ts.TypeChecker, cache: Map<ts.Type, boolean>, e: ts.E
 function stdioProblem(api: string, call: ts.CallExpression): string | null {
   const name = api.split(" ")[0] ?? "";
   if (!STDIO_REQUIRED.has(name)) return null;
-  const options = [...call.arguments].reverse().find(ts.isObjectLiteralExpression);
+  const options = [...call.arguments].reverse().map(unwrapped).find(ts.isObjectLiteralExpression);
   const stdio = options?.properties.find((prop): prop is ts.PropertyAssignment => ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === "stdio");
   if (stdio === undefined) return `child process ${name} without stdio (the default passes the terminal through)`;
-  if (options?.properties.slice(options.properties.indexOf(stdio) + 1).some(ts.isSpreadAssignment)) return `child process ${name} with a spread after stdio (it can override stdio)`;
+  const after = options?.properties.slice(options.properties.indexOf(stdio) + 1) ?? [];
+  if (after.some(ts.isSpreadAssignment)) return `child process ${name} with a spread after stdio (it can override stdio)`;
+  // a computed name after stdio that is not written as another name can be "stdio" at run time (M2-2-BUILTIN-R4-004)
+  if (after.some((prop) => prop.name !== undefined && ts.isComputedPropertyName(prop.name) && (writtenKey(prop.name.expression) ?? "stdio") === "stdio")) return `child process ${name} with a computed name after stdio (it can override stdio)`;
   const init = unwrapped(stdio.initializer);
   const ok = (e: ts.Expression): boolean => STDIO_OK.has(writtenKey(unwrapped(e)) ?? "");
   if (ts.isArrayLiteralExpression(init) ? init.elements.every(ok) : ok(init)) return null;
@@ -280,16 +340,26 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
           if ((sym.name === "require" || sym.name === "createRequire") && declaredIn(sym, NODE_TYPES)) add(n, `dynamic code: ${sym.name}`);
         }
       }
-      // an fs / child_process function used other than as the callee of a call (a retyped copy, `.call`, `Reflect.apply`, a value in an object) is not seen by the call rules (M2-2-BUILTIN-R3-006)
-      if (ts.isIdentifier(n) && !inTypePosition(n)) {
-        const sym = resolved(checker, checker.getSymbolAtLocation(n));
-        const decl = sym?.declarations?.find(ts.isFunctionDeclaration);
-        if (decl !== undefined && /[\\/]@types[\\/]node[\\/](fs|child_process)\.d\.ts$/.test(decl.getSourceFile().fileName) && !ts.isImportSpecifier(n.parent) && !ts.isExportSpecifier(n.parent)) {
-          let ref: ts.Node = n;
-          if (ts.isPropertyAccessExpression(n.parent) && n.parent.name === n) ref = n.parent;
-          while (ts.isParenthesizedExpression(ref.parent)) ref = ref.parent;
-          if (!(ts.isCallExpression(ref.parent) && ref.parent.expression === ref)) add(n, `an ${decl.name?.text ?? "fs"} function of fs / child_process used other than as the callee of a call`);
-        }
+      // an fs / child_process function used other than as the callee of a call (a retyped copy, `.call`, `Reflect.apply`, a value in an object) is not seen by the call rules (M2-2-BUILTIN-R3-006):
+      // named by an identifier, taken by an element access (`fs["writeFileSync"]`) or by a destructuring of the module (M2-2-BUILTIN-R4-003)
+      let fnRef: ts.Node | undefined;
+      let fnSym: ts.Symbol | undefined;
+      if (ts.isIdentifier(n) && !inTypePosition(n) && !ts.isImportSpecifier(n.parent) && !ts.isExportSpecifier(n.parent)) {
+        fnRef = ts.isPropertyAccessExpression(n.parent) && n.parent.name === n ? n.parent : n;
+        fnSym = checker.getSymbolAtLocation(n);
+      } else if (ts.isElementAccessExpression(n) && !inTypePosition(n)) {
+        fnRef = n;
+        fnSym = checker.getSymbolAtLocation(n.argumentExpression);
+      } else if (ts.isBindingElement(n) && ts.isObjectBindingPattern(n.parent) && ts.isVariableDeclaration(n.parent.parent) && n.parent.parent.initializer !== undefined) {
+        const key = n.propertyName ?? n.name;
+        fnRef = n;
+        fnSym = ts.isIdentifier(key) || ts.isStringLiteral(key) ? checker.getTypeAtLocation(n.parent.parent.initializer).getProperty(key.text) : undefined;
+      }
+      const fnDecl = resolved(checker, fnSym)?.declarations?.find(ts.isFunctionDeclaration);
+      if (fnRef !== undefined && fnDecl !== undefined && NODE_FUNCTIONS.test(fnDecl.getSourceFile().fileName)) {
+        let ref: ts.Node = fnRef;
+        while (ts.isParenthesizedExpression(ref.parent)) ref = ref.parent;
+        if (!(ts.isCallExpression(ref.parent) && ref.parent.expression === ref)) add(n, `an ${fnDecl.name?.text ?? "fs"} function of fs / child_process used other than as the callee of a call`);
       }
       // process["stdout"], console["log"]: the property named by a string
       if (ts.isElementAccessExpression(n)) {
@@ -365,14 +435,16 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
           const first = n.arguments[0];
           const t = first === undefined ? undefined : checker.getTypeAtLocation(first);
           // a target whose static type was set by an assertion or `satisfies` says nothing about the run-time value (a number fd shown as a string)
-          if (FS_WRITERS.has(fs) && first !== undefined && /* a wrapper that changes only the type */ unwrapped(first) !== first && !ts.isStringLiteralLike(unwrapped(first))) add(n, `fs ${fs} to a target whose type was set by an assertion`);
+          if (FS_WRITERS.has(fs) && first !== undefined && typeWrapped(first) && !ts.isStringLiteralLike(unwrapped(first))) add(n, `fs ${fs} to a target whose type was set by an assertion`);
           if (FS_WRITERS.has(fs) && t !== undefined && (t.flags & ts.TypeFlags.Any) !== 0) add(n, `fs ${fs} to an untyped (any) target`);
           if (FS_WRITERS.has(fs) && t !== undefined && (t.flags & ts.TypeFlags.NumberLike) !== 0) add(n, t.isNumberLiteral() ? `fs ${fs} to fd ${t.value}` : `fs ${fs} to a file descriptor`);
+          else if (FS_WRITERS.has(fs) && t !== undefined && mayBeNumber(checker, t)) add(n, `fs ${fs} to a target that can be a file descriptor`);
           // the writers take the path (or fd) as the first argument; the rest is data and options. Every other fs function: all arguments
           for (const a of FS_WRITERS.has(fs) ? n.arguments.slice(0, 1) : n.arguments) {
-            const v = literalKey(checker, a);
-            if (v !== null && DEVICE_PATH.test(path.posix.normalize(v))) add(n, `fs ${fs} to ${v}`);
+            for (const v of literalValues(checker, checker.getTypeAtLocation(a))) if (DEVICE_PATH.test(path.posix.normalize(v))) add(n, `fs ${fs} to ${v}`);
           }
+          // an options object whose keys are not known can hold `fd` (fs calls only: src/ passes records to other calls, e.g. JSON.stringify)
+          if (n.arguments.some((a) => openKeys(checker, a))) add(n, `fs ${fs} with an argument whose keys are not known (it can hold fd)`);
         }
         const api = starter(checker, n);
         const problem = api === null ? null : stdioProblem(api, n);
@@ -412,14 +484,16 @@ function writerCall(checker: ts.TypeChecker, f: Found): boolean {
 
 /** A type assertion to a type parameter that no parameter of the enclosing function mentions: `<T>(x: unknown): T => x as T` turns anything into any type. */
 function genericCast(checker: ts.TypeChecker, n: ts.AsExpression | ts.TypeAssertion): boolean {
-  const target = checker.getTypeFromTypeNode(n.type);
-  if ((target.flags & ts.TypeFlags.TypeParameter) === 0 || target.symbol === undefined) return false;
+  // the type parameters of the target and of the branches of a union / intersection (`as T | undefined`, `as NonNullable<T>`: M2-2-BUILTIN-R4 SP1)
+  const branches = (t: ts.Type): ts.Type[] => (t.isUnionOrIntersection() ? t.types.flatMap(branches) : [t]);
+  const targets = branches(checker.getTypeFromTypeNode(n.type)).filter((t) => (t.flags & ts.TypeFlags.TypeParameter) !== 0 && t.symbol !== undefined);
+  if (targets.length === 0) return false;
   let fn: ts.Node | undefined = n.parent;
   while (fn !== undefined && !ts.isFunctionLike(fn)) fn = fn.parent;
   if (fn === undefined || !ts.isFunctionLike(fn)) return true;
   // only a required, non-default, non-rest parameter whose type is T itself shows that the caller supplied a value of T
-  const carries = (prm: ts.ParameterDeclaration): boolean => prm.questionToken === undefined && prm.initializer === undefined && prm.dotDotDotToken === undefined && prm.type !== undefined && ts.isTypeReferenceNode(prm.type) && checker.getSymbolAtLocation(prm.type.typeName) === target.symbol;
-  return !fn.parameters.some(carries);
+  const carries = (prm: ts.ParameterDeclaration, target: ts.Type): boolean => prm.questionToken === undefined && prm.initializer === undefined && prm.dotDotDotToken === undefined && prm.type !== undefined && ts.isTypeReferenceNode(prm.type) && checker.getSymbolAtLocation(prm.type.typeName) === target.symbol;
+  return targets.some((target) => !fn.parameters.some((prm) => carries(prm, target)));
 }
 
 /** `Safe` made without safeText / safeJson: a type assertion elsewhere, a type predicate, an `any` value where it is expected. */
