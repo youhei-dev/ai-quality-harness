@@ -463,10 +463,11 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `node:` 付きの child_process・crypto・fs・path・string_decoder・zlib だけ。ほかに許すのは `src/` のソースファイルと package.json の `dependencies`。`import type` は
   見ない）。`process` の `getBuiltinModule`・`dlopen`・`report`・`emitWarning`・`execve`・`stdin` は、宣言で見つけて違反にする（`getBuiltinModule` は名前を問わない。
   要素アクセスのキーは、ソース上の文字列リテラルだけを安全とし、それ以外は型がどうでも違反にする〈型は実行時の値を保証しない〉。キーの型がメンバーの名前 1 つに決まるときは、その名前で
-  報告する。v0.5.19、M2-2-BUILTIN-R2-001、ADR-0019 の決定 2・7）。許可の根拠は、構文か最上位の宣言の名前にし、型は違反を見つけるために使う（ADR-0019 の決定 7 と、その「許可の分岐の表」。v0.5.19 で書いた「型は違反を見つけるためだけに使う」は広すぎたので、v0.5.20 で表のとおりに
-  範囲を直した）。要素アクセスのキーと child の `stdio` はソース上のリテラル（`stdio` は wrapper を剥がして見て、後ろの spread は違反）、端末への書き込みの許可（writer）と `Safe`・`Checked`・`Md` の生成者の許可は
+  報告する。v0.5.19、M2-2-BUILTIN-R2-001、ADR-0019 の決定 2・7）。許可の根拠は、構文・最上位の宣言の名前・宣言の解決にし、型を許可の根拠にするのは表に明示した 2 つ（writer の引数が全枝で `Safe`、総称型の cast の carrier）だけで、ほかの型は違反を見つけるために使う。型は union・intersection・型パラメーターの
+  constraint の枝まで分解して見て、どれか 1 枝でも危険なら違反にする（ADR-0019 の決定 7。その表は、決定の対象として棚卸しした許可の分岐で、`tests/structure/` のすべての許可の一覧ではない。v0.5.19 で書いた「型は違反を見つけるためだけに使う」は広すぎたので、v0.5.20 で表のとおりに
+  範囲を直し、v0.5.21 で表の範囲を狭く明記した）。要素アクセスのキーと child の `stdio` はソース上のリテラル（`stdio` は、値も options の object も wrapper を剥がして見て、後ろの spread・計算された名前は違反）、端末への書き込みの許可（writer）と `Safe`・`Checked`・`Md` の生成者の許可は
   ファイル + 最上位の宣言の名前（writer は `emitOut` = `console.log`・`process.stdout.write`、`emitErr` = `console.error`・`process.stderr.write` の組で、引数は全枝が `Safe` の 1 つ）、fs・child_process の関数は
-  呼び出しの callee としてだけ、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ引数）、リテラルのキーの
+  呼び出しの callee としてだけ（要素アクセス・分割代入・`fs/promises` の参照も見る）、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ枝のある引数。キーが静的に分からない fs の呼び出しの引数も）、リテラルのキーの
   `eval`・`Function`・`require`・`createRequire` は違反。fs のリテラルのパスは `.`・`//`・`x/../` を畳んでから、`FS_WRITERS` は先頭の引数だけ・ほかの fs の関数は全引数で `/dev/`・`/proc/` を見る）。
   一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
