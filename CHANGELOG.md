@@ -5,7 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.20 — M2-2: a permission of the structure guards rests on syntax or a top-level declaration, not on a name or a static type (M2-2-BUILTIN-R3)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.20` / `git rev-parse v0.5.20` で確認し、次の release commit で記入）
+## v0.5.21 — M2-2: a type is taken apart into its branches, and a function is found by every way to name it (M2-2-BUILTIN-R4)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.21` / `git rev-parse v0.5.21` で確認し、次の release commit で記入）
+
+- **独立レビュー m2-2-builtin-r4（`docs/reviews/m2-2/independent-review-builtin-r4.md`、ChatGPT、範囲 v0.5.19..v0.5.20）の High 4 / Medium 2（M2-2-BUILTIN-R4-001〜006）を修正**
+  （`tests/` と docs だけ。`src/` と `package-lock.json` は変えていない）。前回の R3-001〜008 は、解消 5（001・002・004・007・008）、部分的に解消 3（003・005・006）。新しい指摘は、v0.5.20 のガードが型の最上位の flag と 1 種類の構文しか見ていなかった形（High 4 件は不注意で書ける形）と、決定 7 の表の範囲
+  - 構造ガード（`tests/structure/output-guard.ts`・`brand-guard.ts`）: R4-001（fs の writer の先頭の引数が union・intersection・型パラメーターの枝に number・device path の literal を持つ形）、R4-002（`fd` option の枝。動的なキー・index signature は規則 K: fs の呼び出しに限る）、
+    R4-003（fs・child の関数の参照を、要素アクセス・分割代入・`fs/promises` でも見る）、R4-004（`stdio` の後ろの計算された名前）、R4-005（括弧・`!` と options の `satisfies`・`as const`・括弧の誤検出 2 方向を直した）、
+    INV-1（SP1 の棚卸しで見つけた、総称型の cast の `as T | undefined`・`NonNullable<T>`。両ガード）。R4-006: ADR-0019 の決定 7 の表を「決定の対象として棚卸しした許可の分岐で、すべての許可の一覧ではない」と狭く明記した（案 2）
+  - **既存テストの期待値の変更（1 件、人間の承認）**: `tests/regression-m2-2-builtin-r3-allow-branches.test.ts` の `xb25_stdio_options_paren` を `reported: true` → `false`（R4-005 が指摘した、括弧で囲んだ安全な options の誤検出を固定していた期待値）
+  - 既知の限界（箱 2）: INV-1 の残り（`Awaited<T>`・`Partial<T>`。(ii)）、R3-005 の残り・EventEmitter の unbound method（(ii)）、`function (this: 偽の型)`（(i)）。`stdio` の後ろの method は実行時に拒まれる誤検出（箱 3）。ROADMAP の「レビューを終える基準」を (i) 意図的な偽装 / (ii) `src/` と両立しない形に直した
+  - 代償として違反になる形 6 つ（ADR-0019 の影響の節）
+  - 新しい回帰テスト `tests/regression-m2-2-builtin-r4-union-and-element-forms.test.ts`（91 件: SP1 の fixture 89 形〈85 + 型検査で止まる 4〉+ fixture の型検査 + `src/` の違反 0）: v0.5.20 のガードでは 62 件 FAIL。既存の 1,016 件は上の 1 件を除いて期待値を変えていない。本物の `src/` への違反は 0
+- docs: response-builtin-r4（新規。判定表、人間の判断、棚卸しの記録〈51 と 53。ADR の保証ではない〉、代償、教訓の候補、`package-lock.json` の差分 v0.5.19..v0.5.20 の全文）、独立レビューの原文の収録（無改変）。ADR-0019 の決定 7・表・既知の限界・影響、ARCHITECTURE・README・CHANGELOG（v0.5.20 の節に訂正の注記）、ROADMAP
+- テスト 1,107 件（108 ファイル。1,016 ＋ 新しい回帰テスト 91）。`package.json` version 0.5.21（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.20 の見出しに commit / tag object の SHA を記入した
+
+## v0.5.20 — commit d669b5e / tag object dc967e2 — M2-2: a permission of the structure guards rests on syntax or a top-level declaration, not on a name or a static type (M2-2-BUILTIN-R3)
 
 - **独立レビュー m2-2-builtin-r3（`docs/reviews/m2-2/independent-review-builtin-r3.md`、ChatGPT、範囲 v0.5.18..v0.5.19）の High 7 / Medium 1（M2-2-BUILTIN-R3-001〜008）を修正**
   （`tests/` と docs、依存関係の 1 件だけ。`src/` は変えていない）。前回の M2-2-BUILTIN-R2-001 は「解消」。原文は、v0.5.19 の広い保証（許可の根拠は型でなく構文か宣言）が現コード全体では成立していない、という指摘
