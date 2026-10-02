@@ -109,12 +109,13 @@ src/
     load.ts               … JSONC 読込 → スキーマ検証 → パス正規化（cwd の逸脱検査）        [M0]
   runner/
     execute.ts            … 単一コマンドの子プロセス実行（タイムアウト、プロセスグループ kill）[M0]
+    env.ts                … check の環境（aiqh の環境から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足す。子の環境を作る 1 か所）[v0.5.24]
     run-checks.ts         … チェックの順次実行、fail-fast、所要時間計測                    [M0]
   report/
     verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
     build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
     markdown.ts           … レポート → Markdown                                            [M0]
-    write.ts              … latest.json / latest.md / history/<ts>.json の書込              [M0]
+    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]
   security/
     mask.ts               … 秘密情報らしき文字列のパターンマスク                            [M0]
   git/
@@ -165,7 +166,7 @@ zod スキーマ検証 ──失敗──▶ 終了コード 2（レポートは
 git 情報取得（commit / branch / dirty。非 git なら null）
    ▼
 checks[] を設定順に順次実行
-   ├─ spawn(command, { cwd, shell: true, detached: true })
+   ├─ spawn(command, { cwd, shell: true, detached: true, env })   … env = aiqh の環境から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足したもの（ADR-0020）
    ├─ stdout / stderr を蓄積（上限あり）
    ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → status FAIL(timedOut)
    ├─ 起動失敗（ENOENT 等）→ FAIL
@@ -469,7 +470,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   ファイル + 最上位の宣言の名前（writer は `emitOut` = `console.log`・`process.stdout.write`、`emitErr` = `console.error`・`process.stderr.write` の組で、引数は全枝が `Safe` の 1 つ）、fs・child_process の関数は
   呼び出しの callee としてだけ（要素アクセス・分割代入・`fs/promises` の参照も見る。その入口は名前付き import の関数だけで、default import・`import * as`・`{ promises }`・`export *`・動的 `import()` は違反。関数を名前で export する形〈再 export〉も違反。v0.5.22・v0.5.23）、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ枝のある引数。キーが静的に分からない fs の呼び出しの引数も。`createReadStream`・`createWriteStream` の options は省略・文字列・新しい object literal だけで、`new Utf8Stream` と `Utf8Stream` の値の import・再 export は違反。v0.5.22・v0.5.23）、`this` を使う listener を `process.on` などに渡す形（`process["on"]` の要素アクセスでも。別名は shorthand property・class field を含めて何段でも追う。v0.5.22・v0.5.23）、リテラルのキーの
   `eval`・`Function`・`require`・`createRequire` は違反。fs のリテラルのパスは `.`・`//`・`x/../` を畳んでから、`FS_WRITERS` は先頭の引数だけ・ほかの fs の関数は全引数で `/dev/`・`/proc/` を見る）。
-  一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
+  一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定）は、v0.5.24 から書き込みの出口で形式別に禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`。review-packet は fail closed のまま。ADR-0020）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
   既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
   自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外は、Node の既定の表示で
@@ -484,7 +485,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   v0.5.4〜v0.5.16 の既知の限界だった `worker_threads`・`node:repl`・`node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning` と、v0.5.5 で追記した
   `process.getBuiltinModule(…)`・`process.dlopen`・`process.report.writeReport("stdout")` は、v0.5.17 で解消した（バックログ 1）。
   `safeJson()` が JSON のデータでない値を処理しない件（同じく v0.5.5 で追記した既知の限界）は、v0.5.10 で解消した（ADR-0018。ファイルへの出力の `maskDeep()` は
-  バックログの 9）。
+  v0.5.24 で同じ JSON データの写しにした: ADR-0020）。
   v0.5.11 で追記（M2-2 独立レビュー R7）した Proxy の 3 件（配列の `length` を `get` で読む、配列のキーを個数だけで確かめる、トラップの例外をそのまま伝える）は、
   v0.5.12 で解消した（ADR-0018）。v0.5.12 で追記: CLI の最上位の catch（`src/cli.ts`）は、調べると例外になる投げられた値（同じプロセスの中で作った Proxy など）では
   それ自体が例外になり、Node の既定の表示で生の文字列が出て exit 1 になる（`safeJson()` を通る経路は v0.5.12 で閉じた。今のコマンドにそのような値は無い）。

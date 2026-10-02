@@ -43,5 +43,5 @@ ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマ�
 
 ## 影響
 - 禁止文字を含む出力は、その文字が表記になる（CHANGELOG v0.5.2）。verify の check の出力の末尾にある ESC（色付け）や CR も表記になる
-- ファイルへの出力（verify のレポート、init が書く設定）はこの ADR の対象外（ROADMAP のバックログ）
+- ファイルへの出力（verify のレポート、init が書く設定）はこの ADR の対象外（ROADMAP のバックログ）→ ADR-0020（v0.5.24）
 - 回帰テスト: `tests/regression-m2-2-r2-001-output-boundary.test.ts`
