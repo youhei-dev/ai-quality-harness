@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.24 — Backlog 9 and 10: forbidden characters in the files that aiqh writes; the environment of a check（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.24` / `git rev-parse v0.5.24` で確認し、次の release commit で記入）
+## v0.5.25 — Backlog 9 and 10, review 1: the write-sites test as a table; options.env through checkEnv（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.25` / `git rev-parse v0.5.25` で確認し、次の release commit で記入）
+
+- **独立レビュー backlog-9-10-r1（`docs/reviews/backlog-9-10/independent-review-r1.md`、範囲 v0.5.23..v0.5.24）の High 2 / Medium 1 / Low 1（R1-001〜004）に対応**。**`src/` に実在する漏れは 0**（生の禁止文字が残る現行の書き込み漏れは無い）。
+  SP1 で 5 つの実測（M1〜M5）を行い、レビュアーの主張を確かめてから、人間の承認の後に直した（C1〜C4 の 4 commit。`tests/structure/`・`brand-guard.ts`・禁止文字の集合〈75 コードポイント〉・依存関係・`package-lock.json` は変えていない）。対応記録 `docs/reviews/backlog-9-10/response-r1.md`
+  - **R1-001・002（High）**: 書き込み箇所のテスト（`tests/file-write-sites.test.ts`）の「門あり」の正規表現判定をやめ、**既知の 5 か所を 1 件ずつ明示した表**（ファイル・外側の関数・書く関数・内容の式の文字列をそのまま・種別・注記）との照合にした。
+    一覧に `writev`・`writevSync`・`cp` を足し、関数ごとに内容の引数の位置を持つ。新しい箇所・消えた箇所・式が変わった箇所は FAIL にして人間が表を見直す。変換が内容の全部に掛かることは、このテストの役目にしない（実 CLI のテストが担う）。
+    実測: v0.5.24 の判定は、部分だけの変換を「門あり」、別の行で変換した変数を「門なし」にした。stream の `.write()`・`.end()` は塞がれていないので既知の限界に、`FileHandle` は入口で塞がれている（`node:fs/promises` が許可外）と ADR-0020 に書いた。Node の型宣言から書き込み系を全部列挙する方式は採らない
+  - **R1-004（Medium）**: `src/runner/execute.ts` の `env: options.env ?? checkEnv()` を `env: checkEnv(options.env ?? process.env)` にした（+2／−1 行。`src/` の変更はこれだけ）。`options.env` は呼び出し元の環境で、渡した env も `checkEnv()` を通る。
+    `options.env` を渡す呼び出しは `src/`・`tests/` に 0 か所で、変更を入れても既存の 1,355 件の期待値は変わらなかった
+  - **R1-003（Low）**: コードは変えず、ADR-0020 の既知の限界に書いた（Markdown の `\u{HEX}` は表示用の表記で、元から同じ文字列があった場合と区別できない。元データの忠実な確認には JSON を使う。実 CLI で実測）
+  - 新しいテスト 32 件の増加: 書き込み箇所のテストを 3 → 30 件に作り直し（27 件の増加）、`options.env` のテスト 5 件。**修正前のコードでの結果**: `src/` を 9 通りに変えて旧テストと新テストを同じ変更に当てると、旧テストは 6 件を見逃し〈`writevSync`・`writev`・部分変換・新しいファイルの `writevSync` と `cp`・FileHandle の書き込み〉、
+    新テストは 8 件を 1 件ずつ報告した（FileHandle は出力ガードが塞ぐ）。`options.env` のテストは修正前のコードで 5 件中 4 件が FAIL。作り直した 3 件を除いて、既存テストの期待値の変更は 0 件
+- **独立レビューの 2 回目は、差分（`v0.5.24..v0.5.25`）だけを小さなパケットで出す。これが上限で、3 回目は行わない**（ROADMAP のレビューの方針）。この版は、受ける前の実装である
+- docs: `docs/reviews/backlog-9-10/`（原文と対応記録）、ADR-0020（決定 1・7・8 の文言と、保証すること・しないこと、既知の限界の追加、影響）、ROADMAP（1 回目の結果と 2 回目の扱い）、ARCHITECTURE（check の環境の 2 行）、README・CHANGELOG
+- テスト 1,387 件（116 ファイル。1,355 ＋ 32）。`package.json` version 0.5.25（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.24 の見出しに commit 500575a / tag object a77892e を記入した
+
+## v0.5.24 — commit 500575a / tag object a77892e — Backlog 9 and 10: forbidden characters in the files that aiqh writes; the environment of a check
 
 - **バックログ 9「ファイルへの出力の禁止文字」と 10「check に `NO_COLOR`」を解消**（**`src/` を変えた**〈v0.5.14 以来〉。`tests/structure/`・`brand-guard.ts`・禁止文字の集合・依存関係・`package-lock.json` は変えていない）。SP1 で実際の CLI を使って実測し、
   試作を一時 worktree で作ってから、人間の承認の後に実装した（C1〜C5 の 5 commit）
