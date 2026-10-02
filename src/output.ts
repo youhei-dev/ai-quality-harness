@@ -103,7 +103,8 @@ function arrayLength(a: object): number {
 }
 
 /**
- * A copy of JSON data in which every string — object keys included (M2-2-R3-002) — is escaped, then masked. JSON data
+ * A copy of JSON data in which every string — object keys included (M2-2-R3-002) — goes through `mapString` (safeJson: escaped, then
+ * masked; a report file: masked, backlog 9). JSON data
  * (M2-2-R4-001): a string, a finite number, a boolean, null, an array (prototype Array.prototype, own keys exactly its
  * indices 0 to length - 1 and "length") or an object (prototype Object.prototype or null) whose own properties are
  * enumerable data properties with string keys, all of them JSON data, without a cycle and at most MAX_JSON_DEPTH deep.
@@ -115,9 +116,9 @@ function arrayLength(a: object): number {
  * become the same string are an error, never a merge. A refusal is fail closed: nothing is printed; the CLI reports it
  * as an unexpected error, exit 2.
  */
-function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unknown {
+function copyJsonData(value: unknown, mapString: (s: string) => string, ancestors: object[] = []): unknown {
   if (value === null || typeof value === "boolean") return value;
-  if (typeof value === "string") return maskSecrets(escapeForDisplay(value, mode));
+  if (typeof value === "string") return mapString(value);
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw notJsonData("a number that is not finite");
     return value;
@@ -140,7 +141,7 @@ function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unk
       if (k !== "length" && (typeof k !== "string" || !ARRAY_INDEX.test(k) || Number(k) >= length)) throw notJsonData("an array with a hole or a key that is not an index");
     }
     const out: unknown[] = [];
-    for (let i = 0; i < length; i++) out.push(jsonSafe(ownDataValue(value, String(i), "an array with a hole"), mode, ancestors));
+    for (let i = 0; i < length; i++) out.push(copyJsonData(ownDataValue(value, String(i), "an array with a hole"), mapString, ancestors));
     copy = out;
   } else {
     if (proto !== Object.prototype && proto !== null) throw notJsonData("an object whose prototype is not Object.prototype or null");
@@ -148,9 +149,9 @@ function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unk
     for (const k of keys) {
       if (typeof k === "symbol") throw notJsonData("a symbol key");
       const v = ownDataValue(value, k, "a property that disappeared while it was read");
-      const key = maskSecrets(escapeForDisplay(k, mode));
+      const key = mapString(k);
       if (Object.hasOwn(out, key)) throw new Error(`JSON output refused: two object keys are the same after escaping and masking ("${escapeRawChars(key)}")`);
-      out[key] = jsonSafe(v, mode, ancestors);
+      out[key] = copyJsonData(v, mapString, ancestors);
     }
     copy = out;
   }
@@ -163,7 +164,16 @@ function jsonSafe(value: unknown, mode: LineMode, ancestors: object[] = []): unk
  * escaped, then masked, printed with two-space indentation.
  */
 export function safeJson(value: unknown, mode: LineMode = "keep"): Safe {
-  return JSON.stringify(jsonSafe(value, mode), null, 2) as Safe;
+  return JSON.stringify(copyJsonData(value, (s) => maskSecrets(escapeForDisplay(s, mode))), null, 2) as Safe;
+}
+
+/**
+ * The same copy for data that goes to a file instead of the terminal (backlog 9, ADR-0020): the verify report. `mapString` is applied to every
+ * string and key (the report: the masker; the forbidden characters are converted where the file is written). The answer is a copy without
+ * prototypes, so a key such as `__proto__` stays a key, and `JSON.stringify` never meets a function.
+ */
+export function copyJson<T>(value: T, mapString: (s: string) => string): T {
+  return copyJsonData(value, mapString) as T;
 }
 
 /**

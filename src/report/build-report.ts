@@ -1,4 +1,5 @@
-import { maskDeep } from "../security/mask.ts";
+import { copyJson } from "../output.ts";
+import { maskSecrets } from "../security/mask.ts";
 import { EXIT_ERROR, SIGNAL_EXIT_CODES, type CheckResult, type GitInfo, type ResolvedConfig, type VerificationReport } from "../types.ts";
 import { computeVerdict } from "./verdict.ts";
 
@@ -13,7 +14,7 @@ export interface BuildReportInput {
   interruptedBy?: string | null;
 }
 
-/** Assemble the report and pass every string through the secret masker. */
+/** Assemble the report and copy it as JSON data, every string and key passed through the secret masker (backlog 9: not `maskDeep`, which copied a function and lost a `__proto__` key). */
 export function buildReport(input: BuildReportInput): VerificationReport {
   const verdict = computeVerdict(input.results);
   const interruptedBy = input.interruptedBy ?? null;
@@ -33,5 +34,5 @@ export function buildReport(input: BuildReportInput): VerificationReport {
     categories: verdict.categories,
     checks: input.results,
   };
-  return maskDeep(report);
+  return copyJson(report, maskSecrets);
 }
