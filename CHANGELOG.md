@@ -20,6 +20,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - docs: response-builtin-r5（新規。判定表、実測、人間の判断、試作との違い、代償、期待値を変えた 13 件、教訓の候補）、独立レビューの原文の収録（無改変）。ADR-0019 の決定 7・表・入口の表・既知の限界・影響、ARCHITECTURE・README・CHANGELOG（v0.5.21 の節に訂正の注記）、ROADMAP
 - テスト 1,182 件（109 ファイル。1,107 ＋ 新しい回帰テスト 75）。`package.json` version 0.5.22（`package-lock.json` の `version` は 0.1.0 のまま）
 - 注記: v0.5.21 の見出しに commit e39ff47 / tag object 2b3cde6 を記入した
+- （v0.5.23 で訂正の注記: この版の「listener の直接の形を違反にした」「残る EventEmitter は indirect form だけ」は、登録 method の literal の要素アクセス・shorthand property・class field・4 段以上の別名で過大だった。また、名前付きの関数の再 export は許していたが、再 export したローカル module が関数の束になる入口だった。v0.5.23 で直した。M2-2-BUILTIN-R6-001〜004）
 
 ## v0.5.21 — commit e39ff47 / tag object 2b3cde6 — M2-2: a type is taken apart into its branches, and a function is found by every way to name it (M2-2-BUILTIN-R4)
 

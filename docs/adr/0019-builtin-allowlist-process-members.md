@@ -1,7 +1,7 @@
 # ADR-0019: `src/` が実行時に読み込むモジュールを一覧で限り、`process` の 6 つのメンバーを使わない（構造ガード）
 
 - 状態: 採用（ADR-0017 の既知の限界のうち、構造ガードの項〈`worker_threads` などの列挙と、v0.5.5 で追記した M2-2-R4-002〉を置換）
-- 日付: 2026-09-28（M2-2、v0.5.17。M2-2 独立レビュー R4 の M2-2-R4-002。ROADMAP のバックログ 1）。2026-09-30（v0.5.18。決定 2 の要素アクセスのキーの扱いを実装に合わせて正確にした。M2-2 独立レビュー builtin-r1 の M2-2-BUILTIN-R1-001）。2026-09-30（v0.5.19。決定 2 の要素アクセスのキーを、型でなくソース上の文字列リテラルで判定するように改訂し、決定 7 を追加した。M2-2 独立レビュー builtin-r2 の M2-2-BUILTIN-R2-001）。2026-09-30（v0.5.20。決定 7 の範囲を、実際の許可の分岐に合わせて正確にし、許可の分岐の表を足した。M2-2 独立レビュー builtin-r3 の M2-2-BUILTIN-R3-001〜008）。2026-10-02（v0.5.21。決定 7 の範囲を「表は対象として棚卸しした許可の分岐で、すべての許可の一覧ではない」と狭く明記し、型を違反を見つける側に使うとき union・intersection・型パラメーターの枝まで分解することを書いた。M2-2 独立レビュー builtin-r4 の M2-2-BUILTIN-R4-001〜006）、2026-10-02（v0.5.22。決定 7 に値の入口を塞ぐ形〈fs・child_process の関数の束を作る import の形を違反〉・`fd` を取る API の options を構文で絞る形・listener の `this` の直接の形・計算された名前の wrapper を足し、入口の表を足した。M2-2 独立レビュー builtin-r5 の M2-2-BUILTIN-R5-001〜004 と、入口の表で見つけた `new Utf8Stream`）
+- 日付: 2026-09-28（M2-2、v0.5.17。M2-2 独立レビュー R4 の M2-2-R4-002。ROADMAP のバックログ 1）。2026-09-30（v0.5.18。決定 2 の要素アクセスのキーの扱いを実装に合わせて正確にした。M2-2 独立レビュー builtin-r1 の M2-2-BUILTIN-R1-001）。2026-09-30（v0.5.19。決定 2 の要素アクセスのキーを、型でなくソース上の文字列リテラルで判定するように改訂し、決定 7 を追加した。M2-2 独立レビュー builtin-r2 の M2-2-BUILTIN-R2-001）。2026-09-30（v0.5.20。決定 7 の範囲を、実際の許可の分岐に合わせて正確にし、許可の分岐の表を足した。M2-2 独立レビュー builtin-r3 の M2-2-BUILTIN-R3-001〜008）。2026-10-02（v0.5.21。決定 7 の範囲を「表は対象として棚卸しした許可の分岐で、すべての許可の一覧ではない」と狭く明記し、型を違反を見つける側に使うとき union・intersection・型パラメーターの枝まで分解することを書いた。M2-2 独立レビュー builtin-r4 の M2-2-BUILTIN-R4-001〜006）、2026-10-02（v0.5.22。決定 7 に値の入口を塞ぐ形〈fs・child_process の関数の束を作る import の形を違反〉・`fd` を取る API の options を構文で絞る形・listener の `this` の直接の形・計算された名前の wrapper を足し、入口の表を足した。M2-2 独立レビュー builtin-r5 の M2-2-BUILTIN-R5-001〜004 と、入口の表で見つけた `new Utf8Stream`）、2026-10-02（v0.5.23。再 export の入口・`Utf8Stream` の値の import の禁止・listener の登録の形と別名の追跡を足し、入口の表に 3 行を足す・直した。M2-2 独立レビュー builtin-r6 の M2-2-BUILTIN-R6-001〜004）
 
 ## 文脈
 - ADR-0017 の決定 5 の構造ガード（`tests/structure/output-guard.ts`）は、端末への参照（`console`・`process.stdout` / `process.stderr`）、端末に 1 つのプロパティで届く
@@ -54,7 +54,7 @@
 6. 構造ガードの置き場所と当てる範囲は、ADR-0017 の決定 5 のまま（`tests/structure/output-guard.ts`、`src/`）。`src/` は変えない
 7. **許可の根拠は、構文（import の形・object literal の形を含む）・最上位の宣言の名前・宣言の解決（`@types/node` の宣言に解決するか）のどれかにする。型を許可の根拠にするのは、表に明示した 2 つ（writer の引数が全枝で `Safe`、総称型の cast の carrier の引数の型が T そのもの）だけで、ほかの型の情報は違反を見つけるために使う。fs・child_process の関数は、値の入口（どの import で関数の束が得られるか）を先に塞ぎ、入口は「入口の表」に許可モジュールごとに 1 回だけ載せる。**
    型は union・intersection・型パラメーターの constraint の枝まで分解して見る（どれか 1 枝でも危険なら違反。M2-2-BUILTIN-R4）。型に危険な枝が無いことを理由に違反にしない判断は、静的な型が実行時の値を保証しないので外れる。意図的な偽装（`as unknown as string`）だけではなく、**悪意の無い普通の書き方でも外れる**: object を狭い型の戻り値・parameter・注釈で受けても、実行時の余分な property（`fd` など）は消えず、型からは見えなくなる（構造的部分型。M2-2-BUILTIN-R5-002）。`fd` を取る API（`createReadStream`・`createWriteStream`）の options は、型でなく構文（省略・文字列・新しい object literal だけ）で絞り（v0.5.22）、型に頼るのは、それ以外の呼び出しの `fd` の検出（多重の防御）と、書き込み先が `string` と注釈された値（M2-2-BUILTIN-R3-005。(ii)）に残る。その外れは既知の限界に書く。
-   （v0.5.19、M2-2-BUILTIN-R2-001 で明文化。v0.5.20 で、実際の許可の分岐に合わせて範囲を正確にした: M2-2-BUILTIN-R3。v0.5.21 で、表の範囲を狭く明記し、型の分解を足した: M2-2-BUILTIN-R4。v0.5.22 で、値の入口を塞ぐ形に改め、`fd` を取る API を構文で絞り、listener の `this` の直接の形と計算された名前の wrapper を足した: M2-2-BUILTIN-R5）
+   （v0.5.19、M2-2-BUILTIN-R2-001 で明文化。v0.5.20 で、実際の許可の分岐に合わせて範囲を正確にした: M2-2-BUILTIN-R3。v0.5.21 で、表の範囲を狭く明記し、型の分解を足した: M2-2-BUILTIN-R4。v0.5.22 で、値の入口を塞ぐ形に改め、`fd` を取る API を構文で絞り、listener の `this` の直接の形と計算された名前の wrapper を足した: M2-2-BUILTIN-R5。v0.5.23 で、fs・child_process の関数の再 export、`Utf8Stream` の値の import、listener の登録の形（literal の要素アクセス）と別名の追跡を足した: M2-2-BUILTIN-R6）
    ADR-0017 の決定 5 の規則の考え方（型検査器で宣言に解決して判定する）を明文化したもので、決定 5 を置き換えない。型は実行時の値を保証しないので、型だけ安全に見せた値で許可の分岐が外れる。
    v0.5.19 は「型は違反を見つけるためだけに使う」と広く書いたが、実際にそうなっていたのは要素アクセスのキーと child の `stdio` だけで、writer・生成者の許可は名前、fd の判定は型、fs・child の API の判定は
    call の signature の declaration に基づいていた（M2-2-BUILTIN-R3）。v0.5.20 は「この決定の文は表と 1 対 1 で書く。表にない許可は書かない」としたが、表は `tests/structure/` の許可の分岐の一部
@@ -70,12 +70,12 @@
    | child の `stdio` | 構文: ソース上の文字列リテラル `"pipe"`・`"ignore"`（配列の要素も）。実行時の値を変えない wrapper（括弧・`as`・`<T>`・`satisfies`・`!`）は、`stdio` の値でも options の object でも剥がして見る（v0.5.21）。`stdio` より**後ろ**に spread、またはソース上で別の名前と書かれていない計算された名前があれば違反（前は許す。リテラルの名前の重複は TypeScript が拒む）。`stdio` と、後ろの計算された名前は、実行時の値を変えない wrapper を剥がして読む（`["stdio" as const]` は `stdio`。v0.5.22）。holder の `process["platform" as const]` は違反のまま |
    | 端末への書き込み（writer） | src/output.ts の**最上位の宣言** `emitOut`（`console.log`・`process.stdout.write`）・`emitErr`（`console.error`・`process.stderr.write`）の、その組の呼び出しだけ。引数は 1 つで、型が全枝で `Safe`（`WRITER_CALLS`）。同名の局所の宣言・メソッドは許可されない |
    | `Safe`・`Checked`・`Md`・`Rejected` を作る型アサーションと、issuer の呼び出し元 | ファイル + **最上位の宣言の名前**（`topOwnerName`。`safeText`・`safeJson`・`issue`・`issueMd`・`REJECTED`、issuer の callers）。同名の局所の宣言・メソッドは許可されない |
-   | fs・child_process の関数（`fs/promises` を含む） | 入口の構文＋宣言の解決: **関数の束を作らない**（default import・`import * as`・`{ default as x }`・`{ promises }`・`export *`・`export * as x`・再 export の `default` / `promises`・動的 `import()` は違反。`import type` は除く）。入口は名前付き import の関数だけで、その使い方は従来の規則: callee の位置だけ（持ち替え・代入・引数・object の値・`.call`・`.apply`・`Reflect.apply`・要素アクセス・module の分割代入など、callee 以外の参照は違反）。`@types/node` の declaration に解決した呼び出しだけを call の規則が見る。要素アクセス・module の分割代入の規則は、入口の規則があっても多重の防御として残す（v0.5.22） |
+   | fs・child_process の関数（`fs/promises` を含む） | 入口の構文＋宣言の解決: **関数の束を作らない**（default import・`import * as`・`{ default as x }`・`{ promises }`・`export *`・`export * as x`・再 export の `default` / `promises`・動的 `import()` は違反。`import type` は除く）。入口は名前付き import の関数だけで、その使い方は従来の規則: callee の位置だけ（持ち替え・代入・引数・object の値・`.call`・`.apply`・`Reflect.apply`・要素アクセス・module の分割代入など、callee 以外の参照は違反）。`@types/node` の declaration に解決した呼び出しだけを call の規則が見る。要素アクセス・module の分割代入の規則は、入口の規則があっても多重の防御として残す（v0.5.22）。**関数を名前で export する形（再 export）も入口**: `export { x } from "node:fs"`・`export { x as y } from`・import した関数の `export { x }` は違反（`export type`・`export { type x }` は除く）。再 export したローカル module は、関数の束（namespace）になって局所の interface の helper に渡せるため（v0.5.23、M2-2-BUILTIN-R6-001）。再 export 先の module をたどる規則は作らない |
    | 総称型の型アサーション（`as T`） | 必須・既定値なし・rest でない、型が T そのものの引数があるとき（両ガード）。対象が型パラメーターを含む union・intersection（`as T \| undefined`・`NonNullable<T>`）なら、型パラメーターの枝ごとに要求する（v0.5.21）。条件型・mapped type（`Awaited<T>`・`Partial<T>`）は見ない（既知の限界） |
    | fs の device path の検査の対象 | `FS_WRITERS` の API は先頭の引数（path または fd）だけ。ほかの fs の関数は全引数。`.`・`//`・`x/../` を畳んでから `/dev/`・`/proc/`、先頭の `../` の連なりを見る。型が union・intersection・型パラメーターのときは、文字列リテラルの枝すべてを見る（v0.5.21） |
    | fs の書き込み先 | 型（違反を見つける側。許可の根拠として使う例外ではないが、型を偽られると外れる）: どの枝にも number・`any` が無く、型アサーション・`satisfies`（括弧・`!` は除く）も無いとき。型の枝は union・intersection・型パラメーターの constraint まで分解する。fs の呼び出しの引数に、キーが静的に分からないもの（文字列の index signature、文字列と書かれていない計算された名前）があれば違反（規則 K。fs の呼び出しだけ） |
-   | `createReadStream`・`createWriteStream` の options、`Utf8Stream` | 構文: options は省略・文字列リテラル・新しい object literal（全プロパティ名がソース上の名前で、`fd` が無く、spread が無い）だけ。変数・parameter・戻り値・spread 引数は違反（v0.5.22）。`new Utf8Stream` は違反（options の `fd`・`dest` が書き込み先を決める。`src/` は使わない）。対象の API は `@types/node` の宣言から列挙して、`FD_OPTION_APIS`・`FORBIDDEN_FS_CLASSES` と両方向に一致することを回帰テストで確かめる。それ以外の呼び出しの `fd` option は、引数の型に `fd` が見える枝で検出する（多重の防御） |
-   | `process.on` などに渡す listener | 構文＋宣言の解決: 関数式・関数宣言・method の参照（`obj.m`、`new A().m`。変数・object のプロパティを 3 段まで経由したもの）で、本体が `this` を使う、または `this` parameter（`this: void` を除く）を宣言するときだけ違反（`on`・`once`・`addListener`・`prependListener`・`prependOnceListener`。v0.5.22）。Record・要素アクセスの先は見ない（(ii)。既知の限界） |
+   | `createReadStream`・`createWriteStream` の options、`Utf8Stream` | 構文: options は省略・文字列リテラル・新しい object literal（全プロパティ名がソース上の名前で、`fd` が無く、spread が無い）だけ。変数・parameter・戻り値・spread 引数は違反（v0.5.22）。`new Utf8Stream` は違反（options の `fd`・`dest` が書き込み先を決める。`src/` は使わない）。**`Utf8Stream` は値として import・再 export しない**（`import { Utf8Stream }`・`as X`・`export { Utf8Stream } from`。`import type`・`{ type Utf8Stream }` は許す）。`new` の宣言の解決による検出は多重の防御として残す（constructor を局所の construct signature に渡すと宣言の解決が外れるため、入口で禁止する。v0.5.23、M2-2-BUILTIN-R6-002）。対象の API は `@types/node` の宣言から列挙して、`FD_OPTION_APIS`・`FORBIDDEN_FS_CLASSES` と両方向に一致することを回帰テストで確かめる。それ以外の呼び出しの `fd` option は、引数の型に `fd` が見える枝で検出する（多重の防御） |
+   | `process.on` などに渡す listener | 構文＋宣言の解決: 関数式・関数宣言・method の参照（`obj.m`、`new A().m`。変数・object のプロパティ・shorthand property・initializer を持つ class field を、何段でも経由したもの。各宣言は 1 回だけたどるので循環で止まる）で、本体が `this` を使う、または `this` parameter（`this: void` を除く）を宣言するときだけ違反（`on`・`once`・`addListener`・`prependListener`・`prependOnceListener`。登録の method は `process.on` でも、ソース上の文字列リテラルの要素アクセス `process["on"]` でも同じ。v0.5.22・v0.5.23）。Record・配列・非リテラルの要素アクセス・parameter・関数の戻り値・getter の先は見ない（(ii)。既知の限界） |
 
    型の情報は、次の**検出**に使う（許可の根拠ではない。いずれも union・intersection・型パラメーターの constraint の枝まで分解し、どれか 1 枝でも危険なら違反にする: M2-2-BUILTIN-R4）:
    型が `any` の値の呼び出し・fs の書き込み先、`Function` 型の呼び出し、number の枝を持つ型の fs の書き込み先（fd）、型が `fd` プロパティを持つ枝のある引数（fd option。多重の防御で、`fd` を取る API は構文で絞る。
@@ -97,7 +97,7 @@
 
 ## 入口の表（v0.5.22。許可モジュールごとに 1 回）
 端末（標準出力・標準エラー）へ届き得る export と、その入口を塞ぐ規則の表。**棚卸しの巡ではなく、入口を許可リストで絞るための表**で、表の後に新しい形を探し続けない。
-独立レビューで見つかった形は、この表の行に紐づけ、限界か規則かを分けて表に足す。`@types/node`（24.13.3）の宣言から型検査器で export を列挙して作った（SP1 の実測。`src/` の数は全 36 ファイルを歩いて数えた。
+独立レビューで見つかった形は、この表の行に紐づけ、限界か規則かを分けて表に足す。表には module でない入口（global の `process` と EventEmitter）も 1 行載せる（v0.5.23、M2-2-BUILTIN-R6-003・004）。`@types/node`（24.13.3）の宣言から型検査器で export を列挙して作った（SP1 の実測。`src/` の数は全 36 ファイルを歩いて数えた。
 名前付き import は type 修飾を除く specifier の数、呼び出しは宣言が当該モジュールの `.d.ts` に解決する call の数でメソッド呼び出しを含む）。
 
 | モジュール | 端末へ届き得る export（列挙） | 届き方 | 入口を塞ぐ規則 | `src/` での使い方 | 残る形と分類 |
@@ -105,12 +105,14 @@
 | `node:fs`（151 export） 書き込み系 `write`・`writeSync`・`writev`・`writevSync`・`writeFile(Sync)`・`appendFile(Sync)` | 先頭の引数が fd（数値）または device path | `PathOrFileDescriptor` を取るのは `readFile(Sync)`・`writeFile(Sync)`・`appendFile(Sync)` の 6 つ。`fd` parameter を持つ関数は 24（書き込みでないものを含む） | 決定 7 の「fs の書き込み先」（数値・`any`・number の枝・型アサーション・device path の literal の枝）。他の fs の関数は全引数の device path | 名前付き import 34 specifier（16 名）、呼び出し 58。namespace・default・動的 import・再 export は 0 | 静的な型が `string` の fd（M2-2-BUILTIN-R3-005 の残り。(ii)） |
 | 〃 `open`・`openSync` | 返す fd（数値） | 以降の書き込みの先頭の引数が number 型になり検出される | 同上 | `openSync` 1（読み取り用） | 同上 |
 | 〃 `createWriteStream`・`createReadStream` | options の `fd` | `fd: 1` を持つ値が options に渡る | **options は省略・文字列・新しい object literal だけ**（v0.5.22）。`fd` option の規則（型）と規則 K は多重の防御 | 0 か所 | `createReadStream` の `fd` は読み取りで、書き込みは届かない（含めて絞った） |
-| 〃 `Utf8Stream`（class、experimental） | `new Utf8Stream({ fd, dest })` | `fd: 1`・`dest: "/dev/stdout"` で書く | **`new Utf8Stream` を違反**（v0.5.22。表で見つけた入口: `dest` は device path 規則の対象外だった） | 0 か所 | なし |
+| 〃 `Utf8Stream`（class、experimental） | `new Utf8Stream({ fd, dest })` | `fd: 1`・`dest: "/dev/stdout"` で書く | **`new Utf8Stream` を違反**（v0.5.22。表で見つけた入口: `dest` は device path 規則の対象外だった）。**値としての import・再 export も違反**（v0.5.23。constructor を局所の construct signature に渡すと宣言の解決が外れる: M2-2-BUILTIN-R6-002）。型としての import は許す | 0 か所 | なし |
 | 〃 path を取るその他の関数（`copyFile`・`cp`・`rename`・`symlink`・`link`・`truncate` など。PathLike を取る関数は 62） | device path の literal | 全引数の device path | M2-2-BUILTIN-R3-008 | 一部（`renameSync` 4、`mkdirSync` 2、`rmSync` 2 ほか） | 実行時に組み立てた path、シンボリックリンク（既知の限界） |
 | 〃 `promises`（fs/promises の関数 32 を持つ namespace） | 関数の束を値として渡す | namespace を局所の interface の helper へ渡す | **`{ promises }` の import・再 export を違反**（v0.5.22） | 0 | なし |
 | 〃 `constants`（数値の namespace） | 届かない | — | 規則不要（関数を持つ namespace だけを違反にする） | 1 specifier | なし |
 | 〃 `ReadStream`・`WriteStream`・`Dir`・`Dirent`・`Stats`（class） | `ReadStream`・`WriteStream` は constructor が private。他は情報の読み取り | 宛先は生成時（上の行）に決まる | 上の行の規則 | 型としての使用のみ | なし |
 | fs・child_process・fs/promises の関数の束としての import の形 | default import・`import * as`・`{ default as x }`・`export *`・`export * as x`・動的 `import()` | 局所の型を通した後の呼び出しが宣言に解決されない | **これらを違反**（v0.5.22）。`require`・`createRequire`・`import = require`・`process.getBuiltinModule` は既存の規則 | 0 | なし |
+| fs・child_process の関数の名前での export（再 export） | `export { x } from "node:fs"`・`export { x as y } from`・import した関数の `export { x }` | 再 export したローカル module が関数の束になり、局所の interface の helper へ渡すと宣言に解決されない（実測: 標準出力 1 バイト） | **名前での export を違反**（v0.5.23。`export type`・`export { type x }`・他の module は除く。再 export 先をたどる規則は作らない: M2-2-BUILTIN-R6-001） | 0 か所 | なし |
+| global の `process` と EventEmitter（module ではない入口。`process.on`・`once`・`addListener`・`prependListener`・`prependOnceListener`） | listener が `process` を `this` として呼ばれる | `this` を使う method・関数を unbound で渡す | 決定 7 の listener 行（登録 method は property access でも literal の要素アクセスでも。別名は shorthand property・class field を含めて何段でも追う。v0.5.23: M2-2-BUILTIN-R6-003・004） | `process.on` 2 か所（Record の要素アクセス）、`child.on` 2 か所（アロー関数）。literal の要素アクセスによる登録は 0 | Record・配列・非リテラルの要素アクセス・parameter・関数の戻り値・getter の先（(ii)。`src/cli-signals.ts:30`・`src/cli.ts:66`） |
 | `node:fs/promises`（45 export） | `writeFile`・`appendFile`・`open` など | module 自体が `BUILTIN_ALLOWED` に無い。`fs` の `promises` からは上の行 | module の許可リスト。形も違反（二重） | 0 | なし |
 | `node:child_process`（49 export）の `spawn`・`spawnSync`・`execFileSync`・`execSync`・`fork` | `stdio` が `inherit`・記述子・stream・省略 | 子の出力が親の端末へ届く | `stdioProblem`（ソース上の literal の `"pipe"`・`"ignore"` だけ。wrapper と計算された literal のキーを剥がして読む。v0.5.22） | 名前付き import 5、呼び出し 7。namespace・default は 0 | 子プロセスが自分で端末を開く（既知の限界） |
 | 〃 `ChildProcess`（class） | 値としては使わない（型のみ） | 型に `spawn` method が無い（`any` の呼び出しは違反） | 既存の規則 | 型のみ | なし |
@@ -138,8 +140,8 @@
   holder を別の型で渡す形を塞ぐ。これらで塞がらない経路（言語機能の未知の使い方）は、保証しない。確認した塞げない経路の 1 つは、EventEmitter の `this`: `process.on` などに渡した関数は
   `process` を `this` として呼ばれるので、`this` の型を偽った関数（`function (this: 型) { … }`、取り出したオブジェクトや class のメソッド）から、`process` の名前を書かずに `process.stdout` に
   届く（実測。標準出力 1〜2 バイト）。`src/` は関数の参照を `process.on` / `process.off` に渡すので、「非アロー関数の引数を禁止する」規則は `src/` と両立しない
-  分類（v0.5.22 で 2 つに分けた。M2-2-BUILTIN-R5-003）: **直接解決できる listener**（関数式・関数宣言・method の参照、変数・object のプロパティを 3 段まで経由したもの）の本体が `this` を使う、または `this` parameter（`this: void` を除く）を宣言する形は、
-  不注意で書ける形（class の method を unbound で渡す）と `function (this: 偽の型)`（(i)）を含めて、**v0.5.22 で違反にした**（決定 7 の表）。**(ii) 間接の形**: Record・配列・要素アクセス・parameter・関数の戻り値の先で初めて listener が分かる形は解決しない。
+  分類（v0.5.22 で 2 つに分けた。M2-2-BUILTIN-R5-003）: **直接解決できる listener**（関数式・関数宣言・method の参照、変数・object のプロパティ・shorthand property・class field を何段でも経由したもの）の本体が `this` を使う、または `this` parameter（`this: void` を除く）を宣言する形は、
+  不注意で書ける形（class の method を unbound で渡す）と `function (this: 偽の型)`（(i)）を含めて、**v0.5.22 で違反にした**（決定 7 の表）。**(ii) 間接の形**: Record・配列・非リテラルの要素アクセス・parameter・関数の戻り値・getter の先で初めて listener が分かる形は解決しない（getter が function を返す形は実測で標準出力へ届いたが、直さないと決めた）。
   根拠: `src/cli-signals.ts:30` と `src/cli.ts:66` が `process.on(signal, handlers[signal])` を使うので、要素アクセスの先を禁止・追跡する規則は `src/` と両立しない（実測: 標準出力へ 1 バイト届く）
 - **ガードの位置づけ**: 構造ガードは、悪意のあるコードに対する保証ではなく、実装 AI の不注意・安易な迂回を止める機械的な検査である。端末への出力の境界は、構造ガードのほかに、CLI を子プロセスとして
   動かして出力を確かめる回帰テストと、`src/output.ts` の 2 つの基本関数に支えられている
@@ -152,7 +154,7 @@
   （`return` 文で広げる形は検出する）。意図的な設計が要る形で、`src/` は使わない
 - **読み取りの device path**: 読み取り専用の fs の関数（`readFileSync("/proc/self/status")`・`existsSync("/dev/null")` など）のリテラルの device path は、誤検出として違反になる（fail closed のまま。`src/` は使わない）
 - **EventEmitter の `this`**（前の項の補足。v0.5.22 で更新）: v0.5.20 に試作した狭い規則（`process.on` などに渡す listener の本体が `this` を使うときだけ違反）は、`src/` と両立し誤検出も無いと確かめてあり、Record 経由の登録が残るという理由で採らなかった。
-  v0.5.22 で、直接解決できる形を閉じるために採った（独立レビュー builtin-r5 の M2-2-BUILTIN-R5-003。「一部の間接の形が残ることは、閉じられる不注意の形を閉じない理由にならない」）。残るのは前の項の (ii) の形だけ
+  v0.5.22 で、直接解決できる形を閉じるために採った（独立レビュー builtin-r5 の M2-2-BUILTIN-R5-003。「一部の間接の形が残ることは、閉じられる不注意の形を閉じない理由にならない」）。残るのは前の項の (ii) の形だけ。v0.5.22 の「残る EventEmitter は indirect form だけ」は、登録 method の literal の要素アクセス・shorthand property・class field・4 段以上の別名で過大だったので、v0.5.23 でこの 4 形も追うようにした（M2-2-BUILTIN-R6-003・004）
 - **総称型の cast の条件型・mapped type**（M2-2-BUILTIN-R4 の SP1 の棚卸し INV-1 の残り。分類 (ii)）: `as Awaited<T>`（条件型）・`as Partial<T>`（mapped type）は、型パラメーターの枝として見ないので違反にならない
   （`Awaited<T>` で `Safe` を作る形は型検査を通る。`Partial<T>` は `Safe` には使えない形の記録。どちらも単独では端末へ届かない: `Safe` を受ける書き込み口は `src/output.ts` の外に無い）。型の形を全部たどる規則は将来の書き方に追いつかず、塞ぐなら型の構文の中に T が現れる cast をすべて違反にする規則が要り、
   `JSON.parse(s) as T[]` などの普通の形と衝突する。`src/` に無い。回帰テストは「報告されない」限界の記録として固定した
@@ -199,3 +201,9 @@
     `this` を使う method を unbound で `process.on` などに渡す形、`this` parameter を宣言した listener（`this: void` を除く）
   - **減る誤検出**: `stdio` の後ろ・規則 K の計算されたキーの `as const`・`satisfies`・`!`（M2-2-BUILTIN-R5-004）。`process["platform" as const]`（holder）は違反のまま
   - 既存の規則は残した: 要素アクセス・module の分割代入の規則（入口の規則があっても多重の防御）、`fd` option の型の検出、規則 K。外す判断は m2-2-builtin-r6 の後
+- v0.5.23（M2-2-BUILTIN-R6）: 変えたのは `tests/structure/output-guard.ts`（本体 +54 / −17 行、先頭の説明コメント +11 / −7 行）と、新しい回帰テスト
+  `tests/regression-m2-2-builtin-r6-reexport-and-listener-forms.test.ts`、既存の回帰テストの期待値 1 件（`p18_named_reexport`: 名前での再 export を「報告される」へ）だけ（`src/` は変えない。`package-lock.json` も変えない）。
+  回帰テスト 58 件（単独のファイルの 45 形 + 複数ファイルの 10 形 + fixture の型検査 2 + `src/` の違反 0）。v0.5.22 のガードでは 26 件 FAIL。既存の 1,182 件は `p18` の 1 件を除いて変えていない。テスト件数は 1,182（109 ファイル）から 1,240（110 ファイル）
+  - **代償として違反になる形**（`src/` には無い。受け入れる）: fs・child_process の関数を名前で export する形（読み取りの関数の再 export も。`export type` は許す）、`Utf8Stream` を値として import する形（型だけに使うなら `import type`）
+  - **直さなかった形**: getter が function を返す listener（d11）、Record・配列・parameter・関数の戻り値の先の listener（(ii)）
+  - **この最終修正は、独立した再レビューを受けていない**。r6 が最後のレビューで、r7 は依頼しない。v0.5.23 の 4 つの規則は、自己 verify と回帰テスト（上の 58 件。fixture は修正前のガードで見逃し・端末への到達を実測した形）で確認した
