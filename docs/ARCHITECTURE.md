@@ -465,9 +465,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   要素アクセスのキーは、ソース上の文字列リテラルだけを安全とし、それ以外は型がどうでも違反にする〈型は実行時の値を保証しない〉。キーの型がメンバーの名前 1 つに決まるときは、その名前で
   報告する。v0.5.19、M2-2-BUILTIN-R2-001、ADR-0019 の決定 2・7）。許可の根拠は、構文・最上位の宣言の名前・宣言の解決にし、型を許可の根拠にするのは表に明示した 2 つ（writer の引数が全枝で `Safe`、総称型の cast の carrier）だけで、ほかの型は違反を見つけるために使う。型は union・intersection・型パラメーターの
   constraint の枝まで分解して見て、どれか 1 枝でも危険なら違反にする（ADR-0019 の決定 7。その表は、決定の対象として棚卸しした許可の分岐で、`tests/structure/` のすべての許可の一覧ではない。v0.5.19 で書いた「型は違反を見つけるためだけに使う」は広すぎたので、v0.5.20 で表のとおりに
-  範囲を直し、v0.5.21 で表の範囲を狭く明記した）。要素アクセスのキーと child の `stdio` はソース上のリテラル（`stdio` は、値も options の object も wrapper を剥がして見て、後ろの spread・計算された名前は違反）、端末への書き込みの許可（writer）と `Safe`・`Checked`・`Md` の生成者の許可は
+  範囲を直し、v0.5.21 で表の範囲を狭く明記した）。要素アクセスのキーと child の `stdio` はソース上のリテラル（`stdio` は、値も options の object も計算された名前も wrapper を剥がして見て、後ろの spread・計算された名前は違反）、端末への書き込みの許可（writer）と `Safe`・`Checked`・`Md` の生成者の許可は
   ファイル + 最上位の宣言の名前（writer は `emitOut` = `console.log`・`process.stdout.write`、`emitErr` = `console.error`・`process.stderr.write` の組で、引数は全枝が `Safe` の 1 つ）、fs・child_process の関数は
-  呼び出しの callee としてだけ（要素アクセス・分割代入・`fs/promises` の参照も見る）、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ枝のある引数。キーが静的に分からない fs の呼び出しの引数も）、リテラルのキーの
+  呼び出しの callee としてだけ（要素アクセス・分割代入・`fs/promises` の参照も見る。その入口は名前付き import の関数だけで、default import・`import * as`・`{ promises }`・`export *`・動的 `import()` は違反。v0.5.22）、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ枝のある引数。キーが静的に分からない fs の呼び出しの引数も。`createReadStream`・`createWriteStream` の options は省略・文字列・新しい object literal だけで、`new Utf8Stream` は違反。v0.5.22）、`this` を使う listener を `process.on` などに渡す直接の形（v0.5.22）、リテラルのキーの
   `eval`・`Function`・`require`・`createRequire` は違反。fs のリテラルのパスは `.`・`//`・`x/../` を畳んでから、`FS_WRITERS` は先頭の引数だけ・ほかの fs の関数は全引数で `/dev/`・`/proc/` を見る）。
   一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定の JSON の値）は対象外（ROADMAP のバックログ）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
@@ -475,11 +475,11 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外は、Node の既定の表示で
   出口を通らずに標準エラーへ出る（範囲の外。ROADMAP のバックログ 20）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない。
   構造テストは、悪意のあるコードに対する保証ではなく、実装 AI の不注意・安易な迂回を止める機械的な検査である（ADR-0019 の既知の限界）。名前を書かずに `Function` を得て関数型へ cast する経路
-  （`Reflect.get(fn, "constructor")`、`obj[k]`）、EventEmitter の `this`（`process.on` に渡した関数は `process` を `this` として呼ばれる）、URL オブジェクトや実行時に組み立てた fs のパス、
+  （`Reflect.get(fn, "constructor")`、`obj[k]`）、EventEmitter の `this` のうち Record・要素アクセスの先の listener（`process.on` に渡した関数は `process` を `this` として呼ばれる。直接解決できる listener は v0.5.22 で違反にした）、URL オブジェクトや実行時に組み立てた fs のパス、
   `process`・`globalThis` を値として得る未知の経路は、塞がない・保証しない。端末への出力の境界は、構造テストのほかに、CLI を子プロセスとして動かして出力を確かめる回帰テストと、
   `src/output.ts` の 2 つの基本関数に支えられている。v0.5.20 の既知の限界（ADR-0019）: path と fd の両方を受ける fs の書き込みの先頭の引数は、静的な型が `string` なら fd として見ない（型アサーション・`satisfies` を
   付けた形だけを違反にする）、総称型の cast の残る形（必須の T の引数と、別の値の cast）、brand-guard の広げ（式本体のアロー関数の戻り値、深い入れ子）、読み取りの device path の誤検出。EventEmitter の `this` は、
-  狭い規則を試作して `src/` と両立することを確かめたが、Record 経由の登録が残るので採らなかった
+  v0.5.20 に試作した狭い規則を v0.5.22 で採った（直接解決できる形だけ。Record 経由の登録は残る。(ii)）。許可モジュールごとの入口と規則は ADR-0019 の入口の表
   （グローバルの `fetch` などは残る）。
   v0.5.4〜v0.5.16 の既知の限界だった `worker_threads`・`node:repl`・`node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning` と、v0.5.5 で追記した
   `process.getBuiltinModule(…)`・`process.dlopen`・`process.report.writeReport("stdout")` は、v0.5.17 で解消した（バックログ 1）。

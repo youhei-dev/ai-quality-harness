@@ -19,6 +19,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - docs: response-builtin-r4（新規。判定表、人間の判断、棚卸しの記録〈51 と 53。ADR の保証ではない〉、代償、教訓の候補、`package-lock.json` の差分 v0.5.19..v0.5.20 の全文）、独立レビューの原文の収録（無改変）。ADR-0019 の決定 7・表・既知の限界・影響、ARCHITECTURE・README・CHANGELOG（v0.5.20 の節に訂正の注記）、ROADMAP
 - テスト 1,107 件（108 ファイル。1,016 ＋ 新しい回帰テスト 91）。`package.json` version 0.5.21（`package-lock.json` の `version` は 0.1.0 のまま）
 - 注記: v0.5.20 の見出しに commit / tag object の SHA を記入した
+- （v0.5.22 で訂正の注記: この版の ADR-0019 が EventEmitter の unbound method を一括して (ii) と分類したのは広すぎた。直接解決できる形は不注意で書ける形で、v0.5.22 で狭い `this` 規則を採った。残る (ii) は Record・要素アクセスの先だけ。M2-2-BUILTIN-R5-003）
 
 ## v0.5.20 — commit d669b5e / tag object dc967e2 — M2-2: a permission of the structure guards rests on syntax or a top-level declaration, not on a name or a static type (M2-2-BUILTIN-R3)
 
