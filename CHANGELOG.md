@@ -5,7 +5,27 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.23 — M2-2: the last fix of the review: the re-export entrance, Utf8Stream as a value, the listener forms that were left (M2-2-BUILTIN-R6)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.23` / `git rev-parse v0.5.23` で確認し、次の release commit で記入）
+## v0.5.24 — Backlog 9 and 10: forbidden characters in the files that aiqh writes; the environment of a check（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.24` / `git rev-parse v0.5.24` で確認し、次の release commit で記入）
+
+- **バックログ 9「ファイルへの出力の禁止文字」と 10「check に `NO_COLOR`」を解消**（**`src/` を変えた**〈v0.5.14 以来〉。`tests/structure/`・`brand-guard.ts`・禁止文字の集合・依存関係・`package-lock.json` は変えていない）。SP1 で実際の CLI を使って実測し、
+  試作を一時 worktree で作ってから、人間の承認の後に実装した（C1〜C5 の 5 commit）
+  - **項目 9（ADR-0020）**: verify のレポート（`latest.json`・`history/<ts>.json`・`latest.md`）と init の `aiqh.config.jsonc` に、禁止文字が生で書かれていた（v0.5.23 の実測: `latest.md` 40、`latest.json` 22、`history` 22、init の設定 5）。
+    **書き込みの出口で、書く直前に形式別に変換する**: JSON は `\uXXXX`（読み戻すと元のデータと同一）、Markdown は `\u{HEX}`（端末と同じ表記）、init の設定は `\uXXXX`。review-packet は fail closed のまま。禁止文字の集合は既存の 75 コードポイントのまま。
+    `.gitignore`・`package.json`（利用者の既存の内容）は対象外
+  - **実測で見つけた Markdown の構造の崩れ**: check の出力の ``` と見出し行で、フェンスの外に見出しが増える。`project.name` の LF と `## ` で節が増える。1 行のフィールドの LF・TAB を表記にし、表のセルの `|` を保ち、フェンスを内容の最長のバッククォートの連なり + 1 にした。
+    禁止文字・LF・TAB・長い連続バッククォートを含まない通常のレポートは、v0.5.23 と**バイト単位で同じ**（C1・C2・C3 のそれぞれで実測）
+  - **`maskDeep()` を JSON データの写しにした**（別 commit）: レポートを写す関数を `safeJson()` と同じ写し（`copyJson()`）にした。関数・`undefined`・非有限の数・getter は固定の文言で拒否、`__proto__` というキーが残り、キーも mask する。利用者から見える変化は無い堅牢化
+  - **項目 10（ADR-0020）**: check の環境から `FORCE_COLOR`・`PY_COLORS` を除き、`NO_COLOR=1` を足す（`src/runner/env.ts` の `checkEnv()`。子の環境を作る 1 か所。バックログ 6 が広げる）。実測で、`NO_COLOR` を足すだけでは何も変わらず（パイプは既定で色を出さない）、
+    `FORCE_COLOR` があると eslint は色を出し続け、Node が stderr に警告を出す。`FORCE_COLOR=1` の verify の `latest.md` の生の ESC は 131 → 0
+  - **実測で見つけたこと**: `FORCE_COLOR` と `NO_COLOR` を併せると Node が stderr に警告を出す（164〜328 バイト）。`PY_COLORS=1` は pytest で `NO_COLOR` に勝つ。eslint は `NO_COLOR` を `FORCE_COLOR` の下に置く。`CLICOLOR_FORCE`・`NPM_CONFIG_COLOR` は出力を変えない
+  - **既知の限界**: 実端末で `cat` したときの害は推測のまま。集合の外の文字（U+200B・U+FFFD など）は表記にならない。10 は 9 の代わりにならない（ツールが明示的に ESC を出す入口は 9 が塞ぐ）
+  - 新しいテスト 115 件（5 ファイル。関数の 75 コードポイント、レポート 3 ファイル、Markdown の構造、実 CLI の verify・init・環境、JSON データの写し、書き込み箇所の一覧）: v0.5.23 のコードでは 108 件 FAIL。既存の 1,240 件の期待値は 0 件変更
+- **独立レビューを 1 回（上限 2 回）受ける予定**（ROADMAP のレビューの方針）。この版は、受ける前の実装である
+- docs: ADR-0020（新規）、ADR-0016 に注記 1 行、ADR の索引、ARCHITECTURE・CONFIG_SPEC・ROADMAP（バックログ 9・10 を「解消」と残す。項目も番号も変えない）、README・CHANGELOG
+- テスト 1,355 件（115 ファイル。1,240 ＋ 新しいテスト 115）。`package.json` version 0.5.24（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.23 の見出しに commit beb1e69 / tag object 5a2fec1 を記入した
+
+## v0.5.23 — commit beb1e69 / tag object 5a2fec1 — M2-2: the last fix of the review: the re-export entrance, Utf8Stream as a value, the listener forms that were left (M2-2-BUILTIN-R6)
 
 - **独立レビュー m2-2-builtin-r6（`docs/reviews/m2-2/independent-review-builtin-r6.md`、ChatGPT、範囲 v0.5.21..v0.5.22）の High 4（M2-2-BUILTIN-R6-001〜004）を修正**
   （`tests/` と docs だけ。`src/` と `package-lock.json` は変えていない）。前回の R5-001〜004 は、解消 2（002・004）、部分的に解消 2（001・003）。新しい指摘 4 件はすべて不注意で書ける形で、`src/` の該当は 0。
