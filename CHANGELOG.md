@@ -17,6 +17,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
   - 直さなかった形（既知の限界）: getter が function を返す listener、Record・配列・非リテラルの要素アクセス・parameter・関数の戻り値の先の listener（(ii)）。既存の規則（要素アクセス・module の分割代入、`fd` option の型の検出、規則 K）は全部残した
   - ADR-0019 の入口の表に 3 行を足す・直した（再 export の行、`Utf8Stream` の行の更新、global の `process` と EventEmitter の行）。ROADMAP の「レビューを終える基準」の項目 2・3 を明確にした（項目 3 は表にある入口の規則の漏れにも広げた）
   - 新しい回帰テスト `tests/regression-m2-2-builtin-r6-reexport-and-listener-forms.test.ts`（58 件: 単独の 45 形 + 複数ファイルの 10 形 + fixture の型検査 2 + `src/` の違反 0）: v0.5.22 のガードでは 26 件 FAIL。本物の `src/` への違反は 0
+- フレークしたテスト `every edit of a repository file type-checks`（`tests/regression-m2-2-builtin-r3-allow-branches.test.ts`）の timeout を 30 秒から 120 秒に延ばした（全件の並列実行中だけ 30 秒を超えていた。実測は単独で約 8.5〜10 秒、全件の並列実行で約 22 秒で、v0.5.21 から変わらない。検査の内容は変えていない。原因は負荷による可能性が高いが未検証）
 - **レビューは r6 で終わり（r7 は依頼しない）。この最終修正は、独立した再レビューを受けておらず、自己 verify と回帰テストで確認した**
 - docs: response-builtin-r6（新規。判定表、55 件の実測、人間の判断、直し方、代償、直さなかった形、教訓の候補）、独立レビューの原文の収録（無改変）。ADR-0019 の決定 7・表・入口の表・既知の限界・影響、ARCHITECTURE・README・CHANGELOG（v0.5.22 の節に訂正の注記）、ROADMAP
 - テスト 1,240 件（110 ファイル。1,182 ＋ 新しい回帰テスト 58）。`package.json` version 0.5.23（`package-lock.json` の `version` は 0.1.0 のまま）

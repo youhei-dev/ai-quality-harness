@@ -246,7 +246,8 @@ describe("M2-2-BUILTIN-R3: the fixtures", () => {
       return typeErrors(program, filesUnder(program, file) as ts.SourceFile[]).length > 0;
     });
     expect(failing.map((x) => x.id)).toEqual([]);
-  });
+    // one program per edit: about 9 s alone and 22 s in a parallel run, over the 30 s of vitest.config.ts under a heavier load (the cause is probably the load; not verified)
+  }, 120_000);
 });
 
 for (const [g, cases] of Object.entries(GROUPS)) {
