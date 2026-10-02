@@ -60,7 +60,8 @@ const R4_002: Record<string, Case> = {
   b11_conditional_options: { reported: true, src: `import { createWriteStream } from "node:fs";\nexport const f = (toStdout: boolean): void => {\n  createWriteStream("unused.txt", toStdout ? { fd: 1 } : {}).write("x");\n};\n` },
   b12_control_object: { reported: true, src: `import { createWriteStream } from "node:fs";\nexport const f = (o: { fd?: number }): void => {\n  createWriteStream("unused.txt", o).write("x");\n};\n` },
   b13_control_no_fd: { reported: false, src: `import { createWriteStream } from "node:fs";\nexport const f = (p: string): void => {\n  createWriteStream(p, { flags: "a" }).write("x");\n};\n` },
-  b14_control_optional_no_fd: { reported: false, src: `import { createWriteStream } from "node:fs";\nexport const f = (p: string, o?: { flags?: string }): void => {\n  createWriteStream(p, o).write("x");\n};\n` },
+  // reported since v0.5.22 (M2-2-BUILTIN-R5-002): the options of createWriteStream are a literal, a variable is reported even when its type has no `fd` (the price)
+  b14_control_optional_no_fd: { reported: true, src: `import { createWriteStream } from "node:fs";\nexport const f = (p: string, o?: { flags?: string }): void => {\n  createWriteStream(p, o).write("x");\n};\n` },
 };
 
 /** R4-003: an fs / child_process function taken by an element access, a destructuring or `fs/promises`, used other than as the callee of a call */

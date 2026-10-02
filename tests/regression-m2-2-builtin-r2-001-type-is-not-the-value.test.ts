@@ -188,20 +188,24 @@ const LIMITS: Record<string, string> = {
   t13_reflect_get_constructor: `const F = Reflect.get(() => 0, "constructor") as (body: string) => () => unknown;\nexport const f = (): unknown => F("return 1")();\n`,
   // obj[k] with k = "constructor" cast to a function type (ADR-0019 known limit)
   t15_computed_constructor: `const k: string = "constructor";\nconst g = (): number => 0;\nconst F = (g as unknown as Record<string, unknown>)[k] as (body: string) => () => unknown;\nexport const f = (): unknown => F("return 1")();\n`,
-  // a listener of process.on is called with this = process (ADR-0019 known limit)
-  x25_this_carrier_listener: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n`,
-  // an object method passed to process.on: this is process at run time (ADR-0019 known limit)
-  x26_this_carrier_object_method: `const fake = {\n  stdout: { write: (_s: string): boolean => false },\n  m(): void {\n    this.stdout.write("x");\n  },\n};\nexport const f = (): void => {\n  process.on("exit", fake.m);\n  process.emit("exit", 0);\n};\n`,
-  // a class method passed to process.on: this is process at run time (ADR-0019 known limit)
-  x36_this_carrier_class_method: `class A {\n  readonly stdout = { write: (_s: string): boolean => false };\n  m(): void {\n    this.stdout.write("x");\n  }\n}\nexport const f = (): void => {\n  process.on("exit", new A().m);\n  process.emit("exit", 0);\n};\n`,
-  // process.once with a function expression that uses this (ADR-0019 known limit)
-  x37_this_carrier_once_function_expression: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  process.once("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n`,
-  // globalThis.process.on with a function expression that uses this (ADR-0019 known limit)
-  g06_this_carrier_process_from_globalthis: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  globalThis.process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  globalThis.process.emit("exit", 0);\n};\n`,
   // an uncaught exception is printed by Node at exit (ADR-0019 known limit)
   y19_uncaught_throw: `export const f = (): never => {\n  throw new Error("x");\n};\n`,
   // an unhandled rejection is printed by Node at exit (ADR-0019 known limit)
   y22_unhandled_rejection: `export const f = (): void => {\n  void Promise.reject(new Error("x"));\n};\n`,
+};
+
+/** A listener of process.on / once that uses `this` (called with process as `this`): reported since v0.5.22 (M2-2-BUILTIN-R5-003). They were known limits of ADR-0019 until v0.5.21. */
+const LISTENERS: Record<string, string> = {
+  // a listener of process.on is called with this = process (reported since v0.5.22: M2-2-BUILTIN-R5-003)
+  x25_this_carrier_listener: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n`,
+  // an object method passed to process.on: this is process at run time (reported since v0.5.22: M2-2-BUILTIN-R5-003)
+  x26_this_carrier_object_method: `const fake = {\n  stdout: { write: (_s: string): boolean => false },\n  m(): void {\n    this.stdout.write("x");\n  },\n};\nexport const f = (): void => {\n  process.on("exit", fake.m);\n  process.emit("exit", 0);\n};\n`,
+  // a class method passed to process.on: this is process at run time (reported since v0.5.22: M2-2-BUILTIN-R5-003)
+  x36_this_carrier_class_method: `class A {\n  readonly stdout = { write: (_s: string): boolean => false };\n  m(): void {\n    this.stdout.write("x");\n  }\n}\nexport const f = (): void => {\n  process.on("exit", new A().m);\n  process.emit("exit", 0);\n};\n`,
+  // process.once with a function expression that uses this (reported since v0.5.22: M2-2-BUILTIN-R5-003)
+  x37_this_carrier_once_function_expression: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  process.once("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n`,
+  // globalThis.process.on with a function expression that uses this (reported since v0.5.22: M2-2-BUILTIN-R5-003)
+  g06_this_carrier_process_from_globalthis: `const K: string = ["std", "out"].join("");\ntype W = { write(s: string): boolean };\nconst grab = (o: unknown): W | undefined => (o as Record<string, W | undefined>)[K];\nexport const _keep = [K, grab];\nexport const f = (): void => {\n  globalThis.process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  globalThis.process.emit("exit", 0);\n};\n`,
 };
 
 /** Not violations. */
@@ -245,7 +249,7 @@ const CONTROLS: Record<string, string> = {
 };
 
 const groups: Record<string, Forged>[] = [KEYS, OTHERS, PATHS, SYNTAX];
-const sources: Record<string, string> = { ...LIMITS, ...CONTROLS };
+const sources: Record<string, string> = { ...LIMITS, ...LISTENERS, ...CONTROLS };
 for (const g of groups) for (const [id, f] of Object.entries(g)) sources[id] = f.src;
 const program = createProgram(Object.fromEntries(Object.entries(sources).map(([id, s]) => [`${P}/${id}.ts`, s])));
 const fileOf = (id: string): ts.SourceFile[] => filesUnder(program, `${P}/${id}.ts`);
@@ -272,6 +276,14 @@ for (const [title, g] of suites) {
     }
   });
 }
+
+describe("M2-2-BUILTIN-R2-001: a listener of process.on that uses this is reported (v0.5.22, M2-2-BUILTIN-R5-003)", () => {
+  for (const id of Object.keys(LISTENERS)) {
+    it(id, () => {
+      expect(reported(id).some((what) => what.includes("that uses this"))).toBe(true);
+    });
+  }
+});
 
 describe("M2-2-BUILTIN-R2-001: the known limits are not reported (ADR-0019)", () => {
   for (const id of Object.keys(LIMITS)) {

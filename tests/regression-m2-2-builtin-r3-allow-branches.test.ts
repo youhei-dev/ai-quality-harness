@@ -170,14 +170,14 @@ const XB: Record<string, Case> = {
   xb16_comma_wrapper_eval: { reported: true, src: `export const f = (): unknown => (0, eval)("1");\n` },
 };
 
-/** EventEmitter `this` (known limit of ADR-0019: not reported) */
+/** EventEmitter `this`: a listener the checker resolves to its declaration and that uses `this` is reported since v0.5.22 (M2-2-BUILTIN-R5-003: ee01–ee06); a listener in a record is a known limit of ADR-0019 (ee07); controls */
 const EE: Record<string, Case> = {
-  ee01_function_expression_this_param: { reported: false, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n` },
-  ee02_object_method_reference: { reported: false, src: `const fake = {\n  stdout: { write: (_s: string): boolean => false },\n  m(): void {\n    this.stdout.write("x");\n  },\n};\nexport const f = (): void => {\n  process.on("exit", fake.m);\n  process.emit("exit", 0);\n};\n` },
-  ee03_class_method_reference: { reported: false, src: `class A {\n  readonly stdout = { write: (_s: string): boolean => false };\n  m(): void {\n    this.stdout.write("x");\n  }\n}\nexport const f = (): void => {\n  process.on("exit", new A().m);\n  process.emit("exit", 0);\n};\n` },
-  ee04_once_function_expression: { reported: false, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  process.once("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n` },
-  ee05_globalthis_process_on: { reported: false, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  globalThis.process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  globalThis.process.emit("exit", 0);\n};\n` },
-  ee06_function_declaration_this: { reported: false, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nfunction h(this: Record<string, W | undefined>): void {\n  this[K]?.write("x");\n}\nexport const f = (): void => {\n  process.on("exit", h);\n  process.emit("exit", 0);\n};\n` },
+  ee01_function_expression_this_param: { reported: true, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n` },
+  ee02_object_method_reference: { reported: true, src: `const fake = {\n  stdout: { write: (_s: string): boolean => false },\n  m(): void {\n    this.stdout.write("x");\n  },\n};\nexport const f = (): void => {\n  process.on("exit", fake.m);\n  process.emit("exit", 0);\n};\n` },
+  ee03_class_method_reference: { reported: true, src: `class A {\n  readonly stdout = { write: (_s: string): boolean => false };\n  m(): void {\n    this.stdout.write("x");\n  }\n}\nexport const f = (): void => {\n  process.on("exit", new A().m);\n  process.emit("exit", 0);\n};\n` },
+  ee04_once_function_expression: { reported: true, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  process.once("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  process.emit("exit", 0);\n};\n` },
+  ee05_globalthis_process_on: { reported: true, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nexport const f = (): void => {\n  globalThis.process.on("exit", function (this: Record<string, W | undefined>) {\n    this[K]?.write("x");\n  });\n  globalThis.process.emit("exit", 0);\n};\n` },
+  ee06_function_declaration_this: { reported: true, src: `type W = { write(s: string): boolean };\nconst K: string = ["std", "out"].join("");\nfunction h(this: Record<string, W | undefined>): void {\n  this[K]?.write("x");\n}\nexport const f = (): void => {\n  process.on("exit", h);\n  process.emit("exit", 0);\n};\n` },
   ee07_record_of_handlers: { reported: false, src: `const fake = {\n  stdout: { write: (_s: string): boolean => false },\n  m(): void {\n    this.stdout.write("x");\n  },\n};\nconst table: Record<string, () => void> = { a: fake.m };\nexport const f = (): void => {\n  process.on("exit", table["a"] as () => void);\n  process.emit("exit", 0);\n};\n` },
   ee08_arrow_control: { reported: false, src: `export const f = (): void => {\n  process.on("exit", () => undefined);\n};\n` },
   ee09_handler_table_control: { reported: false, src: `type Handlers = Record<'SIGINT' | 'SIGTERM', () => void>;\nconst from: Handlers = { SIGINT: () => undefined, SIGTERM: () => undefined };\nconst to: Handlers = { SIGINT: () => undefined, SIGTERM: () => undefined };\nexport const f = (): void => {\n  for (const signal of ['SIGINT', 'SIGTERM'] as const) {\n    process.on(signal, to[signal]);\n    process.off(signal, from[signal]);\n  }\n};\n` },
@@ -205,7 +205,7 @@ const TITLES: Record<string, string> = {
   R8: "R3-008: only the path argument of an fs writer is checked for a device path",
   XC: "K1: an fd option in a spread, a variable, a wrapper or a computed name",
   XB: "wrappers that change only the static type (as const, satisfies, !, parentheses)",
-  EE: "EventEmitter `this` (known limit of ADR-0019: not reported)",
+  EE: "EventEmitter `this`: a direct listener that uses `this` is reported (R5-003); a listener in a record is a known limit (ee07); controls",
   BD: "K3: widening of a branded container (known limit: not reported)",
 };
 

@@ -66,6 +66,8 @@ const DYNAMIC_FORMS: Record<string, string> = {
   di01_console_literal: `export const f = async (): Promise<void> => {\n  (await import("node:console")).log("x");\n};\n`,
   di02_worker_literal: `export const f = async (): Promise<void> => {\n  const { Worker } = await import("node:worker_threads");\n  new Worker("process.stdout.write('x')", { eval: true });\n};\n`,
   di03_template_substitution: `export const f = async (name: string): Promise<unknown> => import(\`node:\${name}\`);\n`,
+  // v0.5.22 (M2-2-BUILTIN-R5-001): import() of fs / child_process gives their functions as one value (a namespace), so it is reported. It was a control (ct07) until v0.5.21
+  di05_fs_dynamic_import_namespace: `export const f = async (): Promise<number> => (await import("node:fs")).readFileSync("a").length;\n`,
 };
 
 /** Static import and `export … from`. */
@@ -98,7 +100,6 @@ const CONTROLS: Record<string, string> = {
   ct04_packages: `import { Command } from "commander";\nimport { parse } from "jsonc-parser";\nimport { z } from "zod";\nexport const f = (): unknown => [new Command("x"), parse("{}"), z.string()];\n`,
   ct05_relative_src: `import { safeText } from "../../../src/output.ts";\nexport const f = (s: string): string => safeText(s);\n`,
   ct06_type_position: `export type T = ReturnType<typeof process.getBuiltinModule>;\nexport type R = typeof process.report;\n`,
-  ct07_dynamic_import_allowed: `export const f = async (): Promise<number> => (await import("node:fs")).readFileSync("a").length;\n`,
   ct08_import_meta_resolve: `export const f = (): string => import.meta.resolve("node:console");\n`,
 };
 
@@ -133,7 +134,7 @@ const groups: Array<[string, Record<string, string>]> = [
   ["process.getBuiltinModule in every spelling is reported", GET_BUILTIN],
   ["the other members of process that reach the terminal, load code or replace the program are reported", PROCESS_FORMS],
   ["node:module and require are reported", MODULE_FORMS],
-  ["import() of a module outside the allowlist is reported", DYNAMIC_FORMS],
+  ["import() of a module outside the allowlist, or of fs / child_process (their functions as one namespace), is reported", DYNAMIC_FORMS],
   ["import and export … from a module outside the allowlist (a built-in, a URL, a file the checker cannot see) are reported", IMPORT_FORMS],
   ["an fs call with a device path is reported", FS_FORMS],
 ];
@@ -147,7 +148,7 @@ for (const [title, forms] of groups) {
   });
 }
 
-describe("backlog 1: controls are not reported (the six built-ins, import type, ordinary uses of process, the runtime dependencies, src/, types, allowed import(), import.meta.resolve)", () => {
+describe("backlog 1: controls are not reported (the six built-ins, import type, ordinary uses of process, the runtime dependencies, src/, types, import.meta.resolve)", () => {
   for (const name of Object.keys(CONTROLS)) {
     it(name, () => {
       expect(reported(name)).toEqual([]);
