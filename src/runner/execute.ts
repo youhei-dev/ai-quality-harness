@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { statSync } from "node:fs";
 import type { ExecutionResult } from "../types.ts";
 import { isUtf8ContinuationByte } from "./utf8-trim.ts";
+import { checkEnv } from "./env.ts";
 
 export interface ExecuteOptions {
   command: string;
@@ -109,7 +110,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
         shell: true,
         detached: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
-        env: options.env ?? process.env,
+        env: options.env ?? checkEnv(),
       });
     } catch (err) {
       resolve(notStarted(`spawn failed: ${(err as Error).message}`, null, startedAt));
