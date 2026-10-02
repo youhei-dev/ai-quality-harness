@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.22 — M2-2: the entrances to the fs and child_process functions are closed, and a static type is not taken for the absence of an `fd` (M2-2-BUILTIN-R5)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.22` / `git rev-parse v0.5.22` で確認し、次の release commit で記入）
+## v0.5.23 — M2-2: the last fix of the review: the re-export entrance, Utf8Stream as a value, the listener forms that were left (M2-2-BUILTIN-R6)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.23` / `git rev-parse v0.5.23` で確認し、次の release commit で記入）
+
+- **独立レビュー m2-2-builtin-r6（`docs/reviews/m2-2/independent-review-builtin-r6.md`、ChatGPT、範囲 v0.5.21..v0.5.22）の High 4（M2-2-BUILTIN-R6-001〜004）を修正**
+  （`tests/` と docs だけ。`src/` と `package-lock.json` は変えていない）。前回の R5-001〜004 は、解消 2（002・004）、部分的に解消 2（001・003）。新しい指摘 4 件はすべて不注意で書ける形で、`src/` の該当は 0。
+  4 件を (i)/(ii)/(iii) の限界に分類し直さず、入口を塞ぐ方式の延長で閉じた。4 件とも、修正前に v0.5.22 のガードへ fixture（55 件）を当てて、見逃しと端末への到達（標準出力 1 バイト）を実測してから直した
+  - 構造ガード（`tests/structure/output-guard.ts`。本体 +54 / −17 行、先頭の説明コメント +11 / −7 行）: R6-001（fs・child_process の関数を名前で export する形〈`export { x } from`・`export { x as y } from`・`import { x }; export { x }`〉を違反。再 export したローカル module が関数の束になる入口だった。
+    `export type`・`{ type x }` は許す）、R6-002（`Utf8Stream` を値として import・再 export する形を違反。局所の construct signature を通すと `new` の宣言の解決が外れるため。型の import は許す。`new` の検出は残す）、
+    R6-003（listener の登録 method を `process["on"]` のようなソース上の文字列リテラルの要素アクセスで書く形も、`process.on` と同じ規則に入れる）、R6-004（listener の別名の追跡を、shorthand property・initializer を持つ class field に広げ、固定の深さ 3 を循環で止まる追跡に置き換えた）
+  - **既存テストの期待値の変更（1 件、人間の承認）**: `tests/regression-m2-2-builtin-r5-entrance-forms.test.ts` の `p18_named_reexport` を `reported: false` → `true`
+  - 直さなかった形（既知の限界）: getter が function を返す listener、Record・配列・非リテラルの要素アクセス・parameter・関数の戻り値の先の listener（(ii)）。既存の規則（要素アクセス・module の分割代入、`fd` option の型の検出、規則 K）は全部残した
+  - ADR-0019 の入口の表に 3 行を足す・直した（再 export の行、`Utf8Stream` の行の更新、global の `process` と EventEmitter の行）。ROADMAP の「レビューを終える基準」の項目 2・3 を明確にした（項目 3 は表にある入口の規則の漏れにも広げた）
+  - 新しい回帰テスト `tests/regression-m2-2-builtin-r6-reexport-and-listener-forms.test.ts`（58 件: 単独の 45 形 + 複数ファイルの 10 形 + fixture の型検査 2 + `src/` の違反 0）: v0.5.22 のガードでは 26 件 FAIL。本物の `src/` への違反は 0
+- **レビューは r6 で終わり（r7 は依頼しない）。この最終修正は、独立した再レビューを受けておらず、自己 verify と回帰テストで確認した**
+- docs: response-builtin-r6（新規。判定表、55 件の実測、人間の判断、直し方、代償、直さなかった形、教訓の候補）、独立レビューの原文の収録（無改変）。ADR-0019 の決定 7・表・入口の表・既知の限界・影響、ARCHITECTURE・README・CHANGELOG（v0.5.22 の節に訂正の注記）、ROADMAP
+- テスト 1,240 件（110 ファイル。1,182 ＋ 新しい回帰テスト 58）。`package.json` version 0.5.23（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.22 の見出しに commit 4c6d430 / tag object 0447d81 を記入した
+
+## v0.5.22 — commit 4c6d430 / tag object 0447d81 — M2-2: the entrances to the fs and child_process functions are closed, and a static type is not taken for the absence of an `fd` (M2-2-BUILTIN-R5)
 
 - **独立レビュー m2-2-builtin-r5（`docs/reviews/m2-2/independent-review-builtin-r5.md`、ChatGPT、範囲 v0.5.20..v0.5.21）の High 2 / Medium 1 / Low 1（M2-2-BUILTIN-R5-001〜004）を修正**
   （`tests/` と docs だけ。`src/` と `package-lock.json` は変えていない）。前回の R4-001〜006 は、解消 5（001・002・004・005・006）、部分的に解消 1（003）。新しい指摘 4 件は不注意で書ける形で、`src/` の該当は 0
