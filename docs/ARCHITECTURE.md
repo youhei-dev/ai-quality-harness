@@ -109,7 +109,7 @@ src/
     load.ts               … JSONC 読込 → スキーマ検証 → パス正規化（cwd の逸脱検査）        [M0]
   runner/
     execute.ts            … 単一コマンドの子プロセス実行（タイムアウト、プロセスグループ kill）[M0]
-    env.ts                … check の環境（aiqh の環境から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足す。子の環境を作る 1 か所）[v0.5.24]
+    env.ts                … check の環境（aiqh の環境から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足す。check の子の環境を作る 1 か所）[v0.5.24]
     run-checks.ts         … チェックの順次実行、fail-fast、所要時間計測                    [M0]
   report/
     verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
@@ -166,7 +166,7 @@ zod スキーマ検証 ──失敗──▶ 終了コード 2（レポートは
 git 情報取得（commit / branch / dirty。非 git なら null）
    ▼
 checks[] を設定順に順次実行
-   ├─ spawn(command, { cwd, shell: true, detached: true, env })   … env = aiqh の環境から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足したもの（ADR-0020）
+   ├─ spawn(command, { cwd, shell: true, detached: true, env })   … env = checkEnv(options.env ?? process.env) = aiqh の環境〈渡された env もこれが元〉から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足したもの（ADR-0020）
    ├─ stdout / stderr を蓄積（上限あり）
    ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → status FAIL(timedOut)
    ├─ 起動失敗（ENOENT 等）→ FAIL

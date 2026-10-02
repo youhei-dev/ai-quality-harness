@@ -1,7 +1,7 @@
 # ADR-0020: ファイルへの出力は書き込みの出口で形式別に禁止文字を表記にする。check の環境から色の強制を除く
 
 - 状態: 採用（ADR-0016 の「ファイルへの出力は対象外」を引き継ぐ。ADR-0014・0017・0018 は変えない）
-- 日付: 2026-10-02（M2-2、v0.5.24。ROADMAP のバックログ 9・10）
+- 日付: 2026-10-02（M2-2、v0.5.24。ROADMAP のバックログ 9・10）。2026-10-03（v0.5.25。決定 1・7・8 と既知の限界を、独立レビュー backlog-9-10-r1 の R1-001〜004 に合わせて直した）
 
 ## 文脈
 - 端末への出力は v0.5.2 から出口が 1 つで、禁止文字を `\u{HEX}` の表記にしてから mask する（ADR-0016/0017/0018）。**ファイルへの出力は対象外**とされ、バックログ 9 に残った
@@ -20,7 +20,7 @@
    - verify のレポート（`latest.json`・`history/<ts>.json`・`latest.md`）は `src/report/write.ts` の `writeAtomic()` が唯一の書き込み。形式（`json`／`md`）を受け取り、**JSON は禁止文字を `\uXXXX`**（`escapeRawCharsAsJson()`。
      読み戻したデータは元と同一）、**Markdown は `\u{HEX}`**（`escapeForDisplay(content, "keep")`。端末と同じ表記。TAB と LF は残す）にしてから書く
    - init の `aiqh.config.jsonc` は、`resolveConfig` で検証した後、書く直前に `escapeRawCharsAsJson()` を通す（JSON の値の DEL・C1・U+2028/2029・bidi・BOM が `\uXXXX` になる。読み戻すと元の名前）
-   - 出口が書く直前なので、フィールドを足しても漏れない（新しい書き込み箇所は決定 7 のテストが見せる）
+   - 出口が書く直前なので、フィールドを足しても漏れない（Node fs の列挙した関数による新しい書き込み箇所は決定 7 のテストが見せる）
 2. **表記にして残す理由と、review-packet との差**
    - (a) 禁止文字があれば書かない（fail closed）: verify のレポートは、チェックの判定（PASS/FAIL）を残す記録なので、出力に ESC があるだけでレポートが書かれなくなるのは逆効果。**不採用**
    - (c) 取り除く: 何があったかが分からなくなる（ADR-0016 が却下した理由と同じ）。**不採用**
@@ -34,18 +34,26 @@
    固定の文言で拒否（CLI は最上位の「unexpected error」で exit 2）。写しにプロトタイプは無く、`__proto__` という名前のキーも残る。文字列とキーは mask する（`maskDeep` はキーを mask しなかった）。キーの順序は変わらない。
    利用者由来の関数・キーは今のレポートに入らないので、見える変化は無い堅牢化。`maskDeep()` はテストが使うので `src/security/mask.ts` に残す
 6. **対象外**: init の `.gitignore`・`package.json`（利用者の既存の内容に固定の 1 行を足す。内容は素通し）、review-packet（決定 2）、端末（ADR-0016/0017/0018）
-7. **書き込み箇所の一覧のテスト**（`tests/file-write-sites.test.ts`。通常のテストで、構造ガードではない）: 型検査器で `src/` の fs の書き込み呼び出し（内容を書く関数）を列挙し、既知の 5 か所
-   （init 3、review-packet 1、`writeAtomic` 1）と、門（変換）の有無が一致することを確かめる。新しい書き込み箇所が出ると落ちて、門を付けるか、除外の理由を書くことを求める。何が許されるかを決める規則ではなく、新しい書き込みを見えるようにするだけ
+7. **書き込み箇所の一覧のテスト**（`tests/file-write-sites.test.ts`。通常のテストで、構造ガードではない）: 型検査器で、`src/` の **Node fs の列挙した関数**の呼び出し（`writeFileSync`・`appendFileSync`・`writeFile`・`appendFile`・`writeSync`・`write`・
+   `writev`・`writevSync`・`createWriteStream`・`copyFileSync`・`copyFile`・`cp`・`cpSync`。`@types/node` の fs と fs/promises の宣言に解決する呼び出し）を見つけ、**既知の 5 か所の表**（init 3、review-packet 1、`writeAtomic` 1。各行 = ファイル・外側の関数・
+   書く関数・**内容の引数の式の文字列をそのまま**・種別・注記）と一致することを確かめる。内容の引数の位置は関数ごとに表で持つ（`writev` は buffers の配列、`createWriteStream`・コピーの関数は内容の引数が無い）。種別は `gate`（書く直前に変換する）・`no-gate`（対象外。理由を注記に書く）・
+   `not-content`（コピーや stream の作成。第 2 引数が内容でない）。新しい箇所・消えた箇所・式が変わった箇所があると落ちて、人間が表を見直す。何が許されるかを決める規則ではなく、新しい書き込みを見えるようにするだけ
+   - **保証すること**: 列挙した関数の呼び出しが `src/` に増えた・減った・内容の式が変わったことが見える
+   - **保証しないこと**: 変換が内容の全部に掛かること。種別 `gate` は書いた人の記述で、テストは式を読んで門の有無を判定しない（v0.5.24 は、第 2 引数に変換関数の名前があれば「門あり」とする正規表現だったが、部分だけの変換を「門あり」にし、別の行で変換した変数を「門なし」にし、
+     `createWriteStream`・コピーの第 2 引数が内容でないことと合わなかったのでやめた: R1-001・002）。変換の正しさは、各テスト（75 コードポイントの往復と実 CLI）が確かめる。列挙した関数でない書き込みは、下の既知の限界
 8. **check の環境（バックログ 10）**: `src/runner/env.ts` の `checkEnv()` が check の環境を 1 か所で作る = aiqh の環境から **`FORCE_COLOR` と `PY_COLORS` を除き、`NO_COLOR=1` を足す**（ほかは保つ）。`execute.ts` は
-   `env: options.env ?? checkEnv()`（オプションで env を渡すテストは今までどおり）。`NO_COLOR` だけを足す案は、実測で既定では何も変えず、`FORCE_COLOR` があるときは eslint が色を出し続けて Node の警告も増えるので採らない。
+   `env: checkEnv(options.env ?? process.env)`（`options.env` は呼び出し元の環境で、`checkEnv()` の元。完成した子の環境ではなく、渡した env も `checkEnv()` を通る。v0.5.24 は `options.env ?? checkEnv()` で、env を渡すと丸ごと迂回した: R1-004。
+   `options.env` を渡す呼び出しは `src/`・`tests/` に 0 か所）。`NO_COLOR` だけを足す案は、実測で既定では何も変えず、`FORCE_COLOR` があるときは eslint が色を出し続けて Node の警告も増えるので採らない。
    利用者の明示した `FORCE_COLOR` は check では無視する（check の出力は端末ではなくレポートと端末の表記に入るので、色の価値が無い）。check ごとの上書きは作らない（設定に `env` は無い）。
-   `CLICOLOR_FORCE`・`NPM_CONFIG_COLOR` は出力を変えなかったので触らない。**バックログ 6（子の環境を最小にする）は、この関数を広げる**（子の環境を組み立てる場所は `checkEnv()` の 1 か所に限る）
+   `CLICOLOR_FORCE`・`NPM_CONFIG_COLOR` は出力を変えなかったので触らない。**バックログ 6（子の環境を最小にする）は、この関数を広げる**（check の子の環境を組み立てる場所は `checkEnv()` の 1 か所に限る。git を起動する箇所〈security-scan・init・review-packet・git の情報〉は check ではなく対象外）
 
 ## 代替案
 - 作る時点で全文字列を表記にする（`buildReport` で `\u{HEX}`）: JSON の中身が `\u{1B}` の文字列になり、読み戻すと元の文字でない。新しいフィールドの漏れも出口ほど防げない
 - 禁止文字があれば書かない: 決定 2
 - 取り除く: 決定 2
 - `NO_COLOR=1` を足すだけ: 決定 8
+- 書き込み箇所のテストで、第 2 引数に変換関数の名前があるかを文字列検索して門の有無を判定する（v0.5.24）: 決定 7（偽陽性・偽陰性があり、内容の引数の位置も関数で違う）
+- 書き込み箇所のテストで、Node の型宣言から書き込み系の関数・メソッド・stream の入口を全部列挙して追う（R1-001 のレビュアーの案）: 型を許可の根拠にする系統が増える（ADR-0019 決定 7）ので採らない。列挙した関数だけを表で照合し、残りは既知の限界に書く
 - 何もしない（10 を 9 だけで済ませる）: 9 で生の ESC は 0 になるので安全は保てるが、`FORCE_COLOR` のある環境ではレポートに `\u{1B}[31m` が並んで読みにくい（131 か所）
 
 ## 既知の限界
@@ -56,9 +64,23 @@
 - **Markdown を描画する側での解釈は未確認**: 構造の崩れは、フェンスの外の見出しと表・節で確かめた（CommonMark の規則での数え方）。HTML の描画系やエディタでの見え方は確かめていない（推測）
 - **`.gitignore`・`package.json` の既存の内容は素通し**（利用者のファイル）。書き込み箇所のテスト（決定 7）は新しい箇所を見せるだけで、変換の正しさは各テスト（75 コードポイントの往復と実 CLI）が確かめる
 - ruff・mypy・Playwright の色は測っていない（この環境に無い）。python アダプタの既定コマンドのうち測れたのは pytest だけ
-- 修正に独立した再レビューを受ける予定（1 回、上限 2 回。ROADMAP）。**受けるまでは、自己 verify と回帰テストで確認しただけ**
+- **書き込み箇所のテスト（決定 7）が見ない書き込み**（R1-001。いずれも `src/` に 0 か所）:
+  - **stream**: `createWriteStream` の呼び出しは見える（内容の引数は無い）が、戻り値の `.write()`・`.end()` は見えない。入口は**塞がれていない**（ADR-0019 は `createWriteStream` の options を省略・文字列・新しい object literal に絞るだけで、文字列のパスへの書き込みは許す。
+    実測: `createWriteStream("out.txt").write("x")` は出力ガードの違反にならない）
+  - **`FileHandle`**: `fs/promises` の `open()` が返す `FileHandle` の `.write()`・`.writeFile()`・`.appendFile()`・`.createWriteStream()` は見えないが、**入口で塞がれている**。`node:fs/promises` は `BUILTIN_ALLOWED` の外で、`{ promises }`・`import * as fs` の `fs.promises`・default import・動的 `import()`・
+    `process.getBuiltinModule` もすべて違反（実測。書き込み箇所のテストが、`node:fs/promises` の違反になることを確かめる）
+  - **fs の API でない書き込み**: child process のシェルのリダイレクトなど。テストの対象外
+  - **表に載せていない fs の関数**（`rename`・`link`・`symlink`・`truncate`・`mkdir`・`mkdtemp`・`rm`・`unlink`・`open`）は、呼び出し元の内容を書かない（理由はテストの `NOT_CONTENT`）。`truncate` は延長のとき NUL を埋める
+  - **Node の型宣言から書き込み系の関数・メソッドを全部列挙して追う方式は採らない**（型を許可の根拠にする系統を増やさないため〈ADR-0019 決定 7〉。やるなら別の依頼）
+- **Markdown の `\u{HEX}` は表示用の表記で、元から同じ文字列があった場合と区別できない**（R1-003、Low。(iii)）: check の出力が `\u{1B}` という文字列そのものでも、本物の ESC でも、`latest.md` の表示は同じになる。**元データの忠実な確認には JSON を使う**。
+  JSON は区別できる（バックスラッシュ自体が escape されるので、読み戻すと別の値になる）。実測: 本物の CLI の `verify` で、`latest.md` は同一の表示、`latest.json` は `\\u{1B}` と `\u001b` で別。生の禁止文字は、どちらのファイルにも残らない。コードは変えない
+- 独立レビュー backlog-9-10-r1（範囲 `v0.5.23..v0.5.24`）を受けた: High 2 / Medium 1 / Low 1、`src/` に実在する漏れは 0（対応記録 `docs/reviews/backlog-9-10/response-r1.md`）。**v0.5.25 の差分（`v0.5.24..v0.5.25`）を 2 回目で受ける予定。2 回目が上限で、3 回目は行わない**。
+  **受けるまでは、v0.5.25 の修正は自己 verify と回帰テストで確認しただけ**
 
 ## 影響
+- v0.5.25（独立レビュー backlog-9-10-r1 の対応）: `src/` は `src/runner/execute.ts` の +2／−1 行だけ（`env: checkEnv(options.env ?? process.env)`。R1-004）。書き込み箇所のテストを、正規表現の判定から、既知の箇所を 1 件ずつ明示した表との照合に作り直した（3 → 30 件。R1-001・002）。
+  新しいテスト 32 件の増加（`options.env` のテスト 5 件を含む）。修正前のコードでは、`src/` を 9 通りに変えた探りで旧テストが 6 件を見逃し、`options.env` のテスト 5 件のうち 4 件が FAIL。作り直した 3 件を除いて、既存テストの期待値の変更は 0 件。
+  `tests/structure/`・`brand-guard.ts`・禁止文字の集合・依存関係は変えない
 - v0.5.24（バックログ 9・10）: `src/` を変えた（v0.5.14 以来）。8 ファイル +91／−29 行（`src/runner/env.ts` は新規 13 行、`src/security/raw-chars.ts` +14、`src/report/markdown.ts` +31／−12、`src/output.ts` +17／−7、`src/report/write.ts` +8／−5、`src/report/build-report.ts` +4／−3、`src/commands/init.ts` +2／−1、`src/runner/execute.ts` +2／−1）。
   `tests/structure/`・`brand-guard.ts`・禁止文字の集合・依存関係は変えない
 - 新しいテスト 115 件（5 ファイル）: 関数（75 コードポイントの往復）、レポートの 3 ファイル、Markdown の構造、実 CLI（verify と init、環境）、JSON データの写し、書き込み箇所の一覧、`checkEnv`。v0.5.23 のコードでは 115 件中 108 件が FAIL（99 件中 95、10 件中 7、6 件中 6）。
