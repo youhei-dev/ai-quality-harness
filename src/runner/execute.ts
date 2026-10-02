@@ -12,6 +12,7 @@ export interface ExecuteOptions {
   maxOutputBytes?: number;
   /** Grace period between SIGTERM and SIGKILL on timeout / interruption. Default 5000 ms. */
   killGraceMs?: number;
+  /** The environment of the caller, the base of the check's environment; checkEnv() is applied to it (default: process.env). */
   env?: NodeJS.ProcessEnv;
   /**
    * Interruption signal (R3-002). When it is already aborted the command is not started; when it
@@ -110,7 +111,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
         shell: true,
         detached: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
-        env: options.env ?? checkEnv(),
+        env: checkEnv(options.env ?? process.env),
       });
     } catch (err) {
       resolve(notStarted(`spawn failed: ${(err as Error).message}`, null, startedAt));
