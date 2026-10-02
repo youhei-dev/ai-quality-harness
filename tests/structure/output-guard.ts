@@ -12,10 +12,11 @@
  *    `Object.getOwnPropertyDescriptor(globalThis, …)`), a type assertion (`process as any`), an alias, a spread,
  *    destructuring with a computed key or a rest element (a value that is discarded, such as the result of
  *    `process.on(…)`, is not a use)
- *  - a listener of `process.on` / `once` / `addListener` / `prependListener` / `prependOnceListener` that uses `this` (it is called with
- *    process as `this`: an object's or class's method passed unbound, M2-2-BUILTIN-R5-003). Only a listener that resolves to its
- *    declaration (a function, a method reference, also through a variable or an object's property) is seen; one in a record or an
- *    element access is a known limit of ADR-0019
+ *  - a listener of `process.on` / `once` / `addListener` / `prependListener` / `prependOnceListener` (called as `process.on` or
+ *    `process["on"]`) that uses `this` (it is called with process as `this`: an object's or class's method passed unbound,
+ *    M2-2-BUILTIN-R5-003, R6-003). Only a listener that resolves to its declaration is seen: a function, a method reference, also
+ *    through a variable, an object's property, a shorthand property or a class field, however many steps (a cycle ends: R6-004). One
+ *    in a record, an array, an element access, a parameter, a call's result or a getter is a known limit of ADR-0019
  *  - code the checker cannot see: `Function` (`new Function`, `Function()`, and a call of a value typed `Function`, such
  *    as a function's `constructor`), a read of `.constructor` and a call of a value typed `any` (nothing is checked about
  *    what it calls), `eval`, `require`, `createRequire`, `import()` of a module that is not a string
@@ -26,7 +27,8 @@
  *    M2-2-BUILTIN-R4-005; a number shown as a `string` by a plain annotation is not seen: M2-2-BUILTIN-R3-005, ADR-0019),
  *    the options of createReadStream / createWriteStream unless absent, a string, or a new object literal whose keys are written in
  *    the source and none is `fd` (a static type does not show an `fd` that a variable holds, M2-2-BUILTIN-R5-002), and `new Utf8Stream`
- *    (its options name an fd or a path to write to); and an `fd` option passed to any call (an argument whose type has an `fd` property in any branch — an object literal,
+ *    (its options name an fd or a path to write to; also importing or re-exporting `Utf8Stream` as a value, M2-2-BUILTIN-R6-002);
+ *    and an `fd` option passed to any call (an argument whose type has an `fd` property in any branch — an object literal,
  *    a variable, a spread — or a computed `fd` name: M2-2-BUILTIN-R4-002); an fs call with an argument whose keys are not
  *    known (a string index signature, a computed name that is not written as a string: rule K, fs calls only); a `/dev/…`
  *    or `/proc/…` path (a literal, or any literal branch of the type; also spelled `/./dev/…`, `//dev/…`, `/x/../dev/…` or
@@ -43,8 +45,10 @@
  *    element access (`fs["writeFileSync"]`) or a destructuring of the module (M2-2-BUILTIN-R4-003). The call rules above see
  *    only a call that resolves to the @types/node declaration
  *  - the functions of fs / child_process as one value (M2-2-BUILTIN-R5-001): a default import, `import * as`, `{ default as x }`, an
- *    import of `promises`, `export * from`, `export * as x from` and `import()` of those modules. A named import of a function is the one
- *    way in (its uses are the rules above), so a function reaches a call only from a name that resolves to the @types/node declaration
+ *    import of `promises`, `export * from`, `export * as x from` and `import()` of those modules, and exporting such a function by name
+ *    (`export { x } from "node:fs"`, `import { x } …; export { x }`: the module that exports it is a namespace of those functions,
+ *    M2-2-BUILTIN-R6-001). A named import of a function is the one way in (its uses are the rules above), so a function reaches a call
+ *    only from a name that resolves to the @types/node declaration
  *  - a module that is not in the allowlist (backlog 1, M2-2-R4-002, ADR-0019): every module a file loads at run time (an import or
  *    `export … from` that is not `import type` / `export type`, and `import()` of a string literal) must be a built-in
  *    of BUILTIN_ALLOWED (written with `node:`), a source file of src/ in the program, or a runtime dependency of
@@ -128,6 +132,8 @@ export const FD_OPTION_APIS: ReadonlyMap<string, number> = new Map([["createRead
 export const FORBIDDEN_FS_CLASSES: ReadonlySet<string> = new Set(["Utf8Stream"]);
 /** The modules whose functions must not become one value (a namespace, a default export): fs, child_process, fs/promises, with or without `node:` (M2-2-BUILTIN-R5-001). */
 const FUNCTION_MODULES = /^(node:)?(fs|child_process|fs\/promises)$/;
+/** The fs module, with or without `node:` (where FORBIDDEN_FS_CLASSES come from). */
+const FS_MODULE = /^(node:)?fs$/;
 
 function resolved(checker: ts.TypeChecker, sym: ts.Symbol | undefined): ts.Symbol | undefined {
   return sym !== undefined && sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym;
@@ -199,25 +205,47 @@ function fsClass(checker: ts.TypeChecker, n: ts.NewExpression): string | null {
 /** The registration methods of an EventEmitter: the listener is called with the emitter (process) as `this` (M2-2-BUILTIN-R5-003). */
 const LISTENER_METHODS = new Set(["on", "once", "addListener", "prependListener", "prependOnceListener"]);
 
+/** The registration method a call names, written in the source as `x.on` or `x["on"]` (a literal key, through the wrappers that change only the static type), and its receiver; or null (M2-2-BUILTIN-R6-003). */
+function listenerCall(call: ts.CallExpression): { method: string; receiver: ts.Expression } | null {
+  const callee = unwrapped(call.expression);
+  if (ts.isPropertyAccessExpression(callee) && LISTENER_METHODS.has(callee.name.text)) return { method: callee.name.text, receiver: callee.expression };
+  if (ts.isElementAccessExpression(callee)) {
+    const key = writtenKey(unwrapped(callee.argumentExpression));
+    if (key !== null && LISTENER_METHODS.has(key)) return { method: key, receiver: callee.expression };
+  }
+  return null;
+}
+
 /**
  * Whether the function a listener argument names uses `this`, or declares a `this` parameter other than `this: void`. A function expression, a
- * function declaration and a method reference (`obj.m`, `new A().m`) are resolved to their declaration, also through a variable
- * (`const h = obj.m`, three steps at most). An arrow function has the `this` of its place; a listener that cannot be resolved here (an element of a
- * record, a parameter, a call's result) is not seen: a known limit (ADR-0019). Nested ordinary functions and classes have their own `this`.
+ * function declaration and a method reference (`obj.m`, `new A().m`) are resolved to their declaration, also through the declarations that
+ * hand the value on: a variable, an object's property, a shorthand property (`{ h }`), a class field with an initializer; a declaration is
+ * followed once, so a cycle ends (M2-2-BUILTIN-R6-004). An arrow function has the `this` of its place. A listener that cannot be resolved this
+ * way (an element of a record or an array, a parameter, a call's result, a getter) is not seen: a known limit (ADR-0019). Nested ordinary
+ * functions and classes have their own `this`.
  */
-function listenerUsesThis(checker: ts.TypeChecker, e: ts.Expression, depth = 0): boolean {
-  const x = unwrapped(e);
-  if (ts.isArrowFunction(x)) return false;
+function listenerUsesThis(checker: ts.TypeChecker, e: ts.Expression): boolean {
   const fns: ts.FunctionLikeDeclaration[] = [];
-  const next: ts.Expression[] = [];
-  if (ts.isFunctionExpression(x)) fns.push(x);
-  else {
-    for (const d of resolved(checker, checker.getSymbolAtLocation(ts.isPropertyAccessExpression(x) ? x.name : x))?.declarations ?? []) {
-      const init = ts.isPropertyAssignment(d) || ts.isVariableDeclaration(d) ? d.initializer : undefined;
-      const f = init === undefined ? d : unwrapped(init);
-      if (ts.isFunctionExpression(f) || ts.isFunctionDeclaration(f) || ts.isMethodDeclaration(f)) fns.push(f);
-      else if (init !== undefined && depth < 3) next.push(init);
+  const todo: ts.Declaration[] = [];
+  const seen = new Set<ts.Node>();
+  const push = (sym: ts.Symbol | undefined): void => {
+    for (const d of resolved(checker, sym)?.declarations ?? []) {
+      if (seen.has(d)) continue;
+      seen.add(d);
+      todo.push(d);
     }
+  };
+  const start = (expr: ts.Expression): void => {
+    const x = unwrapped(expr);
+    if (ts.isFunctionExpression(x)) fns.push(x);
+    else if (!ts.isArrowFunction(x)) push(checker.getSymbolAtLocation(ts.isPropertyAccessExpression(x) ? x.name : x));
+  };
+  start(e);
+  for (let d = todo.pop(); d !== undefined; d = todo.pop()) {
+    if (ts.isShorthandPropertyAssignment(d)) push(checker.getShorthandAssignmentValueSymbol(d));
+    else if (ts.isPropertyAssignment(d) || ts.isVariableDeclaration(d) || ts.isPropertyDeclaration(d)) {
+      if (d.initializer !== undefined) start(d.initializer);
+    } else if (ts.isFunctionDeclaration(d) || ts.isMethodDeclaration(d)) fns.push(d);
   }
   const scan = (n: ts.Node): boolean => {
     if (n.kind === ts.SyntaxKind.ThisKeyword) return true;
@@ -225,7 +253,7 @@ function listenerUsesThis(checker: ts.TypeChecker, e: ts.Expression, depth = 0):
     return ts.forEachChild(n, (c) => (scan(c) ? true : undefined)) === true;
   };
   const thisParam = (f: ts.FunctionLikeDeclaration): boolean => f.parameters.some((prm) => ts.isIdentifier(prm.name) && prm.name.text === "this" && prm.type?.kind !== ts.SyntaxKind.VoidKeyword);
-  return fns.some((f) => thisParam(f) || (f.body !== undefined && ts.forEachChild(f.body, (c) => (scan(c) ? true : undefined)) === true)) || next.some((m) => listenerUsesThis(checker, m, depth + 1));
+  return fns.some((f) => thisParam(f) || (f.body !== undefined && ts.forEachChild(f.body, (c) => (scan(c) ? true : undefined)) === true));
 }
 
 /** The fs function a call resolves to (declared in @types/node fs or fs/promises), or null. */
@@ -417,6 +445,10 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
             for (const el of clause.namedBindings.elements) if (!el.isTypeOnly && ((el.propertyName ?? el.name).text === "default" || functionBundle(checker, el.name))) add(el, `an import of ${(el.propertyName ?? el.name).text} from ${m} (its functions as one value)`);
           }
         }
+        // a class that src/ does not use and whose options name a descriptor or a path to write to: not imported as a value (a type is: `import type`, `{ type X }`; M2-2-BUILTIN-R6-002)
+        if (clause !== undefined && !clause.isTypeOnly && FS_MODULE.test(m) && clause.namedBindings !== undefined && ts.isNamedImports(clause.namedBindings)) {
+          for (const el of clause.namedBindings.elements) if (!el.isTypeOnly && FORBIDDEN_FS_CLASSES.has((el.propertyName ?? el.name).text)) add(el, `a value import of ${(el.propertyName ?? el.name).text} from ${m} (its options name a descriptor or a path to write to)`);
+        }
       }
       if (ts.isExportDeclaration(n) && !n.isTypeOnly && n.moduleSpecifier !== undefined && ts.isStringLiteral(n.moduleSpecifier)) {
         const why = moduleProblem(p, n.moduleSpecifier);
@@ -427,6 +459,14 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
           if (ec === undefined || ts.isNamespaceExport(ec)) add(n, `a re-export of all of ${from} (its functions as one value)`);
           else for (const el of ec.elements) if (!el.isTypeOnly && ((el.propertyName ?? el.name).text === "default" || functionBundle(checker, el.propertyName ?? el.name))) add(el, `a re-export of ${(el.propertyName ?? el.name).text} from ${from} (its functions as one value)`);
         }
+        if (FS_MODULE.test(from) && n.exportClause !== undefined && ts.isNamedExports(n.exportClause)) {
+          for (const el of n.exportClause.elements) if (!el.isTypeOnly && FORBIDDEN_FS_CLASSES.has((el.propertyName ?? el.name).text)) add(el, `a re-export of ${(el.propertyName ?? el.name).text} from ${from} (its options name a descriptor or a path to write to)`);
+        }
+      }
+      // an fs / child_process function exported by name, with or without `from`: the module that exports it is a namespace of those functions (M2-2-BUILTIN-R6-001)
+      if (ts.isExportSpecifier(n) && !n.isTypeOnly && !n.parent.parent.isTypeOnly) {
+        const fn = resolved(checker, checker.getSymbolAtLocation(n.propertyName ?? n.name))?.declarations?.find(ts.isFunctionDeclaration);
+        if (fn !== undefined && NODE_FUNCTIONS.test(fn.getSourceFile().fileName)) add(n, `a re-export of the ${fn.name?.text ?? "fs"} function of fs / child_process (the module that exports it is a namespace of those functions)`);
       }
       if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) add(n, "dynamic code: import = require()");
       if (ts.isIdentifier(n)) {
@@ -528,9 +568,10 @@ function scan(p: Program, files: readonly ts.SourceFile[]): Found[] {
           }
         }
         // process.on(…, listener): the listener runs with process as `this` (M2-2-BUILTIN-R5-003)
-        if (ts.isPropertyAccessExpression(n.expression) && LISTENER_METHODS.has(n.expression.name.text) && holderOf(checker, holders, n.expression.expression) !== null) {
+        const registration = listenerCall(n);
+        if (registration !== null && holderOf(checker, holders, registration.receiver) !== null) {
           const listener = n.arguments[1];
-          if (listener !== undefined && listenerUsesThis(checker, listener)) add(n, `a listener registered with ${n.expression.name.text} that uses this (it is called with the emitter as this)`);
+          if (listener !== undefined && listenerUsesThis(checker, listener)) add(n, `a listener registered with ${registration.method} that uses this (it is called with the emitter as this)`);
         }
         // a call of a value typed `any`: nothing is checked about what it calls (a cast of fs / child_process / Function to any)
         if (n.expression.kind !== ts.SyntaxKind.ImportKeyword && (checker.getTypeAtLocation(n.expression).flags & ts.TypeFlags.Any) !== 0) add(n, "a call of an untyped (any) value");

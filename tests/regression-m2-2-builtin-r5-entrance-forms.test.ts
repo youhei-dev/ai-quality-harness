@@ -44,7 +44,8 @@ const R5_001: Record<string, Case> = {
   p15_ns_to_typeof_fs: { reported: true, src: `import * as fs from "node:fs";\nconst put = (io: typeof fs): void => {\n  io.writeFileSync("/dev/stdout", "x");\n};\nexport const f = (): void => {\n  put(fs);\n};\n` },
   p16_named_fn_value: { reported: true, src: `import { writeFileSync } from "node:fs";\ntype F = (p: string, d: string) => void;\nconst put = (w: F): void => {\n  w("/dev/stdout", "x");\n};\nexport const f = (): void => {\n  put(writeFileSync);\n};\n` },
   p17_named_import_call: { reported: true, src: `import { writeFileSync } from "node:fs";\nexport const f = (): void => {\n  writeFileSync("/dev/stdout", "x");\n};\n` },
-  p18_named_reexport: { reported: false, src: `export { writeFileSync } from "node:fs";\n` },
+  // reported since v0.5.23 (M2-2-BUILTIN-R6-001): exporting an fs function by name makes the module that exports it a namespace of those functions
+  p18_named_reexport: { reported: true, src: `export { writeFileSync } from "node:fs";\n` },
   p19_default_import_path: { reported: false, src: `import path from "node:path";\nexport const f = (): string => path.join("a", "b");\n` },
   p20_constants_named_import: { reported: false, src: `import { accessSync, constants } from "node:fs";\nexport const f = (): void => {\n  accessSync(".", constants.R_OK);\n};\n` },
   p21_default_as_named: { reported: true, src: `import { default as fsd } from "node:fs";\ninterface Io {\n  writeFileSync(p: string, d: string): void;\n}\nconst put = (io: Io): void => {\n  io.writeFileSync("/dev/stdout", "x");\n};\nexport const f = (): void => {\n  put(fsd);\n};\n` },
