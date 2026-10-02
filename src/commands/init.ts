@@ -19,6 +19,7 @@ import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks }
 import { ConfigError, DEFAULT_CONFIG_FILENAME, parseConfigText, resolveConfig } from "../config/load.ts";
 import { createOutput } from "../output.ts";
 import { gitIgnoredByRepoRules } from "../security/scan.ts";
+import { escapeRawCharsAsJson } from "../security/raw-chars.ts";
 
 export interface InitOptions {
   cwd?: string;
@@ -156,7 +157,7 @@ export async function runInit(options: InitOptions): Promise<number> {
       return EXIT_ERROR;
     }
     try {
-      writeFileSync(configFile, configText, "utf8");
+      writeFileSync(configFile, escapeRawCharsAsJson(configText), "utf8");
       log(`wrote ${configFile}`);
     } catch (err) {
       logError(`aiqh init: failed to write ${configFile}: ${(err as Error).message}`);

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { escapeForDisplay } from "../output.ts";
+import { escapeRawCharsAsJson } from "../security/raw-chars.ts";
 import type { VerificationReport } from "../types.ts";
 import { renderMarkdown } from "./markdown.ts";
 
@@ -21,9 +23,9 @@ export function writeReports(report: VerificationReport, outputDir: string): Wri
   const latestMd = path.join(outputDir, "latest.md");
   const history = uniqueHistoryPath(historyDir, historyStamp(report.startedAt));
 
-  writeAtomic(latestJson, json);
-  writeAtomic(latestMd, md);
-  writeAtomic(history, json);
+  writeAtomic(latestJson, json, "json");
+  writeAtomic(latestMd, md, "md");
+  writeAtomic(history, json, "json");
 
   return { latestJson, latestMd, history };
 }
@@ -43,8 +45,9 @@ function uniqueHistoryPath(historyDir: string, stamp: string): string {
   return candidate;
 }
 
-function writeAtomic(target: string, content: string): void {
+/** The one place the report files are written: a forbidden character never reaches a file raw (JSON: `\uXXXX`, Markdown: `\u{HEX}`; ADR-0020). */
+function writeAtomic(target: string, content: string, format: "json" | "md"): void {
   const tmp = `${target}.tmp-${process.pid}`;
-  writeFileSync(tmp, content, "utf8");
+  writeFileSync(tmp, format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep"), "utf8");
   renameSync(tmp, target);
 }

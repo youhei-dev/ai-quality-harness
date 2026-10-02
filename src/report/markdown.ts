@@ -1,3 +1,4 @@
+import { escapeRawChars } from "../security/raw-chars.ts";
 import { CATEGORY_KINDS, type CheckResult, type VerificationReport } from "../types.ts";
 
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KINDS)[number], string> = {
@@ -12,7 +13,7 @@ const CATEGORY_LABELS: Record<(typeof CATEGORY_KINDS)[number], string> = {
 
 export function renderMarkdown(report: VerificationReport): string {
   const lines: string[] = [];
-  lines.push(`# Verification Report — ${report.project.name}`);
+  lines.push(`# Verification Report — ${oneLine(report.project.name)}`);
   lines.push("");
   lines.push(
     `## Verdict: **VERIFY ${report.verdict}**${report.interruptedBy ? ` (interrupted by ${report.interruptedBy})` : ""}`,
@@ -23,12 +24,12 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push(`| Started | ${report.startedAt} |`);
   lines.push(`| Finished | ${report.finishedAt} |`);
   lines.push(`| Duration | ${formatDuration(report.durationMs)} |`);
-  lines.push(`| Git commit | ${report.git?.commit ?? "(not a git repository / no commit)"} |`);
-  lines.push(`| Git branch | ${report.git?.branch ?? "-"} |`);
+  lines.push(`| Git commit | ${cell(report.git?.commit ?? "(not a git repository / no commit)")} |`);
+  lines.push(`| Git branch | ${cell(report.git?.branch ?? "-")} |`);
   lines.push(`| Working tree | ${report.git ? describeDirty(report.git.dirty) : "-"} |`);
   lines.push(`| Exit code | ${report.exitCode} |`);
   if (report.interruptedBy) lines.push(`| Interrupted by | ${report.interruptedBy} (run did not complete; later checks SKIPPED) |`);
-  lines.push(`| Config | ${escapeCell(report.configPath)} |`);
+  lines.push(`| Config | ${cell(report.configPath)} |`);
   lines.push(`| Tool | ${report.tool.name} ${report.tool.version} |`);
   lines.push("");
 
@@ -55,7 +56,7 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push("|---|---|---|---|---|---|---|---|");
   report.checks.forEach((c, i) => {
     lines.push(
-      `| ${i + 1} | ${c.name} | ${c.kind} | ${c.required ? "yes" : "no"} | ${c.status} | ${formatDuration(c.durationMs)} | ${c.exitCode ?? "-"} | \`${escapeCell(c.command)}\` |`,
+      `| ${i + 1} | ${cell(c.name)} | ${c.kind} | ${c.required ? "yes" : "no"} | ${c.status} | ${formatDuration(c.durationMs)} | ${c.exitCode ?? "-"} | \`${cell(c.command)}\` |`,
     );
   });
   lines.push("");
@@ -79,35 +80,43 @@ export function renderMarkdown(report: VerificationReport): string {
 
 function renderFailure(c: CheckResult): string[] {
   const lines: string[] = [];
-  lines.push(`### ${c.name} — ${c.status}`);
+  lines.push(`### ${oneLine(c.name)} — ${c.status}`);
   lines.push("");
-  lines.push(`- Command: \`${escapeCell(c.command)}\` (cwd: \`${c.cwd}\`)`);
-  lines.push(`- Summary: ${c.errorSummary ?? "-"}`);
+  lines.push(`- Command: \`${cell(c.command)}\` (cwd: \`${oneLine(c.cwd)}\`)`);
+  lines.push(`- Summary: ${oneLine(c.errorSummary ?? "-")}`);
   if (c.timedOut) lines.push(`- Timed out after ${c.timeoutSec}s`);
   if (c.signal) lines.push(`- Signal: ${c.signal}`);
   if (c.outputTruncated) lines.push("- Output was truncated (tail only)");
   lines.push("");
   if (c.stderrTail.trim().length > 0) {
+    const fence = fenceFor(c.stderrTail);
     lines.push("<details><summary>stderr (tail)</summary>");
     lines.push("");
-    lines.push("```text");
+    lines.push(`${fence}text`);
     lines.push(c.stderrTail.trimEnd());
-    lines.push("```");
+    lines.push(fence);
     lines.push("");
     lines.push("</details>");
     lines.push("");
   }
   if (c.stdoutTail.trim().length > 0) {
+    const fence = fenceFor(c.stdoutTail);
     lines.push("<details><summary>stdout (tail)</summary>");
     lines.push("");
-    lines.push("```text");
+    lines.push(`${fence}text`);
     lines.push(c.stdoutTail.trimEnd());
-    lines.push("```");
+    lines.push(fence);
     lines.push("");
     lines.push("</details>");
     lines.push("");
   }
   return lines;
+}
+
+/** A fence longer than any run of backticks in the text, so output that contains ``` cannot end the block early. */
+function fenceFor(text: string): string {
+  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+  return "`".repeat(Math.max(3, longest + 1));
 }
 
 function describeDirty(dirty: boolean | null): string {
@@ -122,6 +131,16 @@ export function formatDuration(ms: number): string {
   const min = Math.floor(sec / 60);
   const rest = Math.round(sec - min * 60);
   return `${min}m${rest.toString().padStart(2, "0")}s`;
+}
+
+/** A value in a table cell or between backticks: one line, and a `|` stays in its cell. */
+function cell(text: string): string {
+  return escapeCell(oneLine(text));
+}
+
+/** A value that must stay on one line (a heading, a table cell, a list item): LF and TAB become notation like the forbidden characters. */
+function oneLine(text: string): string {
+  return escapeRawChars(text);
 }
 
 function escapeCell(text: string): string {

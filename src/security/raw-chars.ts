@@ -61,6 +61,20 @@ export function escapeRawChars(s: string): string {
   return out;
 }
 
+/**
+ * Forbidden characters as JSON escapes `\uXXXX`, for text that is JSON (a report, a config): the characters can only be inside a string
+ * (JSON.stringify already escapes the C0 controls, but not DEL, C1, U+2028 / U+2029, the bidi controls and U+FEFF), and
+ * the parsed data stays exactly the same. TAB and LF are not in the set.
+ */
+export function escapeRawCharsAsJson(text: string): string {
+  let out = "";
+  for (const c of text) {
+    const cp = c.codePointAt(0) ?? 0;
+    out += isForbiddenCodePoint(cp) ? `\\u${cp.toString(16).padStart(4, "0")}` : c;
+  }
+  return out;
+}
+
 /** "U+2028" style label. */
 export function formatCodePoint(cp: number): string {
   return `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
