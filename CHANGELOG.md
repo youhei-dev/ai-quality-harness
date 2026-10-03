@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.26 — Backlog 9 and 10, review 2 (the last): truncate and the stream in the write-sites table; the options.env count（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.26` / `git rev-parse v0.5.26` で確認し、次の release commit で記入）
+## v0.5.27 — Backlog 11: a usage error is exit 2 for every command and for the program（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.27` / `git rev-parse v0.5.27` で確認し、次の release commit で記入）
+
+- **バックログ 11「verify / init / security-scan の使い方エラーを exit 2 に揃える」を解消**（`src/cli-program.ts` +5／−4 行。SP1 で 5 つの調査〈M1〜M5〉と、一時 worktree での試作・全テストの実行を行い、人間の承認の後に実装した〈C1〜C3 の 3 commit〉。
+  `tests/structure/`・`brand-guard.ts`・禁止文字の集合〈75 コードポイント〉・依存関係・`package-lock.json` は変えていない。独立レビューは付けない〈人間の判断。出力の境界と fail closed は変わらない〉）。ADR-0021 を新設した
+  - **利用者に見える変更**: 使い方エラー（未知のコマンド・オプション、オプションの値や必須の引数の欠落、余分な引数、コマンドなしの `aiqh`、未知の help の対象〈`aiqh help foo`〉）の終了コードが **1 → 2** になった
+    （verify・init・security-scan と `aiqh` 本体。`review-packet` は元から 2）。メッセージ・出力先（標準エラー）・バイト数は変わらない。`--help`・`-h`・`help`・`--version`・`-V` は 0 のまま。
+    使い方エラーは `VERIFY` の最終行を出さず、`error: …` の 1 行だけを標準エラーに出す
+  - **CI への影響**: 終了コード 1 を「品質ゲートの失敗」として扱っていると、これまで使い方の誤り（オプションの打ち間違いなど）も 1 に混ざっていた。2 に分かれたので、「0 以外」で止める CI は動きが変わらない。
+    `== 1` だけを失敗とみなしている CI は、使い方の誤りを失敗として扱わなくなるので、`!= 0` で見るか、2 を別に扱うこと
+  - 実測（実際の CLI を空のディレクトリで、本処理が走らない 35 形。v0.5.26 → この版）: 18 形が 1 → 2、review-packet の 8 形は 2 のまま、help・version の 9 形は 0 のまま。`aiqh help foo` も 1 → 2。stdout・stderr のバイト数は全形で同じ
+  - 実装: ルートの `exitOverride` を、コマンドを足す前に 1 つ置く（commander はサブコマンドを作るときにルートの設定を写す）。review-packet だけにあった override は外し、継承させた
+  - 既存テストの期待値の変更は、使い方エラーの終了コードの 8 行（3 テスト・2 ファイル）と、`control: byte-identical to v0.5.3` の注記だけ。新しいテスト 36 件（v0.5.26 の `src/` に当てると 19 件が FAIL）
+  - 既知の限界（変更の前後で同じ）: 約 100 KB の引数では、pipe への標準エラーが 65,536 バイトで切れる（`process.exit` と pipe の性質。ADR-0021）。直さない
+- docs: ADR-0021（新規）、ADR の索引、ADR-0014 決定 11 に参照 1 行、ARCHITECTURE §4・§10、README、ROADMAP（項目 11 を解消。番号は詰めない）、CHANGELOG
+- テスト 1,433 件（117 ファイル。1,397 ＋ 36）。`package.json` version 0.5.27（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.26 の見出しに commit aff94ca / tag object 0463218 を記入した
+
+## v0.5.26 — commit aff94ca / tag object 0463218 — Backlog 9 and 10, review 2 (the last): truncate and the stream in the write-sites table; the options.env count
 
 - **独立レビュー backlog-9-10-r2（`docs/reviews/backlog-9-10/independent-review-r2.md`、範囲 v0.5.24..v0.5.25）の新しい指摘 High 1 / Medium 0 / Low 1（R2-001・002）と、R1-001 の残り（stream）に対応**。
   前回の R1-002・003・004 は解消、R1-001 は部分的に解消。**`src/` に実在する漏れは 0**。**`src/` は変えていない**（tests と docs だけの版）。SP1 で 4 つの実測（M1〜M4）を行い、レビュアーの主張を確かめてから、人間の承認の後に直した（C1〜C3 の 3 commit。
