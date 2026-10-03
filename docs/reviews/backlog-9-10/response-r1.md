@@ -88,6 +88,8 @@
 
 → 既定の方針で C2 を行った。
 
+**訂正（v0.5.26）**: この節と上の判定の表（25・28 行目）の「`src/`・`tests/` で 0」は、**修正前の測定**（そのとき `tests/` の既存の呼び出しは 0）。v0.5.25 では回帰テスト `tests/regression-backlog10-r1-004-options-env.test.ts` に `env` を渡す call site が 1 つあり、現在は `src/` 0、回帰テストに 1 call site（独立レビュー 2 回目の R2-002。`response-r2.md`）。
+
 ### M5: Markdown の表記と、元からある同じ文字列（R1-003）
 
 本物の CLI の `verify` で、check が「バックスラッシュ + `u{1B}` の文字列」と本物の ESC を 1 行ずつ出した。

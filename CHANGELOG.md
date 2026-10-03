@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.25 — Backlog 9 and 10, review 1: the write-sites test as a table; options.env through checkEnv（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.25` / `git rev-parse v0.5.25` で確認し、次の release commit で記入）
+## v0.5.25 — commit 3bc96dc / tag object abeb7b4 — Backlog 9 and 10, review 1: the write-sites test as a table; options.env through checkEnv
 
 - **独立レビュー backlog-9-10-r1（`docs/reviews/backlog-9-10/independent-review-r1.md`、範囲 v0.5.23..v0.5.24）の High 2 / Medium 1 / Low 1（R1-001〜004）に対応**。**`src/` に実在する漏れは 0**（生の禁止文字が残る現行の書き込み漏れは無い）。
   SP1 で 5 つの実測（M1〜M5）を行い、レビュアーの主張を確かめてから、人間の承認の後に直した（C1〜C4 の 4 commit。`tests/structure/`・`brand-guard.ts`・禁止文字の集合〈75 コードポイント〉・依存関係・`package-lock.json` は変えていない）。対応記録 `docs/reviews/backlog-9-10/response-r1.md`
@@ -13,7 +13,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
     一覧に `writev`・`writevSync`・`cp` を足し、関数ごとに内容の引数の位置を持つ。新しい箇所・消えた箇所・式が変わった箇所は FAIL にして人間が表を見直す。変換が内容の全部に掛かることは、このテストの役目にしない（実 CLI のテストが担う）。
     実測: v0.5.24 の判定は、部分だけの変換を「門あり」、別の行で変換した変数を「門なし」にした。stream の `.write()`・`.end()` は塞がれていないので既知の限界に、`FileHandle` は入口で塞がれている（`node:fs/promises` が許可外）と ADR-0020 に書いた。Node の型宣言から書き込み系を全部列挙する方式は採らない
   - **R1-004（Medium）**: `src/runner/execute.ts` の `env: options.env ?? checkEnv()` を `env: checkEnv(options.env ?? process.env)` にした（+2／−1 行。`src/` の変更はこれだけ）。`options.env` は呼び出し元の環境で、渡した env も `checkEnv()` を通る。
-    `options.env` を渡す呼び出しは `src/`・`tests/` に 0 か所で、変更を入れても既存の 1,355 件の期待値は変わらなかった
+    `options.env` を渡す呼び出しは、変更前は `src/`・`tests/` に 0 か所で（v0.5.25 現在は `src/` 0、回帰テストに 1 call site）、変更を入れても既存の 1,355 件の期待値は変わらなかった
   - **R1-003（Low）**: コードは変えず、ADR-0020 の既知の限界に書いた（Markdown の `\u{HEX}` は表示用の表記で、元から同じ文字列があった場合と区別できない。元データの忠実な確認には JSON を使う。実 CLI で実測）
   - 新しいテスト 32 件の増加: 書き込み箇所のテストを 3 → 30 件に作り直し（27 件の増加）、`options.env` のテスト 5 件。**修正前のコードでの結果**: `src/` を 9 通りに変えて旧テストと新テストを同じ変更に当てると、旧テストは 6 件を見逃し〈`writevSync`・`writev`・部分変換・新しいファイルの `writevSync` と `cp`・FileHandle の書き込み〉、
     新テストは 8 件を 1 件ずつ報告した（FileHandle は出力ガードが塞ぐ）。`options.env` のテストは修正前のコードで 5 件中 4 件が FAIL。作り直した 3 件を除いて、既存テストの期待値の変更は 0 件
