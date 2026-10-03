@@ -2,16 +2,20 @@
  * Backlog 9 (ADR-0020, decision 7): the places of src/ that write the content of a file with one of the Node fs functions listed below,
  * written out one by one. A new place, a removed one or a rewritten content expression fails this test, and a person reads the table
  * again: each row says where the content comes from and what the author says about it (kind `gate`: converted just before the write;
- * `no-gate`: exempt, with the reason; `not-content`: a copy or a stream, whose second argument is not the text).
+ * `no-gate`: exempt, with the reason; `not-content`: a copy, a stream or a truncate, whose arguments hold no text of ours).
  *
  * What this test guarantees: every call in src/ of a listed fs function (found by the type checker: the call resolves to a declaration
  * of @types/node fs or fs/promises, not by its spelling) is in the table with the exact text of its content argument, so a new write or
  * a changed expression is visible.
  * What it does not guarantee: that the conversion covers all of the content. The kind `gate` is the author's statement and nothing here
- * reads the expression for a conversion; the real CLI tests of backlog 9 read the files back and carry that. It does not see a write
- * that is not a call of a listed function either: a stream's .write() / .end() after createWriteStream (only the createWriteStream call
- * is seen), a FileHandle's methods (fs/promises is outside the allowed modules of the output guard, ADR-0019, asserted below), a shell
- * redirection of a child process, and any fs function that is not listed (the reason of each is in NOT_CONTENT).
+ * reads the expression for a conversion; the real CLI tests of backlog 9 read the files back and carry that.
+ * A stream is seen as a call, not as a content: every createWriteStream call is a difference of the table, but what is given to the
+ * stream's .write() / .end() is not inspected. If such a call appears in src/, a person adds a row to KNOWN and judges the writes to that
+ * stream with it (the output guard does not forbid the stream, ADR-0019). A truncate / ftruncate call is a difference too: it has no
+ * content argument, but a longer length fills the new part with NUL bytes (U+0000, one of the forbidden characters).
+ * It does not see a write that is not a call of a listed function: a FileHandle's methods (fs/promises is outside the allowed modules of
+ * the output guard, ADR-0019, asserted below), a shell redirection of a child process, and the fs functions that are neither listed nor
+ * in NOT_CONTENT. NOT_CONTENT holds only the functions that were classified in this work (it is not a list of every fs function).
  * It is an ordinary test, not a structure guard: it does not decide what is allowed, it makes a new write visible. The terminal has the
  * structure guard of tests/structure/output-guard.ts. The scenarios below are compiled in memory with the repository's tsconfig.
  */
@@ -22,7 +26,9 @@ import { createProgram, filesUnder, ownerName, typeErrors, type Program } from "
 
 /**
  * The fs functions that write bytes to a file or copy a file, and the position of the argument that holds the content (null: the
- * function takes none). `writev` takes an array of buffers. `createWriteStream` writes later, through the stream.
+ * function takes none). `writev` takes an array of buffers. `createWriteStream` writes later, through the stream. `truncate` and
+ * `ftruncate` take no content, but a longer length fills the new part with NUL bytes (U+0000 is a forbidden character), so a call is a
+ * row to judge, not a function to leave out.
  */
 const FS_WRITERS: ReadonlyMap<string, number | null> = new Map([
   ["writeFileSync", 1],
@@ -38,12 +44,15 @@ const FS_WRITERS: ReadonlyMap<string, number | null> = new Map([
   ["copyFile", null],
   ["cp", null],
   ["cpSync", null],
+  ["truncate", null],
+  ["truncateSync", null],
+  ["ftruncate", null],
+  ["ftruncateSync", null],
 ]);
 
-/** The fs functions that change files but are not listed, and why (each is found in @types/node fs or fs/promises). */
+/** The fs functions that change files, were classified in this work and are not listed, and why (not every fs function: a name in neither table is not looked at). */
 const NOT_CONTENT: ReadonlyArray<readonly [names: readonly string[], reason: string]> = [
   [["rename", "renameSync", "link", "linkSync", "symlink", "symlinkSync"], "names or moves a file that already exists; it writes no content"],
-  [["truncate", "truncateSync", "ftruncate", "ftruncateSync"], "cuts a file or extends it with NUL bytes; the text of the caller is not written"],
   [["mkdir", "mkdirSync", "mkdtemp", "mkdtempSync"], "creates a directory"],
   [["rm", "rmSync", "unlink", "unlinkSync"], "removes a file or a directory"],
   [["open", "openSync"], "opens or creates a file and gives a descriptor (or a FileHandle); the write is a later call: a descriptor is written by write / writeSync / writev (listed), a FileHandle is out of src/ (fs/promises is not an allowed module)"],
@@ -141,6 +150,10 @@ const NODE_FS: readonly Case[] = [
   { name: "copyFile", params: "f: string, g: string", statement: "copyFile(f, g, () => {});", content: "", about: "the second argument is the destination" },
   { name: "cp", params: "f: string, g: string", statement: "cp(f, g, () => {});", content: "", about: "the second argument is the destination" },
   { name: "cpSync", params: "f: string, g: string", statement: "cpSync(f, g);", content: "", about: "the second argument is the destination" },
+  { name: "truncateSync", params: "f: string", statement: "truncateSync(f, 4096);", content: "", about: "no content: a longer length fills the new part with NUL bytes" },
+  { name: "truncate", params: "f: string", statement: "truncate(f, 4096, () => {});", content: "", about: "no content: a longer length fills the new part with NUL bytes" },
+  { name: "ftruncateSync", params: "fd: number", statement: "ftruncateSync(fd, 4096);", content: "", about: "no content: a longer length fills the new part with NUL bytes" },
+  { name: "ftruncate", params: "fd: number", statement: "ftruncate(fd, 4096, () => {});", content: "", about: "no content: a longer length fills the new part with NUL bytes" },
 ];
 // the same names of node:fs/promises (they return a promise)
 const FS_PROMISES: readonly Case[] = [
@@ -148,6 +161,7 @@ const FS_PROMISES: readonly Case[] = [
   { name: "appendFile", params: "f: string, raw: string", statement: "void appendFile(f, raw);", content: "raw", about: "the content is the second argument" },
   { name: "copyFile", params: "f: string, g: string", statement: "void copyFile(f, g);", content: "", about: "the second argument is the destination" },
   { name: "cp", params: "f: string, g: string", statement: "void cp(f, g);", content: "", about: "the second argument is the destination" },
+  { name: "truncate", params: "f: string", statement: "void truncate(f, 4096);", content: "", about: "no content: a longer length fills the new part with NUL bytes" },
 ];
 
 const FIXTURES: Record<string, string> = {};
@@ -162,6 +176,8 @@ FIXTURES["src/__fixture/filehandle.ts"] = 'import { open } from "node:fs/promise
 
 const real = createProgram();
 const found = observe(real, filesUnder(real, "src/"));
+// what the scan would find if src/ matched the table; independent of the real scan, so that one change of src/ fails one test only
+const today: Site[] = KNOWN.map(({ file, owner, writer, content }) => ({ file, owner, writer, content }));
 
 describe("backlog 9: the places that write the content of a file", () => {
   it("are exactly the known ones: the file, the function, the writer and the text of the content", () => {
@@ -219,11 +235,21 @@ describe("backlog 9: what the scan of the write places sees (scenarios compiled 
     const fh = fixtureFiles.filter((sf) => p.rel(sf) === "src/__fixture/filehandle.ts");
     expect(outputViolations(p, fh).map((v) => v.what)).toContain("a built-in module outside the allowlist: node:fs/promises");
   });
+  // a new call of these shows as rows of the table (added), whatever is given to the stream or how long the file is made
+  it.each([
+    { what: "createWriteStream (two calls)", fixture: "stream", rows: 2 },
+    { what: "truncateSync", fixture: "fs_truncateSync", rows: 1 },
+    { what: "truncate", fixture: "fs_truncate", rows: 1 },
+    { what: "ftruncateSync", fixture: "fs_ftruncateSync", rows: 1 },
+    { what: "ftruncate", fixture: "fs_ftruncate", rows: 1 },
+  ])("shows a new call of $what as added rows of the table and removes none", ({ fixture, rows }) => {
+    const sites = seen(fixture);
+    expect(sites).toHaveLength(rows);
+    expect(differences([...today, ...sites])).toEqual({ added: sites.map(key), removed: [] });
+  });
 });
 
 describe("backlog 9: a change of the places shows as a difference of the table", () => {
-  // what the scan would find if src/ matched the table; independent of the real scan, so that one change fails one test only
-  const today: Site[] = KNOWN.map(({ file, owner, writer, content }) => ({ file, owner, writer, content }));
   const first = (): Site => {
     const f = today[0];
     if (f === undefined) throw new Error("the table is empty");
