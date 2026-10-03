@@ -5,6 +5,23 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.5.26 — Backlog 9 and 10, review 2 (the last): truncate and the stream in the write-sites table; the options.env count（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.26` / `git rev-parse v0.5.26` で確認し、次の release commit で記入）
+
+- **独立レビュー backlog-9-10-r2（`docs/reviews/backlog-9-10/independent-review-r2.md`、範囲 v0.5.24..v0.5.25）の新しい指摘 High 1 / Medium 0 / Low 1（R2-001・002）と、R1-001 の残り（stream）に対応**。
+  前回の R1-002・003・004 は解消、R1-001 は部分的に解消。**`src/` に実在する漏れは 0**。**`src/` は変えていない**（tests と docs だけの版）。SP1 で 4 つの実測（M1〜M4）を行い、レビュアーの主張を確かめてから、人間の承認の後に直した（C1〜C3 の 3 commit。
+  `tests/structure/`・`brand-guard.ts`・禁止文字の集合〈75 コードポイント〉・依存関係・`package-lock.json` は変えていない）。対応記録 `docs/reviews/backlog-9-10/response-r2.md`
+  - **R2-001（High）**: `truncate`・`truncateSync`・`ftruncate`・`ftruncateSync` を、書き込み箇所のテスト（`tests/file-write-sites.test.ts`）の一覧（`FS_WRITERS`。内容の引数なし）に足し、`NOT_CONTENT` から外した。`src/` に call が出ると表との差分として見える。
+    実測: 4 形とも、3 バイトのファイルを 4,096 バイトに延長すると、追加された 4,093 バイトがすべて 0x00（U+0000。禁止文字の集合に入る）。縮小・同じ長さでは何も足されない
+  - **R1-001 の残り（stream）**: `createWriteStream` の call が表との差分になることをテストで固定した。stream の `.write()`・`.end()` に渡す内容は検査しない（出たら人間が表に 1 行足して、その stream への書き込みを一緒に判断する）。出力ガードは stream を塞がない（実測）。
+    人間の判断で、`src/` で `createWriteStream` を禁止する構造ガードは足さず、表で見えるようにした。ADR-0020 の既知の限界に、レビュアーの分類（不注意で書ける形）とこの判断を書いた。先頭コメントの「列挙していない fs 関数すべて」は、`NOT_CONTENT` の実際の範囲（この作業で分類した 20 個の名前。fs の関数名 94 種のうち、どちらの表にも無いものが 61）に合う文言に直した
+  - **R2-002（Low）**: docs の「`options.env` を渡す呼び出しは `src/`・`tests/` に 0 か所」を、「変更前は 0 か所。v0.5.25 現在は `src/` 0、回帰テストに 1 call site」に揃えた（ADR-0020 決定 8、CHANGELOG・ROADMAP の v0.5.25、response-r1 は本文を変えず訂正の 1 行）
+  - 新しいテスト 10 件の増加（書き込み箇所のテスト 30 → 40 件）: truncate 系 4 形と `fs/promises` の `truncate` が各 1 件の site として見える 5 件、新しい `createWriteStream`・truncate 系の call が表との差分（added）になる 5 件。**修正前の結果**: truncate の定義を v0.5.25 に戻した新テストは 40 件中 9 件が FAIL。
+    `src/` に truncate 系を呼ぶ新しいファイルを足すと、v0.5.25 のテストは 4 形とも見逃し（緑のまま）、新テストは 1 件ずつ FAIL。既存テストの期待値の変更は、拡張した書き込み箇所のテストを除いて 0 件
+- **これが上限の最後のレビューで、3 回目は行わない**（ROADMAP のレビューの方針）。**この最終修正は、独立した再レビューを受けていない**（自己 verify と回帰テストで確認）
+- docs: `docs/reviews/backlog-9-10/`（r2 の原文と対応記録、response-r1 への訂正 1 行）、ADR-0020（決定 7・8、既知の限界、影響）、ROADMAP（2 回目の結果、v0.5.26）、README・CHANGELOG
+- テスト 1,397 件（116 ファイル。1,387 ＋ 10）。`package.json` version 0.5.26（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.25 の見出しに commit 3bc96dc / tag object abeb7b4 を記入した（C2）
+
 ## v0.5.25 — commit 3bc96dc / tag object abeb7b4 — Backlog 9 and 10, review 1: the write-sites test as a table; options.env through checkEnv
 
 - **独立レビュー backlog-9-10-r1（`docs/reviews/backlog-9-10/independent-review-r1.md`、範囲 v0.5.23..v0.5.24）の High 2 / Medium 1 / Low 1（R1-001〜004）に対応**。**`src/` に実在する漏れは 0**（生の禁止文字が残る現行の書き込み漏れは無い）。
