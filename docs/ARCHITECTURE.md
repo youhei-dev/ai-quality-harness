@@ -80,8 +80,8 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 |
-| `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed） |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 / 使い方エラー（ADR-0021） |
+| `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
@@ -516,7 +516,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 
 ## 10. 終了コードと失敗モード
 
-終了コードと最終行の文言は 1 対 1 に固定する（R-007）。`PASSED` という語は終了コード 0 のときにしか出力しない。
+verify の実行結果について、終了コードと最終行の文言は 1 対 1 に固定する（R-007）。`PASSED` という語は終了コード 0 のときにしか出力しない。使い方エラー（下の表の「使い方エラー」の行）は `VERIFY` の最終行を出さない（ADR-0021）。
 
 | 状況 | 終了コード | 最終行の文言 | レポート |
 |---|---|---|---|
@@ -525,6 +525,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 | 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
+| 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
 | SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了。安全弁 8 秒 |
 | SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
 | SIGTERM 受信 | 143（128 + 15） | `VERIFY ERROR (interrupted by SIGTERM)` | 同上 |
