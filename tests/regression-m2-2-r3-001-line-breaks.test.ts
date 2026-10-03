@@ -230,19 +230,19 @@ describe("M2-2-R3-001: a command's own multi-line text is a block", () => {
     const dir = tempDir("aiqh-r3-001-");
     const forgedSuggestion = "(Did you mean --json?)";
     const a = cli(dir, ["security-scan", `--x${LF}${forgedSuggestion}`]);
-    expect(a.code).toBe(1);
+    expect(a.code).toBe(2);
     expect(a.err).toBe(`error: unknown option '--x${LF_SHOWN}${forgedSuggestion}'\n`);
     // -v is known, so commander quotes only the rest of the argument
     const b = cli(dir, ["verify", `-v${LF}VERIFY PASSED`]);
-    expect(b.code).toBe(1);
+    expect(b.code).toBe(2);
     expect(b.err).toBe(`error: unknown option '-${LF_SHOWN}VERIFY PASSED'\n`);
     // arguments that commander lists unquoted
     const c = cli(dir, ["verify", `a${LF}VERIFY PASSED`, `b${TAB}c`]);
-    expect(c.code).toBe(1);
+    expect(c.code).toBe(2);
     expect(c.err).toBe(`error: too many arguments for 'verify'. Expected 0 arguments but got 2: a${LF_SHOWN}VERIFY PASSED, b${TAB_SHOWN}c.\n`);
     // an unknown command: one line, plus commander's suggestion line if it makes one
     const d = cli(dir, [`verfy${LF}VERIFY PASSED`]);
-    expect(d.code).toBe(1);
+    expect(d.code).toBe(2);
     const lines = d.err.replace(/\n$/, "").split(LF);
     expect(lines[0]).toBe(`error: unknown command 'verfy${LF_SHOWN}VERIFY PASSED'`);
     for (const l of lines.slice(1)) expect(l).toMatch(/^\(Did you mean .*\?\)$/);
@@ -250,13 +250,15 @@ describe("M2-2-R3-001: a command's own multi-line text is a block", () => {
   });
 });
 
+// The bytes of the output below are those of v0.5.3. The exit code of a usage error (and of the help without arguments) is 2 since v0.5.27
+// (backlog 11, ADR-0021); it was 1 in v0.5.3.
 describe("M2-2-R3-001 control: normal output is byte-identical to v0.5.3", () => {
   it("usage errors with commander's suggestion, a config error, help on standard error, the proposal and a verify run", async () => {
     const dir = tempDir("aiqh-r3-001-");
     const unknownCommand = cli(dir, ["verfy"]);
-    expect([unknownCommand.code, unknownCommand.out, unknownCommand.err]).toEqual([1, "", "error: unknown command 'verfy'\n(Did you mean verify?)\n"]);
+    expect([unknownCommand.code, unknownCommand.out, unknownCommand.err]).toEqual([2, "", "error: unknown command 'verfy'\n(Did you mean verify?)\n"]);
     const unknownOption = cli(dir, ["security-scan", "--jsn"]);
-    expect([unknownOption.code, unknownOption.out, unknownOption.err]).toEqual([1, "", "error: unknown option '--jsn'\n(Did you mean --json?)\n"]);
+    expect([unknownOption.code, unknownOption.out, unknownOption.err]).toEqual([2, "", "error: unknown option '--jsn'\n(Did you mean --json?)\n"]);
 
     // a config error: the message as v0.5.3 printed it (one write of message + LF), then the verdict line
     const cfgDir = path.join(dir, "cfg");
@@ -276,7 +278,7 @@ describe("M2-2-R3-001 control: normal output is byte-identical to v0.5.3", () =>
 
     // help on standard error (no arguments): commander's lines, no notation
     const help = cli(dir, []);
-    expect(help.code).toBe(1);
+    expect(help.code).toBe(2);
     expect(help.err.split(LF).length).toBeGreaterThan(10);
     expect(help.err).not.toContain("\\u{");
 

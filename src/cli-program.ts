@@ -40,6 +40,11 @@ export function buildProgram(deps: ProgramDeps): Command {
   // (src/output.ts, M2-2-R2-001; a usage error is one line plus commander's suggestion, M2-2-R3-001). Set before the
   // commands are added: each command inherits it when it is created.
   program.configureOutput(COMMANDER_OUTPUT);
+  // A usage error (an unknown command or option, a missing argument or value, no command given) is exit 2: exit 1 means "findings" (verify FAILED,
+  // security-scan findings). help and --version stay 0. Set before the commands are added: each command inherits it when it is created.
+  program.exitOverride((err) => {
+    process.exit(err.exitCode === 0 ? 0 : EXIT_ERROR);
+  });
   program
     .name("aiqh")
     .description("Fail-closed quality gate runner for AI-assisted development")
@@ -120,10 +125,6 @@ export function buildProgram(deps: ProgramDeps): Command {
     .option("--max-packet-bytes <n>", "largest packet (default 4194304); larger is an error, nothing is written", positiveInt)
     .option("-c, --config <path>", "config file for the security section (default: ./aiqh.config.jsonc if present)")
     .option("--json", "print the result as JSON", false)
-    // Usage errors (missing --range, unknown option) must be exit 2 here: exit 1 means "findings".
-    .exitOverride((err) => {
-      process.exit(err.exitCode === 0 ? 0 : EXIT_ERROR);
-    })
     .action(
       async (opts: {
         range: string;

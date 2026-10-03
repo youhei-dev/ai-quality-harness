@@ -197,7 +197,7 @@ describe("M2-2-R2-001: the CLI's own output (default sinks, commander, the optio
     const dir = tempDir("aiqh-r2-001-");
     for (const args of [["security-scan", `--x${RLO}`], [`scan${RLO}`]]) {
       const res = cli(dir, args);
-      expect(res.code).toBe(1);
+      expect(res.code).toBe(2);
       expect(res.err).toMatch(/^error: unknown (option|command)/);
       escaped(res);
     }
