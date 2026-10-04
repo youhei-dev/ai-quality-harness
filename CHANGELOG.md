@@ -5,7 +5,28 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.27 — Backlog 11: a usage error is exit 2 for every command and for the program（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.27` / `git rev-parse v0.5.27` で確認し、次の release commit で記入）
+## v0.5.28 — Backlog 3, 7 and 4: the test guards see short aliases, renderers reached through a member, and probes that are calls（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.28` / `git rev-parse v0.5.28` で確認し、次の release commit で記入）
+
+- **バックログ 3・7・4（M2-2-R1-002・004・003）を解消**（テスト基盤の強化。**`src/` の差分は 0 行**。`tests/structure/` は `brand-guard.ts` +23／−1 と `process-guard.ts` +25／−12 の 2 ファイルだけ〈人間の承認〉。
+  SP1 で 3 項目の調査と、一時 worktree での試作・全テストと自己 verify の実行を行い、人間の承認の後に実装した〈C1〜C5 の 5 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉は変えていない。
+  独立レビューは付けない〈人間の判断。出力の境界と fail closed は変わらない〉。新しい ADR は作らず、ADR-0014 を更新した）
+  - **利用者に見える変更: なし**（ランタイムの動作・出力・終了コードは変わらない。`aiqh review-packet --help` はバイト単位で同一）
+  - 項目 3（C1）: オプション一覧の比較が short 別名も見る。v0.5.27 では、`-o`→`-p`・`-c` の削除・`--json` への `-j` の追加・`-o` の移動・`<file>`→`[file]` の 5 つが差分 0 だった（実測）。
+    案 B: テストの中の表 `SHORT_ALIASES`（output は `-o`、config は `-c`）と `Command` の `short` を比べ、値を取るオプションは必須の値（`<x>`）でなければならない
+  - 項目 7（C2）: 描画関数を素の文字列を取る関数型へアサーションする形の fixture 群 `FA`（13 件）を足し、`brand-guard.ts` で、見逃していた 3 形（名前空間のメンバー `PKG.inlineCode`、オブジェクトのプロパティ `o.r`、
+    引数が `string | Checked` の関数型）も報告する。報告を増やす側だけで、型で新たに許可する経路は足していない。`src/` の違反は 0、`src/` に 3 形の実例は 0
+  - 項目 4（C3）: 外部コマンドのガードの probe を「そのツールだけを起動する child_process の呼び出しを初期値に持つ変数」と定義し直した。OR・AND で混ぜた変数、tool 名だけの変数、名前の配列は、v0.5.27 では `guarded` だったが、違反になる。
+    実 `tests/` は 123 呼び出し・違反 0、`zip-interop` の判定は不変
+  - 既存テストの期待値の変更は 0。変えたのは検査の関数: option-inventory テストの arity の検査を関数 `arityMismatch` に出して必須の値を求める条件を足し、そのテストの名前の文言を "required value" にした（assertion は同じ）。
+    external-commands テストの `LIMIT` の宣言は、新しい限界 1 件のために複数行にした（既存の 1 件は同一）。新しいテスト 16 件（option-inventory 2、`FA` 13、external-commands の限界 1）。
+    v0.5.27 のガード・検査に新しいテストを当てると、option-inventory で 2 件、`FA` で 4 件、external-commands で 1 件（8 行の報告が欠ける）が FAIL
+  - 新しく見つけた限界（直さない。ADR-0014）: `skipIf` の条件の向きを読まない（`skipIf(hasPython)` でも `guarded`。ROADMAP のバックログ 22、特性テスト `f21_inverted_skipif`）。`null | undefined` を含むコールバック引数
+    （`.then(inlineCode)`、`.then(PKG.inlineCode)`）へ描画関数を渡す形は報告される（識別子では v0.5.27 から。保守的な動作として残す）。バックログ 21（widened-container）は直していない
+- docs: ADR-0014（3 つの限界の更新と、新しい限界の記録）、ARCHITECTURE（外部コマンドの段落）、README、ROADMAP（項目 3・4・7 を解消、v0.5.28 の記録、項目 22 を追加。番号は詰めない）、CHANGELOG
+- テスト 1,449 件（117 ファイル。1,433 ＋ 16）。`package.json` version 0.5.28（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.27 の見出しに commit 6c7aa1e / tag object 6e895e0 を記入した
+
+## v0.5.27 — commit 6c7aa1e / tag object 6e895e0 — Backlog 11: a usage error is exit 2 for every command and for the program
 
 - **バックログ 11「verify / init / security-scan の使い方エラーを exit 2 に揃える」を解消**（`src/cli-program.ts` +5／−4 行。SP1 で 5 つの調査〈M1〜M5〉と、一時 worktree での試作・全テストの実行を行い、人間の承認の後に実装した〈C1〜C3 の 3 commit〉。
   `tests/structure/`・`brand-guard.ts`・禁止文字の集合〈75 コードポイント〉・依存関係・`package-lock.json` は変えていない。独立レビューは付けない〈人間の判断。出力の境界と fail closed は変わらない〉）。ADR-0021 を新設した
