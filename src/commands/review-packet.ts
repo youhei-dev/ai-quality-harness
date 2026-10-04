@@ -442,12 +442,12 @@ function lstatOrNull(p: string): Stats | null {
 function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): { retainedBackups: string[] } {
   const step = (name: string): void => hooks?.beforeStep?.(name);
   const tmps = new Map<WriteTarget, string>();
-  /** Remove the temporary files that still exist; returns the ones that could not be removed. */
+  /** Remove the temporary files; returns the ones that could not be removed. `force` ignores only ENOENT, so a file that cannot be reached is listed, not taken as absent (backlog 8, P4; ADR-0022). */
   const removeTmps = (): string[] => {
     const left: string[] = [];
     for (const t of tmps.values()) {
       try {
-        if (existsSync(t)) rmSync(t, { force: true });
+        rmSync(t, { force: true });
       } catch {
         left.push(t);
       }
@@ -488,6 +488,7 @@ function writeTogether(targets: WriteTarget[], hooks: WriteHooks | undefined): {
     for (const t of targets) {
       step(`commit:install:${t.label}`);
       renameSync(tmps.get(t) ?? "", t.path);
+      tmps.delete(t); // renamed into place: no longer a temporary file
       installed.push(t);
     }
   } catch (err) {

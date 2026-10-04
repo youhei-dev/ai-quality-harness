@@ -218,13 +218,21 @@ function splitZ(buf: Buffer): Buffer[] {
   return out;
 }
 
+/**
+ * The commit a revision names, and the tag object when the revision is an annotated tag. The revision is read once, to an
+ * object name, and the commit is that object's (an object name does not change): the two never come from different states of
+ * a ref that moved between the git calls, and a git call that fails is an error, never "no tag object" (backlog 8, P3).
+ */
 function resolveCommit(root: string, ref: string, side: string): { sha: string; tagObject: string | null } {
   if (ref.length === 0) throw new InspectionError(`--range: the ${side} revision is empty`);
-  const commit = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`]);
-  if (commit.status !== 0) throw new InspectionError(`--range: ${side} revision ${JSON.stringify(ref)} does not name a commit`);
-  const sha = commit.stdout.toString("utf8").trim();
-  const obj = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", ref]).stdout.toString("utf8").trim();
-  return { sha, tagObject: obj.length > 0 && obj !== sha ? obj : null };
+  const doesNotName = (): InspectionError => new InspectionError(`--range: ${side} revision ${JSON.stringify(ref)} does not name a commit`);
+  const named = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", ref]);
+  const obj = named.stdout.toString("utf8").trim();
+  if (named.status !== 0 || obj.length === 0) throw doesNotName();
+  const peeled = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${obj}^{commit}`]);
+  const sha = peeled.stdout.toString("utf8").trim();
+  if (peeled.status !== 0 || sha.length === 0) throw doesNotName();
+  return { sha, tagObject: obj !== sha ? obj : null };
 }
 
 // ---------------------------------------------------------------------------------------------------

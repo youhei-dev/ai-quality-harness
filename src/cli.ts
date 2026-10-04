@@ -6,18 +6,21 @@ import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute
 import { writeError } from "./output.ts";
 import { EXIT_ERROR, SIGNAL_EXIT_CODES } from "./types.ts";
 
+/**
+ * The version of this package, from the package.json next to src/ (and dist/). A package.json that cannot be read, or that has no
+ * version string, is an error and not "0.0.0": the version is written into the verify report and the review packet as the tool
+ * that made them, so a made-up one would be false evidence (backlog 8, P11; ADR-0022).
+ */
 function readVersion(): string {
+  let version: unknown;
   try {
-    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
-      version?: string;
-    };
-    return pkg.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
+    version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown }).version;
+  } catch (err) {
+    throw new Error(`cannot read the version from package.json (${(err as NodeJS.ErrnoException).code ?? "not valid JSON"})`, { cause: err });
   }
+  if (typeof version !== "string" || version.length === 0) throw new Error("package.json has no version string");
+  return version;
 }
-
-const VERSION = readVersion();
 
 // Interruption (R2-002 / R3-002). Order matters:
 //   1. mark the run as interrupted (AbortController) so no further check is spawned,
@@ -70,9 +73,6 @@ function onVerdictFixed(): void {
   swapSignalHandlers(beforeHandlers, afterHandlers);
 }
 
-// The commands and options (side-effect free, src/cli-program.ts; M2-1-R3-005).
-const program = buildProgram({ version: VERSION, signal: interruption.signal, onVerdictFixed });
-
 /** The first line for a thrown value whose inspection throws (ROADMAP backlog 1, v0.5.14). */
 const UNINSPECTABLE_THROWN_LINE = "aiqh: unexpected error: (the thrown value could not be inspected)";
 
@@ -100,7 +100,9 @@ function tryWriteError(line: string): void {
 }
 
 // The last handler never throws: an exception here would be Node's unhandled rejection (the value printed raw, exit 1).
-program.parseAsync(process.argv).catch((err: unknown) => {
+// The commands and options (side-effect free, src/cli-program.ts; M2-1-R3-005) are built inside the chain, so that a version that cannot
+// be read is reported by this handler (exit 2) and not thrown while this module loads.
+Promise.resolve().then(() => buildProgram({ version: readVersion(), signal: interruption.signal, onVerdictFixed }).parseAsync(process.argv)).catch((err: unknown) => {
   process.exitCode = EXIT_ERROR;
   // Through the output boundary like every other line (src/output.ts): a message can quote a path.
   tryWriteError(unexpectedErrorLine(err));
