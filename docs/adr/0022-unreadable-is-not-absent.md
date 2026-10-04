@@ -1,7 +1,7 @@
 # ADR-0022: 読めないものを「無い」としない: パスの包含と書込の前提
 
-- 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ広げた。ADR-0014・0015・0020・0021 は変えない）
-- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）
+- 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ広げた。ADR-0014・0015・0020・0021 は変えない）
+- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）
 
 ## 文脈
 - 原則は既にある: security-scan の lstat（ADR-0010、M1-R2-002）、review-packet の `latest.json` と既定の設定ファイル（ADR-0015、v0.5.1）。**ENOENT だけが「無い」**で、それ以外は読めない・見えないものなので fail closed にする。
@@ -23,7 +23,7 @@
 ## 決定
 1. **規則**: ENOENT だけが「無い」。lstat・stat の他の失敗（EACCES・ENOTDIR・ELOOP など）は「調べられない」で、「無い」と見なさない。dangling symlink は lstat では「ある」（リンク自体がある）。リンク先が無いことは「無い」ではない
 2. **パスの包含判定**（`resolveInsideRoot` → `realpathNearest` → `entryExists`。`checks[].cwd` と `output.dir`）: ENOENT だけ、存在する最も近い祖先へ上がる。他の失敗は `ConfigError`
-   （`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>). Fix the permissions or change the setting.`）。設定を読む時点のエラーなので、check は 1 つも走らず、レポートも書かない。終了コードは 2
+   （`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>). Fix the permissions or change the setting.`。`<entry>` が `<path>` と同じときは `— <entry>` を付けない: v0.5.31 で重複を解消）。設定を読む時点のエラーなので、check は 1 つも走らず、レポートも書かない。終了コードは 2
 3. **init の書込の前提**（`src/commands/init.ts` の `assertNotDanglingLink`）: 書込先が symlink で、リンク先が ENOENT（dangling）のとき、書かずに拒否する。lstat でリンクかを見て、リンクなら stat で先を見る。
    設定の書込（`aiqh init: failed to write <file>: …`）と `.gitignore` の追記（`aiqh init: failed to update <file>: …`）の、既存の `try` の中で、書込の直前に呼ぶ。メッセージは `it is a symbolic link whose target does not exist; remove the link or create the target first`。
    lstat・stat の ENOENT 以外の失敗は、そのまま投げる（書込自身のエラーと同じ形で報告される）。**`--force` でも拒否する**（上書きする既存の内容が無い）。終了コードは 2。
@@ -32,11 +32,18 @@
    B・C・D の各箇所で ENOTDIR の扱いを問い直すことになる。(b) 通常ファイルの下を `cwd`・`output.dir` に指定する設定の誤りを、実行時の check の FAIL（cwd は exit 1）や遅い report write error ではなく、読込で exit 2 にして早く見せる。
    **`targetIdentity`**（`src/commands/review-packet.ts`。review-packet の書込先の同一性を、存在する祖先まで遡って比べる）は ENOENT と ENOTDIR を「無い」として親へ上がるが、そのまま残す: 目的が違い（書込先の早い段階の拒否。最終判定は dev + ino）、
    ENOTDIR は書込の本体が失敗するので判定を誤らせない。この ADR の規則は、設定のパスの包含判定と init の書込の前提に適用する
-5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23。`proposeGitignore` の提案文（O5）と、O3・O4・O9・O6 は、C・D の各版で扱う（P3・P11・P4 は v0.5.30 で直した。決定 7 と「範囲（B グループ）」）
+5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23。O6 は D の版で扱う（P3・P11・P4 は v0.5.30 で、O3・O4・O5・O9 は v0.5.31 で直した。決定 7・8 と「範囲（B グループ）」「範囲（C グループ）」）
 6. **出力の境界は変えない**: 新しいメッセージは既存の出口を通る（init は `output.error`、verify は `maskSecrets` の後に出口。ADR-0016・0017）。パスに禁止文字や秘密の形があっても、表記とマスクになる（実 CLI で確認）
 7. **必須の入力は、ENOENT でも既定値にしない**（P11、v0.5.30）。`package.json` が無い（ENOENT を含む）・読めない・version が文字列でない・空文字、のいずれも**失敗（exit 2）**で、`0.0.0` などの既定値にしない。version は**最初に読み、すべての入口を止める**（`--version`・`--help`・`init`・`verify` のどれも exit 2）。
    既存の最上位の catch を再利用する（`aiqh: unexpected error: cannot read the version from package.json (<code>)` または `… package.json has no version string` と `VERIFY ERROR (internal error)` の 2 行）。専用のメッセージ・終了コードは作らず、`src/cli-program.ts` も変えない。
    「無くても動ける入力」と「無ければ証拠が偽になる入力」を区別する規則で、後者（version は、レポートと packet に作った道具として書かれる）だけが対象
+8. **git が答えた「違う」と、git の失敗を分ける**（O3、v0.5.31）。git に尋ねる箇所では、次の 2 つだけを git の「違う」とする: (a) `rev-parse --verify --quiet` の exit 1（名前が無効のとき、何も出さずに終わる）、(b) `rev-parse --is-inside-work-tree` が exit 0 で `false`、
+   または exit 128 で stderr の 1 行目（`LC_ALL=C`）が `fatal: not a git repository` で始まる。**それ以外**（git を実行できない〈spawn のエラー〉、timeout、他の status）は git の失敗で、「違う」「無い」とは書かない。
+   verify（`src/git/info.ts` の `lookupGit`。`getGitInfo` は同じ署名で残す）: 失敗のとき標準出力は `git: unavailable (<理由>)`（`git could not be run (<code>)`・`git timed out after 10 s`・`git exited <N>: <git の 1 行>`）、「違う」のとき従来の `git: not a git repository`。
+   **報告の JSON の `git` は、どちらも null のまま**（契約は変えない。理由を持つのは標準出力の行だけ）。Markdown のセルは `(not a git repository, git unavailable, or no commit)`（報告に理由の欄が無いので、言い過ぎない文面）。
+   review-packet（`resolveCommit` と work-tree の確認。B の P3 が回した「失敗の文言」を引き取る）: 「違う」のときは従来の文（`does not name a commit`、`not inside a git work tree: <cwd>`）、それ以外は git の言葉を添える
+   （`--range: <side> revision "<ref>" could not be resolved (git exit N: <git の 1 行>)`、`could not tell whether <cwd> is inside a git work tree (git exit N: <git の 1 行>)`）。git を実行できないことは元から `git could not be run: …` で区別されている。終了コードは 2 のまま。
+   「違う」の判定は終了コードと stderr の 1 行の文言（`LC_ALL=C`）に頼る。文言が変わったときは、「違う」が失敗の側に倒れる（見える側）だけで、失敗が「違う」に隠れる方向ではない
 
 ## 範囲（B グループ、v0.5.30 で追記）
 - **P3（git の失敗は「無い」ではない）**: `resolveCommit()` は、ref を **1 回だけ**オブジェクト名に引き（`rev-parse --verify --quiet --end-of-options <ref>`）、その `<オブジェクト名>^{commit}` で commit を求める。2 回とも status を見て、失敗は `does not name a commit`（文言は v0.5.29 のまま）で exit 2。
@@ -44,6 +51,19 @@
 - **P4（後片付けの `existsSync` をやめる）**: `removeTmps()` は `rmSync(t, { force: true })` だけにする（`force` が無視するのは ENOENT だけ）。消せない一時ファイルは `left` に入り、「temporary file left at」に挙がる。rename で確定した一時ファイルはマップから外す（`tmps.delete(t)`、1 行）。
   外した後は、確定したファイルが「残った一時ファイル」として挙がらない
 - **P11**: 決定 7
+
+## 範囲（C グループ、v0.5.31 で追記）
+- **O3**: 決定 8。v0.5.30 では、git を実行できない・timeout・exit 128（所有者の不一致など）が、verify の標準出力で `git: not a git repository`、review-packet の ref の解決で `does not name a commit`（status 1 と同じ文）と書かれた（実測。verify はどれも exit 0 で、verdict は変わらない）。
+- **O4**（`checkDirectory`、`src/runner/execute.ts`）: ENOENT だけ `working directory does not exist: <dir>`、他の stat の失敗（EACCES・ENOTDIR・ELOOP など）は `working directory cannot be examined: <dir> (<code>)`。A（v0.5.29）の後は、読込が辿れない `cwd` を拒否するので、
+  ここに届くのは読込の後でパスが変わった場合（check が権限を変える、ディレクトリを置き換える、symlink の輪を作る）。check は起動せず FAIL のまま（verify は exit 1。ENOENT と同じ）。
+- **O5**（`proposeGitignore`、`src/commands/init.ts`）: `.gitignore`・`.git` の `existsSync` を lstat の判定にする。ENOENT だけ「無い」（`no .gitignore`、`not a git repository: cannot ask git …`）。リンクは「ある」（dangling や輪でも。git が判断する）。
+  他の失敗は `.gitignore cannot be examined (<code>): cannot confirm; add the line if it is missing`、`.git cannot be examined (<code>): cannot ask git whether artifacts/ is ignored`。dry-run の終了コードは 0 のまま。
+  v0.5.30 では、dangling・輪の `.gitignore` が `no .gitignore`、dangling の `.git` が `not a git repository` と書かれ、同じ実行の audit の行（`git repository; …`）と食い違っていた。
+- **O9**（`runInit` の root、`src/commands/init.ts`）: root を stat で分類する。ENOENT だけ `directory not found: <root>`、他の失敗は `directory cannot be examined: <root> (<code>)`、ディレクトリでなければ `not a directory: <root>`。いずれも exit 2。
+  **通常ファイルの root は、exit 0（ファイルをリポジトリとして監査していた）から exit 2 になる**。dangling symlink の root はリンク先が ENOENT なので `directory not found`。
+- **O2 の文面の重複**: 決定 2。`<entry>` が `<path>` と同じとき `— <entry>` を付けない。dangling symlink の文（`… is a symbolic link whose target does not exist …`）も同じ形で直した。
+  既存テストの期待値 1 件を変えた（`tests/regression-backlog8a-o2-untraversable-path.test.ts` の、EACCES の `output.dir` の正規表現。人間の承認）。
+- 触っていない同種の箇所: init の書込側の `existsSync`（設定ファイルの already exists、`.gitignore` の読み出し）は、A の dangling の拒否と書込の失敗が受けるので変えない（実測で影響なし）。`src/adapters/context.ts` の `exists()`・`readText()` は D（O6）
 
 ## 代替案
 - ENOTDIR を「無い」とする（O2 の 1 行差）: 決定 4 の理由で採らない。実測では、通常ファイルの下の `output.dir` は v0.5.28 と同じ挙動のまま（遅い exit 2）、`cwd` も同じ（check の FAIL、exit 1）になる
@@ -60,10 +80,14 @@
 - init の書込は、元から非原子的な `writeFileSync()` で、lstat と書込の間の競合（TOCTOU）は防がない（対話の道具・ローカルの実行が前提）
 - 読込の後に権限が変わった場合は、実行時の失敗（check の FAIL、report write error）として残る
 - Linux・Windows・root での実行は未確認（実測は macOS の一般ユーザーだけ。権限のテストは root では `skipIf`）。エラーコードの名前は POSIX 共通だが、Linux での挙動は推測
-- dry-run の提案文（`proposeGitignore` の `existsSync(".gitignore")`）は、dangling でも「no .gitignore」と書き、書込時に初めて dangling と拒否する（O5。C グループで揃える）
+- dry-run の提案文（`proposeGitignore` の `existsSync(".gitignore")`）は、dangling でも「no .gitignore」と書き、書込時に初めて dangling と拒否した（O5。**v0.5.31 で解消**: lstat で判定する。dangling・輪の `.gitignore` の dry-run の説明は git の判断のもので、リンクの状態そのものは書込のときの拒否が言う）
 - `package.json` が dangling symlink のとき、init は Node プロジェクトと見なさず、`--write-scripts` は exit 0 で何も書かない（実測。アダプタの検出。O6、D グループ）
 - （B グループ）version は「空でない文字列」かどうかだけを見る。semver として妥当かは見ない（決定 7）
 - （B グループ）辿れない一時ファイルは、消せずに残り、名前が挙がるだけ（P4）。消すのは人。ファイルを消せるかどうかは `rmSync` の結果に従い、「ある」ことの確認はしない
+- （C グループ）**`rev-parse HEAD`・ブランチの個別の失敗は、`(no commit)`・`(detached)` と表示される**（verify の `git:` の行と報告）。コミット 0 件の本物のケースと区別するには、stderr の判定が要る。直していない（ROADMAP の項目 25）
+- （C グループ）verify の報告の JSON の `git` は、非リポジトリと git の失敗のどちらも null で、理由は標準出力の行にだけある（Markdown のセルは両方を含む文面）。理由を報告に載せるには新しい欄（契約の変更）が要るので、していない
+- （C グループ）git の「違う」の判定は `fatal: not a git repository` の文言に頼る（決定 8）。他の言語・他の git の実装での文言は未確認（`LC_ALL=C` で固定している）
+- （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）
 
 ## 影響
 - **利用者に見える変更**:
@@ -85,3 +109,16 @@
   - コード: `src/` は 3 ファイル +30／−19（`src/cli.ts` +14／−12、`src/commands/review-packet.ts` +3／−2、`src/review/packet.ts` +13／−5）。新しいテスト 22 件（`tests/regression-backlog8b-p3-resolve-commit.test.ts`・`…-p4-temporary-file-listing.test.ts`・`…-p11-version.test.ts`）で、v0.5.29 の `src/` に当てると 14 件が FAIL
     （残りの 8 件は対照）。既存のテストの期待値の変更は 0 件。テスト 1,474 → 1,496 件（119 → 122 ファイル）。`tests/structure/`・禁止文字の集合・依存関係・`package-lock.json` は変えていない
   - 独立レビューは付けない（人間の判断）。O2 のメッセージの重複（`<path>` と `<entry>`）は直していない（O4 と一緒に C・D で決める）
+- **v0.5.31（C グループ: O3・O4・O5・O9）の追記**:
+  - **利用者に見える変更**:
+    - **verify**: git が実行できない・timeout・失敗のとき、標準出力は `git: unavailable (<理由>)`（以前は `git: not a git repository`）。**報告の JSON の `git` は null のまま**。Markdown のセルは `(not a git repository, git unavailable, or no commit)`。終了コードは変わらない
+    - **review-packet**: git が ref の解決・work-tree の確認で失敗したとき、git の 1 行つきのメッセージ（以前は `does not name a commit` / `not inside a git work tree`）。git の「違う」の文は従来のまま。終了コードは 2 のまま
+    - **check の cwd**: 読込の後で辿れなくなったとき `working directory cannot be examined: <dir> (<code>)`（以前は `does not exist`）。終了コードは 1 のまま
+    - **init**: root が辿れないとき `directory cannot be examined`、**通常ファイルのときは exit 2**（以前は exit 0 で監査）。提案の説明が、dangling や輪の `.gitignore`・`.git` を「無い」と言わない（終了コードは 0 のまま）
+    - **設定の読込のエラー（O2）**: 同じパスが 2 回出ていた文面を 1 回にした（終了コードは 2 のまま）
+    - `== 1` の注意は不要（1 → 2 のケースは無い）。終了コードが変わるのは、通常ファイルを `--cwd` に渡した init の 0 → 2 だけ
+  - コード: `src/` は 7 ファイル +128／−24（`src/git/info.ts` +48／−9、`src/commands/init.ts` +38／−4、`src/review/packet.ts` +19／−3、`src/runner/execute.ts` +8／−2、`src/config/load.ts` +7／−2、`src/commands/verify.ts` +6／−3、`src/report/markdown.ts` +2／−1）。
+    新しいテスト 48 件（`tests/regression-backlog8c-o3-git-failure.test.ts` 21 件、`…-o4-cwd-examination.test.ts` 9 件、`…-o5-o9-init-examination.test.ts` 18 件）で、v0.5.30 の `src/` に当てると 26 件が FAIL（残りの 22 件は対照）。
+    **既存のテストの期待値の変更は 1 件**（`tests/regression-backlog8a-o2-untraversable-path.test.ts` の EACCES の `output.dir` の正規表現。O2 の文面の重複の解消に伴う。人間の承認）。テスト 1,496 → 1,544 件（122 → 125 ファイル）。`tests/structure/`・禁止文字の集合・依存関係・`package-lock.json` は変えていない
+  - 出力の境界は変えていない（新しいメッセージは既存の出口を通る。秘密様の文字列と ESC を含む名前・git の 1 行で、生で出ないことをテストで確認）。書き込みの呼び出しは足していない
+  - 独立レビューは付けない（人間の判断）。残る限界は「既知の限界」の C グループの項目（ROADMAP の項目 24・25）

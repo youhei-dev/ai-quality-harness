@@ -138,7 +138,7 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 4. `checks` が 1 件以上であること
 5. `checks[].name` が一意であり、パターン `^[a-z0-9][a-z0-9-]*$` に合致すること
 6. `checks[].command` が空白のみでないこと
-7. `checks[].cwd` を解決した結果がプロジェクトルート内であること。字句上の判定に加えて realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合もエラー（`output.dir` も同様。未作成のパスは存在する最も近いエントリで判定）。途中に dangling symlink（リンク先が未作成）がある場合は解決先を検証できないため、リンク先がルート内向きでもエラー（「解決先が存在しない。先に作成するか設定を見直す」）。途中のエントリを**調べられない**場合（権限で辿れないディレクトリ〈EACCES〉、通常ファイルの下を通る指定〈ENOTDIR〉、symlink の輪〈ELOOP〉など、lstat の失敗が ENOENT 以外）も、解決先を検証できないためエラー（`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>)`。読込時のエラーなので、check は走らず、レポートも書かない。v0.5.29、ADR-0022）。cwd 自体が存在しない（ENOENT）通常のディレクトリの場合は読込時エラーではなく、その check を FAIL とする
+7. `checks[].cwd` を解決した結果がプロジェクトルート内であること。字句上の判定に加えて realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合もエラー（`output.dir` も同様。未作成のパスは存在する最も近いエントリで判定）。途中に dangling symlink（リンク先が未作成）がある場合は解決先を検証できないため、リンク先がルート内向きでもエラー（「解決先が存在しない。先に作成するか設定を見直す」）。途中のエントリを**調べられない**場合（権限で辿れないディレクトリ〈EACCES〉、通常ファイルの下を通る指定〈ENOTDIR〉、symlink の輪〈ELOOP〉など、lstat の失敗が ENOENT 以外）も、解決先を検証できないためエラー（`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>)`。読込時のエラーなので、check は走らず、レポートも書かない。v0.5.29、ADR-0022）。cwd 自体が存在しない（ENOENT）通常のディレクトリの場合は読込時エラーではなく、その check を FAIL とする。読込の後でパスが変わり、実行の時点で辿れなくなった cwd（権限の変更、通常ファイルへの置き換え、symlink の輪など）も、その check を FAIL とする（verify は exit 1）。メッセージは ENOENT だけ `working directory does not exist: <dir>`、他は `working directory cannot be examined: <dir> (<code>)`（v0.5.31、ADR-0022）
 8. `timeoutSec` が正の整数であること
 9. `required: true` の check が 1 件以上あること（必須チェックが 0 件の設定は「常に PASS」になり fail closed に反するため）
 10. 未知のフィールドがないこと
@@ -256,6 +256,9 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 `aiqh init: failed to update <file>: …`、exit 2。`--force` でも拒否する。他のファイルの書込は取り消されない。v0.5.29、ADR-0022）。
 リンク先が存在する symlink は従来どおり書込の対象で（`--write` は `--force` なしでは already exists、`--force` ではリンク先を上書き、`.gitignore` は追記）、
 リンク先がプロジェクトの外でも書く（ROADMAP のバックログ 23。直していない）。
+
+`aiqh init` の対象ディレクトリ（`--cwd`、既定はカレント）は、存在しない（ENOENT）とき `aiqh init: directory not found: <root>`、辿れない・調べられない（EACCES・ENOTDIR・ELOOP など）とき
+`aiqh init: directory cannot be examined: <root> (<code>)`、ディレクトリでない（通常ファイルなど）とき `aiqh init: not a directory: <root>` で、いずれも何も監査せず exit 2（v0.5.31、ADR-0022。以前は通常ファイルをリポジトリとして監査し、exit 0 だった）。
 
 `.gitignore` の `artifacts/` 提案は Security Scan と同じ `git check-ignore --no-index` の判定で決める（M1-R2-005）: 代表パス
 `artifacts/.aiqh-ignore-probe` がリポジトリ内 `.gitignore` の非否定ルールで ignore されていれば「already ignores」、そうでなければ

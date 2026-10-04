@@ -80,7 +80,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能（root が無い・辿れない・ディレクトリでない場合を含む。ADR-0022） / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
@@ -119,7 +119,7 @@ src/
   security/
     mask.ts               … 秘密情報らしき文字列のパターンマスク                            [M0]
   git/
-    info.ts               … commit / branch / dirty の取得（非 git でも動作）               [M0]
+    info.ts               … commit / branch / dirty の取得（非 git でも動作。git が答えられなかったときも null、理由は標準出力の行。ADR-0022）  [M0]
   adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1 実装済み]
     types.ts              … Adapter / Detection / Suggestion / RepoContext / OutputParser（型のみ）
     context.ts            … 読み取り専用の RepoContext（.env* は読まない）
@@ -163,7 +163,7 @@ aiqh.config.jsonc
 zod スキーマ検証 ──失敗──▶ 終了コード 2（レポートは書かない。fail closed）
    │ 成功
    ▼
-git 情報取得（commit / branch / dirty。非 git なら null）
+git 情報取得（commit / branch / dirty。非 git なら null。git が答えられなかったとき〈実行不能・timeout・「違う」以外の終了〉も null で、理由は標準出力の `git: unavailable (…)` の行。ADR-0022 決定 8）
    ▼
 checks[] を設定順に順次実行
    ├─ spawn(command, { cwd, shell: true, detached: true, env })   … env = checkEnv(options.env ?? process.env) = aiqh の環境〈渡された env もこれが元〉から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足したもの（ADR-0020）
@@ -325,7 +325,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "startedAt": "2026-09-15T12:00:00.000Z",
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,
-  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null。dirty は取得失敗時 null（unknown）
+  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null（git が答えられなかったときも null。理由は標準出力の行）。dirty は取得失敗時 null（unknown）
   "verdict": "PASSED",                                                 // "PASSED" | "FAILED" | "ERROR"（ERROR は中断時。R3-002）
   "exitCode": 0,                                                       // 0 | 1 | 128+シグナル番号（中断時）
   "interruptedBy": null,                                               // 中断時はシグナル名（"SIGINT" 等）。設定エラー由来の ERROR はレポート自体を書かない
