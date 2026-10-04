@@ -427,7 +427,16 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - 既存テストの期待値の変更は 0 件。新しいテスト 25 件（`tests/regression-backlog8a-o2-untraversable-path.test.ts` 12 件、`tests/regression-backlog8a-o7-o8-init-dangling-link.test.ts` 13 件。v0.5.28 の `src/` に当てると 15 件が FAIL）。テスト 1,449 → 1,474 件（117 → 119 ファイル）
   - ADR-0022 を新設（規則: ENOENT だけが「無い」。ENOTDIR を拒否する理由、`targetIdentity` との違い、代替案、既知の限界）。独立レビューは付けない（人間の判断。判定を緩める変更ではなく、強める側だけ）
   - 見つけて直していないこと: 有効な symlink への `--force` 上書き・追記（バックログ 23）。`proposeGitignore` の提案文（O5）は C グループに残す
-- 次: バックログから選ぶ（未定。バックログ 8 の残りは B〈P3・P11・P4〉→ C〈O3・O4・O5・O9〉→ D〈O6〉の順で、ADR-0022 の規則で扱う）。v0.5.29 の push・タグ（人間の承認）が先（v0.5.28 は push・タグ済み: commit b988e8a / tag object 9d2acf7）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
+- v0.5.30: **バックログ 8 の B グループ（P3・P11・P4）を実装**（`src/cli.ts` +14／−12、`src/commands/review-packet.ts` +3／−2、`src/review/packet.ts` +13／−5。SP1 で 3 項目の試作を一時 worktree で作り、全テストと自己 verify を実行し、人間の決定の後に実装した。lock・依存関係・`tests/structure/`・禁止文字の集合は変えていない）
+  - P3: `resolveCommit()` は git を 2 回呼び、2 回目（tag object）の status を見ず、失敗を「tag object が無い」として packet を書いていた（exit 0）。ref を 1 回だけオブジェクト名に引き、その `^{commit}` を求める（2 回とも status を見る。失敗の文言は `does not name a commit` のまま）
+  - P4: `removeTmps()` の `existsSync()` は、辿れない一時ファイルで false になり、消されず挙がらなかった。`rmSync(t, { force: true })` にし、rename で確定した一時ファイルをマップから外した（`tmps.delete(t)`）
+  - P11: `readVersion()` は、読めない・version が無いときも `"0.0.0"` を返していた。`package.json` が無い（ENOENT を含む）・読めない・version が文字列でない・空文字は、すべての入口（`--help`・`init` を含む）で exit 2（既存の最上位の catch の 2 行。`src/cli-program.ts` は変えない）
+  - 実測: 追加したテスト 22 件は v0.5.29 の `src/` に当てると 14 件が FAIL（残りの 8 件は対照）。`package.json` が無い状態で `--version`・`--help`・`init`・`verify` は exit 2 で標準出力は 0 バイト。v0.5.29 の `src/` と比べ、6 つの range でパケットはバイト単位で一致
+  - 利用者に見える変更（CHANGELOG・README・ARCHITECTURE・ADR-0022 に書いた）: `package.json` が読めない・version が不正なとき exit 2（以前は `0.0.0`。`dist/` だけをコピーした環境は `package.json` も一緒にコピーする）。git の失敗でパケットを黙って書かず exit 2。書込の失敗のメッセージが、残っている一時ファイルも挙げる
+  - 既存テストの期待値の変更は 0 件。新しいテスト 22 件（`tests/regression-backlog8b-p3-resolve-commit.test.ts` 8 件、`tests/regression-backlog8b-p4-temporary-file-listing.test.ts` 5 件、`tests/regression-backlog8b-p11-version.test.ts` 9 件）。テスト 1,474 → 1,496 件（119 → 122 ファイル）
+  - ADR-0022 に追記（新規 ADR は作らない。決定 7、範囲の B、代替案、既知の限界、影響）。独立レビューは付けない（人間の判断）
+  - 見つけて直していないこと: O2 のメッセージの重複（`<path>` と `<entry>`）は、O4 と一緒に C・D で決める
+- 次: バックログから選ぶ（未定。バックログ 8 の残りは C〈O3・O4・O5・O9〉→ D〈O6〉の順で、ADR-0022 の規則で扱う）。v0.5.30 の push・タグ（人間の承認）が先（v0.5.29 は push・タグ済み: commit 7cbc674 / tag object 14bbbdc）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -481,9 +490,9 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 8. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
    ~~O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）~~
    （**O2・O7・O8 は v0.5.29 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、
-   P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）、O3（git の失敗を「not a git repository」と記述）、
-   O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・P4（書き込みの失敗の後の一時ファイルの一覧）。
-   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: B（P3・P11・P4）、C（O3・O4・O5・O9）、D（O6）。順序は A → B → C → D
+   ~~P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）~~（**P3・P11 は v0.5.30 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、O3（git の失敗を「not a git repository」と記述）、
+   O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・~~P4（書き込みの失敗の後の一時ファイルの一覧）~~（**P4 は v0.5.30 で解消**）。
+   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: ~~B（P3・P11・P4）~~（**v0.5.30 で解消**）、C（O3・O4・O5・O9）、D（O6）。順序は A → B → C → D
 9. ~~**ファイルへの出力の禁止文字**~~（**v0.5.24 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
