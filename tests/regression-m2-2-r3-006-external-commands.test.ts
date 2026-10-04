@@ -36,6 +36,21 @@ const FORMS: Record<string, { text: string; bad: number[] }> = {
     bad: [5],
   },
   f14_guarded_ok: { text: `${CP("spawnSync")}\n${V}\nconst hasPython = spawnSync("python3", ["-c", "import zipfile"]).status === 0;\nit.skipIf(!hasPython)("guarded", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`, bad: [] },
+  // M2-2-R1-003: 1 probe variable = 1 tool; a variable that only names a tool is not a probe
+  f17_or_mixed_probe: {
+    text: `${CP("spawnSync")}\n${V}\nconst hasAny = spawnSync("unzip", ["-v"]).status === 0 || spawnSync("python3", ["-c", "import zipfile"]).status === 0;\nit.skipIf(!hasAny)("mixed", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`,
+    bad: [3, 3, 4],
+  },
+  f18_and_mixed_probe: {
+    text: `${CP("spawnSync")}\n${V}\nconst hasBoth = spawnSync("unzip", ["-v"]).status === 0 && spawnSync("python3", ["-c", "import zipfile"]).status === 0;\nit.skipIf(!hasBoth)("mixed", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`,
+    bad: [3, 3, 4],
+  },
+  f19_string_only_variable: { text: `${CP("spawnSync")}\n${V}\nconst note = "python3";\nit.skipIf(!note)("note", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`, bad: [4] },
+  f20_one_variable_per_tool_ok: {
+    text: `${CP("spawnSync")}\n${V}\nconst hasUnzip = spawnSync("unzip", ["-v"]).status === 0;\nconst hasPython = spawnSync("python3", ["-c", "import zipfile"]).status === 0;\nit.skipIf(!hasUnzip)("u", () => { spawnSync("unzip", ["-l", "a.zip"]); });\nit.skipIf(!hasPython)("p", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`,
+    bad: [],
+  },
+  f22_string_in_array: { text: `${CP("spawnSync")}\n${V}\nconst tools = ["unzip", "python3"];\nit.skipIf(tools.length === 0)("list", () => { spawnSync("unzip", ["-l", "a.zip"]); });\n`, bad: [4] },
   f15_git_node_ok: { text: `${CP("execFileSync, spawnSync")}\n${V}\nit("f", () => { execFileSync("git", ["--version"]); spawnSync(process.execPath, ["-v"]); });\n`, bad: [] },
   f16_require: {
     text: `import { createRequire } from "node:module";\n${V}\nconst require = createRequire(import.meta.url);\nit("f", () => { const cp = require("node:child_process") as typeof import("node:child_process"); cp.spawnSync("shasum", ["-a", "256"]); });\n`,
@@ -43,7 +58,12 @@ const FORMS: Record<string, { text: string; bad: number[] }> = {
   },
 };
 /** Beyond static analysis (a command inside a script string): recorded as node; covered by the unit-minpath check. */
-const LIMIT = { f11_node_inner: `${CP("spawnSync")}\n${V}\nit("f", () => { spawnSync(process.execPath, ["-e", "require('node:child_process').execSync('shasum -a 256 f')"]); });\n` };
+const LIMIT = {
+  f11_node_inner: `${CP("spawnSync")}\n${V}\nit("f", () => { spawnSync(process.execPath, ["-e", "require('node:child_process').execSync('shasum -a 256 f')"]); });\n`,
+  // Known limit (M2-2-R1-003, recorded in ADR-0014, not fixed): the direction of the skipIf condition is not read, so a python3 call that is
+  // skipped when python3 exists (`skipIf(hasPython)`) is accepted as `guarded`. A fix of the guard changes this expectation.
+  f21_inverted_skipif: `${CP("spawnSync")}\n${V}\nconst hasPython = spawnSync("python3", ["-c", "import zipfile"]).status === 0;\nit.skipIf(hasPython)("inverted", () => { spawnSync("python3", ["-c", "print(1)"]); });\n`,
+};
 
 const DIR = "tests/__fixtures__/process";
 const program = createProgram(Object.fromEntries([...Object.entries(FORMS).map(([n, f]) => [`${DIR}/${n}.ts`, f.text]), ...Object.entries(LIMIT).map(([n, t]) => [`${DIR}/${n}.ts`, t])]));
@@ -70,6 +90,10 @@ describe("M2-1-R3-006: static — external processes by the type checker", () =>
       "python3 probe",
       "python3 guarded",
     ]);
+  });
+
+  it("limit: the direction of the skipIf condition is not read (an inverted condition is guarded)", () => {
+    expect(processCalls(program, filesUnder(program, `${DIR}/f21_`)).map((c) => `${c.command} ${c.verdict}`)).toEqual(["python3 probe", "python3 guarded"]);
   });
 
   it("limit: a command inside a node -e script is seen only as node (the unit-minpath check covers it)", () => {

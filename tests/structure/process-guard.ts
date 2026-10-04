@@ -92,21 +92,33 @@ function conditionVariables(checker: ts.TypeChecker, sf: ts.SourceFile): Set<ts.
   return out;
 }
 
-/** Whether the initializer of a variable mentions `tool` as a string (the probe: `spawnSync("unzip", ["-v"])`, `which("python3")`). */
-function probesTool(checker: ts.TypeChecker, sym: ts.Symbol, tool: string): boolean {
-  const d = sym.valueDeclaration;
-  if (d === undefined || !ts.isVariableDeclaration(d) || d.initializer === undefined) return false;
-  let found = false;
+/** The probed tools that child_process calls inside `node` start (a probe is a call, not a mention of the name). */
+function probedToolsIn(checker: ts.TypeChecker, node: ts.Node): Set<string> {
+  const tools = new Set<string>();
   const visit = (n: ts.Node): void => {
-    if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === tool) found = true;
-    else if (ts.isIdentifier(n)) {
-      const t = checker.getTypeAtLocation(n);
-      if (t.isStringLiteral() && t.value === tool) found = true;
+    if (ts.isCallExpression(n)) {
+      const api = starter(checker, n);
+      const command = api === null ? "" : commandOf(checker, api, n.arguments[0]);
+      if (PROBED.has(command)) tools.add(command);
     }
     ts.forEachChild(n, visit);
   };
-  visit(d.initializer);
-  return found;
+  visit(node);
+  return tools;
+}
+
+/** The initializer of a variable, if `sym` is one. */
+function initializerOf(sym: ts.Symbol): ts.Expression | undefined {
+  const d = sym.valueDeclaration;
+  return d !== undefined && ts.isVariableDeclaration(d) ? d.initializer : undefined;
+}
+
+/** Whether the initializer of a variable starts `tool` and no other probed tool (1 tool = 1 variable; a string that only names the tool is not a probe: M2-2-R1-003). */
+function probesTool(checker: ts.TypeChecker, sym: ts.Symbol, tool: string): boolean {
+  const init = initializerOf(sym);
+  if (init === undefined) return false;
+  const tools = probedToolsIn(checker, init);
+  return tools.size === 1 && tools.has(tool);
 }
 
 /** The variable whose initializer contains `node` (its declaration symbol), if any, without crossing a function. */
@@ -148,7 +160,8 @@ export function processCalls(p: Program, files: readonly ts.SourceFile[]): Proce
           else if (DECLARED.has(command)) verdict = "declared";
           else if (PROBED.has(command)) {
             const v = initializedVariable(checker, n);
-            if (v !== undefined && condVars.has(v)) verdict = "probe";
+            const init = v === undefined ? undefined : initializerOf(v);
+            if (v !== undefined && condVars.has(v)) verdict = init !== undefined && probedToolsIn(checker, init).size > 1 ? "violation: probe variable mixes tools" : "probe";
             else if (guardConditions(n).some((cond) => identifiersOf(checker, cond).some((s) => probesTool(checker, s, command)))) verdict = "guarded";
             else verdict = "violation: probed tool outside a skipIf / runIf on its own probe";
           } else verdict = "violation: undeclared command";
