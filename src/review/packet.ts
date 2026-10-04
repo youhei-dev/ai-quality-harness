@@ -219,6 +219,16 @@ function splitZ(buf: Buffer): Buffer[] {
 }
 
 /**
+ * The message for `git rev-parse --is-inside-work-tree` not answering "true". When git answered "no" (exit 0 with "false",
+ * or its own "fatal: not a git repository", the first stderr line under LC_ALL=C) the message is the plain one; any other
+ * failure (a refusal such as "dubious ownership", a crash) is not "not a work tree" and keeps git's own words (backlog 8, O3).
+ */
+function notInsideWorkTree(cwd: string, r: GitRun): string {
+  const answered = r.status === 0 || (r.status === 128 && r.stderr.startsWith("fatal: not a git repository"));
+  return answered ? `not inside a git work tree: ${cwd}` : `could not tell whether ${cwd} is inside a git work tree (git exit ${r.status}${r.stderr.length > 0 ? `: ${r.stderr}` : ""})`;
+}
+
+/**
  * The commit a revision names, and the tag object when the revision is an annotated tag. The revision is read once, to an
  * object name, and the commit is that object's (an object name does not change): the two never come from different states of
  * a ref that moved between the git calls, and a git call that fails is an error, never "no tag object" (backlog 8, P3).
@@ -226,12 +236,18 @@ function splitZ(buf: Buffer): Buffer[] {
 function resolveCommit(root: string, ref: string, side: string): { sha: string; tagObject: string | null } {
   if (ref.length === 0) throw new InspectionError(`--range: the ${side} revision is empty`);
   const doesNotName = (): InspectionError => new InspectionError(`--range: ${side} revision ${JSON.stringify(ref)} does not name a commit`);
+  // `rev-parse --verify --quiet` exits 1, silently, for a name that is not valid. Any other status is git failing, not the
+  // revision being absent: it keeps git's own words (backlog 8, O3; ADR-0022).
+  const failed = (r: GitRun): InspectionError =>
+    r.status === 1 ? doesNotName() : new InspectionError(`--range: ${side} revision ${JSON.stringify(ref)} could not be resolved (git exit ${r.status}${r.stderr.length > 0 ? `: ${r.stderr}` : ""})`);
   const named = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", ref]);
   const obj = named.stdout.toString("utf8").trim();
-  if (named.status !== 0 || obj.length === 0) throw doesNotName();
+  if (named.status !== 0) throw failed(named);
+  if (obj.length === 0) throw doesNotName();
   const peeled = runGit(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${obj}^{commit}`]);
+  if (peeled.status !== 0) throw failed(peeled);
   const sha = peeled.stdout.toString("utf8").trim();
-  if (peeled.status !== 0 || sha.length === 0) throw doesNotName();
+  if (sha.length === 0) throw doesNotName();
   return { sha, tagObject: obj !== sha ? obj : null };
 }
 
@@ -667,7 +683,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
 
   // The work tree and its root do not depend on the range: they are inspected even when it has a finding (M2-2-R1-001).
   const inside = runGit(opts.cwd, ["rev-parse", "--is-inside-work-tree"]);
-  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new InspectionError(`not inside a git work tree: ${opts.cwd}`);
+  if (inside.status !== 0 || inside.stdout.toString("utf8").trim() !== "true") throw new InspectionError(notInsideWorkTree(opts.cwd, inside));
   const root = gitOk(opts.cwd, ["rev-parse", "--show-toplevel"], "finding the repository root").toString("utf8").trim();
 
   /** A value aiqh derives (SHA, hash, version, time) is checked like any other rendered value (M2-1 R2). */

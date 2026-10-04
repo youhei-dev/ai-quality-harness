@@ -94,6 +94,20 @@ function assertNotDanglingLink(file: string): void {
   }
 }
 
+/**
+ * Why `root` cannot be audited, or null when it is a directory. Only ENOENT is "not found": any other failure of stat
+ * (EACCES, ENOTDIR, ELOOP, …) is a directory that cannot be examined, and a path that is not a directory is not a
+ * repository (backlog 8, O9; ADR-0022).
+ */
+function describeRootProblem(root: string): string | null {
+  try {
+    return statSync(root).isDirectory() ? null : `not a directory: ${root}`;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ENOENT" ? `directory not found: ${root}` : `directory cannot be examined: ${root} (${code ?? "unknown error"})`;
+  }
+}
+
 export async function runInit(options: InitOptions): Promise<number> {
   // Every printed line and the JSON go through the output boundary (src/output.ts, M2-2-R2-001): raw characters in
   // paths and detected names become ASCII notation, then the masker. One written line is one line (M2-2-R3-001); the
@@ -102,8 +116,9 @@ export async function runInit(options: InitOptions): Promise<number> {
   const log = output.log;
   const logError = output.error;
   const root = path.resolve(options.cwd ?? process.cwd());
-  if (!existsSync(root)) {
-    logError(`aiqh init: directory not found: ${root}`);
+  const rootProblem = describeRootProblem(root);
+  if (rootProblem !== null) {
+    logError(`aiqh init: ${rootProblem}`);
     return EXIT_ERROR;
   }
   const ctx = buildRepoContext(root);
@@ -273,8 +288,12 @@ export const GITIGNORE_PROBES = ["artifacts/verification/latest.json", "artifact
  * (safe side) with a reason; `canAskGit` tells the writer whether appending is the repair.
  */
 export function proposeGitignore(root: string): { needed: boolean; reason?: string; canAskGit: boolean; gitignoreTracked: boolean } {
-  if (!existsSync(path.join(root, ".gitignore"))) return { needed: true, reason: "no .gitignore", canAskGit: false, gitignoreTracked: false };
-  if (!existsSync(path.join(root, ".git"))) return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored", canAskGit: false, gitignoreTracked: false };
+  const gitignore = entryState(path.join(root, ".gitignore"));
+  if (gitignore === "absent") return { needed: true, reason: "no .gitignore", canAskGit: false, gitignoreTracked: false };
+  if (gitignore !== "present") return { needed: true, reason: `.gitignore cannot be examined (${gitignore}): cannot confirm; add the line if it is missing`, canAskGit: false, gitignoreTracked: false };
+  const dotGit = entryState(path.join(root, ".git"));
+  if (dotGit === "absent") return { needed: true, reason: "not a git repository: cannot ask git whether artifacts/ is ignored", canAskGit: false, gitignoreTracked: false };
+  if (dotGit !== "present") return { needed: true, reason: `.git cannot be examined (${dotGit}): cannot ask git whether artifacts/ is ignored`, canAskGit: false, gitignoreTracked: false };
   try {
     const ignored = gitIgnoredByRepoRules(root, GITIGNORE_PROBES);
     const missing = GITIGNORE_PROBES.filter((p) => !ignored.has(p));
@@ -284,6 +303,21 @@ export function proposeGitignore(root: string): { needed: boolean; reason?: stri
     return { needed: true, reason, canAskGit: true, gitignoreTracked };
   } catch {
     return { needed: true, reason: "git check-ignore failed: cannot confirm; add the line if it is missing", canAskGit: false, gitignoreTracked: false };
+  }
+}
+
+/**
+ * "present" when the entry itself exists (lstat: a symbolic link counts, dangling or not), "absent" only for ENOENT, and
+ * the error code for any other failure (EACCES, ENOTDIR, ELOOP, …): an entry that cannot be examined is not "absent"
+ * (backlog 8, O5; ADR-0022). existsSync() followed links and folded every failure into false.
+ */
+function entryState(file: string): string {
+  try {
+    lstatSync(file);
+    return "present";
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ENOENT" ? "absent" : (code ?? "unknown error");
   }
 }
 

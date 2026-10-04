@@ -43,7 +43,7 @@ describe("backlog 8 O2: a path that cannot be examined is not 'inside the projec
     lockDir(path.join(root, "locked"));
     const file = write(root, { ...base, output: { dir: "locked/out" }, checks: [check] });
     expect(() => loadConfig(file)).toThrow(ConfigError);
-    expect(() => loadConfig(file)).toThrow(/output\.dir cannot be resolved: .*locked\/out — .*locked\/out cannot be examined \(EACCES\)/);
+    expect(() => loadConfig(file)).toThrow(/output\.dir cannot be resolved: \S*locked\/out cannot be examined \(EACCES\)/);
   });
 
   it.skipIf(isRoot)("checks[].cwd below a directory that cannot be traversed (EACCES) is a ConfigError", () => {

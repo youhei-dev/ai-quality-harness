@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
-import { getGitInfo } from "../git/info.ts";
+import { lookupGit } from "../git/info.ts";
 import { buildReport } from "../report/build-report.ts";
 import { formatDuration } from "../report/markdown.ts";
 import { writeReports } from "../report/write.ts";
@@ -81,14 +81,17 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     config.outputDir = path.resolve(cwd, options.outputDir);
   }
 
-  const git = getGitInfo(config.projectRoot);
+  const { info: git, problem: gitProblem } = lookupGit(config.projectRoot);
 
   log(`aiqh verify — ${config.project.name}`);
   log(`config: ${config.configPath}`);
   log(
     git
       ? `git: ${git.branch ?? "(detached)"} @ ${git.commit ? git.commit.slice(0, 12) : "(no commit)"}${git.dirty === null ? " (dirty: unknown)" : git.dirty ? " (dirty)" : ""}`
-      : "git: not a git repository",
+      : // git that failed is not "not a git repository" (backlog 8, O3); the report's `git` stays null for both
+        gitProblem !== null
+        ? `git: unavailable (${gitProblem})`
+        : "git: not a git repository",
   );
   log("");
 

@@ -24,7 +24,8 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push(`| Started | ${report.startedAt} |`);
   lines.push(`| Finished | ${report.finishedAt} |`);
   lines.push(`| Duration | ${formatDuration(report.durationMs)} |`);
-  lines.push(`| Git commit | ${cell(report.git?.commit ?? "(not a git repository / no commit)")} |`);
+  // `git: null` is also what a git that failed leaves (the report carries no reason; the console line does): do not say more than is known
+  lines.push(`| Git commit | ${cell(report.git?.commit ?? "(not a git repository, git unavailable, or no commit)")} |`);
   lines.push(`| Git branch | ${cell(report.git?.branch ?? "-")} |`);
   lines.push(`| Working tree | ${report.git ? describeDirty(report.git.dirty) : "-"} |`);
   lines.push(`| Exit code | ${report.exitCode} |`);

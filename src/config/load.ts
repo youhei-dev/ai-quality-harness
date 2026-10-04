@@ -218,11 +218,16 @@ export function realpathNearest(p: string, label = "path"): string {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code ?? "unknown";
     throw new ConfigError(
-      `${label} cannot be resolved: ${p} — ${existing} is a symbolic link whose target does not exist (${code}). ` +
+      `${label} cannot be resolved: ${atEntry(p, existing)} is a symbolic link whose target does not exist (${code}). ` +
         "Create the target first or change the setting.",
     );
   }
   return path.join(real, ...rest);
+}
+
+/** `<whole>` alone when the entry is the whole path, `<whole> — <entry>` when it is a part of it (the message does not repeat itself). */
+function atEntry(whole: string, entry: string): string {
+  return entry === whole ? whole : `${whole} — ${entry}`;
 }
 
 /**
@@ -238,7 +243,7 @@ function entryExists(p: string, whole: string, label: string): boolean {
     const code = (err as NodeJS.ErrnoException).code ?? "unknown";
     if (code === "ENOENT") return false;
     throw new ConfigError(
-      `${label} cannot be resolved: ${whole} — ${p} cannot be examined (${code}). ` +
+      `${label} cannot be resolved: ${atEntry(whole, p)} cannot be examined (${code}). ` +
         "Fix the permissions or change the setting.",
     );
   }

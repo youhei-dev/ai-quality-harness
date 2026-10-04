@@ -224,14 +224,20 @@ function notStarted(spawnError: string | null, interruptedBy: string | null, sta
   };
 }
 
+/**
+ * Why `dir` cannot be the working directory of a check, or null when it can. Only ENOENT is "does not exist": any other
+ * failure of stat (EACCES, ENOTDIR, ELOOP, …) is a directory that cannot be examined. The config load already refuses
+ * such paths (ADR-0022); this is the case where the path changed after the load (backlog 8, O4).
+ */
 function checkDirectory(dir: string): string | null {
   try {
     if (!statSync(dir).isDirectory()) {
       return `working directory is not a directory: ${dir}`;
     }
     return null;
-  } catch {
-    return `working directory does not exist: ${dir}`;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ENOENT" ? `working directory does not exist: ${dir}` : `working directory cannot be examined: ${dir} (${code ?? "unknown error"})`;
   }
 }
 
