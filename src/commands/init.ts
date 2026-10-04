@@ -9,7 +9,7 @@
  * Every line printed and every JSON value passes through the secret masker (M1-R1-003).
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CATEGORY_KINDS, EXIT_ERROR, EXIT_PASSED } from "../types.ts";
 import { buildRepoContext } from "../adapters/context.ts";
@@ -70,6 +70,28 @@ export function resolveAiqhOnPath(env: NodeJS.ProcessEnv = process.env): AiqhRes
 function resolvableSchemaPath(root: string): string | undefined {
   const rel = path.join("node_modules", "ai-quality-harness", "schema", "aiqh.config.schema.json");
   return existsSync(path.join(root, rel)) ? `./${rel}` : undefined;
+}
+
+/**
+ * A write goes through a symbolic link. When the link's target does not exist, writeFileSync() creates it wherever the
+ * link points, outside the project too, and existsSync() cannot tell (it is false for such a link): refused before the
+ * write (backlog 8, O7 and O8). Only ENOENT on the target makes a link dangling; any other failure is thrown as it is.
+ */
+function assertNotDanglingLink(file: string): void {
+  try {
+    if (!lstatSync(file).isSymbolicLink()) return;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+  try {
+    statSync(file);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error("it is a symbolic link whose target does not exist; remove the link or create the target first", { cause: err });
+    }
+    throw err;
+  }
 }
 
 export async function runInit(options: InitOptions): Promise<number> {
@@ -157,6 +179,7 @@ export async function runInit(options: InitOptions): Promise<number> {
       return EXIT_ERROR;
     }
     try {
+      assertNotDanglingLink(configFile);
       writeFileSync(configFile, escapeRawCharsAsJson(configText), "utf8");
       log(`wrote ${configFile}`);
     } catch (err) {
@@ -170,6 +193,7 @@ export async function runInit(options: InitOptions): Promise<number> {
     if (gitignoreProposal.needed) {
       const file = path.join(root, ".gitignore");
       try {
+        assertNotDanglingLink(file);
         const current = existsSync(file) ? readFileSync(file, "utf8") : "";
         // Three cases (M1-R3-002 → M2-0-R1-003):
         //  (a) tracked .gitignore and git says the artifact paths are not ignored (a later negation

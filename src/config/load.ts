@@ -206,7 +206,7 @@ function escapes(root: string, target: string): boolean {
 export function realpathNearest(p: string, label = "path"): string {
   let existing = p;
   const rest: string[] = [];
-  while (!entryExists(existing)) {
+  while (!entryExists(existing, p, label)) {
     const parent = path.dirname(existing);
     if (parent === existing) break; // filesystem root
     rest.unshift(path.basename(existing));
@@ -225,12 +225,21 @@ export function realpathNearest(p: string, label = "path"): string {
   return path.join(real, ...rest);
 }
 
-/** lstat-based existence check: true for files, directories and (dangling) symlinks. */
-function entryExists(p: string): boolean {
+/**
+ * lstat-based existence check: true for files, directories and (dangling) symlinks; false only for ENOENT. Any other
+ * failure (EACCES, ENOTDIR, ELOOP, …) means the entry cannot be examined, so the containment of `whole` would be judged
+ * without seeing it (a symbolic link behind a directory that cannot be traversed): a ConfigError, never "absent".
+ */
+function entryExists(p: string, whole: string, label: string): boolean {
   try {
     lstatSync(p);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "unknown";
+    if (code === "ENOENT") return false;
+    throw new ConfigError(
+      `${label} cannot be resolved: ${whole} — ${p} cannot be examined (${code}). ` +
+        "Fix the permissions or change the setting.",
+    );
   }
 }
