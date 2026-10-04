@@ -25,6 +25,9 @@ function reviewPacketCommand(): Command {
   return cmd;
 }
 
+/** The short aliases review-packet registers (src/cli-program.ts). An option that is not listed has none. */
+const SHORT_ALIASES: Readonly<Record<string, string>> = { output: "-o", config: "-c" };
+
 /** What the command registers but the inventory does not decide (and the reverse). Empty = consistent. */
 function inventoryMismatch(cmd: Command): string[] {
   const keys = new Set(Object.keys(OPTION_INVENTORY));
@@ -34,8 +37,26 @@ function inventoryMismatch(cmd: Command): string[] {
     if (!keys.has(name)) out.push(`option ${o.flags} (${name}${o.hidden ? ", hidden" : ""}${o.long === undefined ? ", short-only" : ""}) is not in OPTION_INVENTORY`);
   }
   for (const k of keys) if (!cmd.options.some((o) => o.attributeName() === k)) out.push(`OPTION_INVENTORY.${k} is not registered`);
+  // The short alias (M2-2-R1-002): the long name is the key above, so only the short name is left to compare.
+  for (const o of cmd.options) {
+    if (!keys.has(o.attributeName())) continue;
+    if ((o.short ?? "") !== (SHORT_ALIASES[o.attributeName()] ?? "")) out.push(`option ${o.flags}: short alias ${o.short ?? "(none)"} is not SHORT_ALIASES.${o.attributeName()} (${SHORT_ALIASES[o.attributeName()] ?? "(none)"})`);
+  }
   for (const a of cmd.registeredArguments) out.push(`positional argument ${a.name()} is not in OPTION_INVENTORY`);
   return out.sort();
+}
+
+/** Options whose value does not fit their handling. Empty = consistent. Only the arity is read: `<x>` is required, `[x]` is optional, a flag has neither. */
+function arityMismatch(cmd: Command): string[] {
+  return cmd.options.flatMap((o) => {
+    const handling = OPTION_INVENTORY[o.attributeName() as keyof typeof OPTION_INVENTORY].handling;
+    const takesValue = o.required || o.optional;
+    if (handling === "flag") return takesValue ? [`${o.flags}: a flag takes no value`] : [];
+    if (!takesValue) return [`${o.flags}: ${handling} takes a value`];
+    if (!o.required) return [`${o.flags}: ${handling} takes a required value, not an optional one`];
+    if (handling === "number" && o.parseArg === undefined) return [`${o.flags}: a number needs a parser`];
+    return [];
+  });
 }
 
 describe("M2-1-R3-005: the option inventory against the Command object", () => {
@@ -55,16 +76,38 @@ describe("M2-1-R3-005: the option inventory against the Command object", () => {
     ]);
   });
 
-  it("each option's arity matches its handling (flags take no value, numbers have a parser, the rest take a value)", () => {
-    const wrong = reviewPacketCommand().options.flatMap((o) => {
-      const handling = OPTION_INVENTORY[o.attributeName() as keyof typeof OPTION_INVENTORY].handling;
-      const takesValue = o.required || o.optional;
-      if (handling === "flag") return takesValue ? [`${o.flags}: a flag takes no value`] : [];
-      if (!takesValue) return [`${o.flags}: ${handling} takes a value`];
-      if (handling === "number" && o.parseArg === undefined) return [`${o.flags}: a number needs a parser`];
-      return [];
-    });
-    expect(wrong).toEqual([]);
+  it("a short alias that is renamed, removed, added or moved is reported (M2-2-R1-002)", () => {
+    const reshape = (long: string, short: string | undefined): ((cmd: Command) => void) => (cmd) => {
+      const o = cmd.options.find((x) => x.long === long);
+      if (o === undefined) throw new Error(`no ${long}`);
+      o.short = short;
+    };
+    const mismatch = (...edits: Array<(cmd: Command) => void>): string[] => {
+      const cmd = reviewPacketCommand();
+      for (const edit of edits) edit(cmd);
+      return inventoryMismatch(cmd);
+    };
+    expect(mismatch(reshape("--output", "-p"))).toEqual(["option -o, --output <file>: short alias -p is not SHORT_ALIASES.output (-o)"]);
+    expect(mismatch(reshape("--config", undefined))).toEqual(["option -c, --config <path>: short alias (none) is not SHORT_ALIASES.config (-c)"]);
+    expect(mismatch(reshape("--json", "-j"))).toEqual(["option --json: short alias -j is not SHORT_ALIASES.json ((none))"]);
+    expect(mismatch(reshape("--output", undefined), reshape("--zip-output", "-o"))).toEqual([
+      "option -o, --output <file>: short alias (none) is not SHORT_ALIASES.output (-o)",
+      "option --zip-output <file>: short alias -o is not SHORT_ALIASES.zipOutput ((none))",
+    ].sort());
+  });
+
+  it("each option's arity matches its handling (flags take no value, numbers have a parser, the rest take a required value)", () => {
+    expect(arityMismatch(reviewPacketCommand())).toEqual([]);
+  });
+
+  it("an option whose value became optional (`<file>` -> `[file]`) is reported (M2-2-R1-002)", () => {
+    const cmd = reviewPacketCommand();
+    const output = cmd.options.find((x) => x.long === "--output");
+    if (output === undefined) throw new Error("no --output");
+    output.required = false;
+    output.optional = true;
+    output.flags = "-o, --output [file]";
+    expect(arityMismatch(cmd)).toEqual(["-o, --output [file]: rendered takes a required value, not an optional one"]);
   });
 
   it("review-packet takes no positional argument, and an unknown option is a usage error (exit 2)", () => {
