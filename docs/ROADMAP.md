@@ -436,7 +436,16 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - 既存テストの期待値の変更は 0 件。新しいテスト 22 件（`tests/regression-backlog8b-p3-resolve-commit.test.ts` 8 件、`tests/regression-backlog8b-p4-temporary-file-listing.test.ts` 5 件、`tests/regression-backlog8b-p11-version.test.ts` 9 件）。テスト 1,474 → 1,496 件（119 → 122 ファイル）
   - ADR-0022 に追記（新規 ADR は作らない。決定 7、範囲の B、代替案、既知の限界、影響）。独立レビューは付けない（人間の判断）
   - 見つけて直していないこと: O2 のメッセージの重複（`<path>` と `<entry>`）は、O4 と一緒に C・D で決める
-- 次: バックログから選ぶ（未定。バックログ 8 の残りは C〈O3・O4・O5・O9〉→ D〈O6〉の順で、ADR-0022 の規則で扱う）。v0.5.30 の push・タグ（人間の承認）が先（v0.5.29 は push・タグ済み: commit 7cbc674 / tag object 14bbbdc）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
+- v0.5.31: **バックログ 8 の C グループ（O3・O4・O5・O9）を実装**（`src/` は 7 ファイル +128／−24。SP1 で 4 項目を実 CLI で再現し、一時 worktree で試作・全テストと自己 verify を実行し、人間の決定の後に実装した。lock・依存関係・`tests/structure/`・禁止文字の集合は変えていない）
+  - O3: `getGitInfo()` は git の失敗をすべて null にし、verify は `git: not a git repository`、review-packet は `does not name a commit` / `not inside a git work tree` と書いていた（git が実行できない・timeout・exit 128 でも。verdict は変わらない）。`lookupGit()` を新設し（`getGitInfo()` は同じ署名のまま）、
+    git の「違う」と git の失敗を分ける（ADR-0022 決定 8）。verify は `git: unavailable (<理由>)`、報告の JSON の `git` は null のまま、Markdown のセルは `(not a git repository, git unavailable, or no commit)`。review-packet は git の「違う」なら従来の文、それ以外は git の 1 行を添える（B の P3 が回した失敗の文言）
+  - O4: `checkDirectory()` は ENOENT だけ `does not exist`、他は `working directory cannot be examined: <dir> (<code>)`（読込の後でパスが変わった場合。check は FAIL のまま、exit 1）。O5: `proposeGitignore()` の `existsSync()` を lstat の判定に（ENOENT だけ「無い」。リンクは「ある」）。
+    O9: init の root を stat で分類し、辿れないとき `directory cannot be examined`、通常ファイルのとき `not a directory`（**exit 0 → 2**）
+  - O2 の文面の重複を解消（`<entry>` が `<path>` と同じなら `— <entry>` を付けない）。**既存テストの期待値 1 件の変更**（人間の承認）: `regression-backlog8a-o2-untraversable-path.test.ts` の EACCES の `output.dir` の正規表現
+  - 実測: 新しいテスト 48 件は v0.5.30 の `src/` に当てると 26 件が FAIL（残りの 22 件は対照）。git の 3 つの失敗（実行不能・exit 128・timeout）が `git: unavailable (…)` になり、通常ファイルの `init --cwd` が exit 0 → 2。テスト 1,496 → 1,544 件（122 → 125 ファイル）
+  - 利用者に見える変更（CHANGELOG・README・ARCHITECTURE・CONFIG_SPEC・ADR-0022 に書いた）。`== 1` の注意は不要（1 → 2 のケースは無い）。ADR-0022 に追記（新規 ADR は作らない）。独立レビューは付けない（人間の判断）
+  - 見つけて直していないこと: 項目 24（`security-scan --cwd <存在しない>` の文言）、項目 25（`HEAD`・ブランチの個別の失敗の表示）。バックログ 8 の残りは D（O6）
+- 次: バックログから選ぶ（未定。バックログ 8 の残りは D〈O6〉だけで、ADR-0022 の規則で扱う）。v0.5.31 の push・タグ（人間の承認）が先（v0.5.30 は push・タグ済み: commit ddeb297 / tag object 4aca365）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -490,9 +499,9 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 8. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
    ~~O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）~~
    （**O2・O7・O8 は v0.5.29 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、
-   ~~P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）~~（**P3・P11 は v0.5.30 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、O3（git の失敗を「not a git repository」と記述）、
-   O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・~~P4（書き込みの失敗の後の一時ファイルの一覧）~~（**P4 は v0.5.30 で解消**）。
-   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: ~~B（P3・P11・P4）~~（**v0.5.30 で解消**）、C（O3・O4・O5・O9）、D（O6）。順序は A → B → C → D
+   ~~P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）~~（**P3・P11 は v0.5.30 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、~~O3（git の失敗を「not a git repository」と記述）~~（**O3 は v0.5.31 で解消**）、
+   ~~O4・O5・O9（記述だけの問題）~~（**O4・O5・O9 は v0.5.31 で解消**。O9 は記述だけでなく、通常ファイルの root が exit 0 で監査されていた）、O6（アダプタの検出）・~~P4（書き込みの失敗の後の一時ファイルの一覧）~~（**P4 は v0.5.30 で解消**）。
+   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: ~~B（P3・P11・P4）~~（**v0.5.30 で解消**）、~~C（O3・O4・O5・O9）~~（**v0.5.31 で解消**）、D（O6）。順序は A → B → C → D（残りは D だけ）
 9. ~~**ファイルへの出力の禁止文字**~~（**v0.5.24 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
@@ -545,6 +554,12 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    `aiqh init --write --force` は、`aiqh.config.jsonc` がプロジェクトの外の既存ファイルへの symlink なら、そのファイルを上書きする（実測: 3 B → 2,218 B）。`--write-gitignore` は、`.gitignore` が外の既存ファイルへの symlink なら、
    そのファイルに追記する（実測: 14 → 25 B）。`--force` なしの `--write` は already exists で拒否する。直すなら、書込先が symlink のとき（すべて、または根の外を指すものだけ）の扱いを決める
    （dotfile の管理などで共有ファイルへの symlink にしている既存の使い方を壊しうる）。ADR-0022 の既知の限界。この版では直さない
+24. **`security-scan --cwd <存在しないディレクトリ>` の文言が、cwd の ENOENT を git のせいに見せる**（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O9 と同じ形で、root の分類が無い）。
+   `aiqh security-scan --cwd <存在しない>` は `not a git repository (or git failed): <root> (spawnSync git ENOENT)` で exit 2（`src/security/scan.ts` の 166 行付近。ENOENT は git ではなく cwd のもの）。
+   親が権限 000・通常ファイルの場合は `config file could not be read: … (EACCES …)` で正確（実測）。直すなら、init の root（O9）と同じく、root を ENOENT・辿れない・ディレクトリでない、に分けて早い段階で言う。ADR-0022 の既知の限界。この版では直さない
+25. **`rev-parse HEAD`・ブランチの個別の失敗が `(no commit)`・`(detached)` と表示される**（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O3 の残り）。
+   verify の `git:` の行と報告で、`git rev-parse HEAD` の失敗が `commit` null → `(no commit)`、ブランチを得る 2 つの呼び出しの失敗が `branch` null → `(detached)` になる（shim で実測）。
+   コミット 0 件のリポジトリでは本当に HEAD が無いので、区別するには stderr の判定が要る。直すなら、O3 の分類（ADR-0022 決定 8）を `HEAD`・ブランチにも広げ、`dirty` の `unknown`（R-009）と同じ形で `unknown` と表示する。ADR-0022 の既知の限界。この版では直さない
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）

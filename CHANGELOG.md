@@ -5,7 +5,34 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.30 — Backlog 8 B (P3, P11, P4): an unreadable input is not absent — the ref is read once, a leftover temporary file is named, and a version that cannot be read is exit 2（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.30` / `git rev-parse v0.5.30` で確認し、次の release commit で記入）
+## v0.5.31 — Backlog 8 C (O3, O4, O5, O9): a failure is not "no" — git that cannot answer, a working directory that cannot be examined, a .gitignore or .git that is a link, and a root that is not a directory（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.31` / `git rev-parse v0.5.31` で確認し、次の release commit で記入）
+
+- **バックログ 8 の C グループ（O3・O4・O5・O9）を解消**（`src/` は 7 ファイル +128／−24: `src/git/info.ts` +48／−9、`src/commands/init.ts` +38／−4、`src/review/packet.ts` +19／−3、`src/runner/execute.ts` +8／−2、`src/config/load.ts` +7／−2、`src/commands/verify.ts` +6／−3、`src/report/markdown.ts` +2／−1。
+  SP1 で 4 項目を実 CLI で再現し、一時 worktree での試作・全テストと自己 verify の実行を行い、人間の決定の後に実装した〈C1〜C3 の 3 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
+  独立レビューは付けない〈人間の判断。判定を緩める変更ではなく、強める側だけ〉）。新しい ADR は作らず、ADR-0022 に追記した（決定 8、範囲の C）
+  - **利用者に見える変更**:
+    - **verify**: git が実行できない・timeout・失敗（「違う」以外の終了）のとき、標準出力は `git: unavailable (<理由>)`（`git could not be run (<code>)`・`git timed out after 10 s`・`git exited <N>: <git の 1 行>`）。以前は `git: not a git repository`。git が「違う」と答えたときは従来のまま。
+      **報告の JSON の `git` は null のまま**（契約は変わらない）。Markdown のセルは `(not a git repository, git unavailable, or no commit)`。終了コードは変わらない
+    - **review-packet**: git が ref の解決・work-tree の確認で失敗したとき、git の 1 行つきのメッセージ（`--range: <side> revision "<ref>" could not be resolved (git exit N: …)`、`could not tell whether <cwd> is inside a git work tree (git exit N: …)`。以前は `does not name a commit` / `not inside a git work tree`）。
+      git の「違う」（無効な ref、非リポジトリ）の文は従来のまま。終了コードは 2 のまま
+    - **check の cwd**: 読込の後で辿れなくなったとき（権限の変更、通常ファイルへの置き換え、symlink の輪）は `working directory cannot be examined: <dir> (<code>)`（以前は `does not exist`）。ENOENT だけ `does not exist`。check は FAIL のまま（verify は exit 1）
+    - **init**: root が辿れないとき `directory cannot be examined: <root> (<code>)`（以前は `directory not found`）、**通常ファイルのときは `not a directory: <root>` で exit 2**（以前は exit 0 で、ファイルをリポジトリとして監査した）。
+      提案の説明が、dangling や輪の `.gitignore`・`.git` を「無い」「not a git repository」と言わない（`.gitignore cannot be examined (<code>): …`、または git の判断。dry-run の終了コードは 0 のまま）
+    - **設定の読込のエラー（O2）**: `<path> — <entry> cannot be examined` で同じパスが 2 回出ていた文面を 1 回にした（終了コードは 2 のまま）
+    - **CI への影響**: `== 1` の注意は不要（1 → 2 のケースは無い）。終了コードが変わるのは、通常ファイルを `--cwd` に渡した init の 0 → 2 だけ
+  - O3: `lookupGit()`（`getGitInfo()` は同じ署名のまま）が、git の「違う」（`rev-parse --verify --quiet` の exit 1、`rev-parse --is-inside-work-tree` の `false` または exit 128 の `fatal: not a git repository`）と git の失敗を分ける。`resolveCommit()` と work-tree の確認も同じ規則（B の P3 が回した失敗の文言）
+  - O4: `checkDirectory()` は ENOENT だけ `does not exist`、他の stat の失敗は `cannot be examined (<code>)`（ENOTDIR も後者）。O5: `proposeGitignore()` の `existsSync()` を lstat の判定（`entryState`）に。O9: `runInit()` の root を stat で分類（`describeRootProblem`）
+  - 実測（実 CLI、v0.5.30 → この版）: git が実行できない・exit 128（shim）・timeout の 3 ケースで `git: not a git repository` → `git: unavailable (…)`、報告の `git` は null のまま、verify は exit 0。非リポジトリと git 自身の「違う」は変わらない。
+    読込の後で権限が変わる cwd・置き換わる cwd・symlink の輪の 3 ケースが `does not exist` → `cannot be examined (EACCES / ENOTDIR / ELOOP)`、exit 1 のまま。通常ファイルの `init --cwd` が exit 0 → 2。dangling `.git` の audit の行と提案の説明の食い違いが解消した
+  - 既存テストの期待値の変更は **1 件**（`tests/regression-backlog8a-o2-untraversable-path.test.ts` の EACCES の `output.dir` の正規表現。O2 の文面の重複の解消に伴う。人間の承認）。ほかの既存テストは変更なしで通る。
+    新しいテスト 48 件（`tests/regression-backlog8c-o3-git-failure.test.ts` 21 件、`…-o4-cwd-examination.test.ts` 9 件、`…-o5-o9-init-examination.test.ts` 18 件）。v0.5.30 の `src/` に当てると 26 件が FAIL（残りの 22 件は対照）。最小 PATH の実行（`unit-minpath`）でも通る（テストの外部コマンドは node と git だけ）
+  - 見つけて直していないこと（ADR-0022 の既知の限界）: `rev-parse HEAD`・ブランチの個別の失敗が `(no commit)`・`(detached)` と表示される（ROADMAP の項目 25）。`security-scan --cwd <存在しないディレクトリ>` の文言が ENOENT を git のせいに見せる（項目 24）。
+    バックログ 8 の残り（D: O6）は直していない
+- docs: ADR-0022（追記: 決定 8、範囲の C、決定 2・5 の更新、既知の限界、影響）、ARCHITECTURE（git 情報、init の行）、CONFIG_SPEC（§4 規則 7、§5.3c）、README、ROADMAP（項目 8 の O3・O4・O5・O9 を解消、v0.5.31 の記録、「次:」の更新、項目 24・25 を追加。番号は詰めない）、CHANGELOG
+- テスト 1,544 件（125 ファイル。1,496 ＋ 48）。`package.json` version 0.5.31（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.30 の見出しに commit ddeb297 / tag object 4aca365 を記入した
+
+## v0.5.30 — commit ddeb297 / tag object 4aca365 — Backlog 8 B (P3, P11, P4): an unreadable input is not absent — the ref is read once, a leftover temporary file is named, and a version that cannot be read is exit 2
 
 - **バックログ 8 の B グループ（P3・P11・P4）を解消**（`src/cli.ts` +14／−12、`src/commands/review-packet.ts` +3／−2、`src/review/packet.ts` +13／−5。SP1 で 3 項目の試作と全テスト・自己 verify の実行を行い、人間の決定の後に実装した〈C1〜C3 の 3 commit〉。
   lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは付けない〈人間の判断。判定を緩める変更ではなく、強める側だけ〉）。新しい ADR は作らず、ADR-0022 に追記した
