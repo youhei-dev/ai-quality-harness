@@ -418,7 +418,16 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - 既存テストの期待値の変更は 0。変えたのは検査の関数: option-inventory テストの arity の検査を関数 `arityMismatch` に出して必須の値を求める条件を足し、そのテストの名前の文言を "required value" にした（assertion は同じ）。external-commands テストの `LIMIT` の宣言は、新しい限界 1 件のために複数行にした（既存の 1 件は同一）。新しいテスト 16 件（1,433 → 1,449 件、117 ファイル）。v0.5.27 のガード・検査に新しいテストを当てると、option-inventory で 2 件、`FA` で 4 件、external-commands で 1 件（8 行の報告が欠ける）が FAIL
   - 新しく見つけた限界（直さない）: `skipIf` の条件の向きを読まない（`skipIf(hasPython)` でも `guarded`。バックログ 22、特性テスト `f21_inverted_skipif`）。`null | undefined` を含むコールバック引数（`.then(inlineCode)`）へ描画関数を渡す形は報告される（識別子では v0.5.27 から。保守的な動作として残す。ADR-0014）
   - 利用者に見える変更は無い。独立レビューは付けない（人間の判断）。新しい ADR は作らず、ADR-0014 を更新した
-- 次: バックログから選ぶ（未定）。v0.5.28 の push・タグ（人間の承認）が先。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
+- v0.5.29: **バックログ 8 の A グループ（O2・O7・O8）を実装**（`src/config/load.ts` +14／−5、`src/commands/init.ts` +25／−1。SP1 で 3 項目を実 CLI で再現し、一時 worktree で試作・全テストと自己 verify を実行し、人間の承認の後に実装した。lock・依存関係・`tests/structure/`・禁止文字の集合は変えていない）
+  - O2: `realpathNearest()` が使う `entryExists()` は、lstat の失敗をすべて「無い」として親へ上がっていた。ENOENT だけを「無い」にし、EACCES・ENOTDIR・ELOOP などは `ConfigError`（読込で exit 2。check は走らず、レポートも書かない）にした。ENOTDIR も拒否する（人間の判断）
+  - O7・O8: `init --write`・`--write-gitignore` が、dangling symlink の先に新しくファイルを作り、`wrote …` と表示して exit 0 だった（プロジェクトの外にも。`--force` でも、リンク先が根の中でも）。書込の直前に `assertNotDanglingLink` で拒否する（exit 2、既存の `failed to write` / `failed to update` の形。`--force` でも拒否）
+  - 実測（実 CLI、v0.5.28 → v0.5.29）: `cwd` が辿れないディレクトリ・通常ファイルの下: 読込を通る（check の FAIL、exit 1）→ 読込で exit 2。`output.dir`: check を全部走らせた後の report write error（exit 2）→ 早い configuration error（exit 2）。dangling な設定・`.gitignore` への書込: exit 0 でリンク先を作る → exit 2 で何も作らない。
+    対照（未作成の `output.dir`、存在しない `cwd` の check FAIL、根の中の symlink、書込フラグなしの init、symlink の輪）は変わらない。生の禁止文字・秘密様の文字列が新しいメッセージに出ないことを、実 CLI で確かめた
+  - 利用者に見える変更（CHANGELOG・README・CONFIG_SPEC・ARCHITECTURE に書いた）: `cwd` のケースは exit 1 → 2（`== 1` だけを失敗とみなす CI は、そのケースが失敗扱いでなくなる。`!= 0` で見る）。init の dangling 拒否は 0 → 2
+  - 既存テストの期待値の変更は 0 件。新しいテスト 25 件（`tests/regression-backlog8a-o2-untraversable-path.test.ts` 12 件、`tests/regression-backlog8a-o7-o8-init-dangling-link.test.ts` 13 件。v0.5.28 の `src/` に当てると 15 件が FAIL）。テスト 1,449 → 1,474 件（117 → 119 ファイル）
+  - ADR-0022 を新設（規則: ENOENT だけが「無い」。ENOTDIR を拒否する理由、`targetIdentity` との違い、代替案、既知の限界）。独立レビューは付けない（人間の判断。判定を緩める変更ではなく、強める側だけ）
+  - 見つけて直していないこと: 有効な symlink への `--force` 上書き・追記（バックログ 23）。`proposeGitignore` の提案文（O5）は C グループに残す
+- 次: バックログから選ぶ（未定。バックログ 8 の残りは B〈P3・P11・P4〉→ C〈O3・O4・O5・O9〉→ D〈O6〉の順で、ADR-0022 の規則で扱う）。v0.5.29 の push・タグ（人間の承認）が先（v0.5.28 は push・タグ済み: commit b988e8a / tag object 9d2acf7）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -470,9 +479,11 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    v0.5.1 では保証の記述を「PATH の名前解決で起動する、宣言していないコマンドを検出する」に狭めた（README・ARCHITECTURE）
 7. ~~**M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**~~（**v0.5.28 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
 8. **読めないものを「無い」とする残りの箇所**（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
-   O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）、
+   ~~O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）~~
+   （**O2・O7・O8 は v0.5.29 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、
    P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）、O3（git の失敗を「not a git repository」と記述）、
-   O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・P4（書き込みの失敗の後の一時ファイルの一覧）
+   O4・O5・O9（記述だけの問題）、O6（アダプタの検出）・P4（書き込みの失敗の後の一時ファイルの一覧）。
+   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: B（P3・P11・P4）、C（O3・O4・O5・O9）、D（O6）。順序は A → B → C → D
 9. ~~**ファイルへの出力の禁止文字**~~（**v0.5.24 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
@@ -521,6 +532,10 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 22. **process-guard が `skipIf` の条件の向きを読まない**（v0.5.28 の SP1 で見つけた。重要度は記載なし）。`skipIf(hasPython)`（python3 があると飛ばす）の中の python3 の起動も `guarded` と
    判定する（条件に probe の変数が現れればよく、`!` や `skipIf` / `runIf` の向きを見ない）。現在の `tests/` にこの形は無い。特性テスト `f21_inverted_skipif`
    （`tests/regression-m2-2-r3-006-external-commands.test.ts`）が現状を固定している。直すなら条件の向き（`skipIf(!has)` と `runIf(has)` だけを許可）を読む。ADR-0014 の既知の限界。この版では直さない
+23. **有効な symlink への `--force` 上書き・追記が、プロジェクトの外の既存ファイルに書く**（v0.5.29 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O7・O8〈dangling symlink に限る〉の範囲外）。
+   `aiqh init --write --force` は、`aiqh.config.jsonc` がプロジェクトの外の既存ファイルへの symlink なら、そのファイルを上書きする（実測: 3 B → 2,218 B）。`--write-gitignore` は、`.gitignore` が外の既存ファイルへの symlink なら、
+   そのファイルに追記する（実測: 14 → 25 B）。`--force` なしの `--write` は already exists で拒否する。直すなら、書込先が symlink のとき（すべて、または根の外を指すものだけ）の扱いを決める
+   （dotfile の管理などで共有ファイルへの symlink にしている既存の使い方を壊しうる）。ADR-0022 の既知の限界。この版では直さない
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）

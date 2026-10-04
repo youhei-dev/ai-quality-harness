@@ -138,7 +138,7 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 4. `checks` が 1 件以上であること
 5. `checks[].name` が一意であり、パターン `^[a-z0-9][a-z0-9-]*$` に合致すること
 6. `checks[].command` が空白のみでないこと
-7. `checks[].cwd` を解決した結果がプロジェクトルート内であること。字句上の判定に加えて realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合もエラー（`output.dir` も同様。未作成のパスは存在する最も近いエントリで判定）。途中に dangling symlink（リンク先が未作成）がある場合は解決先を検証できないため、リンク先がルート内向きでもエラー（「解決先が存在しない。先に作成するか設定を見直す」）。cwd 自体が存在しない通常のディレクトリの場合は読込時エラーではなく、その check を FAIL とする
+7. `checks[].cwd` を解決した結果がプロジェクトルート内であること。字句上の判定に加えて realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合もエラー（`output.dir` も同様。未作成のパスは存在する最も近いエントリで判定）。途中に dangling symlink（リンク先が未作成）がある場合は解決先を検証できないため、リンク先がルート内向きでもエラー（「解決先が存在しない。先に作成するか設定を見直す」）。途中のエントリを**調べられない**場合（権限で辿れないディレクトリ〈EACCES〉、通常ファイルの下を通る指定〈ENOTDIR〉、symlink の輪〈ELOOP〉など、lstat の失敗が ENOENT 以外）も、解決先を検証できないためエラー（`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>)`。読込時のエラーなので、check は走らず、レポートも書かない。v0.5.29、ADR-0022）。cwd 自体が存在しない（ENOENT）通常のディレクトリの場合は読込時エラーではなく、その check を FAIL とする
 8. `timeoutSec` が正の整数であること
 9. `required: true` の check が 1 件以上あること（必須チェックが 0 件の設定は「常に PASS」になり fail closed に反するため）
 10. 未知のフィールドがないこと
@@ -250,6 +250,12 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 複数フラグを同時に指定して一部だけ失敗した場合は、`git status` / `git diff` で書き込まれたものを確認して対処する。
 `--write` は生成した JSONC を `aiqh verify` と同じパーサ / リゾルバに通し、通らない場合（required 0 件、重複名、空コマンド等）は
 何も書かずに exit 2 になる（M1-R1-006）。
+
+`--write`・`--write-gitignore` は、書込先（`aiqh.config.jsonc`・`.gitignore`）が **dangling symlink**（リンク先が未作成）のとき、リンク先を作らずに拒否する
+（`aiqh init: failed to write <file>: it is a symbolic link whose target does not exist; remove the link or create the target first` /
+`aiqh init: failed to update <file>: …`、exit 2。`--force` でも拒否する。他のファイルの書込は取り消されない。v0.5.29、ADR-0022）。
+リンク先が存在する symlink は従来どおり書込の対象で（`--write` は `--force` なしでは already exists、`--force` ではリンク先を上書き、`.gitignore` は追記）、
+リンク先がプロジェクトの外でも書く（ROADMAP のバックログ 23。直していない）。
 
 `.gitignore` の `artifacts/` 提案は Security Scan と同じ `git check-ignore --no-index` の判定で決める（M1-R2-005）: 代表パス
 `artifacts/.aiqh-ignore-probe` がリポジトリ内 `.gitignore` の非否定ルールで ignore されていれば「already ignores」、そうでなければ

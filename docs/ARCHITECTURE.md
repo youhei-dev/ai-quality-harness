@@ -80,7 +80,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗 / 使い方エラー（ADR-0021） |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能 / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
@@ -194,7 +194,7 @@ aiqh init
   全アダプタの detect() → 分類ごとに「採用（最初の available）/ 代替 / unavailable（理由・有効化案内）」
    ▼
   監査表 + aiqh.config.jsonc 案（コメント付き JSONC）+ 追加提案（.gitignore の artifacts/、scripts.verify）
-   ▼ --write（既存があれば exit 2、--force で上書き）/ --write-gitignore / --write-scripts
+   ▼ --write（既存があれば exit 2、--force で上書き）/ --write-gitignore / --write-scripts（書込先が dangling symlink なら exit 2、ADR-0022）
   書込（config は 1 ファイル。scripts は未定義キーのみ追加）
 
 aiqh security-scan
@@ -445,6 +445,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **パスの包含判定**: `cwd` と `output.dir` はプロジェクトルート内に制限する。字句上の判定に加え、
   realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合は設定エラーにする（R-005）。
   祖先探索は `lstat` ベースで、dangling symlink（リンク先が未作成）は解決できないため安全側に設定エラーとする（R2-003）。
+  祖先探索で調べられないエントリ（lstat の失敗が ENOENT 以外: 権限で辿れないディレクトリの EACCES、通常ファイルの下の ENOTDIR、symlink の輪の ELOOP など）に当たったときも、
+  判定を盲目にしないため設定エラーにする（「無い」とするのは ENOENT だけ。v0.5.29、ADR-0022）。読込のエラーなので終了コードは 2 で、check は走らず、レポートも書かない
+  （この 2 は、ADR-0021 の使い方エラーとは別の、設定エラー・書込失敗の 2）。
 - **配布の受入テスト**: 自己 verify の `package` チェック（`scripts/package-smoke.ts`）が `npm pack` → 一時ディレクトリへ
   install → `npx --no-install aiqh verify` を毎回実行し、bin / shebang / `files` / 実行時依存 / version を検証する（R2-005）。
 - **出力のマスク**: レポートに書く全ての文字列値はパターンマスクを通す。値そのものは保存しない（ADR-0006）。
@@ -523,7 +526,7 @@ verify の実行結果について、終了コードと最終行の文言は 1 �
 |---|---|---|---|
 | 全必須チェック PASS | 0 | `VERIFY PASSED — …` | 書く |
 | 必須チェックに FAIL / SKIPPED あり | 1 | `VERIFY FAILED — …` | 書く |
-| 設定ファイル不在・不正 | 2 | `VERIFY ERROR (configuration error)` | 書かない |
+| 設定ファイル不在・不正（`cwd`・`output.dir` の途中のエントリを調べられない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外 | 2 | `VERIFY ERROR (internal error)` | 書かない |
 | 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
