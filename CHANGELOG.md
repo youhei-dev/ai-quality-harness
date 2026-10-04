@@ -5,7 +5,30 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.28 — Backlog 3, 7 and 4: the test guards see short aliases, renderers reached through a member, and probes that are calls（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.28` / `git rev-parse v0.5.28` で確認し、次の release commit で記入）
+## v0.5.29 — Backlog 8 A (O2, O7, O8): only ENOENT is absent in the path containment, and init refuses a dangling symlink（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.29` / `git rev-parse v0.5.29` で確認し、次の release commit で記入）
+
+- **バックログ 8 の A グループ（O2・O7・O8）を解消**（`src/config/load.ts` +14／−5、`src/commands/init.ts` +25／−1。SP1 で 3 項目を実 CLI で再現し、一時 worktree での試作・全テストと自己 verify の実行を行い、人間の承認の後に実装した〈C1〜C3 の 3 commit〉。
+  lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは付けない〈人間の判断。判定を緩める変更ではなく、強める側だけ〉）。ADR-0022 を新設した
+  - **利用者に見える変更**:
+    - verify: 権限で辿れないディレクトリ、または通常ファイルの下を通る `checks[].cwd`・`output.dir`（lstat の失敗が ENOENT 以外のもの）は、**読込で exit 2**（`VERIFY ERROR (configuration error)`。check は走らず、レポートも書かない）。
+      `cwd` のケースは **exit 1 → 2**（以前は読込を通り、check が "working directory does not exist" で FAIL した）。`output.dir` は、check を全部走らせた後の report write error（exit 2）から、早い configuration error（exit 2）になる。
+      symlink の輪（ELOOP）と、根の外の辿れないディレクトリへの symlink のメッセージも変わる（終了コードは 2 のまま）
+    - init: 書込先（`aiqh.config.jsonc`・`.gitignore`）が dangling symlink（リンク先が未作成）のとき、`--write`・`--write-gitignore` は、何も作らず **exit 2**（`--force` でも。リンク先がプロジェクトの外でも中でも）。以前は、リンク先に新しくファイルを作り、`wrote …` と表示して exit 0 だった
+    - 変わらない: 未作成の `output.dir`、存在しない（ENOENT）`cwd` の check FAIL（exit 1）、根の中を指す symlink、書込フラグなしの init、リンク先が存在する symlink への書込
+  - **CI への影響**: `== 1` だけを失敗とみなす CI は、`cwd` が辿れない・通常ファイルの下を通る設定を失敗として扱わなくなる（exit 1 から 2 になる）。**`!= 0` で見ること**（ADR-0021 と同じ注意）。
+    既存の設定への影響: 権限のないディレクトリや通常ファイルを通る `cwd`・`output.dir` は、今までも実行時に失敗していたが、設定の誤りとして読込で分かる。init は対話の道具で、CI への影響は小さい（推測）
+  - O2: `realpathNearest()` が使う `entryExists()` は、lstat の失敗をすべて「無い」として親へ上がっていた。ENOENT だけを「無い」にし、他は `ConfigError`（`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>)`）にした。ENOTDIR も拒否する（人間の判断）
+  - O7・O8: 補助関数 `assertNotDanglingLink` を、設定の書込と `.gitignore` の追記の、書込の直前に呼ぶ（lstat でリンクか → リンクなら stat が ENOENT のとき `Error`。既存の `failed to write` / `failed to update` の形で、exit 2）。書く内容・書く関数・外側の関数は変えていない
+  - 実測（実 CLI、v0.5.28 → v0.5.29）: O2 の 7 ケース（辿れないディレクトリの `output.dir`・`cwd`、通常ファイルの下、根の外を指す symlink が辿れないディレクトリの中にある、読める・辿れない）はすべて読込で exit 2、check は 1 つも走らない。
+    O7・O8 の dangling 8 ケース（外・中・`--force`・先の親なし・git リポジトリ・両方）はすべて exit 2 で何も作らない。対照は変わらない。パスに ESC・U+202E・DEL と秘密様の名前を含めても、生の禁止文字・秘密様の文字列は出力に 0
+  - 既存テストの期待値の変更は 0 件。新しいテスト 25 件（`tests/regression-backlog8a-o2-untraversable-path.test.ts` 12 件、`tests/regression-backlog8a-o7-o8-init-dangling-link.test.ts` 13 件）。v0.5.28 の `src/` に当てると 15 件が FAIL（残りの 10 件は対照）
+  - 見つけて直していないこと（ADR-0022 の既知の限界）: 有効な symlink への `--force` 上書き・追記は、プロジェクトの外の既存ファイルにも書く（ROADMAP のバックログ 23）。`proposeGitignore` の提案文（O5）は、dangling でも「no .gitignore」と書く（C グループ）。
+    バックログ 8 の残り（B: P3・P11・P4、C: O3・O4・O5・O9、D: O6）は直していない
+- docs: ADR-0022（新規）と ADR の索引、CONFIG_SPEC（§4 規則 7、§5.3c）、README、ARCHITECTURE（§6.1b、コマンド表の init、パスの包含判定、§10 の終了コード表）、ROADMAP（項目 8 の O2・O7・O8 を解消、v0.5.29 の記録、古い「次:」の修正、項目 23 を追加。番号は詰めない）、CHANGELOG
+- テスト 1,474 件（119 ファイル。1,449 ＋ 25）。`package.json` version 0.5.29（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.28 の見出しに commit b988e8a / tag object 9d2acf7 を記入した
+
+## v0.5.28 — commit b988e8a / tag object 9d2acf7 — Backlog 3, 7 and 4: the test guards see short aliases, renderers reached through a member, and probes that are calls
 
 - **バックログ 3・7・4（M2-2-R1-002・004・003）を解消**（テスト基盤の強化。**`src/` の差分は 0 行**。`tests/structure/` は `brand-guard.ts` +23／−1 と `process-guard.ts` +25／−12 の 2 ファイルだけ〈人間の承認〉。
   SP1 で 3 項目の調査と、一時 worktree での試作・全テストと自己 verify の実行を行い、人間の承認の後に実装した〈C1〜C5 の 5 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉は変えていない。
