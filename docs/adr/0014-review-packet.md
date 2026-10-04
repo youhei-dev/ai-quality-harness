@@ -97,9 +97,18 @@ M2-0 R3 のパケットには、生文字を直す commit の差分として生�
     brand を含む入れ物を書き込める素の型へ広げること、`@ts-` 指示、`md` のタグ以外の使い方を報告する。② 実行時の登録簿: `checkValue` を通った文字列と
     描画関数が作った `Md` をプロセス内で登録し、描画関数・`md`・組み立て（`Builder`）・ZIP のエントリ名が登録を確かめる（無ければ `UncheckedValueError`、exit 2）。
     残る限界: 登録済みと同じ内容の文字列は通る（その内容は検査済み）。登録簿はプロセスの中で増える一方。規則に無い型の穴は構造テストで見つからないが、実行時の確認で止まる。
-    描画関数を素の文字列を取る関数型へアサーションしてから呼ぶ形は、規則 `widened-renderer` で検出する（3 形で確認）が、回帰テストの fixture に無く、
-    `hasBrand` は関数のシグネチャを辿らない。実行時の確認で止まる（M2-2-R1-004。v0.5.1 の記録）。テストの外部コマンドのガード（`tests/structure/process-guard.ts`）は、
-    1 つの変数に複数のツールの probe を混ぜた形（例: python3 と unzip の OR）を、その中の各ツールの probe として誤って許可する（M2-2-R1-003、確認済み。v0.5.1 の記録）。
+    描画関数を素の文字列を取る関数型へアサーションしてから呼ぶ形（`as (s: string) => Md`、`as unknown as …`、型の別名）は、規則 `widened-renderer` で検出し、
+    v0.5.28 で回帰テストの fixture（`regression-m2-2-builtin-r3-allow-branches.test.ts` の群 `FA`）を足した（M2-2-R1-004）。同じ版で、それまで見逃していた 3 形
+    （名前空間のメンバー `PKG.inlineCode`、オブジェクトのプロパティ `o.r`、引数が `string | Checked` の関数型）も検出するようにした（`tests/structure/brand-guard.ts`:
+    プロパティ・要素アクセスにも識別子と同じ判定を適用し、文脈の関数型が素の文字列を受ける場合を報告する。報告を増やす側だけで、型で新たに許可する経路は足していない。
+    ADR-0019 決定 7〈許可の根拠に型を使うのは表の 2 つだけで、ほかの型の情報は違反を見つけるために使う〉に反しない）。`hasBrand` が関数のシグネチャを辿らないことは変わらず、実行時の確認でも止まる。残る既知の誤検出: `null | undefined` を含む
+    コールバック引数（`Promise.then(inlineCode)`、`.then(PKG.inlineCode)`）へ描画関数を渡す形は、文脈の型が呼び出しシグネチャを持たないため報告される（識別子の場合は
+    v0.5.27 でも同じ。保守的な動作として残し、ガードは緩めない。fixture `fa12`・`fa13` が固定している）。テストの外部コマンドのガード（`tests/structure/process-guard.ts`）は、
+    v0.5.27 まで、`skipIf` / `runIf` の条件の変数が tool 名を文字列として含めば probe とみなしていたため、複数のツールの probe を OR・AND で混ぜた変数、tool 名だけを持つ変数
+    （`const note = "python3"`）、名前の配列が、その中の各ツールの probe として許可されていた（M2-2-R1-003。v0.5.1 で確認、v0.5.28 で直した）。いまは、probe は「そのツールだけを
+    起動する child_process の呼び出し」を初期値に持つ変数で、1 変数 1 ツール。複数のツールを起動する変数は、probe の呼び出しが違反になる（`probe variable mixes tools`）。
+    tool 名を渡すだけで起動しない補助関数で書いた probe は、probe とみなさない。残る限界: `skipIf` の条件の向きは読まないので、`skipIf(hasPython)`（python3 があると飛ばす）の中の
+    python3 の起動も `guarded` になる（v0.5.28 の SP1 で発見。特性テスト `f21_inverted_skipif` が固定している。ROADMAP のバックログ 22）。
     finding のある値は文字列でない `Rejected` になり、描画にも git にも渡せない（ADR-0015）。描画関数（`inlineCode`・`cellCode`・`renderPath`・平文用の
     `plainOrCode`）と ZIP のエントリ名は `Checked` だけを受け取る。(b) パケットの本文は `md` タグ付きテンプレートで組み立て、埋め込めるのは描画関数を通した
     断片（`Md`）と数値だけにする（文字列は、`Checked` でも LF やバッククォートを含み得るため直接は埋め込めない）。これにより描画関数を通らない値は型エラーになる。
@@ -108,8 +117,10 @@ M2-0 R3 のパケットには、生文字を直す commit の差分として生�
     数値 / フラグ）を 1 か所で書き、描画する値の検査はこの一覧から行う（`buildPacket` が受け取る `Checked` の値は、ここからしか得られない）。
     一覧は、`src/cli-program.ts` が副作用なしに作る review-packet の commander の `Command` オブジェクトと比べる（v0.5.0、M2-1-R3-005）: `options` の属性名
     （非表示〈`hideHelp`〉・short-only を含む）が一覧のキーと一致し、位置引数（`registeredArguments`）が無く、各オプションの値の有無が扱い（flag / 数値 / 値）と合う。
-    v0.4.3 までは `--help` の文字列を解析していたため、非表示と short-only のオプション、位置引数は対象外だった。比較が見るのは `attributeName`・位置引数・
-    値の有無（arity）だけで、既存のオプションの short 別名の変更・削除は検出しない（M2-2-R1-002、確認済み。v0.5.1 の記録）。`src/cli-program.ts` は import しても
+    v0.4.3 までは `--help` の文字列を解析していたため、非表示と short-only のオプション、位置引数は対象外だった。v0.5.27 までの比較は `attributeName`・位置引数・
+    値の有無（arity）だけを見て、既存のオプションの short 別名の変更・削除・追加・移動と、値の必須から任意への変更（`<file>` → `[file]`）は差分 0 だった（M2-2-R1-002。
+    v0.5.1 で確認）。v0.5.28 から short 別名も比べる: long 名は一覧のキーなので、テストの中の表 `SHORT_ALIASES`（output は `-o`、config は `-c`。表に無いオプションは別名なし）と
+    `Command` の `short` を比べ、値を取るオプションは必須の値（`<x>`）でなければならない。一覧（`src/`）は変えていない。`src/cli-program.ts` は import しても
     解析・出力・シグナルの登録・終了をしない（`src/cli.ts` が版の読込・シグナル・解析を行う）
 
 ## 代替案

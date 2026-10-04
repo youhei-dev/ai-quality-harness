@@ -502,8 +502,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   出力は出所・行・分類またはコードポイントのみ。git はシェルを経由せず引数配列で呼び、パスは `-z` で読む。書き込みはパケットと ZIP の 2 段階
   （準備 → 確定。確定点の前の失敗は戻し、後の退避削除の失敗は警告）
 - **テストが起動する外部コマンド（M2-1-R2-004 / R3-006）**: テストが起動してよいのは git と node（`process.execPath`）で、unzip / python3 は
-  その有無を確かめる probe と、それを条件にした `skipIf` / `runIf` の中だけ。`tests/structure/process-guard.ts`（型情報付き）が child_process の宣言に
-  解決される呼び出しをすべて調べる。文字列の中からの起動（`node -e` のスクリプトなど）は静的には見えない。自己 verify の `unit-minpath`
+  その有無を確かめる probe と、それを条件にした `skipIf` / `runIf` の中だけ。probe は「そのツールだけを起動する child_process の呼び出し」を初期値に持つ変数 1 つにつき
+  1 ツールで、複数のツールを起動する変数と、tool 名を文字列として含むだけの変数は probe ではない（v0.5.28、M2-2-R1-003。`skipIf` の条件の向きは読まない。ADR-0014）。
+  `tests/structure/process-guard.ts`（型情報付き）が child_process の宣言に解決される呼び出しをすべて調べる。文字列の中からの起動（`node -e` のスクリプトなど）は静的には見えない。自己 verify の `unit-minpath`
   （`scripts/test-minimal-path.ts`: PATH を node と git の symlink だけを置いた一時ディレクトリにして全テストを実行、終了後に削除）は、そのうち
   **PATH の名前解決で起動する、宣言していないコマンド**を検出する（v0.5.1 で保証の記述を狭めた。M2-2-R1-005・006）: 絶対パスでの起動は防がない。
   環境変数は PATH 以外を引き継ぐ。単独で実行してシグナルを受けたとき、止めるのは vitest の直接の子プロセスだけ（自己 verify の中では runner が
