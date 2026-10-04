@@ -193,7 +193,24 @@ const BD: Record<string, Case> = {
   bd04_widen_depth_return_statement: { reported: false, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { a: { b: { c: { d: { e: { v: Checked } } } } } }): { a: { b: { c: { d: { e: { v: string } } } } } } => {\n  return c;\n};\n` },
 };
 
-const GROUPS: Record<string, Record<string, Case>> = { R1, R2, R3, R4, R5, R6, R7, R8, XC, XB, EE, BD };
+/** M2-2-R1-004: a renderer asserted to a function type that takes a plain string, then called (widened-renderer). fa01–fa03 were reported since v0.5.1; fa04–fa06 (a namespace member, a property of an object, `string | Checked`) were not until v0.5.28; fa07 `string | number`; fa12–fa13 are the conservative report of a renderer passed to a callback that may be null or undefined (a false positive that is kept, ADR-0014); fa08–fa11 are controls */
+const FA: Record<string, Case> = {
+  fa01_as_function_type: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nexport const f = (): Md => (inlineCode as (s: string) => Md)(raw);\n` },
+  fa02_as_unknown_function_type: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nexport const f = (): Md => (inlineCode as unknown as (s: string) => Md)(raw);\n` },
+  fa03_type_alias: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\ntype F = (s: string) => Md;\nexport const f = (): Md => (inlineCode as F)(raw);\n` },
+  fa04_namespace_member: { reported: true, src: `import * as PKG from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nexport const f = (): PKG.Md => (PKG.inlineCode as (s: string) => PKG.Md)(raw);\n` },
+  fa05_property_of_object: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nconst o = { r: inlineCode };\nexport const f = (): Md => (o.r as (s: string) => Md)(raw);\n` },
+  fa06_union_with_checked: { reported: true, src: `import { type Checked } from "../../../src/review/checked.ts";\nimport { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nexport const f = (): Md => (inlineCode as (s: string | Checked) => Md)(raw);\n` },
+  fa07_union_with_number: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nconst raw: string = String(Date.now());\nexport const f = (): Md => (inlineCode as (s: string | number) => Md)(raw);\n` },
+  fa12_member_to_optional_callback: { reported: true, src: `import * as PKG from "../../../src/review/packet.ts";\nimport { type Checked } from "../../../src/review/checked.ts";\nexport const f = (c: Checked): Promise<PKG.Md> => Promise.resolve(c).then(PKG.inlineCode);\n` },
+  fa13_identifier_to_optional_callback: { reported: true, src: `import { inlineCode, type Md } from "../../../src/review/packet.ts";\nimport { type Checked } from "../../../src/review/checked.ts";\nexport const f = (c: Checked): Promise<Md> => Promise.resolve(c).then(inlineCode);\n` },
+  fa08_control_branded_function_type: { reported: false, src: `import { type Checked } from "../../../src/review/checked.ts";\nimport { inlineCode, type Md } from "../../../src/review/packet.ts";\nexport const f = (c: Checked): Md => (inlineCode as (s: Checked) => Md)(c);\n` },
+  fa09_control_member_to_branded_type: { reported: false, src: `import * as PKG from "../../../src/review/packet.ts";\nimport { type Checked } from "../../../src/review/checked.ts";\nexport const g: (s: Checked) => PKG.Md = PKG.inlineCode;\n` },
+  fa10_control_member_without_context: { reported: false, src: `import * as PKG from "../../../src/review/packet.ts";\nexport const h = PKG.inlineCode;\nexport const o = { r: PKG.inlineCode };\nexport const r = o.r;\n` },
+  fa11_control_extra_plain_parameter: { reported: false, src: `import { type Checked } from "../../../src/review/checked.ts";\nimport { type Md } from "../../../src/review/packet.ts";\ndeclare const render: (c: Checked, label: string) => Md;\nexport const g: (c: Checked, label: string) => Md = render;\nexport const o = { render };\nexport const g2: (c: Checked, label: string) => Md = o.render;\n` },
+};
+
+const GROUPS: Record<string, Record<string, Case>> = { R1, R2, R3, R4, R5, R6, R7, R8, XC, XB, EE, BD, FA };
 const TITLES: Record<string, string> = {
   R1: "R3-001: a writer of src/output.ts calls exactly its own terminal member with one argument that is Safe in every branch",
   R2: "R3-002: a writer / a creator of a brand is the top-level declaration of that name, not a local one of the same name (also K2: the callers of the issuers)",
@@ -207,6 +224,7 @@ const TITLES: Record<string, string> = {
   XB: "wrappers that change only the static type (as const, satisfies, !, parentheses)",
   EE: "EventEmitter `this`: a direct listener that uses `this` is reported (R5-003); a listener in a record is a known limit (ee07); controls",
   BD: "K3: widening of a branded container (known limit: not reported)",
+  FA: "M2-2-R1-004: a renderer asserted to a function type that takes a plain string, or reached through a member access (reported); controls",
 };
 
 const all = Object.entries(GROUPS).flatMap(([g, cases]) => Object.entries(cases).map(([id, c]) => ({ g, id, c })));

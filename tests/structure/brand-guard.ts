@@ -67,6 +67,19 @@ function takesBrand(checker: ts.TypeChecker, t: ts.Type): boolean {
   return t.getCallSignatures().some((s) => s.getParameters().some((p) => hasBrand(checker, checker.getTypeOfSymbol(p))));
 }
 
+/** The contextual function type takes a plain string where the function itself takes a brand (`(s: string | Checked) => Md`): hasBrand sees `Checked` in it, takesBrand alone would call it branded. */
+function widensBrandParameter(checker: ts.TypeChecker, source: ts.Type, target: ts.Type): boolean {
+  const str = checker.getStringType();
+  return source.getCallSignatures().some((s) =>
+    target.getCallSignatures().some((t) =>
+      s.getParameters().some((sp, i) => {
+        const tp = t.getParameters()[i];
+        return tp !== undefined && hasBrand(checker, checker.getTypeOfSymbol(sp)) && checker.isTypeAssignableTo(str, checker.getTypeOfSymbol(tp));
+      }),
+    ),
+  );
+}
+
 function enclosingFunction(node: ts.Node): ts.SignatureDeclaration | undefined {
   for (let n: ts.Node | undefined = node.parent; n !== undefined; n = n.parent) if (ts.isFunctionLike(n)) return n;
   return undefined;
@@ -136,7 +149,16 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         }
         if (!declaration && !callee && takesBrand(checker, checker.getTypeAtLocation(n))) {
           const ctx = checker.getContextualType(n);
-          if (ctx !== undefined && !takesBrand(checker, ctx)) add(n, "widened-renderer");
+          if (ctx !== undefined && (!takesBrand(checker, ctx) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
+        }
+      }
+      // a member access that yields a renderer (PKG.inlineCode, o.r): the identifier branch above skips the name of a property access (M2-2-R1-004)
+      if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && !inTypePosition(n)) {
+        const parent = n.parent;
+        const callee = (ts.isCallExpression(parent) && parent.expression === n) || (ts.isTaggedTemplateExpression(parent) && parent.tag === n);
+        if (!callee && takesBrand(checker, checker.getTypeAtLocation(n))) {
+          const ctx = checker.getContextualType(n);
+          if (ctx !== undefined && (!takesBrand(checker, ctx) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
         }
       }
       if (ts.isExpression(n) && !inTypePosition(n)) {
