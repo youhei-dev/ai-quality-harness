@@ -91,6 +91,12 @@ export interface ExecutionResult {
   interruptedBy: string | null;
   /** Set when the process could not be started at all (missing cwd, spawn error). */
   spawnError: string | null;
+  /**
+   * Set only when the command was terminated (timeout / interruption) and its process group was still present after SIGKILL and the
+   * bounded wait for it to disappear (backlog 16): the clean-up is not confirmed. `killError` is the errno code when no signal could
+   * be delivered at all (e.g. "EPERM"). Absent when the group is gone (or the command ended on its own).
+   */
+  terminationUnconfirmed?: { waitedMs: number; killError: string | null };
   stdout: string;
   stderr: string;
   stdoutTruncated: boolean;

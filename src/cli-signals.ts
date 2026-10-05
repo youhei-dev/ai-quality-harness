@@ -32,3 +32,9 @@ export function swapSignalHandlers(from: SignalHandlers, to: SignalHandlers, opt
     process.off(signal, from[signal]);
   }
 }
+
+/**
+ * The CLI forces its exit this long after the kill grace period when the clean-up has not finished (src/cli.ts). The runner's own
+ * bound (DEFAULT_CONFIRM_MS after SIGKILL, src/runner/execute.ts) must end before it; the backlog 16 test pins the relation.
+ */
+export const SAFETY_VALVE_EXTRA_MS = 3_000;

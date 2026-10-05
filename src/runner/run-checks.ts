@@ -78,11 +78,14 @@ export function toCheckResult(check: ResolvedCheck, exec: ExecutionResult): Chec
   if (exec.interruptedBy !== null) {
     // R3-002: a check interrupted before or while running produced no result -> SKIPPED with the reason.
     // R4-002: the raw facts of the execution (timedOut, output truncation, signal, output tails) are kept.
-    const ran = exec.startedAt !== null && (exec.stdout.length > 0 || exec.stderr.length > 0 || exec.signal !== null);
+    // An unconfirmed clean-up proves the process ran, even when it wrote nothing and ended without a signal (backlog 16).
+    const ran =
+      exec.startedAt !== null &&
+      (exec.stdout.length > 0 || exec.stderr.length > 0 || exec.signal !== null || exec.terminationUnconfirmed !== undefined);
     const skipped = skippedResult(
       check,
       ran
-        ? `interrupted by ${exec.interruptedBy} while running (process group terminated${exec.timedOut ? "; timeout had already been reached" : ""})`
+        ? `interrupted by ${exec.interruptedBy} while running (${terminationNote(exec)}${exec.timedOut ? "; timeout had already been reached" : ""})`
         : `skipped: run interrupted by ${exec.interruptedBy}`,
     );
     return {
@@ -140,12 +143,21 @@ function skippedResult(check: ResolvedCheck, reason: string): CheckResult {
   };
 }
 
+/** How the clean-up of a timed-out or interrupted command ended (backlog 16): confirmed, or not confirmed within the bound. */
+function terminationNote(exec: ExecutionResult): string {
+  const u = exec.terminationUnconfirmed;
+  if (u === undefined) return "process group terminated";
+  return u.killError === null
+    ? `process group still present ${u.waitedMs}ms after SIGKILL`
+    : `process group could not be signalled (${u.killError}) and was still present after ${u.waitedMs}ms`;
+}
+
 function summarizeFailure(check: ResolvedCheck, exec: ExecutionResult): string {
   if (exec.spawnError !== null) {
     return `failed to start: ${exec.spawnError}`;
   }
   if (exec.timedOut) {
-    return `timed out after ${check.timeoutSec}s (process group terminated)`;
+    return `timed out after ${check.timeoutSec}s (${terminationNote(exec)})`;
   }
   if (exec.exitCode === null) {
     return `terminated by signal ${exec.signal ?? "unknown"}`;

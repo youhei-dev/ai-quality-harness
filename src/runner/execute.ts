@@ -12,6 +12,8 @@ export interface ExecuteOptions {
   maxOutputBytes?: number;
   /** Grace period between SIGTERM and SIGKILL on timeout / interruption. Default 5000 ms. */
   killGraceMs?: number;
+  /** Longest wait for the process group to disappear after SIGKILL (and for `close` after the group is gone). Default 2000 ms. */
+  confirmMs?: number;
   /** The environment of the caller, the base of the check's environment; checkEnv() is applied to it (default: process.env). */
   env?: NodeJS.ProcessEnv;
   /**
@@ -24,8 +26,11 @@ export interface ExecuteOptions {
 
 const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KILL_GRACE_MS = 5_000;
+/** Longest wait for a terminated group to disappear (backlog 16). With the kill grace period it must end before the CLI's safety valve (src/cli-signals.ts). */
+const DEFAULT_CONFIRM_MS = 2_000;
+const CONFIRM_POLL_MS = 25;
 
-export { DEFAULT_KILL_GRACE_MS };
+export { DEFAULT_KILL_GRACE_MS, DEFAULT_CONFIRM_MS };
 
 /** Children currently running, with the process-group id saved at spawn time. */
 const activeChildren = new Map<ChildProcess, number | undefined>();
@@ -83,6 +88,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
   const startedAt = new Date();
   const maxBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
+  const confirmMs = options.confirmMs ?? DEFAULT_CONFIRM_MS;
 
   // R3-002: never start a new process once the run has been interrupted.
   if (options.signal?.aborted) {
@@ -99,9 +105,15 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     const stderr = new OutputBuffer(maxBytes);
     let timedOut = false;
     let interruptedBy: string | null = null;
-    let sigkillSent = false;
     let settled = false;
     let killTimer: NodeJS.Timeout | null = null;
+    let pollTimer: NodeJS.Timeout | null = null;
+    /** When SIGKILL was sent (null before): the bounded wait for the group to disappear counts from here. */
+    let sigkillSentAt: number | null = null;
+    /** When the group was first seen gone while `close` was still pending (a descendant outside the group may hold the pipes). */
+    let goneAt: number | null = null;
+    /** errno code of the first signal that could be delivered neither to the group nor to the child (e.g. "EPERM"). */
+    let killError: string | null = null;
     let closeResult: Pick<ExecutionResult, "exitCode" | "signal"> | null = null;
 
     let child: ChildProcess;
@@ -125,23 +137,51 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
-    /** Settle once the process closed AND (not terminated by us | SIGKILL sent | group gone). */
-    const tryFinish = (): void => {
-      if (closeResult === null) return;
-      if ((timedOut || interruptedBy !== null) && !sigkillSent && groupAlive(pgid)) return;
-      finish({ ...closeResult, timedOut, spawnError: null });
+    const send = (signal: NodeJS.Signals): void => {
+      const failure = killTree(child, pgid, signal);
+      if (failure !== null && killError === null) killError = failure;
     };
 
-    // Clean-up lifecycle (R2-002): SIGTERM → grace → SIGKILL → group gone. The promise does not
-    // settle on the leader's `close` alone while the group is still alive, and the timers are
-    // deliberately not unref()'d so the escalation cannot be skipped by an empty event loop.
+    /**
+     * Settle a terminated command (backlog 16). Done when `close` has fired AND the group is gone. Bounded: after SIGKILL (or, when
+     * `close` is pending although the group is gone, after the group was first seen gone) at most `confirmMs` more is waited; then the
+     * result is settled anyway, marked as unconfirmed while the group is still present. Without this bound a descendant outside the
+     * group that keeps the pipes open (or a group that cannot be signalled) would keep the run waiting indefinitely.
+     */
+    const poll = (): void => {
+      pollTimer = null;
+      if (settled) return;
+      const gone = !groupAlive(pgid);
+      const now = Date.now();
+      if (gone && goneAt === null) goneAt = now;
+      if (gone && closeResult !== null) {
+        finish({ ...closeResult, timedOut, spawnError: null });
+        return;
+      }
+      const anchor = sigkillSentAt ?? goneAt;
+      if (anchor !== null && now - anchor >= confirmMs) {
+        // Stop waiting for `close`: release the pipes and the handle so that nothing keeps this process (or the event loop) waiting.
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+        finish(
+          { exitCode: closeResult?.exitCode ?? child.exitCode, signal: closeResult?.signal ?? child.signalCode, timedOut, spawnError: null },
+          gone ? undefined : { waitedMs: confirmMs, killError },
+        );
+        return;
+      }
+      pollTimer = setTimeout(poll, CONFIRM_POLL_MS);
+    };
+
+    // Clean-up lifecycle (R2-002, backlog 16): SIGTERM → grace → SIGKILL → group gone, confirmed within `confirmMs`. The timers are
+    // deliberately not unref'd so the escalation cannot be skipped by an empty event loop.
     const escalate = (): void => {
       if (killTimer !== null) return;
-      killTree(child, pgid, "SIGTERM");
+      send("SIGTERM");
+      pollTimer = setTimeout(poll, CONFIRM_POLL_MS);
       killTimer = setTimeout(() => {
-        killTree(child, pgid, "SIGKILL");
-        sigkillSent = true;
-        tryFinish();
+        send("SIGKILL");
+        sigkillSentAt = Date.now();
       }, killGraceMs);
     };
 
@@ -166,17 +206,20 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     const finish = (
       result: Omit<
         ExecutionResult,
-        "stdout" | "stderr" | "stdoutTruncated" | "stderrTruncated" | "startedAt" | "durationMs" | "interruptedBy"
+        "stdout" | "stderr" | "stdoutTruncated" | "stderrTruncated" | "startedAt" | "durationMs" | "interruptedBy" | "terminationUnconfirmed"
       >,
+      unconfirmed?: ExecutionResult["terminationUnconfirmed"],
     ): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
+      if (pollTimer) clearTimeout(pollTimer);
       options.signal?.removeEventListener("abort", onAbort);
       activeChildren.delete(child);
       resolve({
         ...result,
+        ...(unconfirmed === undefined ? {} : { terminationUnconfirmed: unconfirmed }),
         interruptedBy,
         stdout: stdout.toString(),
         stderr: stderr.toString(),
@@ -187,7 +230,13 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
       });
     };
 
+    // A failure to start is the only 'error' event expected before a pid exists. Signals are sent with process.kill (killTree),
+    // never child.kill, so a failed signal (EPERM) is not reported here; any other late error is remembered, not mistaken for a spawn failure.
     child.on("error", (err) => {
+      if (child.pid !== undefined) {
+        killError ??= errnoName((err as NodeJS.ErrnoException).code);
+        return;
+      }
       finish({
         exitCode: null,
         signal: null,
@@ -198,11 +247,15 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
 
     // "close" fires after stdio streams have ended, so all output has been captured. After a
     // timeout / interruption it may fire before the descendants are dead (they can close their
-    // stdio), so the escalation timer keeps running until the group is confirmed gone or SIGKILL
-    // was sent.
+    // stdio), so the run settles only when the group is gone, or at the bound of the poll above.
     child.on("close", (code, signal) => {
       closeResult = { exitCode: code, signal };
-      tryFinish();
+      if (timedOut || interruptedBy !== null) {
+        if (pollTimer !== null) clearTimeout(pollTimer);
+        poll();
+        return;
+      }
+      finish({ ...closeResult, timedOut, spawnError: null });
     });
   });
 }
@@ -242,31 +295,44 @@ function checkDirectory(dir: string): string | null {
 }
 
 /**
- * Kill the child's whole process group (POSIX), then fall back to the child alone.
- * The group kill is attempted regardless of the leader's state: after SIGTERM the shell
+ * Signal the child's whole process group (POSIX), then fall back to the child alone.
+ * The group signal is attempted regardless of the leader's state: after SIGTERM the shell
  * (group leader) may already be gone while TERM-ignoring descendants keep the group alive,
  * and the SIGKILL escalation must still reach them (R-004).
+ * Returns null when the signal was delivered or nothing is left to signal (ESRCH); otherwise the errno code of the failure (e.g.
+ * "EPERM"): the caller must not assume the process stops (backlog 2). The child is signalled with process.kill, not child.kill,
+ * because child.kill reports a failure as an 'error' event, which executeCommand would mistake for a spawn failure.
  */
-function killTree(child: ChildProcess, pgid: number | undefined, signal: NodeJS.Signals): void {
+function killTree(child: ChildProcess, pgid: number | undefined, signal: NodeJS.Signals): string | null {
+  let failure: string | null = null;
   if (process.platform !== "win32" && pgid !== undefined) {
     try {
       process.kill(-pgid, signal);
-      return;
+      return null;
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ESRCH") {
-        return; // no process left in the group
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ESRCH") {
+        return null; // no process left in the group
       }
-      // EPERM or similar: fall through to a direct kill of the child.
+      failure = errnoName(code);
+      // EPERM or similar: fall through to a direct signal to the child.
     }
   }
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
-    return;
+    return failure;
   }
   try {
-    child.kill(signal);
-  } catch {
-    // Already exited.
+    process.kill(child.pid, signal);
+    return null;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ESRCH" ? null : errnoName(code);
   }
+}
+
+/** An errno name for a message: only a short upper-case identifier, never an arbitrary string. */
+function errnoName(code: unknown): string {
+  return typeof code === "string" && /^[A-Z][A-Z0-9_]{1,15}$/.test(code) ? code : "UNKNOWN";
 }
 
 /** Byte-capped buffer that keeps the *tail* of the output. Exported for unit tests with fixed chunk boundaries. */

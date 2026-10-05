@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { buildProgram } from "./cli-program.ts";
-import { CLI_SIGNALS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
+import { CLI_SIGNALS, SAFETY_VALVE_EXTRA_MS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
 import { writeError } from "./output.ts";
 import { EXIT_ERROR, SIGNAL_EXIT_CODES } from "./types.ts";
@@ -28,7 +28,7 @@ function readVersion(): string {
 //   3. let runVerify record the remaining checks as SKIPPED and write the report,
 //   4. exit with 128 + signal number (the normal return path of the verify command).
 // A safety valve forces the exit after grace + 3 s in case something never settles.
-const SAFETY_VALVE_EXTRA_MS = 3_000;
+// SAFETY_VALVE_EXTRA_MS (src/cli-signals.ts) is 3 s: the grace period plus the runner's bounded confirmation (2 s) end before it.
 const interruption = new AbortController();
 
 /** Before the verdict is fixed: interrupt the run (R3-002) and back up the exit code (R4-001). */
