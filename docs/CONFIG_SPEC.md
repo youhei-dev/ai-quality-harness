@@ -118,7 +118,7 @@ masker（レポートのマスク）はこの判定を使わず、従来どお�
 | `command` | string | ✔ | — | 実行コマンド。shell 経由で実行（`npm run lint`、`npx tsc --noEmit`、`.venv/bin/pytest -q` 等）。空文字不可 |
 | `cwd` | string | — | `"."` | 作業ディレクトリ。プロジェクトルートからの相対パス。ルート外へ出る指定（`..` や絶対パス）はエラー |
 | `required` | boolean | — | `defaults.required` | true なら失敗で VERIFY FAILED。false なら失敗してもレポートに FAIL として残すだけ |
-| `timeoutSec` | integer | — | `defaults.timeoutSec` | 1 以上。超過時はプロセスグループを終了させ FAIL（timedOut=true） |
+| `timeoutSec` | integer | — | `defaults.timeoutSec` | 1 以上。超過時はプロセスグループを終了させ FAIL（timedOut=true）。SIGKILL の後に消えたことを確認できなければ、`errorSummary` にそう書く（終了コードは同じ。ADR-0023） |
 | `description` | string | — | — | 人間向けの説明。レポートに表示 |
 
 未知のフィールドはエラー（typo を検出するため）。

@@ -168,7 +168,7 @@ git 情報取得（commit / branch / dirty。非 git なら null。git が答え
 checks[] を設定順に順次実行
    ├─ spawn(command, { cwd, shell: true, detached: true, env })   … env = checkEnv(options.env ?? process.env) = aiqh の環境〈渡された env もこれが元〉から FORCE_COLOR・PY_COLORS を除き NO_COLOR=1 を足したもの（ADR-0020）
    ├─ stdout / stderr を蓄積（上限あり）
-   ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → status FAIL(timedOut)
+   ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → グループの消滅を確認（SIGKILL の後は最大 2 秒。ADR-0023）→ status FAIL(timedOut)
    ├─ 起動失敗（ENOENT 等）→ FAIL
    └─ exit code 0 → PASS、それ以外 → FAIL
    ▼
@@ -389,20 +389,28 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **設定は秘密を持てない**: 設定ファイルには `command` / `cwd` / `timeoutSec` 等の構造化フィールドしかなく、
   秘密値を置く場所がない。環境変数は親プロセスから継承するのみで、設定から注入しない（M1 で名前の許可リスト方式を検討）。
 - **子プロセス**: `command` は 9.1 の信頼境界に基づき shell 経由で実行する（ADR-0005）。
-- **タイムアウト後の後始末ライフサイクル**（R-004、R2-002）:
+- **タイムアウト後の後始末ライフサイクル**（R-004、R2-002、ADR-0023）:
   1. spawn 時にプロセスグループ id（= leader の pid）を保存する
   2. タイムアウト → グループへ SIGTERM（leader の生死にかかわらず `kill(-pgid)`）
   3. 猶予（既定 5 秒、`killGraceMs`）→ グループへ SIGKILL
-  4. 「SIGKILL 送信済み」または `kill(-pgid, 0)` が ESRCH（グループ消滅）を返すまで、runner の Promise は解決しない。
-     leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、SIGKILL の送信かグループの消滅まで待つ。SIGKILL の送信で解決するときは、
-     グループの消滅を確かめない。v0.5.7 で文言を実装に合わせた）
-  5. エスカレーション待ちのタイマーは `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
+  4. `close` が来て、かつ `kill(-pgid, 0)` が ESRCH（グループ消滅）を返すまで、runner の Promise は解決しない（25 ms ごとに確認する）。
+     leader の `close` だけでは解決しない（孫が stdout/stderr を閉じていても、グループの消滅まで待つ。消えたら猶予の終わりを待たずに解決する）。
+     待ちには上限がある: SIGKILL を送った後（SIGKILL の前にグループが消えたのに `close` が来ないときは、消えたと分かった時点から）最大 `confirmMs`（既定 2 秒、
+     `DEFAULT_CONFIRM_MS`）で、それでも確定しなければ pipe と子の handle を解放して確定する。このときグループが残っていれば `terminationUnconfirmed` を付け、
+     `errorSummary` は「消えていない」と書く（`process group terminated` と書くのは、消えたことを確認できたときだけ）。グループが消えていて `close` だけが来ないとき
+     （別のプロセスグループへ移った子孫が pipe を握っているなど）は、消えていないとは書かない。v0.5.33（ADR-0023）より前は、SIGKILL の送信で確定し、グループの消滅を確かめず、
+     `close` が来なければ待ち続けた（v0.5.7 で文言を実装に合わせた）
+  5. エスカレーション待ちのタイマー（猶予・確認のポーリング）は `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
+  6. シグナルはグループへ送り、ESRCH 以外で失敗したら子へ `process.kill(pid, signal)` で送る（`child.kill()` の失敗は `error` イベントになり、spawn の失敗と取り違えるため使わない）。
+     どちらにも送れない（EPERM など）ときは errno を覚え、上の 4 の打ち切りで「送れず、消えていない」と書く。`error` イベントで確定するのは、起動に失敗したとき（pid が無いとき）だけ
+  7. 別のプロセスグループへ移った子孫（`setsid` 相当）は、この仕組みでは止められない（保証の外）。macOS / Linux が対象で、Windows は対象外（M0 から変わらない）
 - **中断機構（R3-002）**: SIGINT / SIGTERM を受けた CLI は次の順で動く。
   1. `AbortController.abort(<シグナル名>)` で中断状態を立てる。この `AbortSignal` は `runVerify → runChecks → executeCommand`
      に渡されており、`runChecks` は各チェックの開始前に、`executeCommand` は spawn の直前と直後に中断を確認する。
      中断後に新しいプロセスが起動することはない
-  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認〈最大 2 秒〉。
-     実行中の `executeCommand` 自身も abort を受けて SIGTERM → 猶予 → SIGKILL を行い、上の 4 の条件で確定する〈SIGKILL の後の消滅は確かめない〉）
+  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認〈最大 2 秒〉。CLI はこれを待たない。
+     実行中の `executeCommand` 自身も abort を受けて SIGTERM → 猶予 → SIGKILL を行い、上の 4 の条件で確定する〈消滅を確認し、SIGKILL の後は最大 2 秒。
+     猶予 5 秒 + 確認 2 秒 = 7 秒は、5 の安全弁の 8 秒より前に終わる。テストで固定している〉）
   3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
      `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する。
      未実行チェックは開始表示（`$ <command>`）を出さず `[n/total] name — SKIPPED (reason)` とだけ表示する（R4-003）
@@ -432,8 +440,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
 - **中断されたチェックのレポート項目（R4-002）**: 中断されたチェックは `status: "SKIPPED"` だが、実行の事実は保持する。
   `timedOut` は「中断前にタイムアウトへ到達していたか」、`outputTruncated` は「取得済み出力が上限（メモリ 10MiB / 末尾 200 行 64KB）で
   切り詰められたか」を表し、`stdoutTail` / `stderrTail` は stdout / stderr が閉じる（`close`）までに取得した出力の末尾（中断の後、後始末の猶予の間に
-  取得できた出力を含む。runner は `close` の後、プロセスグループの消滅、または SIGKILL の送信で結果を確定し、SIGKILL の送信で確定するときはグループの消滅を
-  待たない。v0.5.6・v0.5.7 で実装に合わせて文言を直した）。`errorSummary` に中断理由（シグナル名）を書く。
+  取得できた出力を含む。runner は `close` が来て、かつグループが消えたときに結果を確定する。SIGKILL の後の待ちは最大 2 秒で、打ち切るときは pipe を解放するので、
+  それ以後に出た出力は取らない。v0.5.33〈ADR-0023〉より前は SIGKILL の送信で確定した。v0.5.6・v0.5.7 で実装に合わせて文言を直した）。`errorSummary` に中断理由（シグナル名）を書く。
   タイムアウトと中断がほぼ同時のときは、runner のイベントループで先に処理した方を先とする（中断を先に処理すると、まだ来ていないタイムアウトは取り消され、
   記録されない。`timedOut: true` は runner がタイムアウトの処理〈SIGTERM〉を実際に行ったことと一致する。v0.5.6、M2-2-FLAKE-001）
 - **exit と close の間の中断**: `executeCommand` は子の `exit` ではなく `close`（標準出力・標準エラーが閉じた後）で結果を確定する。そのため、子が OS の上では
@@ -531,7 +539,7 @@ verify の実行結果について、終了コードと最終行の文言は 1 �
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外（`package.json` の version が読めない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (internal error)` | 書かない |
 | 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
-| SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了。安全弁 8 秒 |
+| SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認（最大 2 秒。消えなかったときはレポートの `errorSummary` にそう書く。終了コードは変わらない）の後に終了。安全弁 8 秒 |
 | SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
 | SIGTERM 受信 | 143（128 + 15） | `VERIFY ERROR (interrupted by SIGTERM)` | 同上 |
 
