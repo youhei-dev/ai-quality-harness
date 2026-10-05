@@ -399,7 +399,9 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
      `DEFAULT_CONFIRM_MS`）で、それでも確定しなければ pipe と子の handle を解放して確定する。このときグループが残っていれば `terminationUnconfirmed` を付け、
      `errorSummary` は「消えていない」と書く（`process group terminated` と書くのは、消えたことを確認できたときだけ）。グループが消えていて `close` だけが来ないとき
      （別のプロセスグループへ移った子孫が pipe を握っているなど）は、消えていないとは書かない。v0.5.33（ADR-0023）より前は、SIGKILL の送信で確定し、グループの消滅を確かめず、
-     `close` が来なければ待ち続けた（v0.5.7 で文言を実装に合わせた）
+     `close` が来なければ待ち続けた（v0.5.7 で文言を実装に合わせた）。
+     一度 ESRCH を見た（signal 0 でも、グループへのシグナルの送信でも）グループには、以後 signal 0 も SIGKILL も送らない（同じ番号が別のグループに再利用されうるため。
+     `terminateActiveChildren` と記録を共有する。最初のシグナルは、まだ確認していないので確認なしで送る。v0.5.34、ADR-0023 決定 9）
   5. エスカレーション待ちのタイマー（猶予・確認のポーリング）は `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
   6. シグナルはグループへ送り、ESRCH 以外で失敗したら子へ `process.kill(pid, signal)` で送る（`child.kill()` の失敗は `error` イベントになり、spawn の失敗と取り違えるため使わない）。
      どちらにも送れない（EPERM など）ときは errno を覚え、上の 4 の打ち切りで「送れず、消えていない」と書く。`error` イベントで確定するのは、起動に失敗したとき（pid が無いとき）だけ
@@ -410,13 +412,15 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
      中断後に新しいプロセスが起動することはない
   2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認〈最大 2 秒〉。CLI はこれを待たない。
      実行中の `executeCommand` 自身も abort を受けて SIGTERM → 猶予 → SIGKILL を行い、上の 4 の条件で確定する〈消滅を確認し、SIGKILL の後は最大 2 秒。
-     猶予 5 秒 + 確認 2 秒 = 7 秒は、5 の安全弁の 8 秒より前に終わる。テストで固定している〉）
+     既定では、猶予 5 秒 + 確認 2 秒 = 7 秒が、5 の安全弁の 8 秒より 1 秒短い。これは定数の関係で、テストで固定しているのもそこまで。レポートが先に書かれる保証ではない〈5 を参照〉）
   3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
      `verdict: "ERROR"`、`interruptedBy: "SIGINT"` のレポートを書き、`VERIFY ERROR (interrupted by SIGINT)` を出力する。
      未実行チェックは開始表示（`$ <command>`）を出さず `[n/total] name — SKIPPED (reason)` とだけ表示する（R4-003）
   4. 通常の戻り値経路で 128 + シグナル番号（130 / 143）で終了する。ハンドラ内で即 `process.exit()` はしない。
      ハンドラは受信時にバックアップとして `process.exitCode = 130 / 143` を即設定する（R4-001）
-  5. 安全弁: 猶予 + 3 秒（既定 8 秒）以内に終了しなければ同じ終了コードで強制終了する
+  5. 安全弁: 猶予 + 3 秒（既定 8 秒）以内に終了しなければ同じ終了コードで強制終了する。安全弁はシグナル受信から数える最後の強制終了で、runner の確認は SIGKILL のタイマーが実際に動いた時刻から数え、
+     レポートの書き込みは runner が返った後で上限が無い。そのため、通常のスケジューリングでは runner の既定の上限が安全弁より 1 秒短いが、極端なイベントループの停止やレポート書き込みの遅れの下では、
+     レポートの完了前に安全弁が発火しうる（実測: 1.5 秒の停止で 8,018 ms に発火し、レポートは書かれなかった）。そのときも終了コードはシグナル由来の非 0（130 / 143）のままで、fail closed は保たれる（v0.5.34、ADR-0023 決定 7）
 - **検証結果（verdict）の確定点（R4-001 B 案、R5-002 / R5-003 で定義を整理）**: 全チェックの終了コードが揃った後、
   `runVerify` はイベントループを 1 周回す（`yieldFullIteration()`: `setImmediate` を 2 回 await。libuv は保留中の OS シグナルを
   **poll フェーズ**で配送するため、poll 由来の継続から 1 回だけ待つと同じ反復の check フェーズで戻り次の poll を経ない。
@@ -539,7 +543,7 @@ verify の実行結果について、終了コードと最終行の文言は 1 �
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外（`package.json` の version が読めない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (internal error)` | 書かない |
 | 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
-| SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認（最大 2 秒。消えなかったときはレポートの `errorSummary` にそう書く。終了コードは変わらない）の後に終了。安全弁 8 秒 |
+| SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認（最大 2 秒。消えなかったときはレポートの `errorSummary` にそう書く。終了コードは変わらない）の後に終了。安全弁 8 秒（最後の強制終了。極端な停止ではレポートの完了前に発火しうる。終了コードは同じ。ADR-0023 決定 7） |
 | SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
 | SIGTERM 受信 | 143（128 + 15） | `VERIFY ERROR (interrupted by SIGTERM)` | 同上 |
 

@@ -1,0 +1,267 @@
+> 収録の注記（実装者が追記した。原文ではない）: 以下は受領した原文 `independent-review-backlog-16-2-19-r1-for-claude.md`（2026-10-05 受領、18,231 バイト、LF 263・CR 0・TAB 0・U+FFFD なし）を**一字も変えずに**収録したもの。無改変の原文の SHA-256: `38894cdd6113de68a3a9603a45beac4d9ed24ea0847cc539cdf6f3ef72084cc1`。Security Scan に一致する例示行・変更した原文の行番号: なし。
+
+---
+
+# independent review — backlog 16 / 2 / 19 R1
+
+対象: `v0.5.32..v0.5.33`
+
+レビュー方法: 添付 ZIP 内の `review-packet-backlog-16-2-19.md` を読み、Diff、変更後全文、テスト、ADR-0023、ARCHITECTURE、README、CONFIG_SPEC、CHANGELOG、ROADMAP を静的に確認した。依頼どおり、対象コード・fixture・テストは実行していない。
+
+## 指摘
+
+### B16-R1-001
+
+- **ID**: B16-R1-001
+- **重要度**: High
+- **種別**: バグ
+- **対象**:
+  - `src/runner/execute.ts:65-73` (`groupAlive`)
+  - `src/runner/execute.ts:151-174` (`poll`)
+  - `src/runner/execute.ts:178-185` (`escalate`)
+  - `src/runner/execute.ts:306-330` (`killTree`)
+  - `docs/adr/0023-unconfirmed-termination-is-not-terminated.md`「既知の限界」の pgid 再利用
+- **内容**:
+
+  一度 `kill(-pgid, 0)` が `ESRCH` になって元のプロセスグループの消滅を確認した後も、その事実を不可逆に記録していません。
+
+  `poll()` は `goneAt` を記録するだけで、その後も同じ数値の `pgid` に対して `groupAlive()` を繰り返します。また、`close` がまだ来ていない場合は SIGKILL の `killTimer` も止めません。
+
+  そのため、元のグループが消えた後、同じ数値の PGID が OS に再利用されると、
+
+  1. 後続の `groupAlive(pgid)` が新しい無関係なグループを「生存中」と見る
+  2. 猶予タイマーが来れば `killTree()` が `process.kill(-pgid, "SIGKILL")` を実行する
+
+  という経路があります。
+
+  これは依頼の重要度基準にある「別のプロセスを誤って止める」に直接該当します。
+
+  ADR-0023 は PGID 再利用について「同じ id の別グループがあると 2 秒待って『消えていない』と書く、実際より悪い向きの誤り」としていますが、現在のコードでは文言が悪化するだけでなく、**再利用された別グループへ SIGKILL を送る可能性**があります。
+
+- **根拠**:
+
+  **確認済みの事実**:
+
+  - `groupAlive()` は毎回 `process.kill(-pgid, 0)` を行い、`ESRCH` 以外を alive と扱います。
+  - `poll()` は `gone === true` を初めて確認したとき `goneAt` を設定しますが、`groupGone = true` のような latch は持ちません。
+  - `gone === true` でも `closeResult === null` なら `finish()` せず、ポーリングを続けます。
+  - その時点で `killTimer` は解除されません。
+  - 猶予タイマーが発火すると、現在の `groupAlive` の結果とは無関係に `send("SIGKILL")` を行います。
+  - `killTree()` の group signal は、`pgid` が定義されている限り `process.kill(-pgid, signal)` を先に実行します。group 側には `child.exitCode` / `signalCode` の guard はありません。
+  - direct child への fallback だけは `exitCode === null && signalCode === null` のときに限られています。したがって **child.pid 再利用への guard はあるが、pgid 再利用への同等の guard はありません**。
+
+  **推測だが根拠のある部分**:
+
+  OS が、元グループの消滅を確認した後から SIGKILL タイマーまでの間に同じ数値の PGID を再利用した場合、上記の `process.kill(-pgid, "SIGKILL")` はその新しいグループを対象にします。
+
+  実際の PGID 再利用をこのレビューでは再現していません。しかしコード上、「一度 ESRCH を確認した pgid を再度 signal しない」という保護は存在しないため、成立条件は明確です。
+
+  特に「グループは消えたが `close` がまだ来ない」経路は今回明示的に追加された対象です。デフォルト値でも、グループ消滅の初回確認が SIGTERM 後 3 秒超〜5秒未満のようなタイミングなら、`goneAt + confirmMs` より先に 5秒の SIGKILL タイマーが来るため、消滅確認後の再 signal が起こり得ます。custom `killGraceMs` / `confirmMs` ではさらに起こしやすくなります。
+
+- **修正案**:
+
+  `ESRCH` により一度「元の group は消えた」と確認したら、その pgid を **不可逆に gone と latch** してください。
+
+  例えば概念的には、
+
+  - `groupGoneConfirmed` を持つ
+  - 初回 `groupAlive(pgid) === false` で true にする
+  - true になったら `killTimer` を解除し、以後その pgid へ signal 0 / SIGKILL を送らない
+  - `close` が未着なら `goneAt` から `confirmMs` だけ `close` を待つ
+  - 後から同じ数値の pgid が存在しても、それは元グループとは扱わない
+
+  とするのが安全です。
+
+  `terminateActiveChildren()` 側も snapshot した数値 pgid を grace 後まで保持するため、同じ原則で「一度 ESRCH を観測した target は以後 signal しない」という per-target state を持たせるのが望ましいです。
+
+- **確度**: **確認済み**（コード上の再 signal 経路） / 実際の OS 上の PGID 再利用タイミングだけ未再現
+
+---
+
+### B16-R1-002
+
+- **ID**: B16-R1-002
+- **重要度**: Medium
+- **種別**: 設計
+- **対象**:
+  - `src/cli.ts:35-46`（中断時の安全弁）
+  - `src/runner/execute.ts:178-185`（SIGKILL の実時刻から confirmation を開始）
+  - `src/runner/execute.ts:151-174`（confirmation）
+  - `src/cli-signals.ts:37-40`
+  - `tests/regression-backlog16-confirm-termination.test.ts:273-276`
+  - ADR-0023 決定7
+  - `docs/ARCHITECTURE.md` 中断機構 §9.2
+- **内容**:
+
+  `5秒 + 2秒 = 7秒 < 8秒` という**定数の大小関係だけでは、「runner が安全弁より先に確定し、レポートまで書ける」ことは保証できません**。
+
+  confirmation の 2秒は、予定上の「中断から5秒」の時点ではなく、実際に SIGKILL callback が実行されて `sigkillSentAt = Date.now()` になった時点から数えます。
+
+  一方 CLI の安全弁は、シグナルハンドラで中断を受けた時点から固定で `DEFAULT_KILL_GRACE_MS + 3000ms` 後に `process.exit()` します。
+
+  そのため、イベントループ負荷等で SIGKILL の timer callback が 1秒以上遅れると、runner の confirmation deadline は安全弁の 8秒より後ろへ移ります。
+
+  さらに、runner が 8秒より前に返った場合でも、その後の
+
+  - 残りチェックを SKIPPED にする処理
+  - verdict の確定
+  - レポート生成・ファイル書き込み
+
+  に使える時間は「残り約1秒」というだけで、上限はコードで保証されていません。
+
+  よって ADR-0023 の「runner が先に確認を終えて返り、レポートを書いて終了する」という表現は、実装が保証する範囲より強いです。
+
+- **根拠**:
+
+  **確認済みの事実**:
+
+  - CLI の安全弁は中断ハンドラで `setTimeout(..., DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS)` として固定されます。
+  - `SAFETY_VALVE_EXTRA_MS` は 3000ms。
+  - runner の `killTimer` は 5000ms ですが、`sigkillSentAt` は timer callback の中で、実際に `send("SIGKILL")` の後に `Date.now()` を取ります。
+  - confirmation の deadline は `now - sigkillSentAt >= confirmMs` です。
+  - テストが固定しているのは `DEFAULT_KILL_GRACE_MS + DEFAULT_CONFIRM_MS < DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS` という数値比較だけです。
+  - 安全弁 timer は report write の完了を観測して解除する実装ではなく、プロセスがそれ以前に自然終了することを期待した safety valve です。
+  - ADR-0023 自身にも、負荷下で通常より遅い値を観測した記録があります。
+
+  **推測だが根拠のある部分**:
+
+  イベントループが SIGKILL timer の予定時刻を 1秒超過して処理する、または runner 確定後の report write が残り時間を超える環境では、安全弁が先に `process.exit()` し、レポートが書かれない経路が成立します。
+
+  このレビューでは意図的にイベントループをブロックして実測していません。
+
+- **修正案**:
+
+  少なくとも文書の保証を、
+
+  > 通常のスケジューリングでは runner の既定 bound が安全弁より 1 秒短い。安全弁は最終的な強制終了であり、極端な event-loop stall や report I/O 遅延時には report 完了前に発火し得る
+
+  程度へ狭めるべきです。
+
+  実装として report をより強く保証したいなら、固定の「signal 受信 + 8秒」ではなく、
+
+  - runner の termination confirmation が完了したことを safety valve 側へ伝える
+  - その後に report 用の明示的な bounded phase を設ける
+
+  など、phase ごとの deadline に分ける必要があります。
+
+  少なくとも現在の arithmetic test を「report が安全弁より前に必ず書かれる保証」のテストとは扱わないでください。
+
+- **確度**: **確認済み**（deadline の起点と test の内容） / 実際に 8秒を超えて safety valve が先行する負荷条件は未実測
+
+---
+
+## 全体の結論
+
+**High の指摘があります。**
+
+- High: 1件 — B16-R1-001
+- Medium: 1件 — B16-R1-002
+- Low: 0件
+
+最重要は B16-R1-001 です。
+
+今回の設計の中核である「終了を確認する」処理自体は、v0.5.32 よりかなり改善されています。しかし、**一度 ESRCH で消滅を確認した数値 PGID を、その後も同じプロセスグループとして扱い続ける**ため、PGID 再利用時の安全性が逆方向になっています。
+
+ADR-0023 は PGID 再利用を「実際より悪く『まだいる』と書くだけ」と説明していますが、現在のコードでは条件次第で別グループへの SIGKILL まで到達し得るため、この記述は修正が必要です。
+
+B16-R1-002 は fail closed の破壊ではありません。安全弁が先行しても終了コードはシグナル由来の非0のままなので CI が PASS になるわけではありません。しかし、「レポートを書いて終了する」という文書上の保証は、1秒の定数差だけでは成立しません。
+
+## fail closed の確認
+
+今回読めた範囲では、`terminationUnconfirmed` により fail closed が弱まる経路は見つかりませんでした。
+
+- タイムアウト: `exec.timedOut === true` なので `CheckResult.status` は FAIL。
+- 中断: `exec.interruptedBy !== null` なので CheckResult は SKIPPED、run 全体は従来どおり ERROR / 130 / 143 の経路。
+- `terminationUnconfirmed` は `CheckResult` の JSON/Markdown field へ追加されず、`errorSummary` の文言決定にだけ使われます。
+- `toCheckResult()` の PASS 判定は `spawnError === null && !timedOut && exitCode === 0` であり、unconfirmed cleanup は timeout / interruption の後にしか生成されないため、新しく PASS になる経路は確認できません。
+- optional (`required: false`) check の FAIL が overall PASSED を妨げないのは既存の明示仕様であり、今回 `terminationUnconfirmed` が新しくそれを作ったものではありません。
+- 中断された check が SKIPPED になるのも既存仕様で、CLI verdict は ERROR のままです。
+
+## 二重確定・タイマー・リソースの確認
+
+明確な二重確定バグは見つかりませんでした。
+
+- `finish()` 冒頭の `if (settled) return` が二重 resolve を防ぐ。
+- `finish()` は timeout / kill / poll timer を解除し、abort listener を外す。
+- confirmation 打ち切りでは stdout / stderr を `destroy()` し、child を `unref()` した後に `finish()`。
+- 後から `close` が来ても、その中の `poll()` は `settled` を見て即 return する。
+- `pollTimer` は callback の冒頭で null にし、`close` 時には既存 poll timer を clear してから同期的に `poll()` する。
+- v0.5.32 の EPERM 模擬で問題になった「`child.kill()` が同期的に error を emit → killTimer 代入前に finish」の経路は、現コードが direct fallback に `process.kill()` を使い、signal failure を例外として `killTree()` 内で受けるため、その形では解消している。
+
+ただし B16-R1-001 のとおり、「group gone を latch しない」点はタイマー・識別子管理の別の問題として残ります。
+
+## EPERM 模擬について
+
+パケットだけから読む限り、今回確認したい outcome を検証する模擬としては概ね妥当です。
+
+- 現実装が使う `process.kill()` の EPERM は「同期的に throw」として模擬している。
+- 旧 `child.kill()` の性質を見るため、`ChildProcess.prototype.kill` は error event を emit し false を返す形も置いている。
+- signal 0 は real `process.kill` へ流し、実 child/group の生存確認まで偽装していない。
+- EPERM 後に child/group が実際に生きていることを signal 0 で確認している。
+
+本物の EPERM は未再現なので、OS / libuv / Node バージョン固有の event ordering や errno 差は未確認です。
+
+また、新しい実装自体は `ChildProcess.kill()` を使わないため、`ChildProcess.prototype.kill` の mock は「旧経路との差」を表す補助です。現実装の核心は `process.kill` mock の方です。
+
+## テストの質
+
+全体として改善されています。
+
+- abort は ready marker 後に行い、単純な sleep 依存を減らしている。
+- 孫は temp marker 消滅で自分から終了するため、製品側 cleanup が壊れても無制限に残りにくい。
+- CLI helpers に 25秒 timeout + SIGKILL を付け、30秒の test timeout より前に止める。
+- `stopper` / `afterEach` の既存 cleanup と組み合わせている。
+- v0.5.32 で deterministic fail 8件、export-only 1件、race-dependent guard 1件という区別も文書に明記されている。
+
+「SIGKILL path: group is gone when run settles」は旧版との差を必ず再現するテストではありませんが、**修正版で今後壊してはいけない post-condition を固定する guard**としては妥当です。
+
+ただし B16-R1-001 の「ESRCH を一度観測した後、同じ pgid を再 signal しない」という invariant は現在テストされていません。修正時は、実 OS の PID 再利用を待つテストではなく、`process.kill` の mock で
+
+1. signal 0 が一度 ESRCH
+2. その後同じ pgid が別 group として存在するような応答
+3. SIGKILL がその pgid に送られない
+
+ことを決定的に検証するのが適しています。
+
+## 文書とコード
+
+B16-R1-001 と B16-R1-002 を除けば、大きな食い違いは見つかりませんでした。
+
+特に次はコードと一致しています。
+
+- `terminationUnconfirmed` は内部 `ExecutionResult` にだけあり `CheckResult` にはコピーしない。
+- 確認できなかったときだけ `errorSummary` が変わる。
+- timeout の status は FAIL のまま。
+- interrupted は SKIPPED / verdict ERROR のまま。
+- `killError` に外部 error message は入れず errno identifier だけを制限して使う。
+- Windows の `groupAlive` false 分岐は変更していない。
+- 別 process group へ移った子孫は保証外。
+- DEFAULT_CONFIRM_MS は config / CLI option にせず `ExecuteOptions` internal option のみ。
+- `SAFETY_VALVE_EXTRA_MS` の値は 3000ms のまま `src/cli-signals.ts` へ移動している。
+- 文書中で SAFETY_VALVE_EXTRA_MS の参照先は `src/cli-signals.ts` に更新されており、旧 `src/cli.ts` を定義元として説明する残りは確認できませんでした。
+
+## 未確認範囲
+
+1. **コード・fixture・テストは一切実行していません。**
+2. 実際の macOS / Linux で PGID が再利用されるまで待つ再現はしていません。B16-R1-001 はコードの state transition と POSIX の数値 PGID 再利用可能性からの判断です。
+3. 本物の EPERM は再現していません。パケットにも未再現と明記されています。
+4. event-loop を1秒以上意図的に block して CLI safety valve と confirmation の競合を実測していません。
+5. slow filesystem 等で report write が1秒を超える実測もしていません。
+6. Windows は対象外という前提で、Windows behavior は評価していません。
+7. 別 process group へ移った子孫を停止できないことは明示的な範囲外として、新規指摘にはしていません。
+8. backlog 5 と backlog 19(c) は依頼どおり今回の実装範囲外として、新規欠陥扱いにはしていません。
+9. パケットに含まれていない依存ライブラリ内部や OS kernel implementation の詳細までは確認していません。
+
+## 見たが問題なしと判断した観点
+
+- **観点2**: 二重確定、`settled` guard、poll/kill/timeout timer の通常の解除、`close` 後の再 entry、pipe destroy / child.unref の順序について、B16-R1-001 以外の明確な欠陥は見つからない。
+- **観点4**: EPERM 模擬は、`process.kill` の同期 throw と旧 `ChildProcess.kill` の error-event 経路を区別しており、今回の回帰目的には概ね妥当。本物の EPERM 固有差は未確認。
+- **観点5**: fail closed の status / verdict / exit code は弱まっていない。`terminationUnconfirmed` が PASS や exit 0 を作る経路は確認できない。
+- **観点6**: 新テストと backlog 19(a)(b) の cleanup 方針は概ね妥当。競合依存1件も「旧版再現テスト」ではなく post-condition guard として扱っており、その説明と役割は一致。
+- **観点8**: `SAFETY_VALVE_EXTRA_MS` の移動自体に挙動変更はなく、参照・import・文書の定義元も更新されている。
+
+一部問題ありとした観点:
+
+- **観点1** → B16-R1-001
+- **観点3** → B16-R1-002
+- **観点7** → B16-R1-001 / B16-R1-002 に関連する保証表現のみ修正が必要
