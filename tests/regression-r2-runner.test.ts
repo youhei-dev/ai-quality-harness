@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { exitWhenRemoved, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -24,7 +24,7 @@ const READY_MARGIN_MS = 3000;
 /** Grandchild that ignores SIGTERM, closes fd 1 / 2 (so the leader's `close` fires early) and lingers. */
 function lingeringGrandchild(pidFile: string): string {
   return `${nodeEval(
-    `process.on("SIGTERM", () => {}); const fs = require("fs"); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); fs.closeSync(1); fs.closeSync(2); setTimeout(() => {}, 30000)`,
+    `process.on("SIGTERM", () => {}); const fs = require("fs"); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); ${exitWhenRemoved(pidFile)} fs.closeSync(1); fs.closeSync(2); setTimeout(() => {}, 30000)`,
   )}; true`;
 }
 

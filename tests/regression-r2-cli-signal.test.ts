@@ -7,7 +7,7 @@
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_KILL_GRACE_MS, executeCommand, terminateActiveChildren } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
+import { exitWhenRemoved, makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 afterEach(async () => {
@@ -20,7 +20,7 @@ describe("R2-002 terminateActiveChildren (CLI signal path)", () => {
     cleanups.push(t.cleanup);
     const pidFile = path.join(t.dir, "grandchild.pid");
     const command = `${nodeEval(
-      `process.on("SIGTERM", () => {}); const fs = require("fs"); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); fs.closeSync(1); fs.closeSync(2); setTimeout(() => {}, 8000)`,
+      `process.on("SIGTERM", () => {}); const fs = require("fs"); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); ${exitWhenRemoved(pidFile)} fs.closeSync(1); fs.closeSync(2); setTimeout(() => {}, 8000)`,
     )}; true`;
 
     // M2-2-R5-001: the controller is only for the clean-up (a failure before terminateActiveChildren() below), which aborts

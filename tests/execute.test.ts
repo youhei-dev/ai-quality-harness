@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { exitWhenRemoved, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -88,7 +88,7 @@ describe("executeCommand", () => {
     const pidFile = path.join(dir, "grandchild.pid");
     // `; true` forces the shell to fork node as a grandchild instead of exec-ing it.
     const command = `${nodeEval(
-      `require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 30000)`,
+      `require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); ${exitWhenRemoved(pidFile)} setTimeout(() => {}, 30000)`,
     )}; true`;
 
     const started = Date.now();

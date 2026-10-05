@@ -149,6 +149,14 @@ export function stopper(done: Promise<unknown>, stop: () => void, ms: number, wh
 }
 
 /**
+ * JS for a child process that a test starts (backlog 19 a): leave when `file` (its own pid file) disappears. The test's temp directory
+ * is removed in afterEach, so a child the product failed to stop leaves within 200 ms of the test's end instead of living out its timer.
+ */
+export function exitWhenRemoved(file: string): string {
+  return `setInterval(() => { if (!require("fs").existsSync(${JSON.stringify(file)})) process.exit(0); }, 200);`;
+}
+
+/**
  * waitForPid, failing as a precondition ("precondition: <what>: …", never a skip) when the process never became ready
  * (v0.5.6; shared since M2-2-R5-001).
  */

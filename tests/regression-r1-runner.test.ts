@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeCommand } from "../src/runner/execute.ts";
-import { makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
+import { exitWhenRemoved, makeTempDir, nodeEval, waitForPid } from "./helpers.ts";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -33,7 +33,7 @@ describe("R-004 killTree: SIGKILL escalation reaches the group after the leader 
     // `; true` makes the shell fork node as a grandchild (same process group, leader = shell).
     // The grandchild ignores SIGTERM, so only the SIGKILL escalation can end it.
     const command = `${nodeEval(
-      `process.on("SIGTERM", () => {}); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 30000)`,
+      `process.on("SIGTERM", () => {}); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); ${exitWhenRemoved(pidFile)} setTimeout(() => {}, 30000)`,
     )}; true`;
 
     const started = Date.now();

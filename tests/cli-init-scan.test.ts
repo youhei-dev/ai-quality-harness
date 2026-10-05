@@ -15,12 +15,16 @@ const cleanups: Array<() => void> = [];
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.();
 });
+// Backlog 19 b: a CLI that never finishes is stopped (SIGKILL) before the test's own timeout (30 s) instead of outliving the test.
+const CLI_TIMEOUT_MS = 25_000;
+
 async function cli(args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
-    const { stdout, stderr } = await execFileAsync(process.execPath, [CLI, ...args], { cwd });
+    const { stdout, stderr } = await execFileAsync(process.execPath, [CLI, ...args], { cwd, timeout: CLI_TIMEOUT_MS, killSignal: "SIGKILL" });
     return { code: 0, stdout, stderr };
   } catch (err) {
-    const e = err as { code?: number; stdout?: string; stderr?: string };
+    const e = err as { code?: number; killed?: boolean; stdout?: string; stderr?: string };
+    if (e.killed === true) throw new Error(`the CLI did not finish within ${CLI_TIMEOUT_MS} ms and was killed`, { cause: err });
     return { code: e.code ?? -1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
   }
 }
