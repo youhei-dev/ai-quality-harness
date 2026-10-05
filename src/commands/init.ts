@@ -12,9 +12,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CATEGORY_KINDS, EXIT_ERROR, EXIT_PASSED } from "../types.ts";
-import { buildRepoContext } from "../adapters/context.ts";
+import { ExaminationError, buildRepoContext } from "../adapters/context.ts";
 import { resolveDetections } from "../adapters/index.ts";
-import type { Resolution } from "../adapters/types.ts";
+import type { RepoContext, Resolution } from "../adapters/types.ts";
 import { GITIGNORE_LINE, PROPOSED_SCRIPTS, generateConfigJsonc, proposedChecks } from "../config/generate.ts";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, parseConfigText, resolveConfig } from "../config/load.ts";
 import { createOutput } from "../output.ts";
@@ -121,8 +121,18 @@ export async function runInit(options: InitOptions): Promise<number> {
     logError(`aiqh init: ${rootProblem}`);
     return EXIT_ERROR;
   }
-  const ctx = buildRepoContext(root);
-  const resolution = resolveDetections(ctx);
+  // The adapters probe the repository lazily, so both the context and the detection can find an entry that cannot be examined
+  // (backlog 8, O6; ADR-0022): the audit stops, because a repository audited as if that entry were absent gets a config without its checks.
+  let ctx: RepoContext;
+  let resolution: Resolution;
+  try {
+    ctx = buildRepoContext(root);
+    resolution = resolveDetections(ctx);
+  } catch (err) {
+    if (!(err instanceof ExaminationError)) throw err;
+    logError(`aiqh init: cannot audit ${root}: ${err.message}`);
+    return EXIT_ERROR;
+  }
   const projectName = ctx.node?.packageJson.name ?? ctx.dirName;
   const aiqh = resolveAiqhOnPath();
   const schemaPath = resolvableSchemaPath(root);

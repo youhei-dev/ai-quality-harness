@@ -4,30 +4,65 @@ import type { NodeContext, PackageJsonLike, PythonContext, RepoContext } from ".
 
 const ENV_FILE = /^\.env(\..+)?$/;
 
-/** Build the read-only view of a repository that adapters and `init` work from. */
+/**
+ * Something in the repository that cannot be examined: a probe or a read that fails for any reason but ENOENT (EACCES, ENOTDIR,
+ * ELOOP, EISDIR, …), a symbolic link whose target does not exist, a package.json that is not JSON. None of these is "absent": an
+ * audit that went on as if the entry were not there would call a project that has a package.json "not a Node project" and propose a
+ * config without its checks (backlog 8, O6; ADR-0022). `entry` is relative to the repository root.
+ */
+export class ExaminationError extends Error {
+  readonly entry: string;
+  constructor(entry: string, detail: string) {
+    super(`${entry} ${detail}`);
+    this.name = "ExaminationError";
+    this.entry = entry;
+  }
+}
+
+const codeOf = (err: unknown): string => (err as NodeJS.ErrnoException).code ?? "unknown error";
+
+/** Build the read-only view of a repository that adapters and `init` work from. Throws ExaminationError for what cannot be examined. */
 export function buildRepoContext(root: string): RepoContext {
   const absRoot = path.resolve(root);
-  const exists = (rel: string): boolean => {
+  /** "present" when the entry itself is there (lstat: a symbolic link counts, dangling or not); "absent" only for ENOENT. */
+  const state = (rel: string): "present" | "absent" => {
     try {
       lstatSync(path.join(absRoot, rel));
-      return true;
-    } catch {
-      return false;
+      return "present";
+    } catch (err) {
+      if (codeOf(err) === "ENOENT") return "absent";
+      throw new ExaminationError(rel, `cannot be examined (${codeOf(err)})`);
     }
   };
+  const exists = (rel: string): boolean => state(rel) === "present";
   const readText = (rel: string): string | null => {
     if (ENV_FILE.test(path.basename(rel))) return null; // never read environment files
     try {
       return readFileSync(path.join(absRoot, rel), "utf8");
-    } catch {
+    } catch (err) {
+      if (codeOf(err) !== "ENOENT") throw new ExaminationError(rel, `cannot be examined (${codeOf(err)})`);
+      // ENOENT is absence, unless the entry itself is there: a symbolic link whose target does not exist
+      if (state(rel) === "present") throw new ExaminationError(rel, "is a symbolic link whose target does not exist");
       return null;
+    }
+  };
+  /** True when the entry exists and is executable. An entry that is there but cannot run (no x bit, a dangling link) is a property of the entry, not a failure to examine it. */
+  const isExecutable = (rel: string): boolean => {
+    if (!exists(rel)) return false;
+    const abs = path.join(absRoot, rel);
+    try {
+      accessSync(abs, process.platform === "win32" ? constants.F_OK : constants.X_OK);
+      return lstatSync(abs).isFile() || lstatSync(abs).isSymbolicLink();
+    } catch {
+      return false;
     }
   };
   const listTopLevel = (): string[] => {
     try {
       return readdirSync(absRoot);
-    } catch {
-      return [];
+    } catch (err) {
+      if (codeOf(err) === "ENOENT") return [];
+      throw new ExaminationError("the top-level entries", `cannot be listed (${codeOf(err)})`);
     }
   };
   return {
@@ -36,20 +71,20 @@ export function buildRepoContext(root: string): RepoContext {
     exists,
     readText,
     listTopLevel,
-    node: buildNode(absRoot, readText, exists),
-    python: buildPython(absRoot, exists, readText),
+    node: buildNode(readText, exists, isExecutable),
+    python: buildPython(readText, exists, isExecutable, listTopLevel),
     git: { isRepo: exists(".git") },
   };
 }
 
-function buildNode(absRoot: string, readText: RepoContext["readText"], exists: RepoContext["exists"]): NodeContext | null {
+function buildNode(readText: RepoContext["readText"], exists: RepoContext["exists"], isExecutable: (rel: string) => boolean): NodeContext | null {
   const text = readText("package.json");
   if (text === null) return null;
   let pkg: PackageJsonLike;
   try {
     pkg = JSON.parse(text) as PackageJsonLike;
   } catch {
-    return null;
+    throw new ExaminationError("package.json", "is not valid JSON");
   }
   const lockfile = exists("pnpm-lock.yaml")
     ? "pnpm"
@@ -66,32 +101,16 @@ function buildNode(absRoot: string, readText: RepoContext["readText"], exists: R
     scripts: pkg.scripts ?? {},
     lockfile,
     deps,
-    hasLocalTool: (packageName, bin = packageName) => deps.has(packageName) || isExecutable(path.join(absRoot, "node_modules", ".bin", bin)),
+    hasLocalTool: (packageName, bin = packageName) => deps.has(packageName) || isExecutable(path.join("node_modules", ".bin", bin)),
   };
 }
 
-/** True when `abs` exists and is executable (on Windows: exists). */
-function isExecutable(abs: string): boolean {
-  try {
-    accessSync(abs, process.platform === "win32" ? constants.F_OK : constants.X_OK);
-    return lstatSync(abs).isFile() || lstatSync(abs).isSymbolicLink();
-  } catch {
-    return false;
-  }
-}
-
-function buildPython(absRoot: string, exists: RepoContext["exists"], readText: RepoContext["readText"]): PythonContext | null {
+function buildPython(readText: RepoContext["readText"], exists: RepoContext["exists"], isExecutable: (rel: string) => boolean, listTopLevel: RepoContext["listTopLevel"]): PythonContext | null {
   // A venv counts only when its interpreter is executable: every suggested command runs it (M1-R2-003).
-  const venvDir = [".venv", "venv"].find((d) => isExecutable(path.join(absRoot, d, "bin", "python"))) ?? null;
+  const venvDir = [".venv", "venv"].find((d) => isExecutable(path.join(d, "bin", "python"))) ?? null;
   const venvPresentButUnusable = venvDir === null && [".venv", "venv"].some((d) => exists(path.join(d, "bin", "python")));
   const pyproject = readText("pyproject.toml");
-  const requirementsFiles = (() => {
-    try {
-      return readdirSync(absRoot).filter((f) => /^requirements.*\.txt$/.test(f));
-    } catch {
-      return [];
-    }
-  })();
+  const requirementsFiles = listTopLevel().filter((f) => /^requirements.*\.txt$/.test(f));
   if (venvDir === null && !venvPresentButUnusable && pyproject === null && requirementsFiles.length === 0) return null;
   return {
     venvDir,
@@ -99,7 +118,7 @@ function buildPython(absRoot: string, exists: RepoContext["exists"], readText: R
     venvBin: (name: string) => {
       if (venvDir === null) return null;
       const rel = path.join(venvDir, "bin", name);
-      return isExecutable(path.join(absRoot, rel)) ? rel : null;
+      return isExecutable(rel) ? rel : null;
     },
     pyproject,
     requirementsFiles,
