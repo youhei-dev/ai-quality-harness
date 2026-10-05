@@ -5,7 +5,26 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.31 — Backlog 8 C (O3, O4, O5, O9): a failure is not "no" — git that cannot answer, a working directory that cannot be examined, a .gitignore or .git that is a link, and a root that is not a directory（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.31` / `git rev-parse v0.5.31` で確認し、次の release commit で記入）
+## v0.5.32 — Backlog 8 D (O6): an entry that cannot be examined is not absent — init stops instead of auditing a repository as if its package.json were not there（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.32` / `git rev-parse v0.5.32` で確認し、次の release commit で記入）
+
+- **バックログ 8 の D グループ（O6。バックログ 8 の最後）を解消**（`src/` は 2 ファイル +66／−37: `src/adapters/context.ts` +52／−33、`src/commands/init.ts` +14／−4。SP1 で実 CLI で再現し、一時 worktree で 2 案〈例外にする・理由を集める〉を試作して、全テストと自己 verify を実行し、人間の決定の後に実装した〈C1〜C3 の 3 commit〉。
+  lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは付けない〈人間の判断〉）。新しい ADR は作らず、ADR-0022 に追記した（決定 9、範囲の D）。**これでバックログ 8 は完了**
+  - **利用者に見える変更**:
+    - **init**: `package.json`・`tsconfig.json`・`pyproject.toml` などが、読めない（EACCES など）・dangling symlink・ディレクトリ・JSON として不正のとき、または root の一覧・通常ファイルの下の入口が調べられないとき、`aiqh init: cannot audit <root>: <entry> …` で **exit 2**
+      （以前は exit 0 で、その入口が無いものとして監査した。`--write` は lint・typecheck・build などを含まない設定を書き、`--write-scripts` は何も言わずに終わった）。何も監査せず、何も書かない
+    - 影響しないもの: `verify`・`security-scan`・`review-packet`、既存の設定ファイル、健全なリポジトリの `init`
+    - `== 1` の注意は不要（1 → 2 のケースは無い）。終了コードが変わるのは、調べられない入口があるリポジトリの `init`（0 → 2）だけ
+  - O6: アダプタが見る `RepoContext`（`src/adapters/context.ts`）の `exists()`・`readText()`・`listTopLevel()` は、ENOENT だけを「無い」とする。読みの ENOENT でも lstat で入口があれば（dangling symlink）、通常ファイルの下の入口（ENOTDIR）、JSON として不正な `package.json` は、`ExaminationError` を投げ、`init` が監査を止める。
+    実行できない入口（x ビットが無い、dangling な venv の python）は、そのものの性質で、`isExecutable()` は false のまま。`RepoContext` の型は変えない
+  - 実測（SP1。実 CLI、v0.5.31 → この版の試作）: `package.json` が EACCES・dangling・輪・ディレクトリ・不正な JSON のどれでも、v0.5.31 の `init` は `package.json` が本当に無いときと同じ出力（exit 0、project `other`）だった。dangling または不正な JSON で `init --write` は `security` だけの設定を書き、その設定の `aiqh verify` は、健全なとき（lint 失敗）の FAILED から PASSED になった。
+    この版では、いずれも exit 2 で、設定は書かれない
+  - 既存テストの期待値の変更は 0 件。新しいテスト 22 件（`tests/regression-backlog8d-o6-context-throw.test.ts`）。v0.5.31 の `src/` に当てると 14 件が FAIL（残りの 8 件は対照）。最小 PATH の実行（`unit-minpath`）でも通る（テストは外部コマンドを使わない）
+  - 見つけて直していないこと（ADR-0022 の既知の限界）: 項目 26（形が違う `package.json`）、項目 27（`exists()` が入口の種類を見ない）。ENOTDIR・一覧できない root で `init` が止まること、root が辿れないときの文言（最初に調べた入口の名前が出る）は、人間の判断。項目 24・25 も直していない
+- docs: ADR-0022（追記: 決定 9、範囲の D、決定 5・範囲 C の更新、既知の限界、影響。ADR-0011 は変えない）、ARCHITECTURE（init の行、`context.ts`、§6.1b）、CONFIG_SPEC（§5.3c）、README、ROADMAP（項目 8 の O6 を解消してバックログ 8 を完了、v0.5.32 の記録、「次:」の更新、項目 26・27 を追加。番号は詰めない）、CHANGELOG
+- テスト 1,566 件（126 ファイル。1,544 ＋ 22）。`package.json` version 0.5.32（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.31 の見出しに commit 6786d04 / tag object 47578e3 を記入した
+
+## v0.5.31 — commit 6786d04 / tag object 47578e3 — Backlog 8 C (O3, O4, O5, O9): a failure is not "no" — git that cannot answer, a working directory that cannot be examined, a .gitignore or .git that is a link, and a root that is not a directory
 
 - **バックログ 8 の C グループ（O3・O4・O5・O9）を解消**（`src/` は 7 ファイル +128／−24: `src/git/info.ts` +48／−9、`src/commands/init.ts` +38／−4、`src/review/packet.ts` +19／−3、`src/runner/execute.ts` +8／−2、`src/config/load.ts` +7／−2、`src/commands/verify.ts` +6／−3、`src/report/markdown.ts` +2／−1。
   SP1 で 4 項目を実 CLI で再現し、一時 worktree での試作・全テストと自己 verify の実行を行い、人間の決定の後に実装した〈C1〜C3 の 3 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。

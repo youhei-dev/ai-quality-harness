@@ -445,7 +445,14 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - 実測: 新しいテスト 48 件は v0.5.30 の `src/` に当てると 26 件が FAIL（残りの 22 件は対照）。git の 3 つの失敗（実行不能・exit 128・timeout）が `git: unavailable (…)` になり、通常ファイルの `init --cwd` が exit 0 → 2。テスト 1,496 → 1,544 件（122 → 125 ファイル）
   - 利用者に見える変更（CHANGELOG・README・ARCHITECTURE・CONFIG_SPEC・ADR-0022 に書いた）。`== 1` の注意は不要（1 → 2 のケースは無い）。ADR-0022 に追記（新規 ADR は作らない）。独立レビューは付けない（人間の判断）
   - 見つけて直していないこと: 項目 24（`security-scan --cwd <存在しない>` の文言）、項目 25（`HEAD`・ブランチの個別の失敗の表示）。バックログ 8 の残りは D（O6）
-- 次: バックログから選ぶ（未定。バックログ 8 の残りは D〈O6〉だけで、ADR-0022 の規則で扱う）。v0.5.31 の push・タグ（人間の承認）が先（v0.5.30 は push・タグ済み: commit ddeb297 / tag object 4aca365）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
+- v0.5.32: **バックログ 8 の D グループ（O6）を実装。これでバックログ 8 は完了**（`src/` は 2 ファイル +66／−37: `src/adapters/context.ts` +52／−33、`src/commands/init.ts` +14／−4。SP1 で実 CLI で再現し、一時 worktree で 2 案〈例外にする・理由を集める〉を試作し、全テストと自己 verify を実行し、人間の決定の後に実装した。lock・依存関係・`tests/structure/`・禁止文字の集合は変えていない）
+  - O6: アダプタが見る `RepoContext` の `exists()`・`readText()`・`listTopLevel()`・`isExecutable()` と `package.json` の JSON の解析は、失敗をすべて「無い」「Node ではない」にしていた。`package.json` が EACCES・dangling symlink・symlink の輪・ディレクトリ・不正な JSON のどれでも、`init` の出力は `package.json` が本当に無いときと同じ（exit 0、project `other`）だった。
+    `tsconfig.json`・`pyproject.toml`・root の一覧・通常ファイルの下の入口も同じ。ENOENT だけを「無い」にし、読みの ENOENT でも lstat で入口があれば（dangling）、ENOTDIR、不正な JSON は `ExaminationError` を投げ、`init` は監査を止めて exit 2（dry-run も。何も書かない）。実行できない入口（x ビットが無い、dangling な venv の python）は性質で、false のまま。`RepoContext` の型は変えない
+  - 影響の広さ（SP1 の実測）: dangling または不正な JSON の `package.json` で `init --write` は `security` だけの設定を書き、その設定の `aiqh verify` は、健全なとき（lint 失敗）の FAILED から PASSED になった。`--write-scripts` は何も言わずに exit 0 だった。アダプタは `init.ts` と `generate.ts` からしか使われず、`verify`・`security-scan`・`review-packet` の判定には直接関わらない
+  - 実測: 新しいテスト 22 件は v0.5.31 の `src/` に当てると 14 件が FAIL（残りの 8 件は対照）。テスト 1,544 → 1,566 件（125 → 126 ファイル）。**既存テストの期待値の変更は 0 件**
+  - 利用者に見える変更（CHANGELOG・README・ARCHITECTURE・CONFIG_SPEC・ADR-0022 に書いた）: 調べられない入口があるリポジトリの `init` が exit 0 → 2。`== 1` の注意は不要（1 → 2 のケースは無い）。ADR-0022 に追記（新規 ADR は作らない。決定 9、範囲の D）。ADR-0011 は変えない。独立レビューは付けない（人間の判断）
+  - 見つけて直していないこと: 項目 26（形が違う `package.json`）、項目 27（`exists()` が入口の種類を見ない）。ENOTDIR・一覧できない root で `init` が止まること、root が辿れないときの文言は人間の判断。項目 24・25 も直していない
+- 次: バックログから選ぶ（未定。バックログ 8 は v0.5.32 で完了した）。v0.5.32 の push・タグ（人間の承認）が先（v0.5.31 は push・タグ済み: commit 6786d04 / tag object 47578e3）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -500,8 +507,8 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    ~~O2（`src/config/load.ts` の `entryExists()`: プロジェクトの中かの判定）、O7・O8（init が dangling symlink の先に設定ファイル・`.gitignore` を作る）~~
    （**O2・O7・O8 は v0.5.29 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、
    ~~P3（review-packet の tag object の `rev-parse` の終了コードを見ない）、P11（`readVersion()` の `"0.0.0"`）~~（**P3・P11 は v0.5.30 で解消**。記録は上の M2-2 の節。以下は着手前の記述）、~~O3（git の失敗を「not a git repository」と記述）~~（**O3 は v0.5.31 で解消**）、
-   ~~O4・O5・O9（記述だけの問題）~~（**O4・O5・O9 は v0.5.31 で解消**。O9 は記述だけでなく、通常ファイルの root が exit 0 で監査されていた）、O6（アダプタの検出）・~~P4（書き込みの失敗の後の一時ファイルの一覧）~~（**P4 は v0.5.30 で解消**）。
-   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: ~~B（P3・P11・P4）~~（**v0.5.30 で解消**）、~~C（O3・O4・O5・O9）~~（**v0.5.31 で解消**）、D（O6）。順序は A → B → C → D（残りは D だけ）
+   ~~O4・O5・O9（記述だけの問題）~~（**O4・O5・O9 は v0.5.31 で解消**。O9 は記述だけでなく、通常ファイルの root が exit 0 で監査されていた）、~~O6（アダプタの検出）~~（**O6 は v0.5.32 で解消**）・~~P4（書き込みの失敗の後の一時ファイルの一覧）~~（**P4 は v0.5.30 で解消**）。
+   **残り**（v0.5.29 の SP1 の分け方。ADR-0022 の規則で扱う）: ~~B（P3・P11・P4）~~（**v0.5.30 で解消**）、~~C（O3・O4・O5・O9）~~（**v0.5.31 で解消**）、~~D（O6）~~（**v0.5.32 で解消**）。順序は A → B → C → D（**バックログ 8 は v0.5.32 で完了**）
 9. ~~**ファイルへの出力の禁止文字**~~（**v0.5.24 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.2 の出力の洗い出し。`docs/reviews/m2-2/response-r2.md`）: 端末への出力は v0.5.2 で出口を 1 つにしたが（ADR-0016）、
    ファイルへの出力は対象外。verify のレポート `latest.json`・`history/<ts>.json`（maskDeep → JSON.stringify。DEL・C1・U+2028 / U+2029・双方向制御・U+FEFF が
    生で残りうる）と `latest.md`（禁止文字すべて。check の出力の末尾の CR・ESC を含む）、init の `--write` が書く `aiqh.config.jsonc`（package.json の name。コメントの値は v0.5.4 で表記にした、ADR-0017）。
@@ -560,6 +567,12 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 25. **`rev-parse HEAD`・ブランチの個別の失敗が `(no commit)`・`(detached)` と表示される**（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O3 の残り）。
    verify の `git:` の行と報告で、`git rev-parse HEAD` の失敗が `commit` null → `(no commit)`、ブランチを得る 2 つの呼び出しの失敗が `branch` null → `(detached)` になる（shim で実測）。
    コミット 0 件のリポジトリでは本当に HEAD が無いので、区別するには stderr の判定が要る。直すなら、O3 の分類（ADR-0022 決定 8）を `HEAD`・ブランチにも広げ、`dirty` の `unknown`（R-009）と同じ形で `unknown` と表示する。ADR-0022 の既知の限界。この版では直さない
+26. **`package.json` が JSON として正しいが形が違うとき**（v0.5.32 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O6 の範囲外）。`null` と `scripts` が数値は、生の TypeError で exit 2（`aiqh: unexpected error: Cannot read properties of null (reading 'dependencies')`、
+   `Cannot use 'in' operator to search for 'verify' in 5`。`VERIFY ERROR (internal error)`）。配列と文字列（`[]`・`"text"`）は、**空の `package.json` として Node プロジェクト扱い**（scripts なし。黙って受け入れる。実測）。`name` が数値なら project 名が `5`。
+   直すなら、`package.json` がオブジェクトで、`scripts` などもオブジェクトであることを調べ、違うときは O6 と同じ形で調べられない入口として止める（`ExaminationError`）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。
+   v0.5.32 で ENOENT 以外は例外になったので、その点は解消した。ADR-0022 の既知の限界。この版では直さない
+27. **`exists()` が入口の種類を見ない**（v0.5.32 の SP1 で見つけた。重要度は記載なし）。`ctx.exists("tests")` は lstat で入口があるかだけを見るので、`tests` が通常ファイルでも Python のアダプタが「tests/ directory present」と書き、`pytest -q tests/` を推奨する（実測）。
+   直すなら、ディレクトリを探す入口（`tests`・`tests/e2e`）には、ディレクトリかどうかを確かめる別の判定を使う。ADR-0022 の既知の限界。この版では直さない
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
