@@ -5,7 +5,33 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.32 — Backlog 8 D (O6): an entry that cannot be examined is not absent — init stops instead of auditing a repository as if its package.json were not there（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.32` / `git rev-parse v0.5.32` で確認し、次の release commit で記入）
+## v0.5.33 — Backlog 16, 2, 19 (a, b): an end that was not confirmed is not reported as terminated — a terminated command is settled when its process group is gone (within a bound), and a failed kill is not a spawn failure（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.33` / `git rev-parse v0.5.33` で確認し、次の release commit で記入）
+
+- **バックログ 16・2 を解消し、19 の (a)(b) を直した**（`src/` は 5 ファイル +124／−34: `src/runner/execute.ts` +95／−29、`src/runner/run-checks.ts` +15／−3、`src/types.ts` +6、`src/cli-signals.ts` +6、`src/cli.ts` +2／−2。SP1 で `executeCommand` と実 CLI で再現し〈本物の EPERM は安全に起こせないので、同じプロセスの中で模擬した〉、
+  一時 worktree で案 V・P と案 D・C を試作して全テストと自己 verify を実行し、人間の決定の後に実装した〈4 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは 1 回付ける〈範囲 v0.5.32..v0.5.33、観点は項目 16・2〉）。
+  新しい ADR: ADR-0023（確認できなかった終了を、終了したことにしない）。ADR-0005 には参照を 1 行足した
+  - **利用者に見える変更**:
+    - **タイムアウト・中断の後の確認**: aiqh は、チェックのプロセスグループが消えたことを確かめてから結果を確定する。SIGKILL を送った後は最大 2 秒だけ待ち、消えていなければ `errorSummary` に `process group still present 2000ms after SIGKILL` と書く
+      （以前は、確認の有無にかかわらず常に `process group terminated` と書いた。確認できたときの文言は従来のまま）。グループが SIGTERM の後に遅れて消えるときは、猶予の終わりを待たず、消えたらすぐ返る（実測: 4.5 秒 → 1.9 秒）
+    - **別のプロセスグループへ移った子孫が出力の pipe を握っているとき**: 以前は、その子孫が終わるまで返らなかった（実測: タイムアウト 2 秒のチェックで 20.3 秒。子孫が終わらなければ返らない）。今は SIGKILL の後 2 秒で返る（9.2 秒）。中断（Ctrl+C）では、以前は CLI の安全弁（8 秒）で終了して**レポートが書かれなかった**が、今はレポートが書かれる（7.1 秒）
+    - **kill が EPERM で失敗するとき**: 以前は `failed to start: spawn failed: kill EPERM`（起動していないかのような文言）で早く確定し、子は動き続けていた。今は有界時間の後に `process group could not be signalled (EPERM) and was still present after 2000ms` と書く
+    - **終了コードは変わらない**（確認できなかったときも、タイムアウトの FAIL は 1、中断は 130 / 143 のまま）。レポートの JSON・Markdown に新しい欄は無い。変わるのは `errorSummary` の文言だけ。`== 1` の注意は不要（1 → 2 のケースは無い）
+    - **保証の外（文書に明記）**: 別のプロセスグループへ移った子孫（`setsid` 相当）は、aiqh では止められない。確定しても残る（実測: 寿命 10 秒の孫は、返った後も約 10 秒生きた）。通常に終わったチェックの後に残る子孫も見ない。Windows は対象外（macOS / Linux が対象。変わらない）
+  - 16・2 の中身（`src/runner/execute.ts`）: 確定の条件を「`close` が来て、かつグループが消えた」にし、25 ms ごとに確認する。SIGKILL の後（グループが消えたのに `close` が来ないときは、消えたと分かった時点から）最大 `confirmMs`（既定 2,000 ms、`DEFAULT_CONFIRM_MS`。`ExecuteOptions` の任意の項目だけ）で打ち切り、
+    pipe と handle を解放して確定する。グループが残っていれば `ExecutionResult` の内部の任意の欄 `terminationUnconfirmed` を付ける（`CheckResult` にはコピーしない）。子へのシグナルは `process.kill(pid)`（`child.kill()` の失敗は `error` イベントになり、spawn の失敗と取り違えていた）。
+    `error` で確定するのは起動に失敗したときだけ。**kill の失敗の扱い（2）は有界時間（16）に依存する**（無いと、EPERM のとき永久に待つ）。`SAFETY_VALVE_EXTRA_MS` は `src/cli-signals.ts` へ移して export し、猶予 + 確認 < 猶予 + 3 秒（8 秒）をテストで固定した
+  - 実測（SP1、timeout 1.5 秒・猶予 1 秒の `executeCommand`）: SIGKILL の経路 2,505 → 2,517 ms（SIGKILL の返却時点で、以前は 5 回中 5 回グループが残り、今は 0 回）、孫が SIGTERM の 400 ms 後に終わる（猶予 3 秒）4,505 → 1,922 ms、別のグループの孫が pipe を握る（寿命 10 秒）10,116 → 4,520 ms。
+    EPERM（模擬）は 1,009 ms で確定（誤り）→ 4,020 ms で確定（1 + 1 + 2 秒）。通常に終わるチェックの所要時間は変わらない。最悪の増え方は、確認できないチェック 1 件につき猶予の後に +2 秒（以前は上限なし）
+  - **19 の (a)(b)**（テストだけ。`tests/` 7 ファイル +28／−12）: (a) テストが起こす孫は、pid ファイルが消えたら自分で終わる（`tests/helpers.ts` の `exitWhenRemoved`）。製品が止め損なったときの孫の残りが、テストの失敗の後 約 15 秒 → 約 0.6 秒（r1・r2 の 2 件。実測）。
+    (b) CLI を呼ぶ `runCli`・`cli` に `timeout: 25_000`・`killSignal: "SIGKILL"`（テストの時間切れの 30 秒より前）。終わらない CLI が、テストの後も 15.4 秒残っていたのが 0 になる（実測）。**(c) signal 0 の probe は直さない**（ROADMAP の項目 19 に理由を残した: pid の 1 周は約 2 分、probe は孫の死の数百 ms 後、誤る向きはテストの失敗側で、利益が小さい）
+  - 既存テストの期待値の変更は 0 件。新しいテスト 12 件（`tests/regression-backlog16-confirm-termination.test.ts`）。v0.5.32 の `src/` に当てると 9 件が FAIL（決定的 8 件＋競合に依存するガード 1 件）、3 件（対照）が PASS。ガード「SIGKILL の経路: 返った時点でグループが消えている」は、v0.5.32 では結果が決定的でない
+    （全件実行で 2 回とも FAIL、単独実行では 5 回とも PASS）。この版以後に PASS し続けることを守る。最小 PATH の実行（`unit-minpath`）でも通る
+  - 見つけて直していないこと: 項目 5（`test:minpath` をプロセスグループで起動する案は、runner のグループごとの SIGKILL が vitest に届かなくなる〈実測: 8 件が残り、2 件は 40 秒後も走った〉ので、この版では直さない。実測は項目 5 に追記した）、項目 19 の (c)
+- docs: ADR-0023（新規）、ADR-0005（参照の 1 行）、ADR の一覧、ARCHITECTURE（流れの図、後始末ライフサイクルの 4〜7、中断機構の 2、`stdoutTail` の注記、§10 の表）、CONFIG_SPEC（`timeoutSec`）、README（Ctrl+C の段落、現在の状態）、ROADMAP（項目 2・16 を解消、19 の (a)(b) を解消して (c) を理由つきで残す、項目 5 に実測を追記、項目 8 の見出しを打ち消し、v0.5.33 の記録、「次:」の更新。番号は詰めない）、CHANGELOG
+- テスト 1,578 件（127 ファイル。1,566 ＋ 12）。`package.json` version 0.5.33（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.32 の見出しに commit 5adcbbc2d421067c16a845b951557514dcc11b8e / tag object a88ccc4effce7475c1bbd97a5b591eacce2a6de0 を記入した
+
+## v0.5.32 — commit 5adcbbc2d421067c16a845b951557514dcc11b8e / tag object a88ccc4effce7475c1bbd97a5b591eacce2a6de0 — Backlog 8 D (O6): an entry that cannot be examined is not absent — init stops instead of auditing a repository as if its package.json were not there
 
 - **バックログ 8 の D グループ（O6。バックログ 8 の最後）を解消**（`src/` は 2 ファイル +66／−37: `src/adapters/context.ts` +52／−33、`src/commands/init.ts` +14／−4。SP1 で実 CLI で再現し、一時 worktree で 2 案〈例外にする・理由を集める〉を試作して、全テストと自己 verify を実行し、人間の決定の後に実装した〈C1〜C3 の 3 commit〉。
   lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは付けない〈人間の判断〉）。新しい ADR は作らず、ADR-0022 に追記した（決定 9、範囲の D）。**これでバックログ 8 は完了**
