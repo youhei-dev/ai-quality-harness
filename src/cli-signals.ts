@@ -34,7 +34,7 @@ export function swapSignalHandlers(from: SignalHandlers, to: SignalHandlers, opt
 }
 
 /**
- * The CLI forces its exit this long after the kill grace period when the clean-up has not finished (src/cli.ts). The runner's own
- * bound (DEFAULT_CONFIRM_MS after SIGKILL, src/runner/execute.ts) must end before it; the backlog 16 test pins the relation.
+ * The CLI forces its exit this long after the kill grace period when the clean-up has not finished (src/cli.ts). By default the runner's own
+ * bound (DEFAULT_CONFIRM_MS after SIGKILL, src/runner/execute.ts) is shorter; the backlog 16 test pins that relation of constants, not that the report comes first.
  */
 export const SAFETY_VALVE_EXTRA_MS = 3_000;

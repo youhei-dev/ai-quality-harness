@@ -26,14 +26,25 @@ export interface ExecuteOptions {
 
 const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KILL_GRACE_MS = 5_000;
-/** Longest wait for a terminated group to disappear (backlog 16). With the kill grace period it must end before the CLI's safety valve (src/cli-signals.ts). */
+/** Longest wait for a terminated group to disappear (backlog 16). With the kill grace period it is 1 s shorter than the CLI's safety valve (src/cli-signals.ts) by default: a relation of constants, not a guarantee (ADR-0023, decision 7). */
 const DEFAULT_CONFIRM_MS = 2_000;
 const CONFIRM_POLL_MS = 25;
 
 export { DEFAULT_KILL_GRACE_MS, DEFAULT_CONFIRM_MS };
 
-/** Children currently running, with the process-group id saved at spawn time. */
-const activeChildren = new Map<ChildProcess, number | undefined>();
+/**
+ * The process group of one spawned command as this process has observed it (B16-R1-001). `gone` is set once, when a signal 0 or a
+ * signal to the group fails with ESRCH, and never cleared: the same number may name an unrelated group later (the OS reuses ids),
+ * so a group seen gone is never probed or signalled again. It is shared by the command's own clean-up and terminateActiveChildren().
+ * On Windows (and without a pgid) nothing is observed, so `gone` stays false and the group-less paths behave as before.
+ */
+interface GroupState {
+  readonly pgid: number | undefined;
+  gone: boolean;
+}
+
+/** Children currently running, with the process group saved at spawn time. */
+const activeChildren = new Map<ChildProcess, GroupState>();
 
 /**
  * Clean-up path shared by timeouts and the CLI signal handlers (R2-002):
@@ -45,11 +56,12 @@ const activeChildren = new Map<ChildProcess, number | undefined>();
 export async function terminateActiveChildren(graceMs: number = DEFAULT_KILL_GRACE_MS): Promise<void> {
   const targets = [...activeChildren.entries()];
   if (targets.length === 0) return;
-  for (const [child, pgid] of targets) killTree(child, pgid, "SIGTERM");
-  const anyAlive = (): boolean => targets.some(([, pgid]) => groupAlive(pgid));
+  for (const [child, group] of targets) killTree(child, group, "SIGTERM");
+  const anyAlive = (): boolean => targets.some(([, group]) => groupAlive(group));
   await waitUntil(() => !anyAlive(), graceMs);
   if (anyAlive()) {
-    for (const [child, pgid] of targets) killTree(child, pgid, "SIGKILL");
+    // killTree() skips a group that was seen gone (B16-R1-001)
+    for (const [child, group] of targets) killTree(child, group, "SIGKILL");
     await waitUntil(() => !anyAlive(), 2_000);
   }
 }
@@ -61,14 +73,20 @@ async function waitUntil(done: () => boolean, maxMs: number): Promise<void> {
   }
 }
 
-/** True while any member of the process group exists (signal 0 probe; EPERM counts as alive). */
-function groupAlive(pgid: number | undefined): boolean {
-  if (process.platform === "win32" || pgid === undefined) return false;
+/**
+ * True while any member of the process group exists (signal 0 probe; EPERM counts as alive). The first ESRCH is recorded in `group`
+ * and the group is never probed again (B16-R1-001); on Windows or without a pgid there is no group to probe: false, nothing recorded.
+ */
+function groupAlive(group: GroupState): boolean {
+  if (group.gone) return false;
+  if (process.platform === "win32" || group.pgid === undefined) return false;
   try {
-    process.kill(-pgid, 0);
+    process.kill(-group.pgid, 0);
     return true;
   } catch (err) {
-    return (err as NodeJS.ErrnoException).code !== "ESRCH";
+    if ((err as NodeJS.ErrnoException).code !== "ESRCH") return true;
+    group.gone = true;
+    return false;
   }
 }
 
@@ -132,13 +150,14 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     // With `detached`, the child is the leader of a new process group whose id equals its pid.
     // Save it now: the leader may exit before its descendants, and the group outlives it (R-004).
     const pgid = child.pid;
-    activeChildren.set(child, pgid);
+    const group: GroupState = { pgid, gone: false };
+    activeChildren.set(child, group);
 
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
 
     const send = (signal: NodeJS.Signals): void => {
-      const failure = killTree(child, pgid, signal);
+      const failure = killTree(child, group, signal);
       if (failure !== null && killError === null) killError = failure;
     };
 
@@ -151,7 +170,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     const poll = (): void => {
       pollTimer = null;
       if (settled) return;
-      const gone = !groupAlive(pgid);
+      const gone = !groupAlive(group);
       const now = Date.now();
       if (gone && goneAt === null) goneAt = now;
       if (gone && closeResult !== null) {
@@ -180,6 +199,9 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
       send("SIGTERM");
       pollTimer = setTimeout(poll, CONFIRM_POLL_MS);
       killTimer = setTimeout(() => {
+        // A group seen gone is never signalled again: its id may name an unrelated group now (B16-R1-001). The wait for `close` then
+        // keeps counting from `goneAt`.
+        if (group.gone) return;
         send("SIGKILL");
         sigkillSentAt = Date.now();
       }, killGraceMs);
@@ -303,16 +325,18 @@ function checkDirectory(dir: string): string | null {
  * "EPERM"): the caller must not assume the process stops (backlog 2). The child is signalled with process.kill, not child.kill,
  * because child.kill reports a failure as an 'error' event, which executeCommand would mistake for a spawn failure.
  */
-function killTree(child: ChildProcess, pgid: number | undefined, signal: NodeJS.Signals): string | null {
+function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals): string | null {
   let failure: string | null = null;
-  if (process.platform !== "win32" && pgid !== undefined) {
+  // A group seen gone (by a probe or by an earlier signal) is not signalled again: the id may name an unrelated group now (B16-R1-001).
+  if (process.platform !== "win32" && group.pgid !== undefined && !group.gone) {
     try {
-      process.kill(-pgid, signal);
+      process.kill(-group.pgid, signal);
       return null;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === "ESRCH") {
-        return null; // no process left in the group
+        group.gone = true; // no process left in the group
+        return null;
       }
       failure = errnoName(code);
       // EPERM or similar: fall through to a direct signal to the child.

@@ -28,7 +28,7 @@ function readVersion(): string {
 //   3. let runVerify record the remaining checks as SKIPPED and write the report,
 //   4. exit with 128 + signal number (the normal return path of the verify command).
 // A safety valve forces the exit after grace + 3 s in case something never settles.
-// SAFETY_VALVE_EXTRA_MS (src/cli-signals.ts) is 3 s: the grace period plus the runner's bounded confirmation (2 s) end before it.
+// SAFETY_VALVE_EXTRA_MS (src/cli-signals.ts) is 3 s. The valve counts from the signal, the runner's bound from when its SIGKILL timer really ran: under a stalled event loop the valve can fire before the report is written (exit code unchanged; ADR-0023, decision 7).
 const interruption = new AbortController();
 
 /** Before the verdict is fixed: interrupt the run (R3-002) and back up the exit code (R4-001). */

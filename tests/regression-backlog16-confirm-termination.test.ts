@@ -270,8 +270,11 @@ describe("backlog 16: how the report words the end of the clean-up", () => {
   });
 });
 
-describe("backlog 16: the bound ends before the CLI's safety valve", () => {
-  it("grace period + confirmation < grace period + safety valve (so an interrupted run settles and reports before the forced exit)", () => {
+// B16-R1-002: this pins a relation between CONSTANTS, nothing more. It does not guarantee that the report is written before the CLI's
+// safety valve: the valve counts from the signal, the runner's confirmation from when the SIGKILL timer really ran (late under a
+// stalled event loop), and the report is written after the runner returns. A stall of 1.5 s was measured to let the valve win.
+describe("backlog 16: the default bound is shorter than the CLI safety valve (a relation between constants)", () => {
+  it("default grace period + default confirmation < default grace period + safety valve", () => {
     expect(DEFAULT_KILL_GRACE_MS + DEFAULT_CONFIRM_MS).toBeLessThan(DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS);
   });
 });
