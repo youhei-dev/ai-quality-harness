@@ -5,7 +5,26 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.33 — Backlog 16, 2, 19 (a, b): an end that was not confirmed is not reported as terminated — a terminated command is settled when its process group is gone (within a bound), and a failed kill is not a spawn failure（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.33` / `git rev-parse v0.5.33` で確認し、次の release commit で記入）
+## v0.5.34 — Independent review R1 of v0.5.33 (B16-R1-001, B16-R1-002): a process group seen gone is not probed or signalled again — the same property existed in v0.5.32（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.34` / `git rev-parse v0.5.34` で確認し、次の release commit で記入）
+
+- **v0.5.33 の独立レビュー R1（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +42／−18 と、コメントだけの `src/cli.ts`〈1 行。行数は同じ〉・`src/cli-signals.ts`〈2 行〉。停止ポイント1で `process.kill` の差し替えによる決定的な再現と、一時 worktree での試作を行い、人間の決定の後に実装した〈3 commit〉。
+  lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。原文と対応記録は `docs/reviews/backlog-16-2-19/`。新しい ADR は作らず、ADR-0023 に追記した〈決定 9、範囲の v0.5.34〉）
+  - **利用者に見える変更は無い**（終了コード・レポートの JSON・Markdown の欄・`errorSummary` の文言は同じ）。変わるのは次の 2 点だけ
+    - **一度「消えた」と確認した process group へ、以後 signal 0 も SIGKILL も送らない**（B16-R1-001、High）。以前は、消えたと分かっているグループの番号へ、SIGKILL のタイマーと `terminateActiveChildren` が SIGKILL を送り、signal 0 も 25 ms ごとに送り続けた。OS が同じ番号を別のグループへ再利用していれば、無関係なグループへ SIGKILL が届きうる。
+      **v0.5.32 から同じ性質があり**（実測: 5 つの形のすべてで、消えたグループの番号へ SIGKILL を送った）、**v0.5.33 は露出する条件を狭めたが（`close` が先に来る形では送らなくなった）、「消えたと分かっているのに送る」形が残っていた**。v0.5.33 の ADR-0023 の既知の限界は、これを「消えていない」と書くだけの誤りと説明していて、SIGKILL を落としていた（訂正した）
+    - **`close` 未着で消滅を確認したときの待ちは、消滅の最初の確認から `confirmMs`**（決定 2 の文書どおり）。v0.5.33 のコードは、SIGKILL のタイマーが先に発火すると、SIGKILL を実際に送った時刻から数えていた。この形で短くなる（実測: 2.5 秒 → 1.7 秒、既定値で 7.0 秒 → 5.5 秒）
+  - 中身（`src/runner/execute.ts`）: `GroupState { pgid, gone }` を `activeChildren` に持ち、`executeCommand` の後始末と `terminateActiveChildren` が共有する。`gone` は signal 0 またはグループへのシグナルが ESRCH になったとき 1 度だけ立て、戻さない。`gone` のグループは調べず、送らない。SIGKILL のタイマーは `gone` なら何もしない（`sigkillSentAt` も設定しない）。
+    **Windows の分岐は変わらない**（調べるグループが無いので `gone` を立てず、SIGKILL を子の pid へ送る。対照テストで固定し、「win32 でも `gone` を立てる」変異で FAIL することを確かめた）
+  - **B16-R1-002（Medium）**: 「猶予 5 秒 + 確認 2 秒 = 7 秒 < 安全弁 8 秒」は**定数の関係で、レポートが先に書かれる保証ではない**（安全弁はシグナル受信から固定、確認は SIGKILL のタイマーが実際に動いた時刻から、レポートの書き込みは runner が返った後で上限が無い）。実測: 1.5 秒のイベントループの停止で、安全弁が 8,018 ms に先に動き、レポートが書かれなかった（終了コードは 130 のまま）。
+    ADR-0023 決定 7・ARCHITECTURE・コメント・テスト名の表現を狭めた。**実装の動きは変えていない**。v0.5.33 の項の「猶予 + 確認 < 猶予 + 3 秒（8 秒）をテストで固定した」は、定数の関係についての記述
+  - 実測（`process.kill` の差し替え。最初の ESRCH の後に、その番号へ送られたもの）: v0.5.33 は `close` 未着で signal 0 が 71 回と SIGKILL 1 回、`terminateActiveChildren` で 53 回と SIGKILL 1 回、最初のシグナルが ESRCH のとき 99 回と SIGKILL 1 回、既定値で 137 回と SIGKILL 1 回。この版はすべて 0 回（最初のシグナルは、確認なしに送る）
+  - 既存テストの期待値の変更は 0 件（既存の 1 件のテストの名前とコメントだけを言い換えた）。新しいテスト 7 件（`tests/regression-backlog16-r1-pgid-reuse.test.ts` 6 件、`tests/regression-backlog16-r1-win32-branch.test.ts` 1 件）。v0.5.33 の `src/` に当てると 4 件が FAIL（残りの 3 件は対照）。待ちの境界のテストは時間に依存する（期待 1.9 秒、v0.5.33 は 3.0 秒、境界 2.6 秒。5 回連続で PASS を確認）。最小 PATH の実行（`unit-minpath`）でも通る
+  - 見つけて直していないこと（ROADMAP の項目 28〜30）: 最初のシグナルの前に消滅を確認しない（leader が先に終わり `close` が来ないとき、タイムアウトまでに番号が再利用されうる。実測で同じ性質を確認）、安全弁をフェーズごとの期限にする案、Windows では v0.5.33 から消滅の確認の起点が最初のポーリングになること。再レビューは 1 回（r2、範囲 `v0.5.33..v0.5.34`）
+- docs: ADR-0023（既知の限界の書き直し、決定 7 を狭める、決定 9、「範囲（v0.5.34 で追記）」、代替案、影響）、ARCHITECTURE（後始末ライフサイクル 4、中断機構 2・5、§10 の表）、レビュー記録（`docs/reviews/backlog-16-2-19/independent-review-r1.md`・`response-r1.md`）、README、ROADMAP（v0.5.34 の記録、項目 28〜30 を追加、「次:」の更新。番号は詰めない）、CHANGELOG
+- テスト 1,585 件（129 ファイル。1,578 ＋ 7）。`package.json` version 0.5.34（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.33 の見出しに commit f90c150c331d87bf69043a606aa2794e9d2fbb9d / tag object 5fea67b4c2faa81123d47ef13279e6596e57221f を記入した。v0.5.33 の項の本文は書き換えていない（記録）
+
+## v0.5.33 — commit f90c150c331d87bf69043a606aa2794e9d2fbb9d / tag object 5fea67b4c2faa81123d47ef13279e6596e57221f — Backlog 16, 2, 19 (a, b): an end that was not confirmed is not reported as terminated — a terminated command is settled when its process group is gone (within a bound), and a failed kill is not a spawn failure
 
 - **バックログ 16・2 を解消し、19 の (a)(b) を直した**（`src/` は 5 ファイル +124／−34: `src/runner/execute.ts` +95／−29、`src/runner/run-checks.ts` +15／−3、`src/types.ts` +6、`src/cli-signals.ts` +6、`src/cli.ts` +2／−2。SP1 で `executeCommand` と実 CLI で再現し〈本物の EPERM は安全に起こせないので、同じプロセスの中で模擬した〉、
   一時 worktree で案 V・P と案 D・C を試作して全テストと自己 verify を実行し、人間の決定の後に実装した〈4 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。独立レビューは 1 回付ける〈範囲 v0.5.32..v0.5.33、観点は項目 16・2〉）。
