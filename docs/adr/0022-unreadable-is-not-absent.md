@@ -1,7 +1,7 @@
 # ADR-0022: 読めないものを「無い」としない: パスの包含と書込の前提
 
-- 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ広げた。ADR-0014・0015・0020・0021 は変えない）
-- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）
+- 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ、v0.5.32 で D グループ（O6）へ広げた（バックログ 8 は完了）。ADR-0014・0015・0020・0021 は変えない）
+- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）
 
 ## 文脈
 - 原則は既にある: security-scan の lstat（ADR-0010、M1-R2-002）、review-packet の `latest.json` と既定の設定ファイル（ADR-0015、v0.5.1）。**ENOENT だけが「無い」**で、それ以外は読めない・見えないものなので fail closed にする。
@@ -32,7 +32,7 @@
    B・C・D の各箇所で ENOTDIR の扱いを問い直すことになる。(b) 通常ファイルの下を `cwd`・`output.dir` に指定する設定の誤りを、実行時の check の FAIL（cwd は exit 1）や遅い report write error ではなく、読込で exit 2 にして早く見せる。
    **`targetIdentity`**（`src/commands/review-packet.ts`。review-packet の書込先の同一性を、存在する祖先まで遡って比べる）は ENOENT と ENOTDIR を「無い」として親へ上がるが、そのまま残す: 目的が違い（書込先の早い段階の拒否。最終判定は dev + ino）、
    ENOTDIR は書込の本体が失敗するので判定を誤らせない。この ADR の規則は、設定のパスの包含判定と init の書込の前提に適用する
-5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23。O6 は D の版で扱う（P3・P11・P4 は v0.5.30 で、O3・O4・O5・O9 は v0.5.31 で直した。決定 7・8 と「範囲（B グループ）」「範囲（C グループ）」）
+5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23。バックログ 8 は v0.5.32 で完了した（P3・P11・P4 は v0.5.30 で、O3・O4・O5・O9 は v0.5.31 で、O6 は v0.5.32 で直した。決定 7・8・9 と「範囲（B グループ）」「範囲（C グループ）」「範囲（D グループ）」）
 6. **出力の境界は変えない**: 新しいメッセージは既存の出口を通る（init は `output.error`、verify は `maskSecrets` の後に出口。ADR-0016・0017）。パスに禁止文字や秘密の形があっても、表記とマスクになる（実 CLI で確認）
 7. **必須の入力は、ENOENT でも既定値にしない**（P11、v0.5.30）。`package.json` が無い（ENOENT を含む）・読めない・version が文字列でない・空文字、のいずれも**失敗（exit 2）**で、`0.0.0` などの既定値にしない。version は**最初に読み、すべての入口を止める**（`--version`・`--help`・`init`・`verify` のどれも exit 2）。
    既存の最上位の catch を再利用する（`aiqh: unexpected error: cannot read the version from package.json (<code>)` または `… package.json has no version string` と `VERIFY ERROR (internal error)` の 2 行）。専用のメッセージ・終了コードは作らず、`src/cli-program.ts` も変えない。
@@ -44,6 +44,12 @@
    review-packet（`resolveCommit` と work-tree の確認。B の P3 が回した「失敗の文言」を引き取る）: 「違う」のときは従来の文（`does not name a commit`、`not inside a git work tree: <cwd>`）、それ以外は git の言葉を添える
    （`--range: <side> revision "<ref>" could not be resolved (git exit N: <git の 1 行>)`、`could not tell whether <cwd> is inside a git work tree (git exit N: <git の 1 行>)`）。git を実行できないことは元から `git could not be run: …` で区別されている。終了コードは 2 のまま。
    「違う」の判定は終了コードと stderr の 1 行の文言（`LC_ALL=C`）に頼る。文言が変わったときは、「違う」が失敗の側に倒れる（見える側）だけで、失敗が「違う」に隠れる方向ではない
+9. **アダプタの入口は、ENOENT だけ「無い」**（O6、v0.5.32）。アダプタが見る `RepoContext`（`src/adapters/context.ts`）の `exists()`・`readText()`・`listTopLevel()` は、ENOENT だけを「無い」とする。読みの ENOENT でも、lstat で入口があれば（dangling symlink）「調べられなかった」であって「無い」ではない。
+   通常ファイルの下の入口（ENOTDIR。`tests` が通常ファイルのときの `tests/e2e`）も、決定 4 と同じく「調べられない」。読めたが JSON として解釈できない `package.json`（マージの衝突の跡など）も、「Node ではない」と見なさず失敗として扱う。
+   **実行できない入口は別**: x ビットが無い・dangling な venv の python などは、調べられなかったのではなく、そのものの性質。`isExecutable()` は、lstat で入口の有無を分けたうえで、実行できなければ false のまま（既存の `venvPresentButUnusable` の扱いが受ける）。
+   調べられない入口があるとき、`ExaminationError`（`src/adapters/context.ts` から export。`<entry> cannot be examined (<code>)`・`<entry> is a symbolic link whose target does not exist`・`<entry> is not valid JSON`・`the top-level entries cannot be listed (<code>)`）を投げ、
+   `aiqh init` は監査を止めて `aiqh init: cannot audit <root>: <entry> …` で **exit 2**（dry-run も。何も監査せず、何も書かない）。アダプタは検出するときに入口を遅延して調べるので、例外は `buildRepoContext` と `resolveDetections` の両方から出る。`RepoContext` の型は変えない（ADR-0011 の境界は変わらない）。
+   例外にする理由: 新しいアダプタや新しい入口も、`exists()`・`readText()` を使うだけで自動で対象になる（理由を集める案は、呼び出し側が毎回確かめる必要がある）。root が辿れない（0600）ときの文言は、最初に調べた入口の名前が出る（`cannot audit <root>: package.json cannot be examined (EACCES)`。`describeRootProblem` は変えない）
 
 ## 範囲（B グループ、v0.5.30 で追記）
 - **P3（git の失敗は「無い」ではない）**: `resolveCommit()` は、ref を **1 回だけ**オブジェクト名に引き（`rev-parse --verify --quiet --end-of-options <ref>`）、その `<オブジェクト名>^{commit}` で commit を求める。2 回とも status を見て、失敗は `does not name a commit`（文言は v0.5.29 のまま）で exit 2。
@@ -63,7 +69,14 @@
   **通常ファイルの root は、exit 0（ファイルをリポジトリとして監査していた）から exit 2 になる**。dangling symlink の root はリンク先が ENOENT なので `directory not found`。
 - **O2 の文面の重複**: 決定 2。`<entry>` が `<path>` と同じとき `— <entry>` を付けない。dangling symlink の文（`… is a symbolic link whose target does not exist …`）も同じ形で直した。
   既存テストの期待値 1 件を変えた（`tests/regression-backlog8a-o2-untraversable-path.test.ts` の、EACCES の `output.dir` の正規表現。人間の承認）。
-- 触っていない同種の箇所: init の書込側の `existsSync`（設定ファイルの already exists、`.gitignore` の読み出し）は、A の dangling の拒否と書込の失敗が受けるので変えない（実測で影響なし）。`src/adapters/context.ts` の `exists()`・`readText()` は D（O6）
+- 触っていない同種の箇所: init の書込側の `existsSync`（設定ファイルの already exists、`.gitignore` の読み出し）は、A の dangling の拒否と書込の失敗が受けるので変えない（実測で影響なし）。`src/adapters/context.ts` の `exists()`・`readText()` は D（O6）で、v0.5.32 で直した（「範囲（D グループ）」）
+
+## 範囲（D グループ、v0.5.32 で追記。バックログ 8 の最後）
+- **O6**（`src/adapters/context.ts`、`src/commands/init.ts`）: 決定 9。v0.5.31 では、`package.json` が読めない（EACCES）・dangling symlink・symlink の輪・ディレクトリ・不正な JSON のどれでも、`init` の出力は `package.json` が本当に無いときと同じだった
+  （exit 0、`project: … (other)`、Node の検出はすべて `not-applicable`）。`tsconfig.json`・`pyproject.toml`・`requirements*.txt`（root の一覧）・root の入口が調べられないときも同じだった（実測）。
+- **影響の広さ**: 検出の入口が隠れるので、`init --write` が書く設定から check が消えた（dangling または不正な JSON の `package.json` では `security` だけ。その設定の `aiqh verify` の判定が、健全なときの FAILED から PASSED に変わった。実測）。
+  `--write-scripts` は何も言わずに exit 0 で終わった。アダプタは `init.ts` と `config/generate.ts` からしか使われないので、`verify`・`security-scan`・`review-packet` の判定には直接関わらない。
+- 変更後は、調べられない入口があるとき `init` が exit 2 で止まる。dangling な `.git` の提案と audit は C で揃っていて変わらない（lstat。`.git` は「ある」）。
 
 ## 代替案
 - ENOTDIR を「無い」とする（O2 の 1 行差）: 決定 4 の理由で採らない。実測では、通常ファイルの下の `output.dir` は v0.5.28 と同じ挙動のまま（遅い exit 2）、`cwd` も同じ（check の FAIL、exit 1）になる
@@ -81,13 +94,18 @@
 - 読込の後に権限が変わった場合は、実行時の失敗（check の FAIL、report write error）として残る
 - Linux・Windows・root での実行は未確認（実測は macOS の一般ユーザーだけ。権限のテストは root では `skipIf`）。エラーコードの名前は POSIX 共通だが、Linux での挙動は推測
 - dry-run の提案文（`proposeGitignore` の `existsSync(".gitignore")`）は、dangling でも「no .gitignore」と書き、書込時に初めて dangling と拒否した（O5。**v0.5.31 で解消**: lstat で判定する。dangling・輪の `.gitignore` の dry-run の説明は git の判断のもので、リンクの状態そのものは書込のときの拒否が言う）
-- `package.json` が dangling symlink のとき、init は Node プロジェクトと見なさず、`--write-scripts` は exit 0 で何も書かない（実測。アダプタの検出。O6、D グループ）
+- `package.json` が dangling symlink のとき、init は Node プロジェクトと見なさず、`--write-scripts` は exit 0 で何も書かなかった（実測。アダプタの検出。O6。**v0.5.32 で解消**: 調べられない入口があると `init` は監査を止めて exit 2 にする。決定 9）
 - （B グループ）version は「空でない文字列」かどうかだけを見る。semver として妥当かは見ない（決定 7）
 - （B グループ）辿れない一時ファイルは、消せずに残り、名前が挙がるだけ（P4）。消すのは人。ファイルを消せるかどうかは `rmSync` の結果に従い、「ある」ことの確認はしない
 - （C グループ）**`rev-parse HEAD`・ブランチの個別の失敗は、`(no commit)`・`(detached)` と表示される**（verify の `git:` の行と報告）。コミット 0 件の本物のケースと区別するには、stderr の判定が要る。直していない（ROADMAP の項目 25）
 - （C グループ）verify の報告の JSON の `git` は、非リポジトリと git の失敗のどちらも null で、理由は標準出力の行にだけある（Markdown のセルは両方を含む文面）。理由を報告に載せるには新しい欄（契約の変更）が要るので、していない
 - （C グループ）git の「違う」の判定は `fatal: not a git repository` の文言に頼る（決定 8）。他の言語・他の git の実装での文言は未確認（`LC_ALL=C` で固定している）
 - （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）
+- （D グループ）**`package.json` が JSON としては正しいが形が違うとき**（`null`・配列・文字列・`scripts` が数値）: `null` と `scripts` が数値は生の TypeError で exit 2（`aiqh: unexpected error: …`）、配列と文字列は**空の `package.json` として Node プロジェクト扱い**（黙って受け入れる）。
+  直していない（ROADMAP の項目 26）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。v0.5.32 で ENOENT 以外は例外になったので、その点は解消した
+- （D グループ）**`exists()` は入口の種類を見ない**（lstat で「ある」かだけ）: `tests` が通常ファイルでも「tests/ directory present」と書く。直していない（ROADMAP の項目 27）
+- （D グループ）通常ファイルの下の入口（ENOTDIR）は「調べられない」なので、`tests` が通常ファイルの Python リポジトリや、`.venv` が通常ファイルのリポジトリでは `init` が止まる（決定 9。決定 4 と同じ扱い。人間の判断）。一覧できない root（0300）でも止まる
+- （D グループ）root が辿れない（0600）とき、`init` のメッセージは最初に調べた入口の名前が出る（`cannot audit <root>: package.json cannot be examined (EACCES)`）。`describeRootProblem` は変えていない（人間の判断）
 
 ## 影響
 - **利用者に見える変更**:
@@ -122,3 +140,13 @@
     **既存のテストの期待値の変更は 1 件**（`tests/regression-backlog8a-o2-untraversable-path.test.ts` の EACCES の `output.dir` の正規表現。O2 の文面の重複の解消に伴う。人間の承認）。テスト 1,496 → 1,544 件（122 → 125 ファイル）。`tests/structure/`・禁止文字の集合・依存関係・`package-lock.json` は変えていない
   - 出力の境界は変えていない（新しいメッセージは既存の出口を通る。秘密様の文字列と ESC を含む名前・git の 1 行で、生で出ないことをテストで確認）。書き込みの呼び出しは足していない
   - 独立レビューは付けない（人間の判断）。残る限界は「既知の限界」の C グループの項目（ROADMAP の項目 24・25）
+- **v0.5.32（D グループ: O6。バックログ 8 の最後）の追記**:
+  - **利用者に見える変更**:
+    - **init**: `package.json`・`tsconfig.json`・`pyproject.toml` などが、読めない（EACCES など）・dangling symlink・ディレクトリ・JSON として不正のとき、または root の一覧・通常ファイルの下の入口が調べられないとき、`aiqh init: cannot audit <root>: <entry> …` で **exit 2**（dry-run も。以前は exit 0 で、その入口が無いものとして監査した）。
+      何も監査せず、何も書かない（`--write` が lint・typecheck・build などを含まない設定を書くことも、`--write-scripts` が黙って終わることも無くなった）
+    - 変わらないもの: `verify`・`security-scan`・`review-packet`、既存の設定ファイル、健全なリポジトリの `init`
+    - `== 1` の注意は不要（1 → 2 のケースは無い）。終了コードが変わるのは、調べられない入口があるリポジトリの `init`（0 → 2）だけ
+  - コード: `src/` は 2 ファイル +66／−37（`src/adapters/context.ts` +52／−33、`src/commands/init.ts` +14／−4）。新しいテスト 22 件（`tests/regression-backlog8d-o6-context-throw.test.ts`）で、v0.5.31 の `src/` に当てると 14 件が FAIL（残りの 8 件は対照）。
+    既存のテストの期待値の変更は 0 件。テスト 1,544 → 1,566 件（125 → 126 ファイル）。`tests/structure/`・禁止文字の集合・依存関係・`package-lock.json` は変えていない
+  - 出力の境界は変えていない（`cannot audit <root>: …` は `output.error` を通る。秘密様の文字列と ESC を含む root の名前が生で出ないことをテストで確認）。書き込みの呼び出しは足していない
+  - 独立レビューは付けない（人間の判断）。バックログ 8 は完了。残る限界は「既知の限界」の D グループの項目（ROADMAP の項目 26・27）

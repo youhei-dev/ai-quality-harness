@@ -80,7 +80,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | コマンド | マイルストーン | 入力 | 出力 | 終了コード |
 |---|---|---|---|---|
 | `aiqh verify` | M0（中核）/ M1（アダプタ） | `aiqh.config.jsonc`、git 状態 | `artifacts/verification/latest.json` / `latest.md` / `history/<timestamp>.json` | 0=PASSED, 1=FAILED, 2=設定・使用法エラー |
-| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能（root が無い・辿れない・ディレクトリでない場合を含む。ADR-0022） / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
+| `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能（root が無い・辿れない・ディレクトリでない場合と、検出に使う入口が調べられない場合を含む。ADR-0022） / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
@@ -122,7 +122,7 @@ src/
     info.ts               … commit / branch / dirty の取得（非 git でも動作。git が答えられなかったときも null、理由は標準出力の行。ADR-0022）  [M0]
   adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1 実装済み]
     types.ts              … Adapter / Detection / Suggestion / RepoContext / OutputParser（型のみ）
-    context.ts            … 読み取り専用の RepoContext（.env* は読まない）
+    context.ts            … 読み取り専用の RepoContext（.env* は読まない。ENOENT 以外の失敗は ExaminationError。ADR-0022 決定 9）
     node.ts / python.ts / builtin.ts / index.ts … Node 7 / Python 7 / 内蔵 security 1、分類ごとの解決
   config/generate.ts      … 解決結果 → コメント付き JSONC                                   [M1]
   config/json-schema.ts   … zod → JSON Schema（schema/ に同梱）                              [M1]
@@ -189,7 +189,8 @@ artifacts/verification/history/<YYYYMMDDTHHmmssZ>.json
 
 ```
 aiqh init
-  RepoContext（読み取りのみ: package.json / lockfile / tsconfig / venv の bin / pyproject / requirements / .git。.env* は存在確認のみ）
+  RepoContext（読み取りのみ: package.json / lockfile / tsconfig / venv の bin / pyproject / requirements / .git。.env* は存在確認のみ。
+  ENOENT 以外で調べられない入口〈読めない・dangling symlink・不正な package.json・通常ファイルの下など〉があれば ExaminationError → 監査を止めて exit 2、何も書かない。ADR-0022 決定 9）
    ▼
   全アダプタの detect() → 分類ごとに「採用（最初の available）/ 代替 / unavailable（理由・有効化案内）」
    ▼
