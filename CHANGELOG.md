@@ -5,7 +5,26 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.34 — Independent review R1 of v0.5.33 (B16-R1-001, B16-R1-002): a process group seen gone is not probed or signalled again — the same property existed in v0.5.32（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.34` / `git rev-parse v0.5.34` で確認し、次の release commit で記入）
+## v0.5.35 — Independent review R2 of v0.5.34 (B16-R2-001, B16-R2-002): no direct signal to the leader of a process group seen gone; the wording of where the wait for `close` counts from is corrected（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.35` / `git rev-parse v0.5.35` で確認し、次の release commit で記入）
+
+- **v0.5.34 の独立レビュー R2（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +6／−2 だけ〈`killTree`〉。停止ポイントで判定・再現し、実装した〈3 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
+  原文と対応記録は `docs/reviews/backlog-16-2-19/`〈`independent-review-r2.md`・`response-r2.md`〉。新しい ADR は作らず、ADR-0023 に追記した〈決定 9 の補足、範囲の v0.5.35〉）
+  - **利用者に見える変更は無い**（終了コード・レポートの JSON・Markdown の欄・`errorSummary` の文言・待ちの時間は同じ）。変わるのは次の 1 点だけ
+    - **一度「消えた」と確認した process group の leader へも、子の pid への直接送信をしない**（B16-R2-001、High）。v0.5.34 の `killTree` は、`gone` のグループへの送信を飛ばした後、そのまま子の pid への直接送信に落ちた（ガードは `exitCode`・`signalCode` だけ）。`executeCommand` の後始末が ESRCH を見た後に `terminateActiveChildren` が同じ状態で入ると〈CLI の中断はこの順〉、leader の pid へ SIGTERM が届きうる。
+      `process.kill` の差し替えで、2 つの順のどちらも SIGTERM 1 回を再現した（v0.5.33 は 0 回。**この経路は v0.5.34 が新しく開けた**）。今は、グループ経路があるとき〈POSIX で pgid がある〉、`gone` なら何も送らない。子へ直接送るのは、グループへの送信が ESRCH 以外〈EPERM など〉で失敗したときだけ。グループ経路が無い分岐〈Windows・pgid なし〉は変わらない
+  - **到達しやすさ（事実）**: 実際の Node では**観測されず、構造上も起きにくい**。macOS では、leader が終わって Node が回収していない間、`kill(-pgid, 0)` は ESRCH にならず EPERM か成功を返し、Node は回収と同じコールバックで `exitCode` を設定する。実際の子 360 個・約 77 万回の標本で、「ESRCH なのに `exitCode` が null」は 0 回だった〈手元の実測。Linux は未確認〉。
+    古いガード〈`exitCode === null`〉が実際には止めていたと見られ、実害は起きにくい〈推定〉。**到達しにくいが、グループが消えたと分かっているなら、何も送らない方が単純で安全**なので直した
+  - **信号を送る全経路の棚卸し**: `src/` の `process.kill`〈signal 0 を含む〉・`child.kill`・`spawn` 系の `timeout` を全部調べた（`response-r2.md` の M3）。ESRCH の後に届く経路は、上の 1 つだけだった
+  - **B16-R2-002（Medium）: v0.5.34 の記述の訂正（実装は変えていない）**。v0.5.34 の ADR・この CHANGELOG・依頼文は、`close` 未着の待ちを「消滅の最初の確認から `confirmMs`」と書いたが、コードは `anchor = sigkillSentAt ?? goneAt`。**正しくは**: SIGKILL のタイマーが発火する前にグループが消えたときは、消滅の最初の確認から。
+    SIGKILL を送った後は、SIGKILL の時刻から〈SIGKILL の後にグループが消えても、起点は SIGKILL〉。文書の方が長く書いていたので、実際の上限は、文書より短いか同じ。この形はテストで固定した。`GroupState` に時刻まで共有させる変更は、大きく得るものが小さいので採らなかった
+  - 既存テストの期待値の変更は 0 件。新しいテスト 7 件（`tests/regression-backlog16-r2-direct-signal.test.ts` 6 件、`tests/regression-backlog16-r2-confirm-origin.test.ts` 1 件）。v0.5.34 の `src/` に当てると 2 件が FAIL〈B16-R2-001 の 2 つの順〉、5 件は対照・固定として PASS。
+    起点の固定のテストは、起点を入れ替えた誤った実装で FAIL する。時間に依存する〈期待 約 1.2 秒、境界 1.7 秒〉。新しい 2 ファイルは、負荷ゲートを通して 10 回連続で PASS を確認した
+  - 見つけて直していないこと（ROADMAP の項目 31〜33）: `terminateActiveChildren` が後ろの target を猶予の間調べない形（実装者の自レビュー〈独立ではない〉の指摘。CLI は到達しない）、README の中断の説明に安全弁の注意が無いこと・記録の言い回し・実測がリポジトリから検証できないこと、テストの小さな不備。再レビューの要否は、人間が決める
+- docs: ADR-0023（決定 9 の補足、「範囲（v0.5.35 で追記）」、v0.5.34 の 2 か所の訂正、既知の限界、影響）、ARCHITECTURE（後始末ライフサイクル 4）、レビュー記録（`docs/reviews/backlog-16-2-19/independent-review-r2.md`・`response-r2.md`）、README、ROADMAP（v0.5.35 の記録、項目 31〜33 を追加、「次:」の更新。番号は詰めない）、CHANGELOG
+- テスト 1,592 件（131 ファイル。1,585 ＋ 7）。`package.json` version 0.5.35（`package-lock.json` の `version` は 0.1.0 のまま）
+- 注記: v0.5.34 の見出しに commit e5a350f2060a0439e6c86796f520de2baa01ab43 / tag object 2b520e2e4ac7b7aad466fb1100408d1cdcc61af3 を記入した。v0.5.34 の項の本文は書き換えていない（記録。起点の記述の訂正は上の B16-R2-002）
+
+## v0.5.34 — commit e5a350f2060a0439e6c86796f520de2baa01ab43 / tag object 2b520e2e4ac7b7aad466fb1100408d1cdcc61af3 — Independent review R1 of v0.5.33 (B16-R1-001, B16-R1-002): a process group seen gone is not probed or signalled again — the same property existed in v0.5.32
 
 - **v0.5.33 の独立レビュー R1（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +42／−18 と、コメントだけの `src/cli.ts`〈1 行。行数は同じ〉・`src/cli-signals.ts`〈2 行〉。停止ポイント1で `process.kill` の差し替えによる決定的な再現と、一時 worktree での試作を行い、人間の決定の後に実装した〈3 commit〉。
   lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。原文と対応記録は `docs/reviews/backlog-16-2-19/`。新しい ADR は作らず、ADR-0023 に追記した〈決定 9、範囲の v0.5.34〉）
