@@ -321,14 +321,18 @@ function checkDirectory(dir: string): string | null {
  * The group signal is attempted regardless of the leader's state: after SIGTERM the shell
  * (group leader) may already be gone while TERM-ignoring descendants keep the group alive,
  * and the SIGKILL escalation must still reach them (R-004).
+ * With a group path the child alone is signalled only when the group send failed with something other than ESRCH. A group seen
+ * gone gets nothing, and neither does its leader: the pid may name an unrelated process by now (B16-R2-001).
  * Returns null when the signal was delivered or nothing is left to signal (ESRCH); otherwise the errno code of the failure (e.g.
  * "EPERM"): the caller must not assume the process stops (backlog 2). The child is signalled with process.kill, not child.kill,
  * because child.kill reports a failure as an 'error' event, which executeCommand would mistake for a spawn failure.
  */
 function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals): string | null {
   let failure: string | null = null;
-  // A group seen gone (by a probe or by an earlier signal) is not signalled again: the id may name an unrelated group now (B16-R1-001).
-  if (process.platform !== "win32" && group.pgid !== undefined && !group.gone) {
+  if (process.platform !== "win32" && group.pgid !== undefined) {
+    // A group seen gone (by a probe or by an earlier signal) is not signalled again: the id may name an unrelated group now (B16-R1-001).
+    // Returning here, not falling through, keeps the direct signal below from reaching a leader of that group (B16-R2-001).
+    if (group.gone) return null;
     try {
       process.kill(-group.pgid, signal);
       return null;
