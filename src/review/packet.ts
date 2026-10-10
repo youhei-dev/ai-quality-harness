@@ -112,7 +112,7 @@ export interface PacketOptions {
   findings?: PacketFinding[];
 }
 
-export type ChangeKind = "text" | "binary" | "lock" | "excluded" | "submodule" | "deleted";
+export type ChangeKind = "text" | "binary" | "lock" | "excluded" | "submodule" | "deleted" | "symlink";
 
 export interface ChangedFile {
   status: Checked | Rejected;
@@ -775,7 +775,10 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     }
     const size = blobSize(root, blob);
     file.size = size;
-    const isLock = r.pathText !== null && LOCK_FILE_NAMES.includes(path.posix.basename(r.pathText));
+    // A symbolic link on the displayed side (backlog 17): its blob is the link target, not a file's content. Kind "symlink": the diff,
+    // with the target, is shown and checked; there is no full source. Decided before the lockfile name: a link is not a generated file.
+    const isSymlink = mode === "120000";
+    const isLock = !isSymlink && r.pathText !== null && LOCK_FILE_NAMES.includes(path.posix.basename(r.pathText));
     // A gitlink on the old side (submodule -> file) points to a commit, not a blob: that side is empty.
     const oldIsBlob = !ZERO.test(r.oldBlob) && !deleted && r.oldMode !== "160000";
     const oldSize = oldIsBlob ? blobSize(root, r.oldBlob) : 0;
@@ -798,17 +801,18 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
       continue;
     }
     // No NUL: the file is text and must be valid UTF-8 (invalid ⇒ finding, exit 1; --exclude to leave it out).
-    const text = decode(ck, bytes, deleted ? `deleted file ${name}` : `full source ${name}`);
+    const text = decode(ck, bytes, isSymlink ? `link target ${name}` : deleted ? `deleted file ${name}` : `full source ${name}`);
     const oldText = oldBytes.length > 0 ? decode(ck, oldBytes, `previous version of ${oldName}`) : "";
     if (text === null || oldText === null) {
       prepared.push({ file, content: null, diff: null });
       continue;
     }
     if (deleted) file.kind = "deleted";
+    if (isSymlink) file.kind = "symlink";
     if (typeof r.path !== "string" || (r.oldPath !== null && typeof r.oldPath !== "string")) {
       // The path has a finding: no pathspec is built from it (blocked by that finding). The content, read by
       // blob id, is still checked; allow rules see the decoded path in memory only.
-      if (!deleted) checkText(ck, text, `full source ${name}`, (i) => ({ path: r.pathText ?? "", line: i + 1 }));
+      if (!deleted) checkText(ck, text, isSymlink ? `link target ${name}` : `full source ${name}`, (i) => ({ path: r.pathText ?? "", line: i + 1 }));
       prepared.push({ file, content: null, diff: null });
       continue;
     }
@@ -819,8 +823,8 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     // included), so an empty diff means the pathspec missed the file: never write a packet without it.
     if (diffBytes.length === 0) throw new InspectionError(`git diff returned nothing for the changed file ${checkedPath} (status ${typeof r.status === "string" ? r.status : "?"}); nothing written`);
     const diff = decode(ck, diffBytes, `diff ${checkedPath}`);
-    prepared.push({ file, content: deleted ? null : text, diff });
-    if (!deleted) checkText(ck, text, `full source ${checkedPath}`, (i) => ({ path: checkedPath, line: i + 1 }));
+    prepared.push({ file, content: deleted || isSymlink ? null : text, diff });
+    if (!deleted && !isSymlink) checkText(ck, text, `full source ${checkedPath}`, (i) => ({ path: checkedPath, line: i + 1 }));
     if (diff !== null) checkText(ck, diff, `diff ${checkedPath}`, diffOrigin(diff, checkedPath, r.oldPath ?? checkedPath));
   }
   if (tooLarge.length > 0) {
@@ -898,7 +902,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     const S = settled;
     const b = new Builder();
     const dash = md`-`;
-    const KIND: Record<ChangeKind, Md> = { text: md`text`, binary: md`binary`, lock: md`lock`, excluded: md`excluded`, submodule: md`submodule`, deleted: md`deleted` };
+    const KIND: Record<ChangeKind, Md> = { text: md`text`, binary: md`binary`, lock: md`lock`, excluded: md`excluded`, submodule: md`submodule`, deleted: md`deleted`, symlink: md`symlink` };
     const L = S(label);
     b.add(md`# Review Packet — ${plainOrCode(L)}\n\n`);
     b.add(md`## Metadata\n\n`);
@@ -939,12 +943,12 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
     }
 
     b.add(md`\n# Changed Files\n\n\`git diff --raw -M50% <from> <to>\`, sorted by path. Kinds: text (full source and diff below), deleted (diff only),\n`);
-    b.add(md`binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown).\n\n`);
+    b.add(md`binary (contains NUL; not shown), lock (not shown), excluded (by --exclude; not shown), submodule (not shown), symlink (diff only: the link target).\n\n`);
     b.add(md`| # | Status | Path | Previous path | Kind | Bytes | + | - |\n|---|---|---|---|---|---|---|---|\n`);
     files.forEach((f, i) => {
       const status = S(f.status);
       const kind = md`${f.kind === "excluded" && f.excludedBy !== null ? md`excluded (${cellCode(S(f.excludedBy))})` : KIND[f.kind]}${status === "T" ? md` (type change)` : md``}`;
-      const shown = f.kind === "text" || f.kind === "deleted";
+      const shown = f.kind === "text" || f.kind === "deleted" || f.kind === "symlink";
       const added = shown ? (f.added ?? dash) : dash;
       const removed = shown ? (f.deleted ?? dash) : dash;
       b.add(md`| ${i + 1} | ${plainOrCode(status)} | ${cellCode(S(f.path))} | ${f.oldPath !== null ? cellCode(S(f.oldPath)) : md``} | ${kind} | ${f.size ?? dash} | ${added} | ${removed} |\n`);
@@ -958,7 +962,7 @@ function inspect(opts: PacketOptions, ck: Checker): PacketInspection {
       else b.add(md`Not shown (${KIND[p.file.kind]}).\n`);
     }
 
-    b.add(md`\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded and submodule entries have none).\n`);
+    b.add(md`\n# Full Source of Changed Files\n\nContent at <to> of every changed text file (deleted, binary, lock, excluded, submodule and symlink entries have none).\n`);
     for (const p of prepared) {
       if (p.content === null) continue;
       const filePath = S(p.file.path);

@@ -1,7 +1,7 @@
 # ADR-0014: review-packet は機械的に得た事実だけで作り、検査に通らなければ出さない
 
 - 状態: 採用（§11 の finding とエラーの優先順位は ADR-0015 で置換）
-- 日付: 2026-09-23（M2-1、v0.4.0。v0.4.1〈独立レビュー R1〉、v0.4.2〈R2〉、v0.4.3〈R3〉、v0.5.0〈M2-2: R3 の Medium 5 件〉で更新）
+- 日付: 2026-09-23（M2-1、v0.4.0。v0.4.1〈独立レビュー R1〉、v0.4.2〈R2〉、v0.4.3〈R3〉、v0.5.0〈M2-2: R3 の Medium 5 件〉、v0.5.37〈バックログ 17: kind symlink〉で更新）
 
 ## 文脈
 M0〜M2-0 の独立レビューでは、レビューパケットを段階ごとの使い捨てスクリプト（zsh のヒアドキュメント + git コマンド）で作り、
@@ -30,6 +30,9 @@ M2-0 R3 のパケットには、生文字を直す commit の差分として生�
    lock ファイルはパスの最後の要素で判定し、一覧は `src/review/packet.ts` の `LOCK_FILE_NAMES` 1 か所: `package-lock.json`、`npm-shrinkwrap.json`、
    `yarn.lock`、`pnpm-lock.yaml`、`bun.lockb`、`poetry.lock`、`Pipfile.lock`、`uv.lock`、`Cargo.lock`、`Gemfile.lock`、`composer.lock`、`go.sum`。
    含めるオプションは作らない
+   **v0.5.37 の補足（バックログ 17）**: 表示する側（submodule と同じ規則: 削除は旧側、それ以外は新側）のモードが 120000 のシンボリックリンクは kind `symlink`。判定は lock ファイルの名前より先（リンクの blob はリンク先のパスで、生成物ではない）。
+   全文は載せず、差分（リンク先のパス）を載せて検査する。表の行数（+ / -）は出す。削除されたリンクも `symlink`（status が D）。リンク先が不正な UTF-8 なら finding（出所は `link target <path>`）。
+   v0.5.36 までは、リンク先が 1 行のテキストファイルの全文として載り、kind は `text`（削除なら `deleted`、lock の名前なら `lock`）だった
 5. **UTF-8**: 依頼文・レビュー原文・`--doc`・commit メッセージ・`latest.json` は不正な UTF-8 なら exit 1。変更ファイルは NUL の有無で先にバイナリを判定し、
    NUL が無ければ不正な UTF-8 は exit 1（4 の順）。`latest.json` が JSON でない、または `<to>` の結果として描画するのに形が合わない（`tool` がオブジェクト、
    `checks` がオブジェクトの配列、zod で確認）ときは、読めた文字列全体を生文字と秘密の形で検査してから出力しない判断にする（v0.5.0、M2-1-R3-003、ADR-0015）
