@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.36 — Independent review R3 of v0.5.35 (B16-R3-001) and the implementer's self-review (S-1 to S-6): the group's errno is kept when the child is gone; every target is probed; no direct signal to a leader pid seen gone（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.36` / `git rev-parse v0.5.36` で確認し、次の release commit で記入）
+## v0.5.36 — commit 52e923e109eba7622a2fb9f245dce4212fe7552b / tag object f8941d5c1b817153244728e65ee8ff9bb8435085 — Independent review R3 of v0.5.35 (B16-R3-001) and the implementer's self-review (S-1 to S-6): the group's errno is kept when the child is gone; every target is probed; no direct signal to a leader pid seen gone
 
 - **v0.5.35 の独立レビュー R3（High 0・Medium 0・Low 1）と、v0.5.35 の実装者の自レビュー S-1〜S-6（独立ではない）に対応した**（`src/` は `src/runner/execute.ts` だけ〈`killTree`・`terminateActiveChildren`・`GroupState`〉。6 commit。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
   原文と対応記録は `docs/reviews/backlog-16-2-19/`〈`independent-review-r3.md`・`response-r3.md`〉。新しい ADR は作らず、ADR-0023 に追記した〈範囲の v0.5.36〉）。R3 は R2 の 2 件をどちらも解消と判定した。**このバックログ（16・2・19）の独立レビューは R1〜R3 で終えた**（人間の判断）
