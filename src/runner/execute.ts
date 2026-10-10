@@ -324,8 +324,10 @@ function checkDirectory(dir: string): string | null {
  * With a group path the child alone is signalled only when the group send failed with something other than ESRCH. A group seen
  * gone gets nothing, and neither does its leader: the pid may name an unrelated process by now (B16-R2-001).
  * Returns null when the signal was delivered or nothing is left to signal (ESRCH); otherwise the errno code of the failure (e.g.
- * "EPERM"): the caller must not assume the process stops (backlog 2). The child is signalled with process.kill, not child.kill,
- * because child.kill reports a failure as an 'error' event, which executeCommand would mistake for a spawn failure.
+ * "EPERM"): the caller must not assume the process stops (backlog 2). When the group send failed and the child turns out to be gone,
+ * the group's errno is returned: the group itself is still there and could not be signalled (B16-R3-001). The child is signalled
+ * with process.kill, not child.kill, because child.kill reports a failure as an 'error' event, which executeCommand would mistake
+ * for a spawn failure.
  */
 function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals): string | null {
   let failure: string | null = null;
@@ -354,7 +356,8 @@ function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals
     return null;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    return code === "ESRCH" ? null : errnoName(code);
+    // The child is gone: keep the group's errno, if any (B16-R3-001). Without a group path `failure` is null, as before.
+    return code === "ESRCH" ? failure : errnoName(code);
   }
 }
 
