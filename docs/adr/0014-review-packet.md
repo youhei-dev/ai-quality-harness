@@ -111,7 +111,7 @@ M2-0 R3 のパケットには、生文字を直す commit の差分として生�
     （`const note = "python3"`）、名前の配列が、その中の各ツールの probe として許可されていた（M2-2-R1-003。v0.5.1 で確認、v0.5.28 で直した）。いまは、probe は「そのツールだけを
     起動する child_process の呼び出し」を初期値に持つ変数で、1 変数 1 ツール。複数のツールを起動する変数は、probe の呼び出しが違反になる（`probe variable mixes tools`）。
     tool 名を渡すだけで起動しない補助関数で書いた probe は、probe とみなさない。残る限界: `skipIf` の条件の向きは読まないので、`skipIf(hasPython)`（python3 があると飛ばす）の中の
-    python3 の起動も `guarded` になる（v0.5.28 の SP1 で発見。特性テスト `f21_inverted_skipif` が固定している。ROADMAP のバックログ 22）。
+    python3 の起動も `guarded` になる（v0.5.28 の SP1 で発見。特性テスト `f21_inverted_skipif` が固定している。ROADMAP のバックログ 22。**v0.5.37 の注記**: 直す場所は `tests/structure/process-guard.ts` で、`tests/structure/` を変えない制約のため保留した。今の tests/ にこの形は無い）。
     finding のある値は文字列でない `Rejected` になり、描画にも git にも渡せない（ADR-0015）。描画関数（`inlineCode`・`cellCode`・`renderPath`・平文用の
     `plainOrCode`）と ZIP のエントリ名は `Checked` だけを受け取る。(b) パケットの本文は `md` タグ付きテンプレートで組み立て、埋め込めるのは描画関数を通した
     断片（`Md`）と数値だけにする（文字列は、`Checked` でも LF やバッククォートを含み得るため直接は埋め込めない）。これにより描画関数を通らない値は型エラーになる。

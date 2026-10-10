@@ -151,7 +151,7 @@
   assertion・`satisfies` を付けない形（`const target: string = JSON.parse("1")`）は残る。これは「実行時に組み立てた path」の限界とは別で、実行時の値が path でなく fd である
 - **総称型の型アサーション**（v0.5.21 で、`T | undefined`・`NonNullable<T>` のように型パラメーターを union・intersection の枝に持つ cast は、枝ごとに carrier を要求するようにした）: 必須の T の引数があっても、cast する値が別（`<T>(_x: T, raw: string): T => raw as T`）なら塞がない（値の流れを追わない）。逆に、T を `T[]`・`{ v: T }` の中に持つ引数の cast は違反になる 分類 **(ii)**（v0.5.22 で付けた。M2-2-BUILTIN-R5 のレビューの指摘）: carrier の引数がある cast を、cast する値が別の場合と区別して違反にするには値の流れの分析が要り、決定 7 の原則（構文・最上位の宣言の名前・宣言の解決）の外になる。carrier 付きの cast をすべて禁止すると、`src/security/mask.ts` の `maskDeep<T>(value: T): T` の `as T`（正当な cast）と衝突する
 - **brand-guard の広げ**（M2-2-BUILTIN-R3 の 2 巡目 K3。ROADMAP のバックログ 21）: `Checked` / `Md` を持つ container を、式本体のアロー関数の戻り値で、または 5 段より深い入れ子で、ブランドの無い型へ広げる形は検出しない
-  （`return` 文で広げる形は検出する）。意図的な設計が要る形で、`src/` は使わない
+  （`return` 文で広げる形は検出する）。意図的な設計が要る形で、`src/` は使わない（**v0.5.37 の注記**: 抜けはこの記述より広い。親が 4 種〈型注釈つきの変数宣言・`=` の右辺・呼び出しの引数・`return` 文〉のどれでもない位置〈式本体のアロー関数の戻り値、object のプロパティ、配列の要素など〉と、5 段より深い入れ子。直す場所は `tests/structure/brand-guard.ts` で、`tests/structure/` を変えない制約〈backlog-rest〉のため保留した。ROADMAP のバックログ 21）
 - **読み取りの device path**: 読み取り専用の fs の関数（`readFileSync("/proc/self/status")`・`existsSync("/dev/null")` など）のリテラルの device path は、誤検出として違反になる（fail closed のまま。`src/` は使わない）
 - **EventEmitter の `this`**（前の項の補足。v0.5.22 で更新）: v0.5.20 に試作した狭い規則（`process.on` などに渡す listener の本体が `this` を使うときだけ違反）は、`src/` と両立し誤検出も無いと確かめてあり、Record 経由の登録が残るという理由で採らなかった。
   v0.5.22 で、直接解決できる形を閉じるために採った（独立レビュー builtin-r5 の M2-2-BUILTIN-R5-003。「一部の間接の形が残ることは、閉じられる不注意の形を閉じない理由にならない」）。残るのは前の項の (ii) の形だけ。v0.5.22 の「残る EventEmitter は indirect form だけ」は、登録 method の literal の要素アクセス・shorthand property・class field・4 段以上の別名で過大だったので、v0.5.23 でこの 4 形も追うようにした（M2-2-BUILTIN-R6-003・004）

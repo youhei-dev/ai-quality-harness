@@ -560,9 +560,9 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    表記になる。check の出力は非 TTY なので多くのツールは色を付けないが、利用者の環境で `FORCE_COLOR` が設定されていると表記が並ぶ
 11. ~~**verify / init / security-scan の使い方エラーを exit 2 に揃える**~~（**v0.5.27 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（commander の既定では未知のオプション等が exit 1 になり、verify の FAILED〈1〉と区別できない。
    review-packet は v0.4.0 で exit 2 にした）
-12. **review-packet テストの分割・並列化**（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
+12. ~~**review-packet テストの分割・並列化**~~（**v0.5.37 で記録で閉じた**: v0.5.36 の 10 回の実測で、`tests/review-packet.test.ts` は全テストの時間の 7.3%〈平均 32.2 秒、2 位。1 位は構造ガードのテストの 12.8%〉。vitest の worker〈7〉はほぼ埋まっているので、分割しても全体の短縮は最大約 4.6 秒〈推定〉。動機〈自己 verify の時間〉は項目 36 に再定義した。以下は着手前の記述）（v0.4.0 で `tests/review-packet.test.ts` が約 15 秒かかり、フルスイートが約 6 秒 → 15〜20 秒、自己 verify の unit が約 7 秒 → 17〜21 秒に増えた。
    git を多数起動するケースをファイルに分けて vitest の並列実行に載せる）
-13. **M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
+13. ~~**M2-0-R4-001「窓走査は正規表現の境界の文脈を保つ」**~~（**v0.5.37 で記録で閉じた**: ADR-0013 の追記〈v0.5.37〉、ARCHITECTURE・CONFIG_SPEC に記録。安全側の誤検出で、`security.allow` で解除でき、このリポジトリの最長の行〈19,817〉はしきい値〈262,144〉に遠い。backlog-rest の SP1 で、窓の先頭の偽のアンカーから `oversized-candidate` も出る形を新しく見つけた。直すなら案 A〈左の文脈の保持と右の確定の遅延。設計の落とし穴が 4 つ〉。案 (b) は検出力が下がるので採らない。以下は着手前の記述）（Medium、M2-0 から持ち越し。安全側の誤検出で、対象の 3 リポジトリには 256 KiB を超える行が無い）。
    長い行を窓に分けて独立した文字列として照合するため、窓の境界で左右の文脈が失われ、窓なしでは一致しない文字列を finding にする。
    左の文脈: 先頭の `\b`（anthropic / openai / aws / github / slack / google / gitlab / jwt / url-credential）と key-value の否定後読み。
    右の文脈: 末尾の `\b`（aws / github classic / google）、将来の先読み、key-value の値の判定（窓の末尾で値が切れる）。
@@ -571,9 +571,9 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    - (b) 256 KiB 超の行は走査せず「長すぎる行」として finding にし、人間が確認して `security.allow` で許可する（窓走査自体をやめる単純化）
    あわせて、性質テストを「窓なし ⊆ 窓あり」（見逃し防止）だけでなく「窓ありの secret finding ⊆ 窓なし」（誤検出防止）の双方向にする。
    修正時に必要なテストは `docs/reviews/m2-0/response-r4.md` に列挙した
-14. **既知の制限**: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
+14. ~~**既知の制限**~~（**v0.5.37 で記録で閉じた**: ADR-0013 の追記〈v0.5.37〉に、範囲を正確に記録した〈`\b` の位置から 64 文字以内に scheme の先頭が取れれば検出する。英数字だけの 65 文字以上などは検出しない〉。上限を付ける理由は、上限の無いパターンが超線形の時間になること〈項目 35〉。以下は着手前の記述）: scanner は scheme が 64 文字を超える url-credential を検出しない（masker は redact する。M2-0-R3-002、ADR-0013）
 15. M2-2 `aiqh review-import`、再修正ループ、出力パーサ、verify レポートへの oversized-candidate / `security.allow` 警告の構造化、
-   key-value 誤検出の継続記録（下の「内容」）
+   key-value 誤検出の継続記録（下の「内容」）（**v0.5.37 の注記**: これはマイルストーン M2-2 の計画そのもので、バックログの掃除の対象にしない。下の「内容」に載っているのは review-import・再修正ループ・出力パーサ。oversized-candidate / `security.allow` 警告の構造化と key-value 誤検出の継続記録の出典は `docs/reports/M2-0_COMPLETION.md` の 81 行目で、「内容」には無い）
 16. ~~**SIGKILL 経路でもプロセスグループの消滅を有界時間確認する（または保証内容を文書で正確に書き直す）**~~（**v0.5.33 で解消**。記録は上の M2-2 の節。以下は着手前の記述）。ARCHITECTURE §10 の「SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認の後に終了」は、
    SIGTERM 経路では満たす（`src/runner/execute.ts` の `tryFinish` はグループが消えるまで確定しない）が、SIGKILL 経路はコード上保証されていない:
    SIGKILL 送信後は `sigkillSent` により消滅を確かめずに確定し（`execute.ts:129`、`execute.ts:139-142`）、CLI の `terminateActiveChildren` は待たれない（`src/cli.ts:42` の `void`）。
@@ -583,21 +583,21 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    `src/runner/execute.ts`・`src/cli.ts` のコメント〉も書いた）
 17. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
-18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）
-19. **テストの後始末の残り（低）**（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
+18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）（**v0.5.37 の注記**: 計画のまま。Windows での挙動確認は M3 の節に項目が無かったので、M3 の「内容」に足した〈項目 30 を含む〉。R-013 は、出力の末尾の保持と `truncated` は実装済み〈`src/runner/execute.ts` の `OutputBuffer`〉で、残りは総バイト数の記録とリングバッファ化）
+19. ~~**テストの後始末の残り（低）**~~（**v0.5.37 で (c) を記録で閉じた**: テストの中の signal 0 の確認で、製品の経路ではない。誤る向きはテストの失敗側。(a)(b) は v0.5.33 で解消。以下は着手前の記述）（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
    ~~(a) 孫までタイムアウトで止めるテスト（`execute.test.ts`・`regression-r1-runner.test.ts`・`regression-r2-runner.test.ts` の各 1 件）は、製品が孫を止め損なったときだけ、
    孫が自分の寿命（30 秒）まで残る。(b) CLI をすぐ await するテスト（`cli.test.ts`・`cli-init-scan.test.ts`）は、CLI が終わらないときだけ、テストのタイムアウトの後も
    CLI が残る~~（**(a)(b) は v0.5.33 で解消**。記録は上の M2-2 の節。以下は着手前の記述。(a) は `regression-r2-cli-signal.test.ts` の孫（8 秒）にも同じ形があり、一緒に直した）。
    (c) signal 0 の probe（`process.kill(pid, 0)`、5 か所）は、pid が再利用されていると「生きている」と誤る（signal は届かない。誤る向きはテストの失敗）。**(c) は v0.5.33 でも直さない**: pid の 1 周は約 2 分（全テストの 64 秒の間に pid が約 53,300 進む＝毎秒約 830）で、
    probe は孫の死の数百 ms 後なので再利用は起きない。誤る向きはテストの失敗側で、利益が小さい。直すなら、unix socket への接続で生存を見る案が動く（SP1 の試作。5 か所のうち 4 か所で、`regression-r3-cli.test.ts` は pid ファイルの読みの回帰〈M2-1〉が対象なので変えない）
-20. **コールバックの中の未処理の例外が、Node の既定の表示で出口を通らずに標準エラーへ出る**（v0.5.17 の SP1 で見つけた。重要度は記載なし）。タイマーなどのコールバックの
+20. ~~**コールバックの中の未処理の例外が、Node の既定の表示で出口を通らずに標準エラーへ出る**~~（**v0.5.37 で記録で閉じた**: ADR-0019 の既知の限界のまま。`src/` のコールバックは投げないように書かれていて、既知の発生源は無い。直すなら項目 29 と一緒に、`cli.ts` の最上位で、安全弁と判定の確定の段階との順序を設計する。以下は着手前の記述）（v0.5.17 の SP1 で見つけた。重要度は記載なし）。タイマーなどのコールバックの
    中で投げられた例外は、`src/output.ts` の出口を通らず、Node の既定の表示で生のメッセージとソースの行が標準エラーに出て exit 1 になる（v0.5.17 の SP1 で、写しで実測）。
    v0.5.14 で直したのは CLI の最上位の catch（`parseAsync` の catch）だけで、`src/` に `process.on("uncaughtException")` などの処理は無い。モジュールや `process` の
    メンバーではなく Node の実行時の既定の動きなので、バックログ 1 の範囲の外とした（ADR-0019 の既知の限界）。この版では直さない
-21. **brand-guard の広げ（widened-container）の抜け**（v0.5.20 の SP1 の 2 巡目で見つけた。重要度は記載なし。意図的な設計が要る形で、`src/` は使わない）。`Checked` / `Md` を持つ container を、
+21. ~~**brand-guard の広げ（widened-container）の抜け**~~（**v0.5.37 で記録で閉じた**: 直す場所は `tests/structure/brand-guard.ts`〈45 行目の深さ、169-171 行目の親の 4 種〉で、`tests/structure/` を変えない制約〈backlog-rest〉のため保留。抜けは下の記述より広い: 親が 4 種〈型注釈つきの変数宣言・`=` の右辺・呼び出しの引数・`return` 文〉のどれでもない位置〈式本体のアロー関数の戻り値、object のプロパティ、配列の要素など〉と、5 段より深い入れ子。ADR-0019 の既知の限界を合わせた。以下は着手前の記述）（v0.5.20 の SP1 の 2 巡目で見つけた。重要度は記載なし。意図的な設計が要る形で、`src/` は使わない）。`Checked` / `Md` を持つ container を、
    **式本体のアロー関数の戻り値**（`(c: { v: Checked }): { v: string } => c`）や、**5 段より深い入れ子**でブランドの無い型へ広げる形を検出しない（`return` 文で広げる形は検出する）。深さの上限を上げるだけでは
    足りない（別の原因の形が残る）。ADR-0019 の既知の限界。この版では直さない
-22. **process-guard が `skipIf` の条件の向きを読まない**（v0.5.28 の SP1 で見つけた。重要度は記載なし）。`skipIf(hasPython)`（python3 があると飛ばす）の中の python3 の起動も `guarded` と
+22. ~~**process-guard が `skipIf` の条件の向きを読まない**~~（**v0.5.37 で記録で閉じた**: 直す場所は `tests/structure/process-guard.ts`〈62-75 行目、165 行目〉で、`tests/structure/` を変えない制約のため保留。今の tests/ にこの形は無い〈probe を条件にした `skipIf` は `tests/zip-interop.test.ts` の 2 か所で、どちらも `!` 付き〉。ADR-0014 の既知の限界に理由を足した。以下は着手前の記述）（v0.5.28 の SP1 で見つけた。重要度は記載なし）。`skipIf(hasPython)`（python3 があると飛ばす）の中の python3 の起動も `guarded` と
    判定する（条件に probe の変数が現れればよく、`!` や `skipIf` / `runIf` の向きを見ない）。現在の `tests/` にこの形は無い。特性テスト `f21_inverted_skipif`
    （`tests/regression-m2-2-r3-006-external-commands.test.ts`）が現状を固定している。直すなら条件の向き（`skipIf(!has)` と `runIf(has)` だけを許可）を読む。ADR-0014 の既知の限界。この版では直さない
 23. **有効な symlink への `--force` 上書き・追記が、プロジェクトの外の既存ファイルに書く**（v0.5.29 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O7・O8〈dangling symlink に限る〉の範囲外）。
@@ -614,14 +614,14 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    `Cannot use 'in' operator to search for 'verify' in 5`。`VERIFY ERROR (internal error)`）。配列と文字列（`[]`・`"text"`）は、**空の `package.json` として Node プロジェクト扱い**（scripts なし。黙って受け入れる。実測）。`name` が数値なら project 名が `5`。
    直すなら、`package.json` がオブジェクトで、`scripts` などもオブジェクトであることを調べ、違うときは O6 と同じ形で調べられない入口として止める（`ExaminationError`）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。
    v0.5.32 で ENOENT 以外は例外になったので、その点は解消した。ADR-0022 の既知の限界。この版では直さない
-27. **`exists()` が入口の種類を見ない**（v0.5.32 の SP1 で見つけた。重要度は記載なし）。`ctx.exists("tests")` は lstat で入口があるかだけを見るので、`tests` が通常ファイルでも Python のアダプタが「tests/ directory present」と書き、`pytest -q tests/` を推奨する（実測）。
+27. ~~**`exists()` が入口の種類を見ない**~~（**v0.5.37 で記述を正して閉じた**: 実際の CLI では、`tests` が通常ファイルなら、Python のアダプタが `tests/e2e` を調べた時点で ENOTDIR になり、v0.5.32 の決定〈ADR-0022 決定 9〉で `init` が exit 2 で止まる〈`tests/regression-backlog8d-o6-context-throw.test.ts` が固定〉。「tests/ directory present と書く」は、アダプタを単体で呼んだときだけ起きる。残るのは `tests` が dangling symlink のとき〈推定〉。ADR-0022 の既知の限界を訂正した。以下は着手前の記述）（v0.5.32 の SP1 で見つけた。重要度は記載なし）。`ctx.exists("tests")` は lstat で入口があるかだけを見るので、`tests` が通常ファイルでも Python のアダプタが「tests/ directory present」と書き、`pytest -q tests/` を推奨する（実測）。
    直すなら、ディレクトリを探す入口（`tests`・`tests/e2e`）には、ディレクトリかどうかを確かめる別の判定を使う。ADR-0022 の既知の限界。この版では直さない
 28. **最初のシグナルの前に、グループの消滅を確認しない**（v0.5.34 の SP1 で見つけた。独立レビュー R1 の B16-R1-001 の周辺。重要度は記載なし）。leader が先に終わり、`close` が来ない（別のグループの孫が pipe を握る）とき、`executeCommand` はタイムアウトまで signal 0 でグループを調べず、
    最初の SIGTERM を番号へ確認なしで送る。タイムアウトまでに番号が別のグループへ再利用されていれば、無関係なグループへ SIGTERM が届く（`process.kill` の差し替えで、v0.5.32・v0.5.33・v0.5.34 とも同じ性質を確認。実際の再利用は未再現）。v0.5.34 は最初の ESRCH の後の送信だけを止めた。
    直すなら、最初のシグナルの直前に signal 0 で確かめる（最初のシグナルの意味が変わるので、別のテストと再レビューが要る）。ADR-0023 の既知の限界。この版では直さない
-29. **安全弁をフェーズごとの期限にする案**（v0.5.34 の B16-R1-002 の周辺。重要度は記載なし）。今の安全弁は、シグナル受信から固定（猶予 + 3 秒）で、レポートの書き込みの完了を待たない最後の強制終了。極端なイベントループの停止やレポート書き込みの遅れで、レポートの完了前に発火しうる（実測: 1.5 秒の停止で 8,018 ms、レポートなし、exit 130）。
+29. ~~**安全弁をフェーズごとの期限にする案**~~（**v0.5.37 で記録で閉じた**: ADR-0023 の決定 7 と README の中断の説明〈v0.5.36〉に記載済み。発火しても終了コードは 130 / 143 で、fail closed は保たれる〈失うのはレポートだけ〉。直すなら項目 20 と一緒に設計する〈案 Y2 は、安全弁の意味を「シグナルから固定の時間」から「段階ごとの上限」に変える〉。以下は着手前の記述）（v0.5.34 の B16-R1-002 の周辺。重要度は記載なし）。今の安全弁は、シグナル受信から固定（猶予 + 3 秒）で、レポートの書き込みの完了を待たない最後の強制終了。極端なイベントループの停止やレポート書き込みの遅れで、レポートの完了前に発火しうる（実測: 1.5 秒の停止で 8,018 ms、レポートなし、exit 130）。
    直すなら、runner の確認が終わった後にレポート用の期限を数え直す（案 Y2）。安全弁の意味が変わり、`cli.ts` と verify の流れを変える（項目 20 と衝突しうる）。確認の起点を予定時刻にする案（Y1）は、1.5 秒の停止には効いたが、3 秒以上の停止とレポートの書き込みの上限は残る。ADR-0023 の代替案。この版では直さない
-30. **Windows では v0.5.33 から、`close` が未着でも、消滅の確認の起点が最初のポーリング（25 ms）になる**（v0.5.34 の SP1 で、コードを読んで気づいた。重要度は記載なし。Windows は対象外）。`groupAlive` は Windows で常に false なので、`poll()` が最初に「消えた」と見て `goneAt` を設定し、`close` が来なければ `confirmMs`（2 秒）の後に確定する。
+30. ~~**Windows では v0.5.33 から、`close` が未着でも、消滅の確認の起点が最初のポーリング（25 ms）になる**~~（**v0.5.37 で記録で閉じた**: 下の M3 の「Windows での挙動確認」へ移した。ADR-0023 の既知の限界に記録。以下は着手前の記述）（v0.5.34 の SP1 で、コードを読んで気づいた。重要度は記載なし。Windows は対象外）。`groupAlive` は Windows で常に false なので、`poll()` が最初に「消えた」と見て `goneAt` を設定し、`close` が来なければ `confirmMs`（2 秒）の後に確定する。
    v0.5.32 は SIGKILL のタイマーまで待った。v0.5.34 の修正は、この動きを変えない（対照テストで SIGKILL が子の pid へ届くことを固定した）。Windows を対象にするときに見直す（M3 の「Windows での挙動確認」）。この版では直さない
 31. ~~**`terminateActiveChildren` が、後ろの target を猶予の間調べない**~~（**v0.5.36 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.35 の自レビュー〈実装者が書いた。独立ではない〉の S-1。重要度は Low〜Medium。`response-r2.md`）。`anyAlive`（`execute.ts:60`）が `some` で短絡し、先の target が生きている間、後ろの target は 1 度も調べられない。猶予の後の SIGKILL は全 target へ送られるので、実際には消えた後ろの target の番号へ SIGKILL が届きうる（番号の再利用が要る。実測: 後ろの target に signal 0 が 0 回、SIGKILL が 1 回）。
    CLI は同時に 1 つの子しか動かさないので到達しない（ライブラリとして並行に使う場合だけ）。ADR-0023 の既知の限界は、隙を「最後の確認から 25 ms」と書くので、窓が猶予の全期間である点を直す必要がある（v0.5.35 の範囲に追記済み）。
@@ -631,6 +631,9 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 33. ~~**テストの細部**~~（**v0.5.36 で解消**。S-4 は 2 件とも期待値を変えずに余裕を広げた。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.35 の自レビューの S-3・S-4。Low）。(a) `tests/regression-backlog16-r1-pgid-reuse.test.ts` の「最初のシグナルが ESRCH」のテスト（115-117 行目）が `AbortController` を作るが、`executeCommand` の `signal` に渡さない（後始末の `abort` が効かない。1 行）。
    (b) 時間の余裕が小さい（待ちの境界のテストは期待 1.9 秒・境界 2.6 秒。「最初のシグナルが ESRCH」のテストは `timeoutMs: 1200` を起動から数え、差し替えは `waitReady` の後）。負荷で前提が崩れる方向で、誤って PASS にはならない。この版では直さない
 34. **`src/runner/execute.ts` の `GroupState` の説明の 1 文**（v0.5.36 の停止ポイント 2 で実装者が気づいた。Low・コメントだけ）。「It is set on the group-less paths too」は、pgid が無いとき〈`child.pid` が無いとき〉は直接送信の前のガードでもともと何も送らないので、「on Windows too」が正確。動きは変わらない。次に `src/` を変えるときに直す（docs の同じ記述は、R4 の後に訂正の注記を入れた）
+35. **masker の url-credential が、長い入力に対して超線形の時間になる**（backlog-rest の SP1 で見つけた。Low）。`src/security/patterns.ts` の masker の url-credential のパターン（149 行目）は scheme の長さに上限が無く、点やハイフンでつながった長い連続で、処理時間が超線形に伸びる（実測: 「a.」の繰り返しで 1 万文字 187 ms、2 万文字 1,258 ms、4 万文字 4,315 ms。上限の 64 KiB〈`TAIL_BYTES`〉で 2.3〜3.5 秒。16 進の連続は 0 ms）。
+   マスクに渡る文字列は 64 KiB に切り詰められるので、止まらなくなることは無い。直すなら masker の scheme にも上限を付ける（scanner は `{0,63}`。項目 14 と同じ設計で、redact の範囲が変わる）
+36. **テストの作業量（git の起動）を減らす**（v0.5.37 で項目 12 を再定義した。開発速度だけの項目）。v0.5.36 の実測で、全テストの時間の 51.5% は review-packet を走らせる 29 ファイル。テストの準備（`baseRepo()` など）の共有や、unit と unit-minpath の二重実行の扱い（`unit-minpath` の保証との関係を設計する）を検討する
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
@@ -659,6 +662,9 @@ M2-1 の教訓（R3）:
 - 入力: Node / Python バージョン、作業ディレクトリ、設定パス。出力: verify 結果を workflow artifact としてアップロード、Job Summary に latest.md を表示
 - 本体リポジトリ自身の CI（自己 verify を PR ごとに実行）
 - Branch Protection の手順書（必須ステータスチェック、レビュー必須、force push 禁止）
+- **Windows での挙動確認**（v0.5.37 で足した。バックログの項目 18・30 の行き先。Windows は M0 から対象外）: 対象にするときは、少なくとも次を確かめる。
+  (a) 消滅の確認の起点（項目 30: `groupAlive` は Windows で常に false なので、`close` が未着でも最初のポーリングで `goneAt` が入る。既定値〈猶予 5 秒・確認 2 秒〉では猶予より先に確定し、SIGKILL のタイマーは解除される）、
+  (b) Windows の SIGTERM は強制終了で、子孫はグループが無いので止めていない（どの版も同じ）、(c) そのとき `errorSummary` の「process group terminated」は正確ではない、(d) `leaderGone`（v0.5.36）は Windows の分岐で効く
 - 独立レビュー R1 からの持ち越し:
   - **R-011（後半）**: Ubuntu の CI ジョブを最低 1 本追加し、正常終了・非ゼロ終了・タイムアウト・
     SIGTERM 無視の孫プロセス・大量出力を Linux で検証する（M0 は macOS のみで検証）

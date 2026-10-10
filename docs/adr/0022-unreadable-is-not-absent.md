@@ -114,7 +114,7 @@
 - （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）（**v0.5.37 で解消**: root の分類を足した。範囲〈v0.5.37〉）
 - （D グループ）**`package.json` が JSON としては正しいが形が違うとき**（`null`・配列・文字列・`scripts` が数値）: `null` と `scripts` が数値は生の TypeError で exit 2（`aiqh: unexpected error: …`）、配列と文字列は**空の `package.json` として Node プロジェクト扱い**（黙って受け入れる）。
   直していない（ROADMAP の項目 26）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。v0.5.32 で ENOENT 以外は例外になったので、その点は解消した（**v0.5.37 で解消**: 形が違うときも `ExaminationError`。範囲〈v0.5.37〉）
-- （D グループ）**`exists()` は入口の種類を見ない**（lstat で「ある」かだけ）: `tests` が通常ファイルでも「tests/ directory present」と書く。直していない（ROADMAP の項目 27）
+- （D グループ）**`exists()` は入口の種類を見ない**（lstat で「ある」かだけ）: `tests` が通常ファイルでも「tests/ directory present」と書く。直していない（ROADMAP の項目 27）（**v0.5.37 の訂正**: 実際の CLI では、`tests` が通常ファイルなら Python のアダプタが `tests/e2e` を調べた時点で ENOTDIR になり、決定 9 で `init` が止まる〈次の項目〉。「tests/ directory present と書く」は、アダプタを単体で呼んだときだけ起きる。残るのは `tests` が dangling symlink のとき〈推定〉。記録で閉じた）
 - （D グループ）通常ファイルの下の入口（ENOTDIR）は「調べられない」なので、`tests` が通常ファイルの Python リポジトリや、`.venv` が通常ファイルのリポジトリでは `init` が止まる（決定 9。決定 4 と同じ扱い。人間の判断）。一覧できない root（0300）でも止まる
 - （D グループ）root が辿れない（0600）とき、`init` のメッセージは最初に調べた入口の名前が出る（`cannot audit <root>: package.json cannot be examined (EACCES)`）。`describeRootProblem` は変えていない（人間の判断）
 

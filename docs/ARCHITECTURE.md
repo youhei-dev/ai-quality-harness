@@ -246,6 +246,7 @@ key-value はキー名のみ、private-key は固定文字列 `-----BEGIN `（M2
 行番号は改行の数だけ進む。PEM の状態機械は BEGIN / END 行の判定だけを使うので影響を受けない。
 既知の副作用: minified バンドルのような改行のない長行で、区間末尾までアンカーの継続文字だけが 64 KiB 超続く場合（例: `eyJ` で始まる巨大な
 base64 文字列）は oversized-candidate になる。実物でないと分かっているなら `security.allow` で理由つきで許容する。
+既知の限界（M2-0-R4-001、v0.5.37 で記録）: 窓は独立した文字列として照合されるので、窓の境界で正規表現の左右の文脈（`\b`・否定後読み・key-value の値の判定）が失われ、窓なしでは一致しない文字列が finding になることがある（安全側の誤検出。ADR-0013 の追記〈v0.5.37〉）。
 
 **masker と scanner のパターンの関係（M2-0-R3-002）**: `SECRET_PATTERNS` は検出方針の単一の定義で、masker は各エントリの `pattern` を、
 scanner は `scanPattern ?? pattern` を使う。`scanPattern` を持つのは url-credential だけ（scheme を 64 文字までに限った scanner 用。窓のアンカーを

@@ -62,3 +62,7 @@ INVALID / PARTIAL なし。
 
 - 手順0: `git fetch origin` 後、HEAD = origin/main = v0.3.3 = cb632cd。作業ツリー clean。`npm run verify` VERIFY PASSED（7 チェック）。テスト 66 ファイル 338 件 PASS
 - 再現スクリプトは `src/` の `scanString` / `lineFindings` をそのまま使った（コード等価の写しではない）
+
+## 訂正（v0.5.37）
+
+- 上の判定表の M2-0-R4-001 の行の「左の文脈は private-key 以外の 11 分類すべて」は数え違いで、正しくは **10 分類**（scanner が走査する分類 `SCANNED_CATEGORIES` は private-key を含めて 11）。backlog-rest の SP1 の監査で見つけた。本文は記録として書き換えず、この節で訂正する
