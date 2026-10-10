@@ -523,8 +523,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   1 ツールで、複数のツールを起動する変数と、tool 名を文字列として含むだけの変数は probe ではない（v0.5.28、M2-2-R1-003。`skipIf` の条件の向きは読まない。ADR-0014）。
   `tests/structure/process-guard.ts`（型情報付き）が child_process の宣言に解決される呼び出しをすべて調べる。文字列の中からの起動（`node -e` のスクリプトなど）は静的には見えない。自己 verify の `unit-minpath`
   （`scripts/test-minimal-path.ts`: PATH を node と git の symlink だけを置いた一時ディレクトリにして全テストを実行、終了後に削除）は、そのうち
-  **PATH の名前解決で起動する、宣言していないコマンド**を検出する（v0.5.1 で保証の記述を狭めた。M2-2-R1-005・006）: 絶対パスでの起動は防がない。
-  環境変数は PATH 以外を引き継ぐ。単独で実行してシグナルを受けたとき、止めるのは vitest の直接の子プロセスだけ（自己 verify の中では runner が
+  **PATH の名前解決で起動する、宣言していないコマンド**を検出する（v0.5.1 で保証の記述を狭めた。M2-2-R1-005・006）: 絶対パスでの起動は防がない（保証の外。v0.5.37 で決めた、バックログ 6。runner のシェル `/bin/sh` も絶対パスで起動される）。
+  vitest に渡す環境変数は PATH・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継がない（v0.5.37。実測で、ほかの変数は要らなかった）。単独で実行してシグナルを受けたとき、止めるのは vitest の直接の子プロセスだけ（自己 verify の中では runner が
   プロセスグループごと止める）。
   runner 経由でテストが実行するコマンド（`tests/helpers.ts` の `nodeEval`）は、`process.execPath` ではなく PATH 上の `node` を使う前提である
   （`unit-minpath` でも PATH に node を置く）。

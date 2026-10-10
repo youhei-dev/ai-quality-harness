@@ -4,7 +4,7 @@
  * even with NO_COLOR; and NO_COLOR alone changed nothing (a pipe is not colored by default), did not stop eslint when FORCE_COLOR was
  * set, and made Node print a warning when both were set. A check now gets the environment of aiqh without FORCE_COLOR and PY_COLORS,
  * and with NO_COLOR=1; everything else is kept. CLICOLOR_FORCE and NPM_CONFIG_COLOR did not change any output when measured, so they
- * are not touched. This is the one place that builds a check's environment (backlog 6, a minimal environment, will extend it).
+ * are not touched. This is the one place that builds a check's environment (backlog 6, a minimal environment, was closed in v0.5.37 for the test:minpath script only).
  * The new module is imported at run time inside each test so that this file also runs against v0.5.23, where the tests that expect it
  * fail on their own.
  */

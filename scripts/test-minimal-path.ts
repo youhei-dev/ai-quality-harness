@@ -6,7 +6,8 @@
  *
  * The runner shell (/bin/sh, started by absolute path) and its builtins (true, echo) stay usable; `node` for
  * the runner's `node -e` commands (tests/helpers.ts nodeEval) is the node on PATH, here this process's node.
- * The symlinks live in a temporary directory under the OS temp directory, removed in `finally`.
+ * The symlinks live in a temporary directory under the OS temp directory, removed in `finally`. A command started by its absolute
+ * path is outside what this check guarantees (backlog 6, decided in v0.5.37), and vitest gets no variable of this process's environment.
  * Exit code: vitest's, 2 if git is not found or vitest cannot be started, 128 + n after SIGINT / SIGTERM.
  */
 import { spawn } from "node:child_process";
@@ -36,7 +37,9 @@ function which(cmd: string): string | null {
 
 function runVitest(bin: string): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [VITEST, "run"], { cwd: ROOT, env: { ...process.env, PATH: bin, NO_COLOR: "1", FORCE_COLOR: "0" }, stdio: "inherit" });
+    // A minimal environment (backlog 6): nothing of this process's environment is passed on, only PATH = { node, git } and no colors.
+    // Measured (v0.5.37, macOS): the suite needs no other variable (not HOME, TMPDIR or LANG; os.tmpdir() falls back to /tmp).
+    const child = spawn(process.execPath, [VITEST, "run"], { cwd: ROOT, env: { PATH: bin, NO_COLOR: "1", FORCE_COLOR: "0" }, stdio: "inherit" });
     let result: number | null = null;
     const stop = (code: number): void => {
       result ??= code;
