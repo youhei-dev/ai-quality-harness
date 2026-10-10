@@ -402,16 +402,16 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
      `close` が来なければ待ち続けた（v0.5.7 で文言を実装に合わせた）。
      一度 ESRCH を見た（signal 0 でも、グループへのシグナルの送信でも）グループには、以後 signal 0 も SIGKILL も送らない（同じ番号が別のグループに再利用されうるため。
      `terminateActiveChildren` と記録を共有する。最初のシグナルは、まだ確認していないので確認なしで送る。グループ経路があるときは、そのグループの leader へも子の pid への直接送信をしない
-     〈直接送るのは、グループへの送信が ESRCH 以外で失敗したときだけ。v0.5.35〉。v0.5.34、ADR-0023 決定 9）
+     〈直接送るのは、グループへの送信が ESRCH 以外で失敗したときだけ。v0.5.35〉。子の pid への直接送信が ESRCH を返したら、その pid へは以後直接送らない〈v0.5.36〉。v0.5.34、ADR-0023 決定 9）
   5. エスカレーション待ちのタイマー（猶予・確認のポーリング）は `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
   6. シグナルはグループへ送り、ESRCH 以外で失敗したら子へ `process.kill(pid, signal)` で送る（`child.kill()` の失敗は `error` イベントになり、spawn の失敗と取り違えるため使わない）。
-     どちらにも送れない（EPERM など）ときは errno を覚え、上の 4 の打ち切りで「送れず、消えていない」と書く。`error` イベントで確定するのは、起動に失敗したとき（pid が無いとき）だけ
+     どちらにも送れない（EPERM など）ときは errno を覚え、上の 4 の打ち切りで「送れず、消えていない」と書く（グループへ送れず、子が既に無い〈ESRCH〉ときも、グループの errno を覚える。v0.5.36）。`error` イベントで確定するのは、起動に失敗したとき（pid が無いとき）だけ
   7. 別のプロセスグループへ移った子孫（`setsid` 相当）は、この仕組みでは止められない（保証の外）。macOS / Linux が対象で、Windows は対象外（M0 から変わらない）
 - **中断機構（R3-002）**: SIGINT / SIGTERM を受けた CLI は次の順で動く。
   1. `AbortController.abort(<シグナル名>)` で中断状態を立てる。この `AbortSignal` は `runVerify → runChecks → executeCommand`
      に渡されており、`runChecks` は各チェックの開始前に、`executeCommand` は spawn の直前と直後に中断を確認する。
      中断後に新しいプロセスが起動することはない
-  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒 → SIGKILL → 消滅確認〈最大 2 秒〉。CLI はこれを待たない。
+  2. 実行中のグループを後始末する（`terminateActiveChildren`: SIGTERM → 猶予 5 秒〈その間、全グループを調べる。v0.5.36〉→ SIGKILL → 消滅確認〈最大 2 秒〉。CLI はこれを待たない。
      実行中の `executeCommand` 自身も abort を受けて SIGTERM → 猶予 → SIGKILL を行い、上の 4 の条件で確定する〈消滅を確認し、SIGKILL の後は最大 2 秒。
      既定では、猶予 5 秒 + 確認 2 秒 = 7 秒が、5 の安全弁の 8 秒より 1 秒短い。これは定数の関係で、テストで固定しているのもそこまで。レポートが先に書かれる保証ではない〈5 を参照〉）
   3. `runVerify` が未実行チェックを SKIPPED（理由: `run interrupted by SIGINT`）として記録し、
