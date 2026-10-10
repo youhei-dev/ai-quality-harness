@@ -5,7 +5,25 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.35 — Independent review R2 of v0.5.34 (B16-R2-001, B16-R2-002): no direct signal to the leader of a process group seen gone; the wording of where the wait for `close` counts from is corrected（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.35` / `git rev-parse v0.5.35` で確認し、次の release commit で記入）
+## v0.5.36 — Independent review R3 of v0.5.35 (B16-R3-001) and the implementer's self-review (S-1 to S-6): the group's errno is kept when the child is gone; every target is probed; no direct signal to a leader pid seen gone（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.36` / `git rev-parse v0.5.36` で確認し、次の release commit で記入）
+
+- **v0.5.35 の独立レビュー R3（High 0・Medium 0・Low 1）と、v0.5.35 の実装者の自レビュー S-1〜S-6（独立ではない）に対応した**（`src/` は `src/runner/execute.ts` だけ〈`killTree`・`terminateActiveChildren`・`GroupState`〉。6 commit。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
+  原文と対応記録は `docs/reviews/backlog-16-2-19/`〈`independent-review-r3.md`・`response-r3.md`〉。新しい ADR は作らず、ADR-0023 に追記した〈範囲の v0.5.36〉）。R3 は R2 の 2 件をどちらも解消と判定した。**このバックログ（16・2・19）の独立レビューは R1〜R3 で終えた**（人間の判断）
+  - **利用者に見える変更**: 終了コード・status・verdict・レポートの欄・待ちの時間は変わらない。グループへの送信が EPERM などで失敗し、子は既に無い（ESRCH）形でだけ、`errorSummary` が `process group still present … after SIGKILL` から
+    `process group could not be signalled (EPERM) and was still present after …` に変わる（`process.kill` の差し替えでしか作れない状態）
+    - **B16-R3-001（Low）**: その形で `killTree` が `null` を返し、グループの errno を捨てていた（v0.5.33 から。errno を返す `killTree` は v0.5.33 から）。今は子が ESRCH のときはグループの errno を返す。グループ経路が無い分岐〈Windows・pgid なし〉は、これまでどおり
+    - **S-1**: `terminateActiveChildren` は、猶予の間、全 target を調べてから判定する（以前は `some` で短絡し、先の target が生きている間、後ろの target を調べず、消えた後ろの target の番号へ猶予の後に SIGKILL を送った。CLI は 1 つずつ動かすので到達しない）
+    - **leader の pid**（実装者が信号の経路の一覧の作成中に見つけた。レビューの指摘ではない）: 子の pid への直接送信が ESRCH を返しても記録しなかったので、グループへの送信が失敗し続けると、同じ pid へもう一度送った（v0.5.33 から。差し替えで、CLI の中断の順で 4 回）。
+      今は `GroupState.leaderGone` を立て、以後その pid へは直接送らない（1 回だけ）。実際の Node では、この状態は JS から見えないと見る（推定。B16-R2-001 と同じ構造）
+  - **信号を送る・調べる経路の棚卸し**: `grep` のコマンドと出力を `response-r3.md` に載せた（R3 の未確認範囲 5〈変更していないファイル〉への答え。timeout の無い `git` の呼び出しも足した）。**ESRCH を見た後に、番号（負の pgid・正の pid）へ何かが届く経路は 0**
+  - 新しいテスト 8 件（`tests/regression-backlog16-r3-group-errno.test.ts` 6 件、`tests/regression-backlog16-r3-probe-every-target.test.ts` 2 件）。v0.5.35 の `src/` に当てると 3 件が FAIL、leader の pid の 4 件は S-1 までの修正の `src/` で FAIL。残りは対照。
+    **v0.5.35 までにある既存テストの期待値の変更は 0 件**。`tests/regression-backlog16-r1-pgid-reuse.test.ts` は、`AbortController` の受け渡し（S-3）と時間の余裕（S-4。期待値は同じ）だけを直した（v0.5.33 の `src/` では以前と同じ 4 件が FAIL）
+- docs: ADR-0023（「範囲（v0.5.36 で追記）」、決定 9 の v0.5.36 の補足、S-5 の訂正の注記、S-6〈手元の実測の一覧〉、既知の限界、影響）、ARCHITECTURE（後始末ライフサイクル）、README（中断の説明に安全弁の注意〈S-2〉、状態）、
+  レビュー記録（`docs/reviews/backlog-16-2-19/independent-review-r3.md`・`response-r3.md`、`response-r1.md` の訂正の節〈S-5〉）、ROADMAP（v0.5.36 の記録、項目 31〜33 の解消、レビューのサイクルの終了、「次:」の更新）、CHANGELOG
+- テスト 1,600 件（133 ファイル。1,592 ＋ 8）。`package.json` version 0.5.36（`package-lock.json` の `version` は 0.5.35 のまま。npm が書いたロックを手で直さない）
+- 注記: v0.5.35 の見出しに commit 484703fc8efbf8b53b71044d9272f526553e5203 / tag object 2932869d628a4ca28eb58f80cf87ee9630539dc4 を記入した。v0.5.35 の項の本文は書き換えていない
+
+## v0.5.35 — commit 484703fc8efbf8b53b71044d9272f526553e5203 / tag object 2932869d628a4ca28eb58f80cf87ee9630539dc4 — Independent review R2 of v0.5.34 (B16-R2-001, B16-R2-002): no direct signal to the leader of a process group seen gone; the wording of where the wait for `close` counts from is corrected
 
 - **v0.5.34 の独立レビュー R2（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +6／−2 だけ〈`killTree`〉。停止ポイントで判定・再現し、実装した〈3 commit〉。この 3 commit では lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない〈依存関係の更新は 4 つ目の commit。下の deps〉。
   原文と対応記録は `docs/reviews/backlog-16-2-19/`〈`independent-review-r2.md`・`response-r2.md`〉。新しい ADR は作らず、ADR-0023 に追記した〈決定 9 の補足、範囲の v0.5.35〉）
