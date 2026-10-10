@@ -81,13 +81,14 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     config.outputDir = path.resolve(cwd, options.outputDir);
   }
 
-  const { info: git, problem: gitProblem } = lookupGit(config.projectRoot);
+  const { info: git, problem: gitProblem, unknown: gitUnknown } = lookupGit(config.projectRoot);
 
   log(`aiqh verify — ${config.project.name}`);
   log(`config: ${config.configPath}`);
   log(
     git
-      ? `git: ${git.branch ?? "(detached)"} @ ${git.commit ? git.commit.slice(0, 12) : "(no commit)"}${git.dirty === null ? " (dirty: unknown)" : git.dirty ? " (dirty)" : ""}`
+      ? // a git that failed is "unknown", not its answer "(detached)" / "(no commit)" (backlog 25)
+        `git: ${git.branch ?? (gitUnknown?.branch === true ? "(branch: unknown)" : "(detached)")} @ ${git.commit ? git.commit.slice(0, 12) : gitUnknown?.commit === true ? "(commit: unknown)" : "(no commit)"}${git.dirty === null ? " (dirty: unknown)" : git.dirty ? " (dirty)" : ""}`
       : // git that failed is not "not a git repository" (backlog 8, O3); the report's `git` stays null for both
         gitProblem !== null
         ? `git: unavailable (${gitProblem})`

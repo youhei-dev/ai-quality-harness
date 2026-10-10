@@ -326,7 +326,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "startedAt": "2026-09-15T12:00:00.000Z",
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,
-  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null（git が答えられなかったときも null。理由は標準出力の行）。dirty は取得失敗時 null（unknown）
+  "git": { "commit": "abcdef…", "branch": "main", "dirty": false },   // 非 git なら null（git が答えられなかったときも null。理由は標準出力の行）。dirty は取得失敗時 null（unknown）。commit・branch は、git の失敗でも null（標準出力の行で `unknown`。v0.5.37）
   "verdict": "PASSED",                                                 // "PASSED" | "FAILED" | "ERROR"（ERROR は中断時。R3-002）
   "exitCode": 0,                                                       // 0 | 1 | 128+シグナル番号（中断時）
   "interruptedBy": null,                                               // 中断時はシグナル名（"SIGINT" 等）。設定エラー由来の ERROR はレポート自体を書かない

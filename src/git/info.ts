@@ -2,15 +2,27 @@ import { execFileSync } from "node:child_process";
 import type { GitInfo } from "../types.ts";
 
 function git(args: string[], cwd: string): string | null {
+  const r = ask(args, cwd);
+  return "out" in r ? r.out : null;
+}
+
+/**
+ * Run git and keep its answer apart from its failure (backlog 25): the trimmed output when it exits 0, `{ no: true }` when it exits 1
+ * (for `rev-parse --verify --quiet` and `symbolic-ref -q` that is git's own "no": no commit, a detached HEAD), `{ failed: true }` for
+ * anything else (another status, a git that cannot run, a timeout).
+ */
+function ask(args: string[], cwd: string): { out: string } | { no: true } | { failed: true } {
   try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 10_000,
-    }).trim();
-  } catch {
-    return null;
+    return {
+      out: execFileSync("git", args, {
+        cwd,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 10_000,
+      }).trim(),
+    };
+  } catch (err) {
+    return (err as { status?: number | null }).status === 1 ? { no: true } : { failed: true };
   }
 }
 
@@ -43,6 +55,11 @@ export interface GitLookup {
   /** null when `cwd` is not inside a git work tree, or when git could not tell (then `problem` says why). */
   info: GitInfo | null;
   problem: string | null;
+  /**
+   * Present only when a field of `info` is null because git failed rather than answered (backlog 25): verify shows it as "unknown". It is
+   * not part of `info`, so the report's `git` keeps its shape and values (null for both, as for O3; ADR-0022 decision 8).
+   */
+  unknown?: { commit: boolean; branch: boolean };
 }
 
 /** Collect commit / branch / dirty state, and say why there is none when git failed instead of answering "no". */
@@ -51,11 +68,14 @@ export function lookupGit(cwd: string): GitLookup {
   if (inside.answer !== "true") {
     return { info: null, problem: inside.problem };
   }
-  const commit = git(["rev-parse", "HEAD"], cwd);
-  // symbolic-ref works before the first commit; abbrev-ref covers detached HEAD.
-  const branch =
-    git(["symbolic-ref", "--short", "HEAD"], cwd) ?? git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
+  // `--verify --quiet` exits 1, silently, when there is no commit yet: git's answer. Any other failure is "unknown" (backlog 25).
+  const head = ask(["rev-parse", "--verify", "--quiet", "HEAD"], cwd);
+  const commit = "out" in head ? head.out : null;
+  // symbolic-ref works before the first commit and exits 1 on a detached HEAD; abbrev-ref then gives "HEAD", as before.
+  const symbolic = ask(["symbolic-ref", "-q", "--short", "HEAD"], cwd);
+  const branch = "out" in symbolic ? symbolic.out : git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
   const status = git(["status", "--porcelain"], cwd);
+  const unknown = { commit: "failed" in head, branch: branch === null && "failed" in symbolic };
   return {
     info: {
       commit,
@@ -64,6 +84,7 @@ export function lookupGit(cwd: string): GitLookup {
       dirty: status === null ? null : status.length > 0,
     },
     problem: null,
+    ...(unknown.commit || unknown.branch ? { unknown } : {}),
   };
 }
 
