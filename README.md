@@ -143,7 +143,8 @@ aiqh security-scan
 - `aiqh init --write` は生成した設定を `aiqh verify` と同じ検証に通し、通らない設定（必須チェック 0 件等）は書きません。
   `--write-gitignore` / `--write-scripts` の失敗は exit 2 で報告されますが、他の書込は取り消されません（`git status` で確認）
 - `aiqh init --write` / `--write-gitignore` は、書込先（`aiqh.config.jsonc`・`.gitignore`）が dangling symlink（リンク先が未作成）のとき、
-  リンク先を作らずに exit 2 で拒否します（`--force` でも。リンクを消すか、リンク先を作ってください）
+  リンク先を作らずに exit 2 で拒否します（`--force` でも。リンクを消すか、リンク先を作ってください）。v0.5.37 からは、書込先（`--write-scripts` の `package.json` も）が
+  プロジェクトの外を指す symlink のときも、書かずに exit 2 で拒否します（プロジェクトの中を指す symlink は、従来どおりリンク先に書きます）
 - Security Scan は git 追跡ファイルに加えて、未追跡で ignore されないファイルも走査します（サイズ上限なし。1 行が 256 KiB を
   超えるファイルは窓走査でメモリを抑えます）。未追跡で ignore されていない `.env*` は中身を読まずに finding にします。複数行の
   PEM 秘密鍵は開始行–終了行で報告し、`.gitignore` の判定は `git check-ignore` に委ねます（否定ルールを考慮）。

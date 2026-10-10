@@ -195,7 +195,7 @@ aiqh init
   全アダプタの detect() → 分類ごとに「採用（最初の available）/ 代替 / unavailable（理由・有効化案内）」
    ▼
   監査表 + aiqh.config.jsonc 案（コメント付き JSONC）+ 追加提案（.gitignore の artifacts/、scripts.verify）
-   ▼ --write（既存があれば exit 2、--force で上書き）/ --write-gitignore / --write-scripts（書込先が dangling symlink なら exit 2、ADR-0022）
+   ▼ --write（既存があれば exit 2、--force で上書き）/ --write-gitignore / --write-scripts（書込先が dangling symlink、または root の外を指す symlink〈v0.5.37〉なら exit 2、ADR-0022）
   書込（config は 1 ファイル。scripts は未定義キーのみ追加）
 
 aiqh security-scan

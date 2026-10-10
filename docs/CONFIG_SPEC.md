@@ -255,7 +255,10 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 （`aiqh init: failed to write <file>: it is a symbolic link whose target does not exist; remove the link or create the target first` /
 `aiqh init: failed to update <file>: …`、exit 2。`--force` でも拒否する。他のファイルの書込は取り消されない。v0.5.29、ADR-0022）。
 リンク先が存在する symlink は従来どおり書込の対象で（`--write` は `--force` なしでは already exists、`--force` ではリンク先を上書き、`.gitignore` は追記）、
-リンク先がプロジェクトの外でも書く（ROADMAP のバックログ 23。直していない）。
+リンク先がプロジェクトの外でも書いた（ROADMAP のバックログ 23）。**v0.5.37 から**、3 つの書込先（`aiqh.config.jsonc`・`.gitignore`・`--write-scripts` の `package.json`）は、
+リンクを解決した先が root の外なら書かずに拒否する（`aiqh init: failed to write <file>: it is a symbolic link to <target>, outside the project root; replace the link with a regular file, or update that file yourself` /
+`aiqh init: failed to update <file>: …`、exit 2。`--force` でも拒否する。他のファイルの書込は取り消されない）。root の中を指す symlink は、従来どおりリンク先に書く。
+`--write-scripts` にも dangling の拒否を揃えた（`package.json` が dangling なら、監査〈O6〉が先に止める）。
 
 `aiqh init` の対象ディレクトリ（`--cwd`、既定はカレント）は、存在しない（ENOENT）とき `aiqh init: directory not found: <root>`、辿れない・調べられない（EACCES・ENOTDIR・ELOOP など）とき
 `aiqh init: directory cannot be examined: <root> (<code>)`、ディレクトリでない（通常ファイルなど）とき `aiqh init: not a directory: <root>` で、いずれも何も監査せず exit 2（v0.5.31、ADR-0022。以前は通常ファイルをリポジトリとして監査し、exit 0 だった）。

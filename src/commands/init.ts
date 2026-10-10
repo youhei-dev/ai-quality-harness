@@ -95,6 +95,20 @@ function assertNotDanglingLink(file: string): void {
 }
 
 /**
+ * Refuse a write target that is a symbolic link resolving outside the project root (backlog 23; N1 for package.json): `--force`, the
+ * .gitignore append and the scripts update would change a file of another project or a shared file. Called after assertNotDanglingLink,
+ * so the target exists. A link that resolves inside the root is written through as before; a target that is not a link is not looked at.
+ */
+function assertLinkInsideRoot(file: string, root: string): void {
+  if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() !== true) return;
+  const target = realpathSync(file);
+  const rel = path.relative(realpathSync(root), target);
+  if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+    throw new Error(`it is a symbolic link to ${target}, outside the project root; replace the link with a regular file, or update that file yourself`);
+  }
+}
+
+/**
  * Why `root` cannot be audited, or null when it is a directory. Only ENOENT is "not found": any other failure of stat
  * (EACCES, ENOTDIR, ELOOP, …) is a directory that cannot be examined, and a path that is not a directory is not a
  * repository (backlog 8, O9; ADR-0022).
@@ -205,6 +219,7 @@ export async function runInit(options: InitOptions): Promise<number> {
     }
     try {
       assertNotDanglingLink(configFile);
+      assertLinkInsideRoot(configFile, root);
       writeFileSync(configFile, escapeRawCharsAsJson(configText), "utf8");
       log(`wrote ${configFile}`);
     } catch (err) {
@@ -219,6 +234,7 @@ export async function runInit(options: InitOptions): Promise<number> {
       const file = path.join(root, ".gitignore");
       try {
         assertNotDanglingLink(file);
+        assertLinkInsideRoot(file, root);
         const current = existsSync(file) ? readFileSync(file, "utf8") : "";
         // Three cases (M1-R3-002 → M2-0-R1-003):
         //  (a) tracked .gitignore and git says the artifact paths are not ignored (a later negation
@@ -250,6 +266,9 @@ export async function runInit(options: InitOptions): Promise<number> {
   if (options.writeScripts && scriptsProposal.applicable && scriptsProposal.missing.length > 0) {
     const file = path.join(root, "package.json");
     try {
+      // The same refusals as for the config and .gitignore (backlog 23, N1): this write needs no --force.
+      assertNotDanglingLink(file);
+      assertLinkInsideRoot(file, root);
       const text = readFileSync(file, "utf8");
       const indent = /^(\s+)"/m.exec(text)?.[1] ?? "  ";
       const pkg = JSON.parse(text) as Record<string, unknown>;

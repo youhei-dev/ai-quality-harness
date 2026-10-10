@@ -1,7 +1,7 @@
 # ADR-0022: 読めないものを「無い」としない: パスの包含と書込の前提
 
 - 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ、v0.5.32 で D グループ（O6）へ広げた（バックログ 8 は完了）。ADR-0014・0015・0020・0021 は変えない）
-- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）、2026-10-11（v0.5.37。バックログ 26・24・25）
+- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）、2026-10-11（v0.5.37。バックログ 26・24・25・23）
 
 ## 文脈
 - 原則は既にある: security-scan の lstat（ADR-0010、M1-R2-002）、review-packet の `latest.json` と既定の設定ファイル（ADR-0015、v0.5.1）。**ENOENT だけが「無い」**で、それ以外は読めない・見えないものなので fail closed にする。
@@ -32,7 +32,7 @@
    B・C・D の各箇所で ENOTDIR の扱いを問い直すことになる。(b) 通常ファイルの下を `cwd`・`output.dir` に指定する設定の誤りを、実行時の check の FAIL（cwd は exit 1）や遅い report write error ではなく、読込で exit 2 にして早く見せる。
    **`targetIdentity`**（`src/commands/review-packet.ts`。review-packet の書込先の同一性を、存在する祖先まで遡って比べる）は ENOENT と ENOTDIR を「無い」として親へ上がるが、そのまま残す: 目的が違い（書込先の早い段階の拒否。最終判定は dev + ino）、
    ENOTDIR は書込の本体が失敗するので判定を誤らせない。この ADR の規則は、設定のパスの包含判定と init の書込の前提に適用する
-5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23。バックログ 8 は v0.5.32 で完了した（P3・P11・P4 は v0.5.30 で、O3・O4・O5・O9 は v0.5.31 で、O6 は v0.5.32 で直した。決定 7・8・9 と「範囲（B グループ）」「範囲（C グループ）」「範囲（D グループ）」）
+5. **範囲外**（直さない）: 有効な symlink への `--force` 上書き・追記（プロジェクトの外の既存ファイルにも書く）は、ROADMAP のバックログ 23（**v0.5.37 で、root の外を指すものは拒否にした**。範囲〈v0.5.37〉）。バックログ 8 は v0.5.32 で完了した（P3・P11・P4 は v0.5.30 で、O3・O4・O5・O9 は v0.5.31 で、O6 は v0.5.32 で直した。決定 7・8・9 と「範囲（B グループ）」「範囲（C グループ）」「範囲（D グループ）」）
 6. **出力の境界は変えない**: 新しいメッセージは既存の出口を通る（init は `output.error`、verify は `maskSecrets` の後に出口。ADR-0016・0017）。パスに禁止文字や秘密の形があっても、表記とマスクになる（実 CLI で確認）
 7. **必須の入力は、ENOENT でも既定値にしない**（P11、v0.5.30）。`package.json` が無い（ENOENT を含む）・読めない・version が文字列でない・空文字、のいずれも**失敗（exit 2）**で、`0.0.0` などの既定値にしない。version は**最初に読み、すべての入口を止める**（`--version`・`--help`・`init`・`verify` のどれも exit 2）。
    既存の最上位の catch を再利用する（`aiqh: unexpected error: cannot read the version from package.json (<code>)` または `… package.json has no version string` と `VERIFY ERROR (internal error)` の 2 行）。専用のメッセージ・終了コードは作らず、`src/cli-program.ts` も変えない。
@@ -85,10 +85,13 @@
   v0.5.36 では、存在しない `--cwd` も、通常ファイルの `--cwd`（`--config` を別に指定して設定の読み込みを通したとき）も、git の失敗として言っていた。正常な root では stat を足さない（失敗したときだけ見る）
 - **バックログ 25**（`src/git/info.ts`・`src/commands/verify.ts`）: 決定 8 の「git の答えと失敗を分ける」を、コミットとブランチにも広げた。実装の前の実測（git 2.50.1）: コミットが無いとき `rev-parse --verify --quiet HEAD` は何も出さずに exit 1、detached HEAD で `symbolic-ref -q --short HEAD` は exit 1、本当の失敗（リポジトリでないなど）は exit 128。stderr の判定は要らない。
   exit 1 は git の答え（`(no commit)`、detached なら従来どおり `rev-parse --abbrev-ref HEAD` の `HEAD`）、それ以外の終了・起動の失敗・時間切れは失敗で、verify の `git:` の行に `(commit: unknown)`・`(branch: unknown)` と出す（`(dirty: unknown)` と同じ形）。**レポートの `git` は形も値も変えない**（失敗は null のまま。O3 と同じ判断）。v0.5.36 では、失敗も `(no commit)`・`(detached)` と表示していた
+- **バックログ 23**（と、SP1 で見つけた N1。`src/commands/init.ts` の `assertLinkInsideRoot`）: 決定 3 を広げた。3 つの書込先（`aiqh.config.jsonc`・`.gitignore`・`--write-scripts` の `package.json`）は、dangling の拒否の後、リンクを解決した先（`realpath`）が root の `realpath` の外なら、書かずに拒否する（決定 3 と同じ形: `failed to write …` / `failed to update …: it is a symbolic link to <target>, outside the project root; …`、exit 2。`--force` でも拒否）。
+  root の中を指す symlink は、従来どおりリンク先に書く（dotfile の管理などで、プロジェクトの中の共有ファイルへ向けている使い方は壊さない）。`--write-scripts` は `--force` なしでも書き、symlink の検査が何も無かった（N1）ので、dangling の拒否も揃えた。
+  既存テストの期待値を 1 件変えた（人間の承認）: `tests/regression-backlog8a-o7-o8-init-dangling-link.test.ts` の「外の既存の `.gitignore` への symlink に追記できる」（最小の変更の境界の確認）は、exit 2 で外のファイルが変わらない、に変えた
 
 ## 代替案
 - ENOTDIR を「無い」とする（O2 の 1 行差）: 決定 4 の理由で採らない。実測では、通常ファイルの下の `output.dir` は v0.5.28 と同じ挙動のまま（遅い exit 2）、`cwd` も同じ（check の FAIL、exit 1）になる
-- dangling 以外の symlink も拒否する（すべての symlink 経由の書込、または根の外を指す symlink のみ）: `.gitignore` を共有ファイルへの symlink にしているなどの既存の使い方を壊す。O7・O8 の原因は「リンクなのに存在確認が false になる」ことなので、dangling に限る最小の変更で直る。有効な symlink は別の項目（バックログ 23）にした
+- dangling 以外の symlink も拒否する（すべての symlink 経由の書込、または根の外を指す symlink のみ）: `.gitignore` を共有ファイルへの symlink にしているなどの既存の使い方を壊す。O7・O8 の原因は「リンクなのに存在確認が false になる」ことなので、dangling に限る最小の変更で直る。有効な symlink は別の項目（**v0.5.37 で、root の外を指すものだけを拒否にした**: バックログ 23。すべての symlink を拒否する案は、root の中の共有ファイルへのリンクを壊すので採らない）（バックログ 23）にした
 - `writeFileSync()` の flag `"wx"`（排他的な作成）: dangling でも EEXIST で失敗し、lstat と書込の間の競合も無いが、`--force` の経路（上書き）には効かず、理由が open のエラーになる。先に lstat で理由を言えるほうを採る
 - 共通の補助関数にまとめる（`load.ts` の `entryExists`、`review-packet.ts` の `lstatOrNull`、init の補助関数）: 判定の置き方（無い／投げる／拒否）が箇所ごとに違う。B・C・D で箇所が揃った後に検討する
 - ADR を作らず CONFIG_SPEC・ARCHITECTURE・ADR-0015 に追記する（v0.5.1 の R1-007 と同じ流儀）: 利用者に見える契約（`cwd` の exit 1→2、init の拒否）を変え、原則が複数の ADR・文書に散らばっているので、B・C・D が参照する 1 か所を作った
@@ -97,7 +100,7 @@
 - （B グループ）`packet.ts` に git の呼び出しの差し替えの継ぎ目を足す: テストのためだけの境界が本体に残る。PATH の先頭に置いた `git` の shim で、本体を変えずに失敗と ref の移動を作れる
 
 ## 既知の限界
-- **有効な symlink への `--force` 上書き・追記は、プロジェクトの外の既存ファイルに書く**（実測: `aiqh.config.jsonc` が外の既存ファイルへの symlink なら `--force` で上書き、`.gitignore` が外の既存ファイルへの symlink なら追記）。直していない（ROADMAP のバックログ 23）
+- **有効な symlink への `--force` 上書き・追記は、プロジェクトの外の既存ファイルに書く**（実測: `aiqh.config.jsonc` が外の既存ファイルへの symlink なら `--force` で上書き、`.gitignore` が外の既存ファイルへの symlink なら追記）。直していない（ROADMAP のバックログ 23）（**v0.5.37 で解消**: root の外を指すものは拒否する。`--write-scripts` も同じ。範囲〈v0.5.37〉）
 - init の書込は、元から非原子的な `writeFileSync()` で、lstat と書込の間の競合（TOCTOU）は防がない（対話の道具・ローカルの実行が前提）
 - 読込の後に権限が変わった場合は、実行時の失敗（check の FAIL、report write error）として残る
 - Linux・Windows・root での実行は未確認（実測は macOS の一般ユーザーだけ。権限のテストは root では `skipIf`）。エラーコードの名前は POSIX 共通だが、Linux での挙動は推測

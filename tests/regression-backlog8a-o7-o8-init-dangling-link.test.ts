@@ -5,6 +5,8 @@
  * exit 2 in the existing "failed to write …" / "failed to update …" form, nothing created. Only a dangling link is refused:
  * a link to an existing file (the existing "already exists" rule, `--force`, an append to a linked .gitignore) is a control
  * and behaves as before. The cases are in-process (runInit), on a copy of a fixture repository.
+ * v0.5.37 (backlog 23): a link that resolves outside the project root is refused too, so the append to a linked .gitignore outside
+ * the project is no longer a control; its expectation was changed (tests/regression-backlog23-init-symlink-outside.test.ts).
  */
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -147,14 +149,15 @@ describe("backlog 8 O7 / O8 controls (pass before and after)", () => {
     expect(readFileSync(path.join(outside, "existing.jsonc"), "utf8")).toBe("{}\n");
   });
 
-  it("the boundary of the minimal change: only a dangling link is refused (an append through a link to an existing .gitignore still works)", async () => {
+  it("changed in v0.5.37 (backlog 23): an append through a link to an existing .gitignore outside the project is refused (before: written through)", async () => {
     const { proj, outside } = project();
     rmSync(path.join(proj, ".gitignore"));
     writeFileSync(path.join(outside, "existing-gitignore"), "node_modules/\n");
     symlinkSync(path.join(outside, "existing-gitignore"), path.join(proj, ".gitignore"));
     const r = await init(proj, { writeGitignore: true });
-    expect(r.code).toBe(0);
-    expect(readFileSync(path.join(outside, "existing-gitignore"), "utf8")).toBe("node_modules/\nartifacts/\n");
+    expect(r.code).toBe(2);
+    expect(r.output).toMatch(/failed to update .*: it is a symbolic link to .* outside the project root/);
+    expect(readFileSync(path.join(outside, "existing-gitignore"), "utf8")).toBe("node_modules/\n");
   });
 
   it("a link loop is still the write's own error (ELOOP), exit 2", async () => {
