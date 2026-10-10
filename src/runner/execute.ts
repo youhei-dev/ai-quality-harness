@@ -57,7 +57,9 @@ export async function terminateActiveChildren(graceMs: number = DEFAULT_KILL_GRA
   const targets = [...activeChildren.entries()];
   if (targets.length === 0) return;
   for (const [child, group] of targets) killTree(child, group, "SIGTERM");
-  const anyAlive = (): boolean => targets.some(([, group]) => groupAlive(group));
+  // Probe every target, not only up to the first live one (S-1): a later group that disappears while an earlier one is still alive
+  // must be seen gone during the grace period, so that it gets no SIGKILL.
+  const anyAlive = (): boolean => targets.map(([, group]) => groupAlive(group)).includes(true);
   await waitUntil(() => !anyAlive(), graceMs);
   if (anyAlive()) {
     // killTree() skips a group that was seen gone (B16-R1-001)
