@@ -490,7 +490,11 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - R4 はコードを実行していない（静的な読解）。未変更ファイルの経路は、`response-r3.md` の M4 の grep の出力から読める範囲までの確認（未確認範囲は `response-r4.md` にそのまま載せた）
   - CHANGELOG の v0.5.36 の見出しに commit 52e923e / tag object f8941d5 を記入した（次のリリースの予定がまだ無いので、release commit でなくこの docs の commit で記入）。ADR-0023 の「範囲（v0.5.36 で追記）」と `response-r3.md` に、「グループ経路が無い分岐（Windows・pgid なし）」は「Windows」が正確、という訂正の注記を入れた
   - 依頼文の記述の誤り（人間側）: r3・r4 の依頼文が、パケットに入っていない R1・R2 の原文を「入っている」と書いていた。r4 は渡す前に直した。今後は、依頼文が「入っている」と書くファイルを、パケットの中身と照らしてから渡す（`response-r4.md`）
-- 次: バックログから選ぶ（未定）。v0.5.36 は push・タグ済み（commit 52e923e / tag object f8941d5）。この docs の commit の push は人間の承認の後。バックログ 16・2・19 のレビューは R4 で終わっている（以後は依頼しない）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
+- v0.5.37（版 A。信号の経路に触れない残りのバックログ）: backlog-rest の SP1（棚卸し・調査。`~/Downloads` の報告）の後、8 commit。**直した**: 26（`package.json` の形）、24（security-scan の root の文言）、25（git の失敗を `unknown` と表示）、17（review-packet の kind `symlink`）、23 と N1（root の外を指す symlink への init の書込を拒否。`--write-scripts` も）、6（`test:minpath` の環境を最小に。絶対パスでの起動は保証の外）。**記録で閉じた**: 12・13・14・19(c)・20・21・22・27・29・30（理由は各項目）。15・18 の古い参照に注記し、35（N2）・36（12 の再定義）を足した。M3 に「Windows での挙動確認」を新設
+  - 先に書いたテスト（23・24・25・26・17）は、v0.5.36 の `src/` で FAIL することを SHA 固定の worktree で確かめてから実装した。既存テストの期待値の変更は 1 件（23。人間の承認）。テスト 1,600 → 1,638 件（133 → 138 ファイル）
+  - `package.json` 0.5.37（`package-lock.json` は 0.5.35 のまま）。依存関係・`tests/structure/`・禁止文字の集合・信号の経路は変えていない
+  - 版 A の独立レビューは、23（と N1）だけに絞った軽いものを push の後に付ける（人間の判断）。版 B（28・34・5。信号の経路）は v0.5.38 で、問いを絞った独立レビューを付ける
+- 次: v0.5.37 の push・注釈付きタグ（人間の承認）が先（v0.5.36 は push・タグ済み: commit 52e923e / tag object f8941d5）。その後、23（と N1）の軽い独立レビュー、版 B（v0.5.38: 28・34・5）。バックログ 16・2・19 のレビューは R4 で終わっている（以後は依頼しない）。m2-2-builtin のレビューは r6 で終わっている（r7 は依頼しない）。バックログ 9・10 のレビューは r2 で終わっている（3 回目は行わない）
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -541,7 +545,7 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    **v0.5.33 の SP1 の実測（この版では直さない）**: 単独でスクリプトの pid へ SIGTERM を送ると、v0.5.32 では vitest の worker 4 件が残った（最大 18.6 秒。40 秒の観察ではすべて消えた）。**この項目の直し方（vitest を別のプロセスグループで起動し、グループへ SIGKILL）は、
    その残りを 0 にするが、runner がチェックのグループごと SIGKILL すると vitest に届かず、かえって止まらない**（実測: 8 件が残り、vitest 本体と worker 1 件は 40 秒後も走り続けた。v0.5.32 は全部同じグループなので一緒に止まる）。SIGTERM を先に送って 5 秒後に SIGKILL する案は効かない
    （3 件が最大 22.8 秒残った）。直すなら、別の設計（シグナルを受けたスクリプトが記録した子孫へ送る、runner のグループに残したまま止める手段）が要る
-6. **M2-2-R1-005（Medium）: 最小 PATH の保証の強化**。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
+6. ~~**M2-2-R1-005（Medium）: 最小 PATH の保証の強化**~~（**v0.5.37 で解消**: `test:minpath` が vitest に渡す環境を PATH・`NO_COLOR`・`FORCE_COLOR` だけにし〈実測で決めた〉、絶対パスでの起動は保証の外と決めた。`checkEnv()` は変えていない。記録は上の M2-2 の節。以下は着手前の記述）。子プロセスの環境変数を最小にする。絶対パスでの起動の扱い（防ぐか、保証の外として残すか）は着手時に決める。
    v0.5.1 では保証の記述を「PATH の名前解決で起動する、宣言していないコマンドを検出する」に狭めた（README・ARCHITECTURE）
 7. ~~**M2-2-R1-004（Low）: 関数型へのアサーションの fixture を回帰テストに足す**~~（**v0.5.28 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（規則 `widened-renderer` が 3 形を検出することは v0.5.1 で確認。`hasBrand` は関数のシグネチャを辿らない）
 8. ~~**読めないものを「無い」とする残りの箇所**~~（**バックログ 8 は v0.5.32 で完了**。内側の O・P はすべて下で打ち消し済み。以下は着手前の記述）（v0.5.1 の洗い出し。`docs/reviews/m2-2/response-r1.md`。書き込み・パスの判定に関わるものを先に）:
@@ -581,7 +585,7 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    関連する観測（v0.5.6 の SP2、失敗ではない）: r4 の B が 393 回中 1 回、23 秒かかった（テストが子を SIGKILL した後の `close` の時点でグループがまだ残っていると
    判定され、確定が猶予の終わりの SIGKILL のタイマーまで延びたと推定。`docs/reviews/m2-2/response-r5.md`。同じ記録の R5-002 の表に、この項目で合わせる文言〈§10 の表、
    `src/runner/execute.ts`・`src/cli.ts` のコメント〉も書いた）
-17. **review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
+17. ~~**review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**~~（**v0.5.37 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
 18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）（**v0.5.37 の注記**: 計画のまま。Windows での挙動確認は M3 の節に項目が無かったので、M3 の「内容」に足した〈項目 30 を含む〉。R-013 は、出力の末尾の保持と `truncated` は実装済み〈`src/runner/execute.ts` の `OutputBuffer`〉で、残りは総バイト数の記録とリングバッファ化）
 19. ~~**テストの後始末の残り（低）**~~（**v0.5.37 で (c) を記録で閉じた**: テストの中の signal 0 の確認で、製品の経路ではない。誤る向きはテストの失敗側。(a)(b) は v0.5.33 で解消。以下は着手前の記述）（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
@@ -600,17 +604,17 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 22. ~~**process-guard が `skipIf` の条件の向きを読まない**~~（**v0.5.37 で記録で閉じた**: 直す場所は `tests/structure/process-guard.ts`〈62-75 行目、165 行目〉で、`tests/structure/` を変えない制約のため保留。今の tests/ にこの形は無い〈probe を条件にした `skipIf` は `tests/zip-interop.test.ts` の 2 か所で、どちらも `!` 付き〉。ADR-0014 の既知の限界に理由を足した。以下は着手前の記述）（v0.5.28 の SP1 で見つけた。重要度は記載なし）。`skipIf(hasPython)`（python3 があると飛ばす）の中の python3 の起動も `guarded` と
    判定する（条件に probe の変数が現れればよく、`!` や `skipIf` / `runIf` の向きを見ない）。現在の `tests/` にこの形は無い。特性テスト `f21_inverted_skipif`
    （`tests/regression-m2-2-r3-006-external-commands.test.ts`）が現状を固定している。直すなら条件の向き（`skipIf(!has)` と `runIf(has)` だけを許可）を読む。ADR-0014 の既知の限界。この版では直さない
-23. **有効な symlink への `--force` 上書き・追記が、プロジェクトの外の既存ファイルに書く**（v0.5.29 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O7・O8〈dangling symlink に限る〉の範囲外）。
+23. ~~**有効な symlink への `--force` 上書き・追記が、プロジェクトの外の既存ファイルに書く**~~（**v0.5.37 で解消**: root の外を指す symlink は拒否。`--write-scripts` も〈N1〉。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.29 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O7・O8〈dangling symlink に限る〉の範囲外）。
    `aiqh init --write --force` は、`aiqh.config.jsonc` がプロジェクトの外の既存ファイルへの symlink なら、そのファイルを上書きする（実測: 3 B → 2,218 B）。`--write-gitignore` は、`.gitignore` が外の既存ファイルへの symlink なら、
    そのファイルに追記する（実測: 14 → 25 B）。`--force` なしの `--write` は already exists で拒否する。直すなら、書込先が symlink のとき（すべて、または根の外を指すものだけ）の扱いを決める
    （dotfile の管理などで共有ファイルへの symlink にしている既存の使い方を壊しうる）。ADR-0022 の既知の限界。この版では直さない
-24. **`security-scan --cwd <存在しないディレクトリ>` の文言が、cwd の ENOENT を git のせいに見せる**（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O9 と同じ形で、root の分類が無い）。
+24. ~~**`security-scan --cwd <存在しないディレクトリ>` の文言が、cwd の ENOENT を git のせいに見せる**~~（**v0.5.37 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O9 と同じ形で、root の分類が無い）。
    `aiqh security-scan --cwd <存在しない>` は `not a git repository (or git failed): <root> (spawnSync git ENOENT)` で exit 2（`src/security/scan.ts` の 166 行付近。ENOENT は git ではなく cwd のもの）。
    親が権限 000・通常ファイルの場合は `config file could not be read: … (EACCES …)` で正確（実測）。直すなら、init の root（O9）と同じく、root を ENOENT・辿れない・ディレクトリでない、に分けて早い段階で言う。ADR-0022 の既知の限界。この版では直さない
-25. **`rev-parse HEAD`・ブランチの個別の失敗が `(no commit)`・`(detached)` と表示される**（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O3 の残り）。
+25. ~~**`rev-parse HEAD`・ブランチの個別の失敗が `(no commit)`・`(detached)` と表示される**~~（**v0.5.37 で解消**: stderr の判定は要らなかった〈終了コードで区別〉。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.31 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O3 の残り）。
    verify の `git:` の行と報告で、`git rev-parse HEAD` の失敗が `commit` null → `(no commit)`、ブランチを得る 2 つの呼び出しの失敗が `branch` null → `(detached)` になる（shim で実測）。
    コミット 0 件のリポジトリでは本当に HEAD が無いので、区別するには stderr の判定が要る。直すなら、O3 の分類（ADR-0022 決定 8）を `HEAD`・ブランチにも広げ、`dirty` の `unknown`（R-009）と同じ形で `unknown` と表示する。ADR-0022 の既知の限界。この版では直さない
-26. **`package.json` が JSON として正しいが形が違うとき**（v0.5.32 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O6 の範囲外）。`null` と `scripts` が数値は、生の TypeError で exit 2（`aiqh: unexpected error: Cannot read properties of null (reading 'dependencies')`、
+26. ~~**`package.json` が JSON として正しいが形が違うとき**~~（**v0.5.37 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（v0.5.32 の SP1 で見つけた。重要度は記載なし。バックログ 8 の O6 の範囲外）。`null` と `scripts` が数値は、生の TypeError で exit 2（`aiqh: unexpected error: Cannot read properties of null (reading 'dependencies')`、
    `Cannot use 'in' operator to search for 'verify' in 5`。`VERIFY ERROR (internal error)`）。配列と文字列（`[]`・`"text"`）は、**空の `package.json` として Node プロジェクト扱い**（scripts なし。黙って受け入れる。実測）。`name` が数値なら project 名が `5`。
    直すなら、`package.json` がオブジェクトで、`scripts` などもオブジェクトであることを調べ、違うときは O6 と同じ形で調べられない入口として止める（`ExaminationError`）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。
    v0.5.32 で ENOENT 以外は例外になったので、その点は解消した。ADR-0022 の既知の限界。この版では直さない

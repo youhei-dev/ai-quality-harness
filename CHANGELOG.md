@@ -5,6 +5,19 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.5.37 — Backlog cleanup, version A (no signal path): package.json shape, security-scan root, git unknown, review-packet symlink, init symlink outside the root, a minimal environment for test:minpath; the rest closed by record（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.37` / `git rev-parse v0.5.37` で確認し、次の release commit で記入）
+
+- **残りのバックログのうち、信号の経路に触れないものを片付けた**（backlog-rest の SP1〈棚卸し・調査〉の後。8 commit。信号の経路〈`src/runner/execute.ts`・`src/cli.ts`・`src/cli-signals.ts`、`scripts/test-minimal-path.ts` の止める・時間切れの行〉は変えていない。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
+  - **バックログ 26**: JSON としては正しいが形が違う `package.json`（トップが `null`・配列・文字列・数値・真偽値、`scripts`・`dependencies`・`devDependencies` がオブジェクトでない）は、O6 と同じく調べられない入口として `init` が exit 2 で止まる（以前は `null` と `scripts` が数値は生の TypeError〈`unexpected error`〉、配列・文字列などは空の `package.json` として黙って受け入れた。ADR-0022）
+  - **バックログ 24**: `security-scan` で git が失敗したとき、root が無い・ディレクトリでない・調べられないなら、init の root の確認と同じ文言（`directory not found` など）で言う（以前は git の失敗として言った。終了コードは 2 のまま）
+  - **バックログ 25**: verify の `git:` の行で、git の失敗を `(commit: unknown)`・`(branch: unknown)` と表示する（以前は git の答えと同じ `(no commit)`・`(detached)`）。区別は終了コードだけで付く（実装の前に実測: コミットが無いとき `rev-parse --verify --quiet HEAD` は exit 1、detached で `symbolic-ref -q` は exit 1、失敗は exit 128）。**レポートの `git` は形も値も変えない**
+  - **バックログ 17**: review-packet で、表示する側のモードが 120000 のシンボリックリンクを kind `symlink` にした（全文なし、差分〈リンク先〉は載せて検査する。lock の名前より先に判定。ADR-0014 決定 4）
+  - **バックログ 23 と N1**: `init` の 3 つの書込先（`aiqh.config.jsonc`・`.gitignore`・`--write-scripts` の `package.json`）が、root の外を指す symlink なら、書かずに exit 2（`--force` でも。O7・O8 と同じ形）。root の中を指す symlink は従来どおり書く。`--write-scripts` には symlink の検査が何も無かった（N1）ので、dangling の拒否も揃えた。**既存テストの期待値を 1 件変えた**（人間の承認）
+  - **バックログ 6**: `test:minpath` が vitest に渡す環境を、PATH（node と git）・`NO_COLOR`・`FORCE_COLOR` だけにした（以前は全部を引き継いだ）。実測で、ほかの変数は要らなかった。絶対パスでの起動は保証の外と決めた。利用者の check の環境（`checkEnv()`）は変えていない
+  - 記録で閉じた: 12（再定義して 36）、13・14（ADR-0013 に追記）、19 の (c)、20・29（直すなら一緒に設計）、21・22（`tests/structure/` を変えない制約による保留）、27（記述の訂正）、30（M3 の「Windows での挙動確認」を新設して移した）。15・18 の古い参照に注記。35（masker の url-credential の超線形。Low）を足した
+- 利用者に見える変化: `init` の拒否（上の 26・23）、`security-scan` と verify の `git:` の行の文言（24・25）、review-packet の kind（17）。verify の判定・レポートの欄・終了コードの意味は変わらない
+- テスト 1,600 → 1,638 件（133 → 138 ファイル）。既存テストの期待値の変更は 1 件（23: 外の既存の `.gitignore` への symlink に追記できる、を exit 2 に）。`package.json` version 0.5.37（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.5.36 — commit 52e923e109eba7622a2fb9f245dce4212fe7552b / tag object f8941d5c1b817153244728e65ee8ff9bb8435085 — Independent review R3 of v0.5.35 (B16-R3-001) and the implementer's self-review (S-1 to S-6): the group's errno is kept when the child is gone; every target is probed; no direct signal to a leader pid seen gone
 
 - **v0.5.35 の独立レビュー R3（High 0・Medium 0・Low 1）と、v0.5.35 の実装者の自レビュー S-1〜S-6（独立ではない）に対応した**（`src/` は `src/runner/execute.ts` だけ〈`killTree`・`terminateActiveChildren`・`GroupState`〉。6 commit。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
