@@ -92,7 +92,8 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     const t = makeTempDir("aiqh-b16r1-bound-");
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
-    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 400)); setTimeout(() => {}, 30000)`);
+    // The leader leaves 100 ms after SIGTERM (S-4, v0.5.36: was 400 ms; the margin below the bound grows, the old code's 3.0 s is unchanged).
+    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100)); setTimeout(() => {}, 30000)`);
     const controller = new AbortController();
     const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, killGraceMs: 1500, confirmMs: 1500, signal: controller.signal });
     cleanups.push(stopper(pending, () => controller.abort("clean-up"), 1500 + 1500 + SETTLE_MARGIN_MS, "the run"));
@@ -101,7 +102,7 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     controller.abort("SIGINT");
     await pending;
     const elapsed = performance.now() - abortedAt;
-    // The group is gone after about 0.4 s and `confirmMs` is 1.5 s: about 1.9 s. Counted from the SIGKILL timer (1.5 s) it would be about 3.0 s.
+    // The group is gone after about 0.1 s and `confirmMs` is 1.5 s: about 1.6 s. Counted from the SIGKILL timer (1.5 s) it would be about 3.0 s.
     expect(elapsed).toBeLessThan(2600);
   }, 30_000);
 
@@ -112,9 +113,10 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
     const command = leaderWithDaemon(t.dir, ready, `setTimeout(() => process.exit(0), 200)`);
-    const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 1200, killGraceMs: 1500, confirmMs: 1500 });
+    // The timeout counts from the spawn and the spy goes in after the ready marker: 3 s leaves room for a slow start (S-4, v0.5.36: was 1.2 s).
     const controller = new AbortController();
-    cleanups.push(stopper(pending, () => controller.abort("clean-up"), 1200 + 1500 + 1500 + SETTLE_MARGIN_MS, "the run"));
+    const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 3000, killGraceMs: 1500, confirmMs: 1500, signal: controller.signal });
+    cleanups.push(stopper(pending, () => controller.abort("clean-up"), 3000 + 1500 + 1500 + SETTLE_MARGIN_MS, "the run"));
     const pgid = await waitReady(ready, 8000, "the leader was not ready within 8000 ms (overloaded machine?)");
     const group = killSpy().watch(pgid);
     const exec = await pending;
