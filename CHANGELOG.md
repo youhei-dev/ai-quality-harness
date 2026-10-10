@@ -7,7 +7,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 
 ## v0.5.35 — Independent review R2 of v0.5.34 (B16-R2-001, B16-R2-002): no direct signal to the leader of a process group seen gone; the wording of where the wait for `close` counts from is corrected（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.35` / `git rev-parse v0.5.35` で確認し、次の release commit で記入）
 
-- **v0.5.34 の独立レビュー R2（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +6／−2 だけ〈`killTree`〉。停止ポイントで判定・再現し、実装した〈3 commit〉。lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない。
+- **v0.5.34 の独立レビュー R2（High 1・Medium 1）に対応した**（`src/` は `src/runner/execute.ts` +6／−2 だけ〈`killTree`〉。停止ポイントで判定・再現し、実装した〈3 commit〉。この 3 commit では lock・依存関係・`package-lock.json`・禁止文字の集合〈75 コードポイント〉・`tests/structure/` は変えていない〈依存関係の更新は 4 つ目の commit。下の deps〉。
   原文と対応記録は `docs/reviews/backlog-16-2-19/`〈`independent-review-r2.md`・`response-r2.md`〉。新しい ADR は作らず、ADR-0023 に追記した〈決定 9 の補足、範囲の v0.5.35〉）
   - **利用者に見える変更は無い**（終了コード・レポートの JSON・Markdown の欄・`errorSummary` の文言・待ちの時間は同じ）。変わるのは次の 1 点だけ
     - **一度「消えた」と確認した process group の leader へも、子の pid への直接送信をしない**（B16-R2-001、High）。v0.5.34 の `killTree` は、`gone` のグループへの送信を飛ばした後、そのまま子の pid への直接送信に落ちた（ガードは `exitCode`・`signalCode` だけ）。`executeCommand` の後始末が ESRCH を見た後に `terminateActiveChildren` が同じ状態で入ると〈CLI の中断はこの順〉、leader の pid へ SIGTERM が届きうる。
@@ -21,7 +21,9 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
     起点の固定のテストは、起点を入れ替えた誤った実装で FAIL する。時間に依存する〈期待 約 1.2 秒、境界 1.7 秒〉。新しい 2 ファイルは、負荷ゲートを通して 10 回連続で PASS を確認した
   - 見つけて直していないこと（ROADMAP の項目 31〜33）: `terminateActiveChildren` が後ろの target を猶予の間調べない形（実装者の自レビュー〈独立ではない〉の指摘。CLI は到達しない）、README の中断の説明に安全弁の注意が無いこと・記録の言い回し・実測がリポジトリから検証できないこと、テストの小さな不備。再レビューの要否は、人間が決める
 - docs: ADR-0023（決定 9 の補足、「範囲（v0.5.35 で追記）」、v0.5.34 の 2 か所の訂正、既知の限界、影響）、ARCHITECTURE（後始末ライフサイクル 4）、レビュー記録（`docs/reviews/backlog-16-2-19/independent-review-r2.md`・`response-r2.md`）、README、ROADMAP（v0.5.35 の記録、項目 31〜33 を追加、「次:」の更新。番号は詰めない）、CHANGELOG
-- テスト 1,592 件（131 ファイル。1,585 ＋ 7）。`package.json` version 0.5.35（`package-lock.json` の `version` は 0.1.0 のまま）
+- deps: devDependency（推移的）の `source-map-js` を 1.2.1 から 1.2.2 へ更新（`npm audit` の high の勧告 GHSA-68fv-2mgg-jv7q。実行時の依存ではない。`package.json` は変更なし）。同じ操作で、`package-lock.json` のルートの版の記録（`0.1.0` のままだった）を npm が 0.5.35 に合わせた。
+  v0.5.35 の最初の 3 commit は依存関係を v0.5.34 から変えていないが、この勧告が GitHub でレビュー済みになった後（2026-10-06）に検証したため、単体で `verify` を実行すると `dependency` が FAIL する（ほかの 7 チェックは PASS）
+- テスト 1,592 件（131 ファイル。1,585 ＋ 7）。`package.json` version 0.5.35（`package-lock.json` の `version` は、上の deps の commit で npm が 0.5.35 に合わせた）
 - 注記: v0.5.34 の見出しに commit e5a350f2060a0439e6c86796f520de2baa01ab43 / tag object 2b520e2e4ac7b7aad466fb1100408d1cdcc61af3 を記入した。v0.5.34 の項の本文は書き換えていない（記録。起点の記述の訂正は上の B16-R2-002）
 
 ## v0.5.34 — commit e5a350f2060a0439e6c86796f520de2baa01ab43 / tag object 2b520e2e4ac7b7aad466fb1100408d1cdcc61af3 — Independent review R1 of v0.5.33 (B16-R1-001, B16-R1-002): a process group seen gone is not probed or signalled again — the same property existed in v0.5.32
