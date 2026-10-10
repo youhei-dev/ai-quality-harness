@@ -37,10 +37,13 @@ export { DEFAULT_KILL_GRACE_MS, DEFAULT_CONFIRM_MS };
  * signal to the group fails with ESRCH, and never cleared: the same number may name an unrelated group later (the OS reuses ids),
  * so a group seen gone is never probed or signalled again. It is shared by the command's own clean-up and terminateActiveChildren().
  * On Windows (and without a pgid) nothing is observed, so `gone` stays false and the group-less paths behave as before.
+ * `leaderGone` is the same rule for the leader's own pid: set once, when a direct signal to it fails with ESRCH, and never cleared;
+ * the pid is not signalled directly again (v0.5.36). It is set on the group-less paths too.
  */
 interface GroupState {
   readonly pgid: number | undefined;
   gone: boolean;
+  leaderGone: boolean;
 }
 
 /** Children currently running, with the process group saved at spawn time. */
@@ -152,7 +155,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     // With `detached`, the child is the leader of a new process group whose id equals its pid.
     // Save it now: the leader may exit before its descendants, and the group outlives it (R-004).
     const pgid = child.pid;
-    const group: GroupState = { pgid, gone: false };
+    const group: GroupState = { pgid, gone: false, leaderGone: false };
     activeChildren.set(child, group);
 
     child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
@@ -327,9 +330,9 @@ function checkDirectory(dir: string): string | null {
  * gone gets nothing, and neither does its leader: the pid may name an unrelated process by now (B16-R2-001).
  * Returns null when the signal was delivered or nothing is left to signal (ESRCH); otherwise the errno code of the failure (e.g.
  * "EPERM"): the caller must not assume the process stops (backlog 2). When the group send failed and the child turns out to be gone,
- * the group's errno is returned: the group itself is still there and could not be signalled (B16-R3-001). The child is signalled
- * with process.kill, not child.kill, because child.kill reports a failure as an 'error' event, which executeCommand would mistake
- * for a spawn failure.
+ * the group's errno is returned: the group itself is still there and could not be signalled (B16-R3-001). A child that answered
+ * ESRCH once is not signalled directly again (`leaderGone`, v0.5.36). The child is signalled with process.kill, not child.kill,
+ * because child.kill reports a failure as an 'error' event, which executeCommand would mistake for a spawn failure.
  */
 function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals): string | null {
   let failure: string | null = null;
@@ -350,7 +353,8 @@ function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals
       // EPERM or similar: fall through to a direct signal to the child.
     }
   }
-  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
+  // A leader pid seen gone is not signalled directly again: the number may name an unrelated process now (v0.5.36).
+  if (group.leaderGone || child.pid === undefined || child.exitCode !== null || child.signalCode !== null) {
     return failure;
   }
   try {
@@ -358,8 +362,10 @@ function killTree(child: ChildProcess, group: GroupState, signal: NodeJS.Signals
     return null;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    // The child is gone: keep the group's errno, if any (B16-R3-001). Without a group path `failure` is null, as before.
-    return code === "ESRCH" ? failure : errnoName(code);
+    if (code !== "ESRCH") return errnoName(code);
+    // The child is gone: remember it, and keep the group's errno, if any (B16-R3-001). Without a group path `failure` is null, as before.
+    group.leaderGone = true;
+    return failure;
   }
 }
 

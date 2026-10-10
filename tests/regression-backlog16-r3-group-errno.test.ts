@@ -12,7 +12,7 @@
  */
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { executeCommand } from "../src/runner/execute.ts";
+import { executeCommand, terminateActiveChildren } from "../src/runner/execute.ts";
 import { toCheckResult } from "../src/runner/run-checks.ts";
 import type { ResolvedCheck } from "../src/types.ts";
 import { exitWhenRemoved, makeTempDir, nodeEval, runCleanups, SETTLE_MARGIN_MS, stopper, waitReady } from "./helpers.ts";
@@ -109,7 +109,8 @@ describe("B16-R3-001: the group's errno is kept when the direct fallback finds t
       if (trigger === "abort") expect(exec.interruptedBy).toBe("SIGINT");
       else expect(exec.timedOut).toBe(true);
       expect(sent(calls, "group"), "precondition: SIGTERM and SIGKILL to the group both failed").toEqual(["SIGTERM", "SIGKILL"]);
-      expect(sent(calls, "pid"), "precondition: each time the direct fallback was tried and found the leader gone").toEqual(["SIGTERM", "SIGKILL"]);
+      // v0.5.36 (a leader pid seen gone): the direct fallback is tried once; after its ESRCH the SIGKILL does not go to the pid.
+      expect(sent(calls, "pid"), "the direct fallback was tried once and found the leader gone; nothing more to its pid").toEqual(["SIGTERM"]);
       expect(exec.terminationUnconfirmed).toEqual({ waitedMs: CONFIRM_MS, killError: "EPERM" });
       const result = toCheckResult(check(run.command, run.dir, timeoutMs / 1000), exec);
       expect(result.errorSummary).toContain(`process group could not be signalled (EPERM) and was still present after ${CONFIRM_MS}ms`);
@@ -133,5 +134,34 @@ describe("B16-R3-001: the group's errno is kept when the direct fallback finds t
     const exec = await run.pending;
     expect(calls, "one SIGTERM to the group (answered ESRCH), then nothing at all").toEqual([{ target: "group", signal: "SIGTERM" }]);
     expect(exec.terminationUnconfirmed, "the group was seen gone: nothing to confirm").toBeUndefined();
+  }, 30_000);
+});
+
+/**
+ * Found while the signal paths were listed for v0.5.36 (by the implementer, not by a review): only the group's ESRCH was recorded.
+ * When the group send kept failing (EPERM) and the direct signal to the leader's pid answered ESRCH, the next escalation (the SIGKILL
+ * timer, terminateActiveChildren) sent to the same pid again; the number may name an unrelated process by then. Since v0.5.33.
+ */
+describe("a leader pid that answered ESRCH to a direct signal is not signalled directly again", () => {
+  it("the CLI interrupt order (abort, then terminateActiveChildren): one direct SIGTERM to the leader, then nothing to its pid", async () => {
+    const run = await startRun("aiqh-b16r3-leader-cli-", 20_000);
+    const calls = watchKill(run.pgid, "group-eperm-leader-esrch");
+    // src/cli.ts: interruption.abort() runs the command's onAbort synchronously, then terminateActiveChildren()
+    run.controller.abort("SIGINT");
+    const [exec] = await Promise.all([run.pending, terminateActiveChildren(600)]);
+    expect(sent(calls, "group"), "precondition: the group could not be signalled, so the direct fallback was reached").toContain("SIGKILL");
+    expect(sent(calls, "pid"), "only the first direct signal; after its ESRCH nothing goes to the leader's pid").toEqual(["SIGTERM"]);
+    expect(exec.terminationUnconfirmed).toEqual({ waitedMs: CONFIRM_MS, killError: "EPERM" });
+  }, 30_000);
+
+  it("the opposite order (terminateActiveChildren first, then the abort): same", async () => {
+    const run = await startRun("aiqh-b16r3-leader-rev-", 20_000);
+    const calls = watchKill(run.pgid, "group-eperm-leader-esrch");
+    const terminating = terminateActiveChildren(600);
+    run.controller.abort("SIGINT");
+    const [exec] = await Promise.all([run.pending, terminating]);
+    expect(sent(calls, "group")).toContain("SIGKILL");
+    expect(sent(calls, "pid"), "only the first direct signal; after its ESRCH nothing goes to the leader's pid").toEqual(["SIGTERM"]);
+    expect(exec.terminationUnconfirmed).toEqual({ waitedMs: CONFIRM_MS, killError: "EPERM" });
   }, 30_000);
 });
