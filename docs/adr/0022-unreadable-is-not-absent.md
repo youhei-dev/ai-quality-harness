@@ -1,7 +1,7 @@
 # ADR-0022: 読めないものを「無い」としない: パスの包含と書込の前提
 
 - 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ、v0.5.32 で D グループ（O6）へ広げた（バックログ 8 は完了）。ADR-0014・0015・0020・0021 は変えない）
-- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）、2026-10-11（v0.5.37。バックログ 26）
+- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）、2026-10-11（v0.5.37。バックログ 26・24）
 
 ## 文脈
 - 原則は既にある: security-scan の lstat（ADR-0010、M1-R2-002）、review-packet の `latest.json` と既定の設定ファイル（ADR-0015、v0.5.1）。**ENOENT だけが「無い」**で、それ以外は読めない・見えないものなので fail closed にする。
@@ -81,6 +81,8 @@
 ## 範囲（v0.5.37 で追記。バックログ 8 の範囲外として残した項目）
 - **バックログ 26**（`src/adapters/context.ts` の `buildNode`）: 決定 9 を、JSON としては正しいが形が違う `package.json` へ広げた。トップが JSON のオブジェクトでないとき（`null`・配列・文字列・数値・真偽値）は `package.json is not a JSON object`、`scripts`・`dependencies`・`devDependencies` があってオブジェクトでないとき（`null` を含む）は `package.json has a "<field>" field that is not a JSON object` の `ExaminationError` にする。
   v0.5.36 では、`null` と `scripts` が数値は生の TypeError（`aiqh: unexpected error: …`、`VERIFY ERROR (internal error)`。exit 2）、配列・文字列・数値は空の `package.json` として Node プロジェクト扱い（exit 0）だった。今は `init` が `cannot audit <root>: …` で exit 2 で止まる。`name` の型は見ない（数値の `name` は、`--write` の設定の検証が拒否する。v0.5.36 と同じ）
+- **バックログ 24**（`src/security/scan.ts` の `listFiles`）: `git ls-files` が失敗したとき、root を `statSync` で調べ、root の問題なら init の root（O9）と同じ文言で言う: `directory not found: <root>`（ENOENT）、`not a directory: <root>`、`directory cannot be examined: <root> (<code>)`。root がディレクトリなら、従来どおり `not a git repository (or git failed): …`（git が PATH に無いときも）。終了コードは 2 のまま。
+  v0.5.36 では、存在しない `--cwd` も、通常ファイルの `--cwd`（`--config` を別に指定して設定の読み込みを通したとき）も、git の失敗として言っていた。正常な root では stat を足さない（失敗したときだけ見る）
 
 ## 代替案
 - ENOTDIR を「無い」とする（O2 の 1 行差）: 決定 4 の理由で採らない。実測では、通常ファイルの下の `output.dir` は v0.5.28 と同じ挙動のまま（遅い exit 2）、`cwd` も同じ（check の FAIL、exit 1）になる
@@ -104,7 +106,7 @@
 - （C グループ）**`rev-parse HEAD`・ブランチの個別の失敗は、`(no commit)`・`(detached)` と表示される**（verify の `git:` の行と報告）。コミット 0 件の本物のケースと区別するには、stderr の判定が要る。直していない（ROADMAP の項目 25）
 - （C グループ）verify の報告の JSON の `git` は、非リポジトリと git の失敗のどちらも null で、理由は標準出力の行にだけある（Markdown のセルは両方を含む文面）。理由を報告に載せるには新しい欄（契約の変更）が要るので、していない
 - （C グループ）git の「違う」の判定は `fatal: not a git repository` の文言に頼る（決定 8）。他の言語・他の git の実装での文言は未確認（`LC_ALL=C` で固定している）
-- （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）
+- （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）（**v0.5.37 で解消**: root の分類を足した。範囲〈v0.5.37〉）
 - （D グループ）**`package.json` が JSON としては正しいが形が違うとき**（`null`・配列・文字列・`scripts` が数値）: `null` と `scripts` が数値は生の TypeError で exit 2（`aiqh: unexpected error: …`）、配列と文字列は**空の `package.json` として Node プロジェクト扱い**（黙って受け入れる）。
   直していない（ROADMAP の項目 26）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。v0.5.32 で ENOENT 以外は例外になったので、その点は解消した（**v0.5.37 で解消**: 形が違うときも `ExaminationError`。範囲〈v0.5.37〉）
 - （D グループ）**`exists()` は入口の種類を見ない**（lstat で「ある」かだけ）: `tests` が通常ファイルでも「tests/ directory present」と書く。直していない（ROADMAP の項目 27）

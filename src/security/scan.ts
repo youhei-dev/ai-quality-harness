@@ -13,7 +13,7 @@
  * read are ScanErrors (exit 2, fail closed); only ENOENT is skipped.
  */
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, lstatSync, openSync, readSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type { AllowRule, ResolvedSecurity } from "../types.ts";
@@ -163,9 +163,21 @@ function listFiles(root: string, extra: string[]): string[] {
   try {
     out = execFileSync("git", ["ls-files", "-z", ...extra], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
   } catch (err) {
-    throw new ScanError(`not a git repository (or git failed): ${root} (${(err as Error).message.split("\n")[0]})`);
+    // git also fails when the root itself is missing or not a directory (it is git's working directory): say that, in the words of
+    // init's root check (backlog 24; backlog 8, O9). Only a healthy root leaves the failure to git.
+    throw new ScanError(rootProblem(root) ?? `not a git repository (or git failed): ${root} (${(err as Error).message.split("\n")[0]})`);
   }
   return out.split("\0").filter((f) => f.length > 0);
+}
+
+/** Why `root` cannot be scanned, or null when it is a directory. Only ENOENT is "not found" (ADR-0022). */
+function rootProblem(root: string): string | null {
+  try {
+    return statSync(root).isDirectory() ? null : `not a directory: ${root}`;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ENOENT" ? `directory not found: ${root}` : `directory cannot be examined: ${root} (${code ?? "unknown error"})`;
+  }
 }
 
 /**
