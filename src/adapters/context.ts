@@ -77,15 +77,28 @@ export function buildRepoContext(root: string): RepoContext {
   };
 }
 
+/** A JSON object: not null, not an array. */
+const isJsonObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** The package.json fields that are read as objects; each must be one when present (backlog 26). */
+const OBJECT_FIELDS = ["scripts", "dependencies", "devDependencies"] as const;
+
 function buildNode(readText: RepoContext["readText"], exists: RepoContext["exists"], isExecutable: (rel: string) => boolean): NodeContext | null {
   const text = readText("package.json");
   if (text === null) return null;
-  let pkg: PackageJsonLike;
+  let parsed: unknown;
   try {
-    pkg = JSON.parse(text) as PackageJsonLike;
+    parsed = JSON.parse(text);
   } catch {
     throw new ExaminationError("package.json", "is not valid JSON");
   }
+  // Valid JSON of the wrong shape cannot be examined either (backlog 26): `null` and `"scripts": 5` were raw TypeErrors, and an array or a
+  // string was read as an empty package.json, a Node project without scripts.
+  if (!isJsonObject(parsed)) throw new ExaminationError("package.json", "is not a JSON object");
+  for (const field of OBJECT_FIELDS) {
+    if (parsed[field] !== undefined && !isJsonObject(parsed[field])) throw new ExaminationError("package.json", `has a "${field}" field that is not a JSON object`);
+  }
+  const pkg = parsed as PackageJsonLike;
   const lockfile = exists("pnpm-lock.yaml")
     ? "pnpm"
     : exists("yarn.lock")

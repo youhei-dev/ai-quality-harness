@@ -1,7 +1,7 @@
 # ADR-0022: 読めないものを「無い」としない: パスの包含と書込の前提
 
 - 状態: 採用（ADR-0010・ADR-0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる。v0.5.30 で B グループ（P3・P11・P4）へ、v0.5.31 で C グループ（O3・O4・O5・O9）へ、v0.5.32 で D グループ（O6）へ広げた（バックログ 8 は完了）。ADR-0014・0015・0020・0021 は変えない）
-- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）
+- 日付: 2026-10-04（M2-2、v0.5.29。ROADMAP のバックログ 8 の A グループ: O2・O7・O8）。追記: 2026-10-04（v0.5.30。B グループ: P3・P11・P4）、2026-10-05（v0.5.31。C グループ: O3・O4・O5・O9）、2026-10-05（v0.5.32。D グループ: O6）、2026-10-11（v0.5.37。バックログ 26）
 
 ## 文脈
 - 原則は既にある: security-scan の lstat（ADR-0010、M1-R2-002）、review-packet の `latest.json` と既定の設定ファイル（ADR-0015、v0.5.1）。**ENOENT だけが「無い」**で、それ以外は読めない・見えないものなので fail closed にする。
@@ -78,6 +78,10 @@
   `--write-scripts` は何も言わずに exit 0 で終わった。アダプタは `init.ts` と `config/generate.ts` からしか使われないので、`verify`・`security-scan`・`review-packet` の判定には直接関わらない。
 - 変更後は、調べられない入口があるとき `init` が exit 2 で止まる。dangling な `.git` の提案と audit は C で揃っていて変わらない（lstat。`.git` は「ある」）。
 
+## 範囲（v0.5.37 で追記。バックログ 8 の範囲外として残した項目）
+- **バックログ 26**（`src/adapters/context.ts` の `buildNode`）: 決定 9 を、JSON としては正しいが形が違う `package.json` へ広げた。トップが JSON のオブジェクトでないとき（`null`・配列・文字列・数値・真偽値）は `package.json is not a JSON object`、`scripts`・`dependencies`・`devDependencies` があってオブジェクトでないとき（`null` を含む）は `package.json has a "<field>" field that is not a JSON object` の `ExaminationError` にする。
+  v0.5.36 では、`null` と `scripts` が数値は生の TypeError（`aiqh: unexpected error: …`、`VERIFY ERROR (internal error)`。exit 2）、配列・文字列・数値は空の `package.json` として Node プロジェクト扱い（exit 0）だった。今は `init` が `cannot audit <root>: …` で exit 2 で止まる。`name` の型は見ない（数値の `name` は、`--write` の設定の検証が拒否する。v0.5.36 と同じ）
+
 ## 代替案
 - ENOTDIR を「無い」とする（O2 の 1 行差）: 決定 4 の理由で採らない。実測では、通常ファイルの下の `output.dir` は v0.5.28 と同じ挙動のまま（遅い exit 2）、`cwd` も同じ（check の FAIL、exit 1）になる
 - dangling 以外の symlink も拒否する（すべての symlink 経由の書込、または根の外を指す symlink のみ）: `.gitignore` を共有ファイルへの symlink にしているなどの既存の使い方を壊す。O7・O8 の原因は「リンクなのに存在確認が false になる」ことなので、dangling に限る最小の変更で直る。有効な symlink は別の項目（バックログ 23）にした
@@ -102,7 +106,7 @@
 - （C グループ）git の「違う」の判定は `fatal: not a git repository` の文言に頼る（決定 8）。他の言語・他の git の実装での文言は未確認（`LC_ALL=C` で固定している）
 - （C グループ）`security-scan --cwd <存在しないディレクトリ>` は、cwd の ENOENT を git のせいに見せる（`not a git repository (or git failed): … (spawnSync git ENOENT)`）。init の root（O9）と同じ形で、root の分類が無い。直していない（ROADMAP の項目 24）
 - （D グループ）**`package.json` が JSON としては正しいが形が違うとき**（`null`・配列・文字列・`scripts` が数値）: `null` と `scripts` が数値は生の TypeError で exit 2（`aiqh: unexpected error: …`）、配列と文字列は**空の `package.json` として Node プロジェクト扱い**（黙って受け入れる）。
-  直していない（ROADMAP の項目 26）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。v0.5.32 で ENOENT 以外は例外になったので、その点は解消した
+  直していない（ROADMAP の項目 26）。併記: `src/adapters/types.ts` の `readText` の注記（「missing のとき null」）は、v0.5.31 までは実際の動作（読めないときも null）と合っていなかった。v0.5.32 で ENOENT 以外は例外になったので、その点は解消した（**v0.5.37 で解消**: 形が違うときも `ExaminationError`。範囲〈v0.5.37〉）
 - （D グループ）**`exists()` は入口の種類を見ない**（lstat で「ある」かだけ）: `tests` が通常ファイルでも「tests/ directory present」と書く。直していない（ROADMAP の項目 27）
 - （D グループ）通常ファイルの下の入口（ENOTDIR）は「調べられない」なので、`tests` が通常ファイルの Python リポジトリや、`.venv` が通常ファイルのリポジトリでは `init` が止まる（決定 9。決定 4 と同じ扱い。人間の判断）。一覧できない root（0300）でも止まる
 - （D グループ）root が辿れない（0600）とき、`init` のメッセージは最初に調べた入口の名前が出る（`cannot audit <root>: package.json cannot be examined (EACCES)`）。`describeRootProblem` は変えていない（人間の判断）

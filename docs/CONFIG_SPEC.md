@@ -261,7 +261,7 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 `aiqh init: directory cannot be examined: <root> (<code>)`、ディレクトリでない（通常ファイルなど）とき `aiqh init: not a directory: <root>` で、いずれも何も監査せず exit 2（v0.5.31、ADR-0022。以前は通常ファイルをリポジトリとして監査し、exit 0 だった）。
 
 `aiqh init` が検出に使う入口（`package.json`・`tsconfig.json`・`pyproject.toml`・lockfile・設定ファイル・venv の bin・root の一覧など）が、読めない（EACCES など）・dangling symlink・ディレクトリ・JSON として不正（`package.json`）・通常ファイルの下（ENOTDIR）のときは、
-`aiqh init: cannot audit <root>: <entry> cannot be examined (<code>)` / `<entry> is a symbolic link whose target does not exist` / `<entry> is not valid JSON` / `the top-level entries cannot be listed (<code>)` を表示して exit 2（dry-run も）。
+`aiqh init: cannot audit <root>: <entry> cannot be examined (<code>)` / `<entry> is a symbolic link whose target does not exist` / `<entry> is not valid JSON` / `package.json is not a JSON object` / `package.json has a "<field>" field that is not a JSON object`（v0.5.37、バックログ 26: `scripts`・`dependencies`・`devDependencies`）/ `the top-level entries cannot be listed (<code>)` を表示して exit 2（dry-run も）。
 何も監査せず、何も書かない（v0.5.32、ADR-0022。以前は、その入口が無いものとして監査し、`--write` は lint・typecheck・build などを含まない設定を書き、`--write-scripts` は何も言わずに終わった）。本当に無い入口（ENOENT）は、従来どおり「無い」。
 
 `.gitignore` の `artifacts/` 提案は Security Scan と同じ `git check-ignore --no-index` の判定で決める（M1-R2-005）: 代表パス
