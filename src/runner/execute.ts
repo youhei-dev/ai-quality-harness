@@ -28,6 +28,7 @@ const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KILL_GRACE_MS = 5_000;
 /** Longest wait for a terminated group to disappear (backlog 16). With the kill grace period it is 1 s shorter than the CLI's safety valve (src/cli-signals.ts) by default: a relation of constants, not a guarantee (ADR-0023, decision 7). */
 const DEFAULT_CONFIRM_MS = 2_000;
+/** Interval of the group probes: a timer setting, not an upper bound (a probe runs later when the event loop is delayed; B28-R1-001). */
 const CONFIRM_POLL_MS = 25;
 
 export { DEFAULT_KILL_GRACE_MS, DEFAULT_CONFIRM_MS };
@@ -237,8 +238,9 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
 
     // Backlog 28: once the leader has exited, the group can disappear while `close` is still pending (a descendant outside the group
     // holds the pipes), and its id can then be reused before the first signal. Keep probing until the group is seen gone, so that the
-    // first SIGTERM is not sent to a reused id; a probe cannot tell a reused id from our group, so this narrows the window to one probe
-    // interval after the group disappears, it does not close it. Only signal 0 is sent, through groupAlive(): it stops at the first
+    // first SIGTERM is not sent to a reused id; a probe cannot tell a reused id from our group, so this narrows the window to the time
+    // from the disappearance until the next probe actually runs, it does not close it: CONFIRM_POLL_MS is a timer setting, not an upper
+    // bound, and event-loop or scheduling delays add to it (B28-R1-001). Only signal 0 is sent, through groupAlive(): it stops at the first
     // ESRCH (`gone`, B16-R1-001), and nothing is probed on Windows or without a pgid. The probing ends at `close` (finish clears the
     // timer) or when the escalation starts (its own poll takes over).
     const watchAfterExit = (): void => {

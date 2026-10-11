@@ -3,8 +3,10 @@
  * group holds the pipes), the process group can disappear long before the first signal, and its number can then name an unrelated group.
  * v0.5.37 did not probe the group before the timeout / interruption, so its first SIGTERM (and the SIGKILL after the grace period) went to
  * that number unchecked, and terminateActiveChildren() did the same. Now the group is probed every 25 ms from the leader's `exit` until
- * `close`, the escalation or the first ESRCH, so the disappearance is recorded (`gone`) before a reuse that comes more than one probe
- * interval later. A reuse within one probe interval of the disappearance is not closed (ADR-0023, scope of v0.5.38) and not tested here.
+ * `close`, the escalation or the first ESRCH, so the disappearance is recorded (`gone`) when a probe runs before the number is reused.
+ * A reuse before the next probe actually runs is not closed and not tested here: 25 ms is a timer setting, not an upper bound, and
+ * event-loop delays add to it (ADR-0023, known limits; B28-R1-001, v0.5.39). These tests start the reuse 300 ms after the disappearance
+ * and so assume that the product's next probe runs within that time; a longer event-loop stall is not covered.
  *
  * No real reuse is waited for: process.kill is replaced for the group under test and the leader's pid. The test watches the group with
  * the real kill (outside the replacement) and, REUSE_AFTER_MS after it saw the group gone, the number starts to answer like an unrelated
