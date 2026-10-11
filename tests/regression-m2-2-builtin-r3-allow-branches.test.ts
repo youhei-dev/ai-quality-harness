@@ -185,12 +185,12 @@ const EE: Record<string, Case> = {
   ee11_arrow_inside_uses_outer_this_control: { reported: false, src: `class A {\n  n = 0;\n  register(): void {\n    process.on("exit", () => {\n      this.n += 1;\n    });\n  }\n}\nexport const f = (): void => new A().register();\n` },
 };
 
-/** K3: widening of a branded container (known limit: not reported) */
+/** K3: widening of a branded container: reported since v0.5.43 (backlog 21: the contextual type of every place, a brand at any depth); bd01, bd02 and bd04 were the known limit "not reported" until v0.5.42 */
 const BD: Record<string, Case> = {
-  bd01_brand_container_depth: { reported: false, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { a: { b: { c: { d: { e: { v: Checked } } } } } }): { a: { b: { c: { d: { e: { v: string } } } } } } => c;\n` },
-  bd02_widen_arrow_expression_body: { reported: false, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { v: Checked }): { v: string } => c;\n` },
+  bd01_brand_container_depth: { reported: true, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { a: { b: { c: { d: { e: { v: Checked } } } } } }): { a: { b: { c: { d: { e: { v: string } } } } } } => c;\n` },
+  bd02_widen_arrow_expression_body: { reported: true, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { v: Checked }): { v: string } => c;\n` },
   bd03_widen_return_statement: { reported: true, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { v: Checked }): { v: string } => {\n  return c;\n};\n` },
-  bd04_widen_depth_return_statement: { reported: false, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { a: { b: { c: { d: { e: { v: Checked } } } } } }): { a: { b: { c: { d: { e: { v: string } } } } } } => {\n  return c;\n};\n` },
+  bd04_widen_depth_return_statement: { reported: true, src: `import type { Checked } from "../../../src/review/checked.ts";\nexport const f = (c: { a: { b: { c: { d: { e: { v: Checked } } } } } }): { a: { b: { c: { d: { e: { v: string } } } } } } => {\n  return c;\n};\n` },
 };
 
 /** M2-2-R1-004: a renderer asserted to a function type that takes a plain string, then called (widened-renderer). fa01–fa03 were reported since v0.5.1; fa04–fa06 (a namespace member, a property of an object, `string | Checked`) were not until v0.5.28; fa07 `string | number`; fa12–fa13 are the conservative report of a renderer passed to a callback that may be null or undefined (a false positive that is kept, ADR-0014); fa08–fa11 are controls */
@@ -223,7 +223,7 @@ const TITLES: Record<string, string> = {
   XC: "K1: an fd option in a spread, a variable, a wrapper or a computed name",
   XB: "wrappers that change only the static type (as const, satisfies, !, parentheses)",
   EE: "EventEmitter `this`: a direct listener that uses `this` is reported (R5-003); a listener in a record is a known limit (ee07); controls",
-  BD: "K3: widening of a branded container (known limit: not reported)",
+  BD: "K3: widening of a branded container (reported since v0.5.43, backlog 21)",
   FA: "M2-2-R1-004: a renderer asserted to a function type that takes a plain string, or reached through a member access (reported); controls",
 };
 

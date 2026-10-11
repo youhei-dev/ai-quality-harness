@@ -11,8 +11,8 @@
  *  - any-into-brand: an `any` value where a branded type is expected (JSON.parse, catch values, …)
  *  - widened-renderer: a function that takes a branded parameter passed where its parameter is a plain string
  *    (method bivariance, Reflect.apply, Function)
- *  - widened-container: an array / object that holds branded values assigned to a writable type without the brand
- *    (covariance: the plain view can then store an unchecked string)
+ *  - widened-container: an array / object that holds branded values, in any place whose contextual type is a writable type without
+ *    the brand (covariance: the plain view can then store an unchecked string; backlog 21, v0.5.43: every place, a brand at any depth)
  *  - ts-directive: `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck`
  *  - issuer-call: the issuers (`issue`, `issueMd`) called or referenced outside their allowed callers
  *  - md-not-tag: `md` used other than as a template tag
@@ -41,20 +41,50 @@ export const ISSUERS: Readonly<Record<string, { file: string; callers: readonly 
   issueMd: { file: "src/review/packet.ts", callers: ["md", "joinMd", "inlineCode", "cellCode", "plainOrCode"] },
 };
 
-function hasBrand(checker: ts.TypeChecker, t: ts.Type, depth = 0, seen = new Set<ts.Type>()): boolean {
-  if (depth > 4 || seen.has(t)) return false;
-  seen.add(t);
-  if (t.isUnionOrIntersection()) return t.types.some((x) => hasBrand(checker, x, depth + 1, seen));
-  if (t.getProperties().some((p) => BRAND.test(p.getName()))) return true;
-  const args = checker.isArrayType(t) || checker.isTupleType(t) || (t.flags & ts.TypeFlags.Object && ((t as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) !== 0) ? checker.getTypeArguments(t as ts.TypeReference) : [];
-  if (args.some((a) => hasBrand(checker, a, depth + 1, seen))) return true;
-  if (t.flags & ts.TypeFlags.Object) {
-    for (const p of t.getProperties().slice(0, 40)) {
-      const decl = p.valueDeclaration ?? p.declarations?.[0];
-      if (decl !== undefined && hasBrand(checker, checker.getTypeOfSymbolAtLocation(p, decl), depth + 1, seen)) return true;
+/** Per type checker, the types whose answer is known: true = a brand is reachable, false = none is. An answer cut by VISIT_LIMIT is never kept. */
+const KNOWN = new WeakMap<ts.TypeChecker, Map<ts.Type, boolean>>();
+/** How many types one question may visit before it stops (only a type instantiated without end, `interface X<T> { x: X<T[]> }`, gets there). */
+const VISIT_LIMIT = 50_000;
+
+/**
+ * Whether a brand is reachable from `t`: through the members of a union / intersection, type arguments and the types of all properties,
+ * at any depth (backlog 21, v0.5.43: a depth of 4 and the first 40 properties used to hide a brand). A walk that reaches VISIT_LIMIT
+ * answers `cut`, the caller's fail-closed answer: true where a brand makes a report, false where its absence does.
+ */
+function hasBrand(checker: ts.TypeChecker, t: ts.Type, cut = true): boolean {
+  const memo = KNOWN.get(checker) ?? new Map<ts.Type, boolean>();
+  KNOWN.set(checker, memo);
+  const visited = new Set<ts.Type>();
+  let limited = false;
+  const walk = (x: ts.Type): boolean => {
+    const answer = memo.get(x);
+    if (answer !== undefined) return answer;
+    if (visited.has(x)) return false;
+    if (visited.size >= VISIT_LIMIT) {
+      limited = true;
+      return cut;
     }
+    visited.add(x);
+    if (x.isUnionOrIntersection()) return x.types.some(walk);
+    if (x.getProperties().some((p) => BRAND.test(p.getName()))) return true;
+    const args = checker.isArrayType(x) || checker.isTupleType(x) || (x.flags & ts.TypeFlags.Object && ((x as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) !== 0) ? checker.getTypeArguments(x as ts.TypeReference) : [];
+    if (args.some(walk)) return true;
+    if (x.flags & ts.TypeFlags.Object) {
+      for (const p of x.getProperties()) {
+        // a property of a mapped type (`Record<K, Md>`) has no declaration: its type comes from the symbol itself
+        const decl = p.valueDeclaration ?? p.declarations?.[0];
+        if (walk(decl !== undefined ? checker.getTypeOfSymbolAtLocation(p, decl) : checker.getTypeOfSymbol(p))) return true;
+      }
+    }
+    return false;
+  };
+  const found = walk(t);
+  // without a cut, `false` means the whole reachable set was walked and holds no brand, so it holds for every type visited
+  if (!limited) {
+    if (found) memo.set(t, true);
+    else for (const x of visited) memo.set(x, false);
   }
-  return false;
+  return found;
 }
 
 /** A branded string itself (not a container of branded strings). */
@@ -63,8 +93,8 @@ function isBrandedString(t: ts.Type): boolean {
   return t.isIntersection() && t.types.some((x) => (x.flags & ts.TypeFlags.StringLike) !== 0);
 }
 
-function takesBrand(checker: ts.TypeChecker, t: ts.Type): boolean {
-  return t.getCallSignatures().some((s) => s.getParameters().some((p) => hasBrand(checker, checker.getTypeOfSymbol(p))));
+function takesBrand(checker: ts.TypeChecker, t: ts.Type, cut = true): boolean {
+  return t.getCallSignatures().some((s) => s.getParameters().some((p) => hasBrand(checker, checker.getTypeOfSymbol(p), cut)));
 }
 
 /** The contextual function type takes a plain string where the function itself takes a brand (`(s: string | Checked) => Md`): hasBrand sees `Checked` in it, takesBrand alone would call it branded. */
@@ -149,7 +179,7 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         }
         if (!declaration && !callee && takesBrand(checker, checker.getTypeAtLocation(n))) {
           const ctx = checker.getContextualType(n);
-          if (ctx !== undefined && (!takesBrand(checker, ctx) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
+          if (ctx !== undefined && (!takesBrand(checker, ctx, false) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
         }
       }
       // a member access that yields a renderer (PKG.inlineCode, o.r): the identifier branch above skips the name of a property access (M2-2-R1-004)
@@ -158,18 +188,18 @@ export function brandGuard(p: Program, files: readonly ts.SourceFile[]): Violati
         const callee = (ts.isCallExpression(parent) && parent.expression === n) || (ts.isTaggedTemplateExpression(parent) && parent.tag === n);
         if (!callee && takesBrand(checker, checker.getTypeAtLocation(n))) {
           const ctx = checker.getContextualType(n);
-          if (ctx !== undefined && (!takesBrand(checker, ctx) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
+          if (ctx !== undefined && (!takesBrand(checker, ctx, false) || widensBrandParameter(checker, checker.getTypeAtLocation(n), ctx))) add(n, "widened-renderer");
         }
       }
-      if (ts.isExpression(n) && !inTypePosition(n)) {
+      // A container: the type its place expects, wherever the place gives one (backlog 21, v0.5.43: the return of an arrow function's
+      // expression body, a property of an object literal, an element of an array literal, an assertion's operand …, not only the
+      // annotated declaration, `=`, an argument and `return`). Parentheses pass the same type to their operand, which is the one judged;
+      // a spread copies the elements or properties into a new container, so its operand is not judged; the name of a property is not a value.
+      if (ts.isExpression(n) && !inTypePosition(n) && !ts.isParenthesizedExpression(n) && !ts.isSpreadElement(n.parent) && !ts.isSpreadAssignment(n.parent) && !(ts.isPropertyAssignment(n.parent) && n.parent.name === n)) {
         const t = checker.getTypeAtLocation(n);
         if (!isBrandedString(t) && hasBrand(checker, t)) {
-          const parent = n.parent;
-          let target: ts.Type | undefined;
-          if (ts.isVariableDeclaration(parent) && parent.initializer === n && parent.type !== undefined) target = checker.getTypeFromTypeNode(parent.type);
-          else if (ts.isBinaryExpression(parent) && parent.right === n && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken) target = checker.getTypeAtLocation(parent.left);
-          else if ((ts.isCallExpression(parent) && parent.arguments.includes(n)) || ts.isReturnStatement(parent)) target = checker.getContextualType(n);
-          if (target !== undefined && !hasBrand(checker, target) && !(target.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown))) {
+          const target = checker.getContextualType(n);
+          if (target !== undefined && !hasBrand(checker, target, false) && !(target.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown))) {
             if (checker.isArrayType(target)) {
               if ((target as ts.TypeReference).target.symbol.getName() === "Array") add(n, "widened-container");
             } else if (target.flags & ts.TypeFlags.Object && !checker.isTupleType(target)) {
