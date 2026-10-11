@@ -99,7 +99,33 @@ function tryWriteError(line: string): void {
   }
 }
 
-// The last handler never throws: an exception here would be Node's unhandled rejection (the value printed raw, exit 1).
+/**
+ * An exception or a promise rejection that nothing handled (backlog 20, ADR-0024). Node's default would print it raw, outside the output
+ * boundary, and exit 1 with the running checks left in their own process groups. Instead the first one ends the run the way an
+ * interruption does: one line through the output boundary (masked), no new check (the run is aborted), the running groups terminated
+ * (terminateActiveChildren), exit 2, with the same safety valve. If a signal had already interrupted the run, that path ends it with its
+ * own exit code (130 / 143) and only the line is written. A later one changes nothing: the exit is already decided. A signal that arrives
+ * after the first one finds the run aborted and changes nothing either (onSignalBeforeVerdictFixed).
+ */
+let unhandledSeen = false;
+function onUnhandled(err: unknown): void {
+  if (unhandledSeen) return;
+  unhandledSeen = true;
+  tryWriteError(unexpectedErrorLine(err));
+  if (interruption.signal.aborted) return;
+  process.exitCode = EXIT_ERROR;
+  tryWriteError("VERIFY ERROR (internal error)");
+  interruption.abort("internal error");
+  setTimeout(() => process.exit(EXIT_ERROR), DEFAULT_KILL_GRACE_MS + SAFETY_VALVE_EXTRA_MS).unref();
+  void terminateActiveChildren(DEFAULT_KILL_GRACE_MS).then(
+    () => process.exit(EXIT_ERROR),
+    () => process.exit(EXIT_ERROR),
+  );
+}
+process.on("uncaughtException", onUnhandled);
+process.on("unhandledRejection", onUnhandled);
+
+// The last handler never throws: an exception here would be an unhandled rejection (onUnhandled above; before v0.5.42 Node printed it raw, exit 1).
 // The commands and options (side-effect free, src/cli-program.ts; M2-1-R3-005) are built inside the chain, so that a version that cannot
 // be read is reported by this handler (exit 2) and not thrown while this module loads.
 Promise.resolve().then(() => buildProgram({ version: readVersion(), signal: interruption.signal, onVerdictFixed }).parseAsync(process.argv)).catch((err: unknown) => {
