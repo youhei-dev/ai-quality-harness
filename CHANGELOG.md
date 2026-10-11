@@ -5,7 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.37 — Backlog cleanup, version A (no signal path): package.json shape, security-scan root, git unknown, review-packet symlink, init symlink outside the root, a minimal environment for test:minpath; the rest closed by record（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.37` / `git rev-parse v0.5.37` で確認し、次の release commit で記入）
+## v0.5.38 — Backlog cleanup, version B (signal path): probe a group after its leader exited (28), the leaderGone comment (34), stop test:minpath through a watchdog group (5, N3); boundary tests from the backlog 23 review (B23-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.38` / `git rev-parse v0.5.38` で確認し、次の release commit で記入）
+
+- **信号の経路に触れる残りのバックログを片付けた**（版 B。6 commit。`src/` は `src/runner/execute.ts` だけ。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
+  - **バックログ 28**: leader が先に終わり `close` が未着のあいだ、leader の `exit` から 25 ms ごとに signal 0 でグループを確かめ、消えたら最初のシグナルの前に `gone` を立てる（以前はタイムアウト・中断まで確かめず、最初の SIGTERM と猶予の後の SIGKILL を確認なしで番号へ送った）。
+    差し替えの実験で、再利用されたことにした番号へ届いた回数は、v0.5.37 で 21/21、v0.5.38 では消滅から 25 ms 以上後の再利用で 0/12。**消滅から 25 ms 以内の再利用は残る**（閉じてはいない）。終了コード・レポートの欄・`errorSummary`・待ちの時間は変わらない（ADR-0023 の「範囲（v0.5.38 で追記）」）。
+    **既存テストの期待値を 1 件変えた**（人間の承認）: B16-R2 の対照「自分で終わるコマンドには何も送らない」を、「0 以外のシグナルを送らない、leader の pid へは何も送らない」に
+  - **バックログ 34**: `GroupState` の説明の 1 文を「It is set on Windows too; without a pgid there is no pid to signal at all」に直した（コメントだけ）
+  - **バックログ 5 と N3**: `test:minpath` は、vitest を見張り役（`scripts/minpath-watchdog.ts`）が先頭の別のプロセスグループで動かす。スクリプトがどう終わっても（単独の SIGINT・SIGTERM、runner のグループへの SIGKILL も）、見張り役が一時ディレクトリ `aiqh-minpath-*` を消し、自分のグループへ SIGKILL を送る
+    （以前は、単独で止めると vitest の worker などが最大約 30 秒残り、SIGKILL のときは一時ディレクトリが残った）。見張り役は自分がグループの先頭でなければ何も起動せずに exit 2。vitest がシグナル n で終わったときの終了コードは 128 + n（以前は 2）。テストが自分で別のグループにした子は止めない（以前と同じ）
+- **バックログ 23 の独立レビュー R1（High 0・Medium 0・Low 1）**: 依頼文に先に書いた基準により、23 のレビューは R1 で終えた（人間の判断）。B23-R1-001（Low。境界の回帰テストの不足）は、テストだけを足した（根自体が symlink、外へ出る相対リンク、二段のリンク。7 件。v0.5.37 の `src/` でも PASS）。原文と対応記録は `docs/reviews/backlog-23/`
+- 利用者に見える変化: verify の判定・終了コード・レポートの欄・文言は変わらない。開発用の `test:minpath` の止まり方と、vitest がシグナルで終わったときの終了コード（2 → 128 + n）
+- テスト 1,638 → 1,658 件（138 → 141 ファイル）。既存テストの期待値の変更は 1 件（28）。`package.json` version 0.5.38（`package-lock.json` の `version` は 0.5.35 のまま）
+- 訂正: v0.5.37 は **9 commit**（8 個と、push の前に足した文書だけの 9 個目 `ff8c6bc`）。v0.5.37 の項の「8 commit」は、9 個目を足す前の記述（本文は書き換えていない）
+- 注記: v0.5.37 の見出しに commit ff8c6bc0a86dd8887fdc6c3fe1bbc79e31fce330 / tag object e4b6a54da73f7f3bc861e0efe1c08b4365a7bce2 を記入した。v0.5.37 の項の本文は書き換えていない
+
+## v0.5.37 — commit ff8c6bc0a86dd8887fdc6c3fe1bbc79e31fce330 / tag object e4b6a54da73f7f3bc861e0efe1c08b4365a7bce2 — Backlog cleanup, version A (no signal path): package.json shape, security-scan root, git unknown, review-packet symlink, init symlink outside the root, a minimal environment for test:minpath; the rest closed by record
 
 - **残りのバックログのうち、信号の経路に触れないものを片付けた**（backlog-rest の SP1〈棚卸し・調査〉の後。8 commit。信号の経路〈`src/runner/execute.ts`・`src/cli.ts`・`src/cli-signals.ts`、`scripts/test-minimal-path.ts` の止める・時間切れの行〉は変えていない。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
   - **バックログ 26**: JSON としては正しいが形が違う `package.json`（トップが `null`・配列・文字列・数値・真偽値、`scripts`・`dependencies`・`devDependencies` がオブジェクトでない）は、O6 と同じく調べられない入口として `init` が exit 2 で止まる（以前は `null` と `scripts` が数値は生の TypeError〈`unexpected error`〉、配列・文字列などは空の `package.json` として黙って受け入れた。ADR-0022）
