@@ -13,7 +13,7 @@ export type Replacer = (match: string, ...groups: Array<string | undefined>) => 
 
 export interface SecretPattern {
   category: string;
-  /** Global regex (with the flags the masker needs). The scanner recompiles from source/flags. */
+  /** Global regex (with the flags the masker needs). The scanner recompiles from source/flags. For url-credential the masker reproduces it in linear time instead of running it (src/security/mask.ts, backlog 35). */
   pattern: RegExp;
   /**
    * Scanner-only regex, for the rare case where the window anchor needs a bound the masker must not
@@ -146,6 +146,8 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
     // <scheme>://<user>:<password>@<host>  ->  <scheme>://[REDACTED]@<host>
     // (angle brackets keep this comment from matching the pattern below when the repository scans itself)
     // Masker: the scheme is unbounded (RFC 3986 sets no maximum; same as v0.3.1 — M2-0-R3-002).
+    // maskSecrets does not run this regex (quadratic on long runs of scheme characters, backlog 35): mask.ts finds the same
+    // matches with the same replacement in linear time, and a test compares the two. The regex stays the definition.
     pattern: /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/:@]+):([^\s/@]+)@/gi,
     replacement: `$1${redacted("url-credential")}@`,
     scan: true,
