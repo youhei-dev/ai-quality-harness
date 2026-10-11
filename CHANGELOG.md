@@ -5,7 +5,20 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.40 — Wave 1 begins (rest2 plan): records only — backlog 36 closed by measurement, notes on the 13 and 19(c) numbers, the CONFIG_SPEC review row dropped (N3), dates and an example (N4), the project CLAUDE.md masking line (N2)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.40` / `git rev-parse v0.5.40` で確認し、次の release commit で記入）
+## v0.5.41 — The masker finds url-credential matches in linear time (backlog 35); the history name is taken exclusively (N1)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.41` / `git rev-parse v0.5.41` で確認し、次の release commit で記入）
+
+- **波 1 の 2 つ目の版**（4 commit。`src/` は `src/security/mask.ts`・`src/security/patterns.ts`〈コメントだけ〉・`src/report/write.ts`。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合・判定・終了コード・scanner は変えていない）
+  - **バックログ 35**: masker の url-credential の正規表現は、単語の境界ごとに scheme の文字の連なりを最後まで読んで戻るため、長い連なりで時間が入力の 2 乗になった（64 KiB の「a.」の繰り返しで `maskSecrets` 全体 3,427 ms）。`maskSecrets` はこの正規表現を実行せず、「://」を手がかりにした線形の走査で、同じ一致・同じ置換を求める（rest2 の SP1 の案 C2。scheme の長さは無制限のまま〈ADR-0013 の R3-002「masker は狭めない」を保つ〉）。正規表現は `patterns.ts` に定義として残す。scanner の `scanPattern`・`URL_ANCHOR` の `{0,63}` は変えない（項目 14 の記録は変わらない）。ADR-0013 に追記
+    - 先に書いたテスト（24 件のうち 21 件）: (a) 旧い正規表現を正解にして、固定の seed のランダム入力 40,000 件（置換が起きるもの 10,000 件超、2 か所以上の一致 2,000 件超）、既存の url-credential の同値性の入力、走査の弱点を狙った 6 つの形、2 乗の 3 つの形で出力の完全一致。(a) は v0.5.40 でも PASS（そこでは正解が masker そのもの）。(b) 64 KiB で 1,000 ms 未満: v0.5.40 で 2 乗の 3 つの形が FAIL（3,584・2,348・3,496 ms）
+    - 直した後の計測: その 3 つの形は 0.25〜0.59 ms、9 つの形で最大 1.99 ms
+  - **N1**（rest2 の SP1 で見つけた）: 履歴の名前を `existsSync` で決めて後で `rename` していたので、同じ秒に始まった 2 つの verify が同じ名前を選ぶと、後の rename が前の履歴を黙って上書きしえた。名前を `wx` で排他的に作ってから、中身を rename で置く。取られている名前は既存の規則（`-2`・`-3` …）で次へ。ほかの誤りは投げ、レポートは書かれず CLI は exit 2 のまま。rename に失敗したら確保した空のファイルを消してから投げる（最終の名前に空のファイルを残さない）。確保から rename までの間に強制終了されると、空のファイルが残る（既知の限界。ARCHITECTURE）
+    - 先に書いたテスト（3 件）: 自分の rename の直前に、別の node のプロセスで別の実行の `writeReports()` を最後まで走らせる。v0.5.40 では履歴が 1 つしか残らない（FAIL）。対照の 2 件（他の実行の名前は飛ばして残す、rename の失敗で最終の名前にファイルを残さない）は前後とも PASS
+  - ROADMAP の項目 35 を解消にした。独立レビュー（label `backlog-35-n1`）を付ける
+- 利用者に見える変化: 判定・終了コード・レポートの欄・文言は変わらない。長い出力の末尾のマスクが速くなる。同じ秒に始まった 2 つの verify の履歴が両方残る
+- テスト 1,658 → 1,682 件（141 → 143 ファイル）。既存テストの期待値は変えていない。`package.json` version 0.5.41（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.5.40 の見出しに commit 5105176b751aaba1fad291702893172a8a6788da / tag object 235a2384aa02ea2e67f07d593212edb53d557034 を記入した。v0.5.40 の項の本文は書き換えていない
+
+## v0.5.40 — commit 5105176b751aaba1fad291702893172a8a6788da / tag object 235a2384aa02ea2e67f07d593212edb53d557034 — Wave 1 begins (rest2 plan): records only — backlog 36 closed by measurement, notes on the 13 and 19(c) numbers, the CONFIG_SPEC review row dropped (N3), dates and an example (N4), the project CLAUDE.md masking line (N2)
 
 - **rest2 の SP1 の計画（5 つの波）の、波 1 の最初の版**（人間の判断。SP1 の §3-6 の推奨をすべて採用）。記録の整理だけ（4 commit。docs と `CLAUDE.md` だけ。`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
   - **36 を記録で閉じた**: 全テストの git の起動は 5,906 回（68 ファイル）。うち fixture の準備が 25.1%、製品自身の問い合わせが 74.9%。1 回は約 11 ms。共通の fixture で減るのは多くて 1 回の全テストで 2〜3 秒（推定）。自己 verify の二重実行（unit と unit-minpath）は、保証を弱めないためにいまのまま
