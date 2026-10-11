@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-09-15
+最終更新: 2026-10-11
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -292,10 +292,11 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 | `checks[].maxOutputBytes` | integer | 実行時の出力保持上限（既定 10MiB）を check ごとに変更。境界揃えのため最大 3 バイト少なくなる |
 | `checks[].dependsOn` | name 配列 | 前段が FAIL のとき SKIPPED にする（例: typecheck 失敗時に build を飛ばす） |
 | `matrix` | Node / Python バージョン | Actions での並列実行（M3） |
-| `review` | パケット生成の入力パス、diff の上限 | M2 |
 | `history` | 保存先 | M4 |
 | ~~JSON Schema~~ | M1 で同梱済み（`schema/aiqh.config.schema.json`） | — |
 | ~~`security.allow`~~ | M2-0 で実装済み（§3b） | — |
 | ~~`security.scanKeyValue`~~ | M2-0 で key-value 走査を既定で有効化（値のヒューリスティック付き、§3b）。無効化フラグは設けていない | — |
 
 これらは仕様確定前に ADR を追加する。
+
+（v0.5.40: 以前この表にあった `review`〈パケット生成の入力パス、diff の上限。M2〉は外した。不要: review-packet は CLI のオプション〈`--range`・`--doc` など〉で出荷済みで、設定の欄は計画されていない）

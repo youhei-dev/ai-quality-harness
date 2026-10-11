@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-09-15（M0 設計時点）
+最終更新: 2026-10-11（初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -59,7 +59,7 @@ youhei-dev/ai-quality-harness（本体・本リポジトリ）
 
 対象リポジトリ（例: trim-manager, ai-tutor-browser, 将来の会社リポジトリ）
   ├─ aiqh.config.jsonc              … 設定 1 枚（秘密情報なし）
-  ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@v0.3.0`
+  ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@vX.Y.Z`（M3 で verify.yml を足した後のタグ。v0.5.40 の時点で verify.yml は無い）
   └─ artifacts/verification/        … verify の出力（git 管理外）
 ```
 
