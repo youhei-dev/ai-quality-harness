@@ -38,7 +38,7 @@ export { DEFAULT_KILL_GRACE_MS, DEFAULT_CONFIRM_MS };
  * so a group seen gone is never probed or signalled again. It is shared by the command's own clean-up and terminateActiveChildren().
  * On Windows (and without a pgid) nothing is observed, so `gone` stays false and the group-less paths behave as before.
  * `leaderGone` is the same rule for the leader's own pid: set once, when a direct signal to it fails with ESRCH, and never cleared;
- * the pid is not signalled directly again (v0.5.36). It is set on the group-less paths too.
+ * the pid is not signalled directly again (v0.5.36). It is set on Windows too; without a pgid there is no pid to signal at all.
  */
 interface GroupState {
   readonly pgid: number | undefined;
