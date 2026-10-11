@@ -5,7 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.38 — Backlog cleanup, version B (signal path): probe a group after its leader exited (28), the leaderGone comment (34), stop test:minpath through a watchdog group (5, N3); boundary tests from the backlog 23 review (B23-R1-001)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.38` / `git rev-parse v0.5.38` で確認し、次の release commit で記入）
+## v0.5.39 — Independent review (28, 5, 34) R1, B28-R1-001: the 25 ms / 50 ms probe intervals are timer settings, not upper bounds (documents and comments only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.39` / `git rev-parse v0.5.39` で確認し、次の release commit で記入）
+
+- **v0.5.38 の独立レビュー（28・5・34）R1（High 0・Medium 1・Low 0）に対応した**（3 commit。文書と `src/`・`tests/` のコメントだけ。動き・定数・テストの期待値・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-28-5/`）
+  - **B28-R1-001（Medium）**: v0.5.38 の項（下）と文書は、項目 28 の残る窓を「**消滅から 25 ms 以内の再利用は残る**」と、上限のように書いていた。25 ms（`CONFIRM_POLL_MS`）と `terminateActiveChildren` の 50 ms は `setTimeout` の設定値で、上限ではない。
+    窓は、グループの消滅（または最後の確認）から、次の確認・送信が実際に走るまでで、イベントループやスケジューラの遅れの分だけ長くなりうる。v0.5.37 より窓は大きく縮んだが、上限は保証しない。v0.5.34 からの「最後の確認から送信までの 25 ms／50 ms」も同じ書き方だった（ADR-0023 の既知の限界「確認のタイマーは上限ではない」と「範囲（v0.5.39 で追記）」）
+  - 現在の仕様の記述（ADR-0023 の決定 9 の補足と既知の限界、ARCHITECTURE、README、`src/runner/execute.ts` とテストのコメント）はその場で直し、過去の版の記録（ADR-0023 の各「範囲」節、ROADMAP、`docs/reviews/backlog-16-2-19/`）は本文を書き換えず注記を足した。v0.5.38 の項は書き換えていない
+  - レビューは、ESRCH の後の送信、見張り役の `kill(0)`、止め方・後始末・終了コード、テストの期待値の変更を、問題なしと判断した。依頼文の基準（High・Medium が 0 なら終える）に達していないので、訂正だけを確かめる軽い R2 を付ける（人間の判断）
+- 利用者に見える変化: 無し（動きは変えていない）
+- テスト 1,658 件（141 ファイル。変わらない）。`package.json` version 0.5.39（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.5.38 の見出しに commit 6a1c8b6f07385b4660f1b8f20a093bc01883253e / tag object deb297a0e8decd85ff649ebde019b77e99e9404e を記入した。v0.5.38 の項の本文は書き換えていない
+
+## v0.5.38 — commit 6a1c8b6f07385b4660f1b8f20a093bc01883253e / tag object deb297a0e8decd85ff649ebde019b77e99e9404e — Backlog cleanup, version B (signal path): probe a group after its leader exited (28), the leaderGone comment (34), stop test:minpath through a watchdog group (5, N3); boundary tests from the backlog 23 review (B23-R1-001)
 
 - **信号の経路に触れる残りのバックログを片付けた**（版 B。6 commit。`src/` は `src/runner/execute.ts` だけ。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
   - **バックログ 28**: leader が先に終わり `close` が未着のあいだ、leader の `exit` から 25 ms ごとに signal 0 でグループを確かめ、消えたら最初のシグナルの前に `gone` を立てる（以前はタイムアウト・中断まで確かめず、最初の SIGTERM と猶予の後の SIGKILL を確認なしで番号へ送った）。
