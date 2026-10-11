@@ -5,7 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.41 — The masker finds url-credential matches in linear time (backlog 35); the history name is taken exclusively (N1)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.41` / `git rev-parse v0.5.41` で確認し、次の release commit で記入）
+## v0.5.42 — An unhandled exception or rejection ends the CLI with exit 2 through the output boundary, after the clean-up (backlog 20, minimal version; ADR-0024)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.42` / `git rev-parse v0.5.42` で確認し、次の release commit で記入）
+
+- **波 1 の 3 つ目の版**（3 commit。`src/` は `src/cli.ts` だけ。`src/runner/execute.ts`・`src/cli-signals.ts`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
+  - **バックログ 20（最小版。人間の判断）**: コールバックの中で投げられた例外と、処理されなかった promise の拒否は、最上位の catch に届かず、Node の既定の表示で生のメッセージとソースの行が出口を通らずに出て（マスクされない）exit 1 で終わり、実行中のチェックはそれぞれのプロセスグループに残った。`src/cli.ts` が `uncaughtException`・`unhandledRejection` を受け、最初の 1 回で `aiqh: unexpected error: …` の 1 行を出口から出す。シグナルが先に中断していたときは、それだけで、中断の経路が 130 / 143 で終える。それ以外は、終了コード 2、`VERIFY ERROR (internal error)`、理由 `"internal error"` で中断（新しいチェックを起動しない）、`terminateActiveChildren` でシグナルと同じ順に片付けてから `process.exit(2)`。安全弁はシグナルと同じ 8 秒。2 回目以降の例外と、最初の例外の後のシグナルは何も変えない。判定の確定の後（PASSED を書いた後）でも 2（0 にしない）。項目 29 とは別に扱った。ADR-0024 を足し、ADR-0019 の既知の限界に注記
+    - 先に書いたテスト（6 件）: 実際の CLI を Node の `--import` で起動し、テストの一時ディレクトリに書いたモジュールが、チェックの pid が書かれた後にタイマーから投げる（または拒否を作る）。`src/` にテスト専用の入口は無い。v0.5.41 では 6 件すべてが FAIL（exit 1）
+    - 子が残らないことの実験（`--import` で例外を起こし、チェックの子孫〈SIGTERM を無視する子を含む〉を pid と開始時刻で記録）: v0.5.41 は exit 1（724 ms）で子孫 3 つが CLI より長く残った。直した後は exit 2（5,738 ms。猶予の後の SIGKILL を含む）で、CLI の終了の時点で生きている子孫は 0
+  - ROADMAP の項目 20 を解消にした。独立レビュー（label `backlog-20`）を付ける
+- 利用者に見える変化: 処理されなかった例外・拒否での終了コードが 1 → 2、標準エラーの出力が Node の既定の表示 → 出口を通した 1 行と `VERIFY ERROR (internal error)`。実行中のチェックが残らない。それ以外の判定・終了コード・レポートの欄は変わらない
+- テスト 1,682 → 1,688 件（143 → 144 ファイル）。既存テストの期待値は変えていない。`package.json` version 0.5.42（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.5.41 の見出しに commit 3d8f0851d66807aa367b554b83bdacdb5c89b183 / tag object fb85c3e9f8129f168e9c4c768327ceb172db8345 を記入した。v0.5.41 の項の本文は書き換えていない
+
+## v0.5.41 — commit 3d8f0851d66807aa367b554b83bdacdb5c89b183 / tag object fb85c3e9f8129f168e9c4c768327ceb172db8345 — The masker finds url-credential matches in linear time (backlog 35); the history name is taken exclusively (N1)
 
 - **波 1 の 2 つ目の版**（4 commit。`src/` は `src/security/mask.ts`・`src/security/patterns.ts`〈コメントだけ〉・`src/report/write.ts`。依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合・判定・終了コード・scanner は変えていない）
   - **バックログ 35**: masker の url-credential の正規表現は、単語の境界ごとに scheme の文字の連なりを最後まで読んで戻るため、長い連なりで時間が入力の 2 乗になった（64 KiB の「a.」の繰り返しで `maskSecrets` 全体 3,427 ms）。`maskSecrets` はこの正規表現を実行せず、「://」を手がかりにした線形の走査で、同じ一致・同じ置換を求める（rest2 の SP1 の案 C2。scheme の長さは無制限のまま〈ADR-0013 の R3-002「masker は狭めない」を保つ〉）。正規表現は `patterns.ts` に定義として残す。scanner の `scanPattern`・`URL_ANCHOR` の `{0,63}` は変えない（項目 14 の記録は変わらない）。ADR-0013 に追記
