@@ -205,8 +205,9 @@ npm run build       # tsc → dist/
 `npm run verify` は上記に `npm run test:minpath`（PATH を node と git の symlink だけにした全テスト）、
 `npm run smoke:package`（配布 smoke test）、`npm run security`（内蔵スキャン）、`npm audit --audit-level=high` を加えた 8 つを順に実行します。
 `test:minpath` が保証するのは、**PATH の名前解決で起動する、テストが宣言していないコマンドを検出する**ことだけです（v0.5.1 で記述を訂正。M2-2-R1-005・006）。
-絶対パスでの起動は防ぎません（保証の外。v0.5.37 で決めた、バックログ 6）。vitest に渡す環境変数は PATH（node と git）・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継ぎません（v0.5.37）。単独で実行してシグナルを受けたときに止めるのは vitest の直接の子プロセスだけで、
-自己 verify の中では runner がプロセスグループごと止めます。
+絶対パスでの起動は防ぎません（保証の外。v0.5.37 で決めた、バックログ 6）。vitest に渡す環境変数は PATH（node と git）・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継ぎません（v0.5.37）。vitest は見張り役（`scripts/minpath-watchdog.ts`）が先頭の別のプロセスグループで動き、
+`test:minpath` が止まると（単独で SIGINT・SIGTERM を受けたときも、自己 verify の runner にプロセスグループごと止められたときも）、見張り役がそのグループごと止め、一時ディレクトリを消します（v0.5.38）。
+テストが自分で別のプロセスグループにした子は止めません。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）

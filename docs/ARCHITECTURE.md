@@ -402,7 +402,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
      （別のプロセスグループへ移った子孫が pipe を握っているなど）は、消えていないとは書かない。v0.5.33（ADR-0023）より前は、SIGKILL の送信で確定し、グループの消滅を確かめず、
      `close` が来なければ待ち続けた（v0.5.7 で文言を実装に合わせた）。
      一度 ESRCH を見た（signal 0 でも、グループへのシグナルの送信でも）グループには、以後 signal 0 も SIGKILL も送らない（同じ番号が別のグループに再利用されうるため。
-     `terminateActiveChildren` と記録を共有する。最初のシグナルは、まだ確認していないので確認なしで送る。グループ経路があるときは、そのグループの leader へも子の pid への直接送信をしない
+     `terminateActiveChildren` と記録を共有する。最初のシグナルの前は、leader が先に終わって `close` が未着のときだけ、leader の `exit` から 25 ms ごとに signal 0 で確かめる〈v0.5.38、ROADMAP 項目 28。それまでは確認なしで送った。消滅から 25 ms 以内の再利用は残る〉。グループ経路があるときは、そのグループの leader へも子の pid への直接送信をしない
      〈直接送るのは、グループへの送信が ESRCH 以外で失敗したときだけ。v0.5.35〉。子の pid への直接送信が ESRCH を返したら、その pid へは以後直接送らない〈v0.5.36〉。v0.5.34、ADR-0023 決定 9）
   5. エスカレーション待ちのタイマー（猶予・確認のポーリング）は `unref()` しない（イベントループが空になって SIGKILL 前に終了する経路を塞ぐ）
   6. シグナルはグループへ送り、ESRCH 以外で失敗したら子へ `process.kill(pid, signal)` で送る（`child.kill()` の失敗は `error` イベントになり、spawn の失敗と取り違えるため使わない）。
@@ -525,8 +525,16 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   `tests/structure/process-guard.ts`（型情報付き）が child_process の宣言に解決される呼び出しをすべて調べる。文字列の中からの起動（`node -e` のスクリプトなど）は静的には見えない。自己 verify の `unit-minpath`
   （`scripts/test-minimal-path.ts`: PATH を node と git の symlink だけを置いた一時ディレクトリにして全テストを実行、終了後に削除）は、そのうち
   **PATH の名前解決で起動する、宣言していないコマンド**を検出する（v0.5.1 で保証の記述を狭めた。M2-2-R1-005・006）: 絶対パスでの起動は防がない（保証の外。v0.5.37 で決めた、バックログ 6。runner のシェル `/bin/sh` も絶対パスで起動される）。
-  vitest に渡す環境変数は PATH・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継がない（v0.5.37。実測で、ほかの変数は要らなかった）。単独で実行してシグナルを受けたとき、止めるのは vitest の直接の子プロセスだけ（自己 verify の中では runner が
-  プロセスグループごと止める）。
+  vitest に渡す環境変数は PATH・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継がない（v0.5.37。実測で、ほかの変数は要らなかった）。
+  **止め方（v0.5.38、ROADMAP 項目 5・N3）**: vitest は、見張り役（`scripts/minpath-watchdog.ts`）が先頭の別のプロセスグループ（detached）で動く。スクリプトは見張り役の stdin に pipe をつなぎ、止めるとき（SIGINT・SIGTERM・時間切れ）はその pipe を閉じる。
+  pipe は、スクリプトがどの形で終わっても閉じる（runner がスクリプトのグループへ SIGKILL を送ったときも。その SIGKILL は見張り役のグループには届かない）。見張り役は pipe の終わりを見ると、スクリプトの一時ディレクトリ（絶対パスで、名前が `aiqh-minpath-` で始まるものだけ）を消し
+  （SIGKILL の後はスクリプトの `finally` が走らない: N3）、`process.kill(0, "SIGKILL")` で自分のグループ（vitest・worker・その子孫のうちグループに残ったもの）を止める。送る時点で見張り役自身がグループの中にいるので、番号が別のグループを指すことは無い。
+  見張り役は、自分がグループの先頭でなければ（detached で起動されていなければ）、何も起動せずに exit 2 で終わる（`kill(0)` が呼び出し元のグループに届かないように）。
+  終了コード: vitest のもの（vitest がシグナル n で終わったときは 128 + n。v0.5.37 までは 2）、git が無い・見張り役か vitest を起動できないときは 2、スクリプトが SIGINT / SIGTERM を受けたときは 130 / 143。
+  残るもの: テストが自分で別のプロセスグループ（detached）にした子は止めない（以前と同じ）。runner のグループへの SIGKILL の後、見張り役が止めるまで vitest は短いあいだ残る（backlog-rest の SP1 の試作の実測で、最大約 0.6 秒。250 ms 間隔の計測）。
+  その間 vitest は出力の pipe を握るので、runner の `close` はその分遅れる（`confirmMs` の範囲）。Windows は対象外。
+  採らなかった案: vitest を別のグループにしてそこへ SIGKILL を送るだけ（v0.5.33 の SP1。runner のグループへの SIGKILL が届かず、8 件が 40 秒以上残った）、worker が IPC の切断で自分で終わる（試作。同期の処理の最中は切断に気づけず、部分的にしか効かなかった）。
+  テスト（`tests/regression-backlog5-minpath-watchdog.test.ts`）は、`scripts/` を一時ディレクトリへ写し、`node_modules/vitest/vitest.mjs` を偽物にして確かめる（本物の vitest は止めない）。
   runner 経由でテストが実行するコマンド（`tests/helpers.ts` の `nodeEval`）は、`process.execPath` ではなく PATH 上の `node` を使う前提である
   （`unit-minpath` でも PATH に node を置く）。
 - **会社固有情報の排除**: コード・設定・docs・テストデータに実在の社名・製品名・IP・社内パス・人名を書かない。
