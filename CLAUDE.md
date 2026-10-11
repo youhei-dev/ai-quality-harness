@@ -37,7 +37,7 @@
 - TypeScript 5.9 系、ESM、Node 24 以上。開発・テストは Node のネイティブ TypeScript 実行（`node src/cli.ts`）、配布物は `tsc` でビルドした `dist/`（`bin` は `dist/cli.js`）
 - `erasableSyntaxOnly`: enum / namespace / パラメータプロパティは使わない。相対 import は `.ts` 拡張子付き
 - チェックの実行経路は「設定 → 子プロセス → 終了コード」の 1 本（ADR-0005）。アダプタ（M1）は検出と推奨であり、別の実行経路を作らない
-- レポートに書く文字列は必ず `maskDeep` を通す（ADR-0006）。マスクのパターン追加はテスト追加とセット
+- 秘密の形のマスク（ADR-0006 の「すべての文字列を深い走査でマスクしてから保存・表示する」）: レポートは `copyJson(report, maskSecrets)`（`src/report/build-report.ts`。文字列とキーを通す JSON のデータの写しで、v0.5.24 から `maskDeep` ではない。ADR-0020 の決定 5）、それ以外の出力は出口の `maskSecrets`（端末は `src/output.ts`。ADR-0016）。マスクのパターン追加はテスト追加とセット
 
 ## コマンド
 
