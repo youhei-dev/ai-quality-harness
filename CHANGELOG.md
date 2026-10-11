@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.39 — Independent review (28, 5, 34) R1, B28-R1-001: the 25 ms / 50 ms probe intervals are timer settings, not upper bounds (documents and comments only)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.39` / `git rev-parse v0.5.39` で確認し、次の release commit で記入）
+## v0.5.39 — commit e93db63fffe6b20d5efd99d7072097c94b3f118e / tag object f4b7fdca3a49ed565d68e86e274558f6be39f818 — Independent review (28, 5, 34) R1, B28-R1-001: the 25 ms / 50 ms probe intervals are timer settings, not upper bounds (documents and comments only)
 
 - **v0.5.38 の独立レビュー（28・5・34）R1（High 0・Medium 1・Low 0）に対応した**（3 commit。文書と `src/`・`tests/` のコメントだけ。動き・定数・テストの期待値・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-28-5/`）
   - **B28-R1-001（Medium）**: v0.5.38 の項（下）と文書は、項目 28 の残る窓を「**消滅から 25 ms 以内の再利用は残る**」と、上限のように書いていた。25 ms（`CONFIRM_POLL_MS`）と `terminateActiveChildren` の 50 ms は `setTimeout` の設定値で、上限ではない。
