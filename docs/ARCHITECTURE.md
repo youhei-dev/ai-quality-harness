@@ -115,9 +115,9 @@ src/
     verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
     build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
     markdown.ts           … レポート → Markdown                                            [M0]
-    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]
+    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]
   security/
-    mask.ts               … 秘密情報らしき文字列のパターンマスク                            [M0]
+    mask.ts               … 秘密情報らしき文字列のパターンマスク。url-credential は正規表現でなく「://」を手がかりにした線形の走査（同じ一致・同じ置換）[M0 / v0.5.41]
   git/
     info.ts               … commit / branch / dirty の取得（非 git でも動作。git が答えられなかったときも null、理由は標準出力の行。ADR-0022）  [M0]
   adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1 実装済み]
@@ -180,7 +180,7 @@ verdict: 必須チェックが全て PASS → PASSED、それ以外 → FAILED
    ▼
 artifacts/verification/latest.json
 artifacts/verification/latest.md
-artifacts/verification/history/<YYYYMMDDTHHmmssZ>.json
+artifacts/verification/history/<YYYYMMDDTHHmmssZ>.json   … 同じ秒の名前が既にあれば <…>-2.json、-3.json …（名前は排他的に確保。v0.5.41）
    ▼
 終了コード 0（PASSED）/ 1（FAILED）
 ```
