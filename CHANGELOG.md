@@ -5,7 +5,19 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.42 — An unhandled exception or rejection ends the CLI with exit 2 through the output boundary, after the clean-up (backlog 20, minimal version; ADR-0024)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.42` / `git rev-parse v0.5.42` で確認し、次の release commit で記入）
+## v0.5.43 — The brand guard compares a branded container with the contextual type of every place and looks for a brand at any depth (backlog 21)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.43` / `git rev-parse v0.5.43` で確認し、次の記録の commit で記入）
+
+- **波 1 の 4 つ目（最後）の版**（3 commit。`src/` は変えていない。`tests/structure/` は `brand-guard.ts` だけ〈人間の承認〉。依存関係・`package-lock.json`・禁止文字の集合・判定・終了コードは変えていない）
+  - **バックログ 21**: brand-guard の widened-container は、`Checked` / `Md` を持つ入れ物を、親が 4 種（型注釈つきの変数宣言・`=` の右辺・呼び出しの引数・`return` 文）の位置でだけ比べ、ブランドを深さ 4 まで・最初の 40 個のプロパティまで・宣言のあるプロパティでだけ探していた。いまは、文脈の型のあるすべての式で比べ（式本体のアロー関数の戻り値、object literal のプロパティ・省略形、array literal の要素、条件式の枝、引数の既定値、型アサーションのオペランドなど。括弧はオペランドで 1 回、spread のオペランドとプロパティの名前は比べない）、ブランドは深さの上限なしに、すべてのプロパティ（写像型のプロパティも）・型引数・union・intersection の枝で探す。1 回の問いで 50,000 型を超えて歩いたら、fail closed の答え（報告する向き）にする。ほかの規則（assertion など）も同じ探索を使う
+  - **既存テストの期待値の変更は 3 件（人間の承認）**: `regression-m2-2-builtin-r3-allow-branches` の bd01・bd02・bd04 を「検出しない」→「検出する」（群の題も合わせた）。それ以外の既存テストの期待値は変えていない。`src/` は違反にならない
+  - 先に書いたテスト（新しいファイル 20 件）: 報告される 11 の形（件数まで）、対照 6、既知の限界の固定 1（写像型の target は書き込めると判定しないので報告しない）、fixture の型検査、`src/` の違反なし。v0.5.42 の brand-guard では、2 つのファイルの 149 件のうち 14 件が FAIL（11 の形と bd01・bd02・bd04）
+  - 試作の途中で、`src/review/packet.ts:1120` が新しく報告された（誤検出）。原因は、プロパティの名前の識別子まで比べていたことと、写像型（`Record<…, Checked | Rejected>`）の target のプロパティの型を見ずに「ブランドが無い」としていたこと。両方を直した（後者は元からの見落とし）
+  - ROADMAP の項目 21 を解消にした。ADR-0019 の既知の限界に注記。22（process-guard）は変えていない。独立レビュー（label `backlog-21`）を付ける
+- 利用者に見える変化: 無し（構造ガードはテストの中だけ）
+- テスト 1,688 → 1,708 件（144 → 145 ファイル）。`package.json` version 0.5.43（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.5.42 の見出しに commit 423eb260d778d85b9eea6d4ddb2ba4d161e828e4 / tag object d061f48f3203fd0a437355586f691069461a8a2a を記入した。v0.5.42 の項の本文は書き換えていない。v0.5.43 の SHA は次の記録の commit で記入する
+
+## v0.5.42 — commit 423eb260d778d85b9eea6d4ddb2ba4d161e828e4 / tag object d061f48f3203fd0a437355586f691069461a8a2a — An unhandled exception or rejection ends the CLI with exit 2 through the output boundary, after the clean-up (backlog 20, minimal version; ADR-0024)
 
 - **波 1 の 3 つ目の版**（3 commit。`src/` は `src/cli.ts` だけ。`src/runner/execute.ts`・`src/cli-signals.ts`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
   - **バックログ 20（最小版。人間の判断）**: コールバックの中で投げられた例外と、処理されなかった promise の拒否は、最上位の catch に届かず、Node の既定の表示で生のメッセージとソースの行が出口を通らずに出て（マスクされない）exit 1 で終わり、実行中のチェックはそれぞれのプロセスグループに残った。`src/cli.ts` が `uncaughtException`・`unhandledRejection` を受け、最初の 1 回で `aiqh: unexpected error: …` の 1 行を出口から出す。シグナルが先に中断していたときは、それだけで、中断の経路が 130 / 143 で終える。それ以外は、終了コード 2、`VERIFY ERROR (internal error)`、理由 `"internal error"` で中断（新しいチェックを起動しない）、`terminateActiveChildren` でシグナルと同じ順に片付けてから `process.exit(2)`。安全弁はシグナルと同じ 8 秒。2 回目以降の例外と、最初の例外の後のシグナルは何も変えない。判定の確定の後（PASSED を書いた後）でも 2（0 にしない）。項目 29 とは別に扱った。ADR-0024 を足し、ADR-0019 の既知の限界に注記
