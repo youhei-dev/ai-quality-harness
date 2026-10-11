@@ -12,6 +12,8 @@
  * The controls pass before and after the fix: a group send that fails with EPERM still falls back to the leader, and a group that
  * is signalled successfully never gets a direct signal. Every trigger is an abort or a direct call after a ready marker, and
  * children leave by themselves when their marker file disappears (the temp directory is removed in afterEach).
+ * v0.5.38 (backlog 28): the last control's expectation changed from "no call at all" to "no signal other than 0, nothing to the
+ * leader's pid": the group is now probed with signal 0 after the leader's `exit` (tests/regression-backlog28-probe-after-exit.test.ts).
  */
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -144,7 +146,7 @@ describe("B16-R2-001: nothing is sent to the leader of a group that was seen gon
     expect(() => realKill(-pgid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }));
   }, 30_000);
 
-  it("control: a command that ends by itself is not signalled at all", async () => {
+  it("control: a command that ends by itself gets no signal other than 0 (changed in v0.5.38, backlog 28: before, no call at all)", async () => {
     const t = makeTempDir("aiqh-b16r2-exit-");
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
@@ -156,6 +158,8 @@ describe("B16-R2-001: nothing is sent to the leader of a group that was seen gon
     const watch = watchKill(pgid, "passthrough");
     const exec = await pending;
     expect(exec.exitCode).toBe(0);
-    expect(watch.calls).toEqual([]);
+    // v0.5.38 (backlog 28): after the leader's `exit`, the group is probed with signal 0 until `close`; nothing else is sent.
+    expect(watch.calls.filter((c) => c.signal !== 0), "no signal other than 0").toEqual([]);
+    expect(sent(watch.calls, "pid"), "nothing at all to the leader's pid").toEqual([]);
   }, 30_000);
 });

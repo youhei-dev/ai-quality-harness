@@ -131,9 +131,14 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     let settled = false;
     let killTimer: NodeJS.Timeout | null = null;
     let pollTimer: NodeJS.Timeout | null = null;
+    /** Probes the group (signal 0) after the leader exited while `close` is pending (backlog 28), until the group is seen gone. */
+    let exitWatchTimer: NodeJS.Timeout | null = null;
     /** When SIGKILL was sent (null before): the bounded wait for the group to disappear counts from here. */
     let sigkillSentAt: number | null = null;
-    /** When the group was first seen gone while `close` was still pending (a descendant outside the group may hold the pipes). */
+    /**
+     * When the escalation's poll first saw the group gone while `close` was still pending (a descendant outside the group may hold the
+     * pipes). The probes after the leader's exit (backlog 28) record only `gone`, not this time: the wait after the escalation is unchanged.
+     */
     let goneAt: number | null = null;
     /** errno code of the first signal that could be delivered neither to the group nor to the child (e.g. "EPERM"). */
     let killError: string | null = null;
@@ -168,7 +173,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
 
     /**
      * Settle a terminated command (backlog 16). Done when `close` has fired AND the group is gone. Bounded: after SIGKILL (or, when
-     * `close` is pending although the group is gone, after the group was first seen gone) at most `confirmMs` more is waited; then the
+     * `close` is pending although the group is gone, after this poll first saw the group gone) at most `confirmMs` more is waited; then the
      * result is settled anyway, marked as unconfirmed while the group is still present. Without this bound a descendant outside the
      * group that keeps the pipes open (or a group that cannot be signalled) would keep the run waiting indefinitely.
      */
@@ -230,6 +235,22 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
     // The signal may have aborted between the pre-spawn check and the listener registration.
     if (options.signal?.aborted) onAbort();
 
+    // Backlog 28: once the leader has exited, the group can disappear while `close` is still pending (a descendant outside the group
+    // holds the pipes), and its id can then be reused before the first signal. Keep probing until the group is seen gone, so that the
+    // first SIGTERM is not sent to a reused id; a probe cannot tell a reused id from our group, so this narrows the window to one probe
+    // interval after the group disappears, it does not close it. Only signal 0 is sent, through groupAlive(): it stops at the first
+    // ESRCH (`gone`, B16-R1-001), and nothing is probed on Windows or without a pgid. The probing ends at `close` (finish clears the
+    // timer) or when the escalation starts (its own poll takes over).
+    const watchAfterExit = (): void => {
+      exitWatchTimer = null;
+      if (settled || killTimer !== null) return;
+      if (!groupAlive(group)) return;
+      exitWatchTimer = setTimeout(watchAfterExit, CONFIRM_POLL_MS);
+    };
+    child.on("exit", () => {
+      if (!settled && closeResult === null) watchAfterExit();
+    });
+
     const finish = (
       result: Omit<
         ExecutionResult,
@@ -242,6 +263,7 @@ export function executeCommand(options: ExecuteOptions): Promise<ExecutionResult
       clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
       if (pollTimer) clearTimeout(pollTimer);
+      if (exitWatchTimer) clearTimeout(exitWatchTimer);
       options.signal?.removeEventListener("abort", onAbort);
       activeChildren.delete(child);
       resolve({
