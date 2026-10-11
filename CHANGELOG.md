@@ -5,6 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.5.40 — Wave 1 begins (rest2 plan): records only — backlog 36 closed by measurement, notes on the 13 and 19(c) numbers, the CONFIG_SPEC review row dropped (N3), dates and an example (N4), the project CLAUDE.md masking line (N2)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.40` / `git rev-parse v0.5.40` で確認し、次の release commit で記入）
+
+- **rest2 の SP1 の計画（5 つの波）の、波 1 の最初の版**（人間の判断。SP1 の §3-6 の推奨をすべて採用）。記録の整理だけ（4 commit。docs と `CLAUDE.md` だけ。`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない）
+  - **36 を記録で閉じた**: 全テストの git の起動は 5,906 回（68 ファイル）。うち fixture の準備が 25.1%、製品自身の問い合わせが 74.9%。1 回は約 11 ms。共通の fixture で減るのは多くて 1 回の全テストで 2〜3 秒（推定）。自己 verify の二重実行（unit と unit-minpath）は、保証を弱めないためにいまのまま
+  - **13・19 の (c) の記録の数字に注記を足した**（記録の本文は書き換えていない）: 最長の行は `README.md` の 30 行目で JS の文字数 11,184（UTF-8 で 21,418 バイト。記録の 19,817 はいまの値ではない）。テストの signal 0 の probe は 5 か所でなく 7 ファイルの 9 か所
+  - **N3**: CONFIG_SPEC の §6 の表から `review`（パケット生成の入力パス、diff の上限。M2）を外した。不要（review-packet は CLI のオプションで出荷済み）。外した理由は表の下に 1 行
+  - **N4**: ROADMAP・ARCHITECTURE（と、この版で変えた CONFIG_SPEC）の「最終更新」の日付。ARCHITECTURE §3 の例 `verify.yml@v0.3.0`（そのタグに verify.yml は無い）を `@vX.Y.Z` にし、verify.yml は M3 で足すと注記
+  - **N2**: プロジェクトの `CLAUDE.md` の「レポートに書く文字列は必ず `maskDeep` を通す」を、実装に合わせた（レポートは `copyJson(report, maskSecrets)`〈v0.5.24 から。ADR-0020 の決定 5〉、それ以外の出力は出口の `maskSecrets`）。ADR-0006 は書き換えていない（決定の「深い走査でマスク」は変わらず、`maskDeep` の名前を書いていない）
+  - ROADMAP の「次:」を 5 つの波の計画にした（波 1 → 波 2〈M3 の前半〉→ 波 3〈15〉→ 波 4〈M3 の後半〉→ 波 5〈M4〉。閉じたままの項目と、N1 を v0.5.41 で直す予定）
+- 利用者に見える変化: 無し（動きは変えていない）
+- テスト 1,658 件（141 ファイル。変わらない）。`package.json` version 0.5.40（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.5.39 — commit e93db63fffe6b20d5efd99d7072097c94b3f118e / tag object f4b7fdca3a49ed565d68e86e274558f6be39f818 — Independent review (28, 5, 34) R1, B28-R1-001: the 25 ms / 50 ms probe intervals are timer settings, not upper bounds (documents and comments only)
 
 - **v0.5.38 の独立レビュー（28・5・34）R1（High 0・Medium 1・Low 0）に対応した**（3 commit。文書と `src/`・`tests/` のコメントだけ。動き・定数・テストの期待値・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-28-5/`）
