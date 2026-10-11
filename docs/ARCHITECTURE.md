@@ -491,8 +491,8 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定）は、v0.5.24 から書き込みの出口で形式別に禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`。review-packet は fail closed のまま。ADR-0020）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
   既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
-  自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外は、Node の既定の表示で
-  出口を通らずに標準エラーへ出る（範囲の外。ROADMAP のバックログ 20）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない。
+  自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外・拒否の形も
+  構造テストは見ない（CLI は v0.5.42 から、それを出口を通した 1 行と exit 2 で終える。ADR-0024）。一覧は端末への出力のためのもので、`src/` がネットワークを使わないことは保証しない。
   構造テストは、悪意のあるコードに対する保証ではなく、実装 AI の不注意・安易な迂回を止める機械的な検査である（ADR-0019 の既知の限界）。名前を書かずに `Function` を得て関数型へ cast する経路
   （`Reflect.get(fn, "constructor")`、`obj[k]`）、EventEmitter の `this` のうち Record・配列・非リテラルの要素アクセス・parameter・戻り値・getter の先の listener（`process.on` に渡した関数は `process` を `this` として呼ばれる。直接解決できる listener は v0.5.22 で違反にした）、URL オブジェクトや実行時に組み立てた fs のパス、
   `process`・`globalThis` を値として得る未知の経路は、塞がない・保証しない。端末への出力の境界は、構造テストのほかに、CLI を子プロセスとして動かして出力を確かめる回帰テストと、
@@ -552,6 +552,7 @@ verify の実行結果について、終了コードと最終行の文言は 1 �
 | 設定ファイル不在・不正（`cwd`・`output.dir` の途中のエントリを調べられない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (configuration error)` | 書かない |
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外（`package.json` の version が読めない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (internal error)` | 書かない |
+| 処理されなかった例外・promise の拒否（コールバックの中など。ADR-0024） | 2（シグナルが先に中断していたときは 130 / 143 のまま） | `VERIFY ERROR (internal error)`（標準エラー。先に `aiqh: unexpected error: …` の 1 行） | 保証しない（判定の確定の前なら `interruptedBy: "internal error"` で書かれることがある）。新規チェックは起動せず、実行中のグループは SIGINT と同じ順で片付けてから終了。安全弁 8 秒。判定の確定の後（PASSED を書いた後）でも 2 |
 | 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
 | SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認（最大 2 秒。消えなかったときはレポートの `errorSummary` にそう書く。終了コードは変わらない）の後に終了。安全弁 8 秒（最後の強制終了。極端な停止ではレポートの完了前に発火しうる。終了コードは同じ。ADR-0023 決定 7） |
 | SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
