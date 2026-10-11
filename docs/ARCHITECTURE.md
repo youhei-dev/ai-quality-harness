@@ -497,7 +497,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   （`Reflect.get(fn, "constructor")`、`obj[k]`）、EventEmitter の `this` のうち Record・配列・非リテラルの要素アクセス・parameter・戻り値・getter の先の listener（`process.on` に渡した関数は `process` を `this` として呼ばれる。直接解決できる listener は v0.5.22 で違反にした）、URL オブジェクトや実行時に組み立てた fs のパス、
   `process`・`globalThis` を値として得る未知の経路は、塞がない・保証しない。端末への出力の境界は、構造テストのほかに、CLI を子プロセスとして動かして出力を確かめる回帰テストと、
   `src/output.ts` の 2 つの基本関数に支えられている。v0.5.20 の既知の限界（ADR-0019）: path と fd の両方を受ける fs の書き込みの先頭の引数は、静的な型が `string` なら fd として見ない（型アサーション・`satisfies` を
-  付けた形だけを違反にする）、総称型の cast の残る形（必須の T の引数と、別の値の cast）、brand-guard の広げ（式本体のアロー関数の戻り値、深い入れ子）、読み取りの device path の誤検出。EventEmitter の `this` は、
+  付けた形だけを違反にする）、総称型の cast の残る形（必須の T の引数と、別の値の cast）、brand-guard の広げのうち写像型〈`Record<K, string>`〉の target（v0.5.43 で、文脈の型のあるすべての位置と深さの上限なしの探索にした。残るのはこの形だけ）、読み取りの device path の誤検出。EventEmitter の `this` は、
   v0.5.20 に試作した狭い規則を v0.5.22 で採った（直接解決できる形だけ。Record 経由の登録は残る。(ii)）。許可モジュールごとの入口と規則は ADR-0019 の入口の表
   （グローバルの `fetch` などは残る）。
   v0.5.4〜v0.5.16 の既知の限界だった `worker_threads`・`node:repl`・`node:test`・`tty.WriteStream`・`util.debuglog`・`process.emitWarning` と、v0.5.5 で追記した
