@@ -5,7 +5,19 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.43 — The brand guard compares a branded container with the contextual type of every place and looks for a brand at any depth (backlog 21)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.43` / `git rev-parse v0.5.43` で確認し、次の記録の commit で記入）
+## v0.5.44 — Independent review (backlog 20) R1, B20-R1-001: refuse to start under --unhandled-rejections=warn and --abort-on-uncaught-exception (ADR-0024, decision 6)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.44` / `git rev-parse v0.5.44` で確認し、次の記録の commit で記入）
+
+- **v0.5.42 の独立レビュー（バックログ 20）R1（High 1・Medium 0・Low 0）に対応した**（4 commit。`src/` は `src/cli.ts` と新しい `src/node-options.ts`。`src/runner/execute.ts`・`src/cli-signals.ts`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-20/`）
+  - **B20-R1-001（High）**: Node を `--unhandled-rejections=warn` で動かすと、`unhandledRejection` のハンドラがマスクした 1 行を出しても、Node 自身が拒否の理由とスタックを生のまま出す（`NODE_OPTIONS` からも指定できる）。ADR-0024 の「必ず出口を通る」が成り立たなかった。Node v24.13.1 で再現した。v0.5.41 でも同じ警告が出た（v0.5.42 で悪くなったものではない）
+  - 実測で、**`--abort-on-uncaught-exception` でも同じ種類の漏れ**が見つかった（例外のとき、ハンドラより先に V8 が例外を生のまま出して SIGTRAP で異常終了し、check の子が残る。strict と併用すると拒否でも）。ほかの起動オプション（`--trace-uncaught`・`--trace-warnings`・`--report-uncaught-exception` など 8 つ）は生の値を出さなかった
+  - **直し方（人間の決定）**: どちらの下でも起動を拒否する（fail closed）。`process.execArgv` と `NODE_OPTIONS` を調べ、`unhandled-rejections` のモード `warn` が 1 つでもある、`abort-on-uncaught-exception` の名前が出る（否定の形も）、`NODE_OPTIONS` が `unhandled-rejections` を一通りに読めない形で書いている（引用符・`\`・モードの欠けなど）、のどれかで拒否する。名前の `-` と `_` は同じに扱う（Node と同じ）。Node の解釈（後の指定が勝つ・否定）はまねしないので、安全な形まで拒否する（仕様。ADR-0024 決定 6）
+  - 拒否するとき: 理由の 1 行（`aiqh: refusing to start: …`）を出口から出して exit 2。コマンドを読まず、check を起動せず、レポートを書かない。`aiqh verify` は、設定の誤りと同じく `VERIFY ERROR (Node option error)` の行も出す
+  - 先に書いたテスト: 実際の CLI を起動するテスト 20 件（拒否される 14 の形、拒否しない対照 6）と、規則だけの単体テスト 57 件。v0.5.43 では CLI のテストの 14 件が FAIL（そのうち 10 件は偽の値が生のまま出た）、対照 6 件は PASS、単体テストはモジュールが無いので読み込めずに FAIL
+- 利用者に見える変化: Node を上の起動オプションで動かしたとき、aiqh は何も実行せずに exit 2 で終わる（以前は動いて、値が生のまま出ることがあった）。それ以外の判定・終了コード・レポートは変わらない
+- テスト 1,708 → 1,785 件（145 → 147 ファイル）。既存テストの期待値は変えていない。`package.json` version 0.5.44（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.5.43 の見出しに commit 6ec3c3e620c1034f68ee10f1a839fafcc7130c4d / tag object 7bf640b2283eef3dfb527e0f8055c9818341e0fd を記入した。v0.5.43 の項の本文は書き換えていない
+
+## v0.5.43 — commit 6ec3c3e620c1034f68ee10f1a839fafcc7130c4d / tag object 7bf640b2283eef3dfb527e0f8055c9818341e0fd — The brand guard compares a branded container with the contextual type of every place and looks for a brand at any depth (backlog 21)
 
 - **波 1 の 4 つ目（最後）の版**（3 commit。`src/` は変えていない。`tests/structure/` は `brand-guard.ts` だけ〈人間の承認〉。依存関係・`package-lock.json`・禁止文字の集合・判定・終了コードは変えていない）
   - **バックログ 21**: brand-guard の widened-container は、`Checked` / `Md` を持つ入れ物を、親が 4 種（型注釈つきの変数宣言・`=` の右辺・呼び出しの引数・`return` 文）の位置でだけ比べ、ブランドを深さ 4 まで・最初の 40 個のプロパティまで・宣言のあるプロパティでだけ探していた。いまは、文脈の型のあるすべての式で比べ（式本体のアロー関数の戻り値、object literal のプロパティ・省略形、array literal の要素、条件式の枝、引数の既定値、型アサーションのオペランドなど。括弧はオペランドで 1 回、spread のオペランドとプロパティの名前は比べない）、ブランドは深さの上限なしに、すべてのプロパティ（写像型のプロパティも）・型引数・union・intersection の枝で探す。1 回の問いで 50,000 型を超えて歩いたら、fail closed の答え（報告する向き）にする。ほかの規則（assertion など）も同じ探索を使う
