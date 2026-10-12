@@ -700,12 +700,12 @@ M2-1 の教訓（R3）:
   ファイルごとの差分、`<to>` 時点の**変更ファイルの全文**、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ）で
   Markdown パケットを生成する。**実装者の自己評価・手書きの節は載せない**。不正な UTF-8・生文字・秘密の形を入力ごとと組み立て後の 2 段で検査し、
   検出があれば何も書かない（exit 1）。パケットだけを含む ZIP を出せる。終了コード 0 / 1 / 2
-- `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ
+- `aiqh review-import`: レビューAI の Markdown 指摘を構造化（severity / file / kind / status）して保存。同一 id での再取り込みは status を引き継ぐ（**v0.6.0 で注記**: v1〈取り込みだけ〉を入れた。入力はレビューの中の `aiqh-findings` の JSON のブロック 1 つで、本文の見出し・件数の行・その回の ID と食い違えば exit 2 で何も書かない。出力は `docs/reviews/<label>/findings-r<N>.json`〈git 管理〉で、すべて `open`。同じ原文の再取り込みは何もしない〈exit 0〉、違う原文は exit 2。状態の引き継ぎ・検査は v2。ADR-0026）
 - 再修正 → 再 verify → 再パケットのループ手順を docs に明文化
 
 ### 完了条件
 - [x] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される（M2-1、v0.4.4 で完了。R1〜R4 のパケットをこのコマンドで生成）
-- [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される
+- [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される（v0.6.0 で注記: v1 は取り込みの時に `open` の件数を表示する。終了コードには反映しない〈非目標〉。ループ未完了の表示は v2。ADR-0026）
 - [ ] 本体の自己 verify PASS
 
 ---

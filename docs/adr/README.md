@@ -29,3 +29,4 @@
 | [0023](0023-unconfirmed-termination-is-not-terminated.md) | 確認できなかった終了を、終了したことにしない: タイムアウト・中断の後のグループの消滅の確認と有界時間 | 採用（ADR-0005 の「猶予後 SIGKILL」の後に確認を足す） | 2026-10-05 |
 | [0024](0024-unhandled-exceptions-exit-2.md) | 処理されなかった例外・拒否は、出口を通して exit 2 で終え、動いている子を片付ける | 採用（ADR-0019 の既知の限界のうち CLI の終わり方を決める。シグナルが先なら 130 / 143 のまま） | 2026-10-11 |
 | [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない） | 2026-10-12 |
+| [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま） | 2026-10-13 |

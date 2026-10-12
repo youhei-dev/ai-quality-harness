@@ -183,6 +183,9 @@ aiqh review-packet --range <from>..<to> [options]
       --max-packet-bytes <n> パケット全体の上限（既定 4194304。超えると exit 2）
   -c, --config <path>        security セクション（security.allow）を読む設定ファイル
       --json                 結果を JSON で出力
+
+aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> [--allow-missing-previous] [--cwd <dir>]
+                             独立レビューの md（aiqh-findings の JSON のブロック 1 つ）を docs/reviews/<label>/findings-r<n>.json に取り込む
 ```
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
@@ -191,6 +194,7 @@ aiqh review-packet --range <from>..<to> [options]
 値は表示しない）、`2` = 使い方・設定・検査不能（読めない入力、作業ツリー外、git の失敗など）・上限・書込のエラー。検査そのものができないときは finding があっても
 `2` で、それまでの finding を「検査が完了していないため不完全」と明記して出します。上限超過など検査を妨げないエラーは finding が無いときだけ `2` です（ADR-0015）。
 `<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
+`aiqh review-import`（v0.6.0、ADR-0026）: レビューの中の `aiqh-findings` の JSON を正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせます。食い違い・読めない入力・前の回の findings のファイルが無い（`--allow-missing-previous` を除く）・読めないときは `2` で何も書きません。取り込んだ指摘はすべて `open` で、`open` の件数は表示するだけで終了コードには反映しません（`0` = 取り込んだ・同じレビューを取り込み済み）。依頼文のひな形は `docs/ops/review-request-template.md` です。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなし）も `2` です（全コマンド共通。`VERIFY` の最終行は出さず、`error: …` の 1 行だけを標準エラーに出す。ADR-0021）。
 

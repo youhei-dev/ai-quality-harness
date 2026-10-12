@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-12（初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-13（初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -85,7 +85,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh init` | M1（実装済み） | 対象リポジトリの実ファイル（package.json、tsconfig、pyproject、venv 等。`.env*` は読まない） | 標準出力に監査表・`aiqh.config.jsonc` 案・追加提案（`.gitignore` の `artifacts/`、scripts）。出力はすべて秘密情報マスクを通す（M1-R1-003）。`--write` は生成物を実行時パーサ / リゾルバで検証してから config のみ書込（M1-R1-006）、`--write-gitignore` / `--write-scripts` は別フラグ、`--force` なしでは上書きしない | 0=完了, 2=監査不能（root が無い・辿れない・ディレクトリでない場合と、検出に使う入口が調べられない場合を含む。ADR-0022） / 既存あり / 検出 0 件 / 生成物が検証不合格 / いずれかの書込失敗（書込先が dangling symlink の拒否を含む。ADR-0022） / 使い方エラー（ADR-0021） |
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
-| `aiqh review-import` | M2 | レビューAI の指摘（Markdown） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況） | 0 / 2 |
+| `aiqh review-import` | M2（v0.6.0 で v1: 取り込みだけ） | レビューAI の指摘（Markdown）。v0.6.0: レビューの中の `aiqh-findings` の JSON のブロック 1 つを正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせる（ADR-0026） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況）（v0.6.0 で注記: **`docs/reviews/<label>/findings-r<N>.json`（git 管理）**に変えた。すべて `open`。ADR-0026） | 0 / 2（v0.6.0 で注記: 0 = 取り込んだ・同じレビューを取り込み済み、2 = 読めない・食い違う・使い方・書込のエラーで何も書かない。`open` の件数は表示だけで終了コードに反映しない） |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
 
 共通オプション（案）: `--config <path>`, `--cwd <dir>`, `--output-dir <dir>`, `--verbose`, `--json`（標準出力に JSON）。
@@ -105,7 +105,7 @@ src/
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
     security-scan.ts      … 内蔵 Security Scan の CLI                                      [M1 実装済み]
     review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
-    review-import.ts      … 指摘の構造化保存                                               [M2]
+    review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0]
     history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
   config/
     schema.ts             … 設定スキーマ（zod）。型は zod から導出                          [M0]
@@ -310,6 +310,8 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
    ▼ 実装AI が再修正 → aiqh verify → 再 review-packet …（status が全て resolved/accepted になるまで）
 ```
 
+（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026）
+
 ### 6.3 履歴（M4）
 
 `history/<ts>.json` を複数プロジェクト分取り込み、PASS/FAIL 推移・所要時間・失敗しやすいチェックを集計する。
@@ -369,6 +371,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 | `artifacts/ai-review/` | git 管理外 | レビューパケット、取り込んだ指摘 |
 | `docs/reports/` | git 管理 | 人間向けのマイルストーン報告（M0_REPORT.md 等） |
 | `docs/ops/` | git 管理 | 運用の手順書（CI と Branch Protection。v0.5.45） |
+| `docs/reviews/<label>/` | git 管理 | 独立レビューの原文の収録（`review-r<N>.md` など）・対応記録（`response-r<N>.md`）・取り込んだ指摘（`findings-r<N>.json`。v0.6.0、ADR-0026） |
 | `.github/` | git 管理 | 自己 CI のワークフローと CODEOWNERS（v0.5.45。ADR-0025） |
 | `tmp/` | git 管理外 | 作業用一時ファイル |
 | `dist/` | git 管理外 | ビルド成果物 |
