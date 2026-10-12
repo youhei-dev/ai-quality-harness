@@ -3,8 +3,13 @@ import { readFileSync } from "node:fs";
 import { buildProgram } from "./cli-program.ts";
 import { CLI_SIGNALS, SAFETY_VALVE_EXTRA_MS, swapSignalHandlers, type CliSignal, type SignalHandlers } from "./cli-signals.ts";
 import { DEFAULT_KILL_GRACE_MS, terminateActiveChildren } from "./runner/execute.ts";
+import { refusedNodeOption } from "./node-options.ts";
 import { writeError } from "./output.ts";
 import { EXIT_ERROR, SIGNAL_EXIT_CODES } from "./types.ts";
+
+// Node options under which aiqh does not start (B20-R1-001, ADR-0024): decided here, before anything else; the chain at the end acts on
+// it first, so no command is parsed, no check is started and no report is written.
+const refusal = refusedNodeOption(process.execArgv, process.env.NODE_OPTIONS);
 
 /**
  * The version of this package, from the package.json next to src/ (and dist/). A package.json that cannot be read, or that has no
@@ -125,10 +130,21 @@ function onUnhandled(err: unknown): void {
 process.on("uncaughtException", onUnhandled);
 process.on("unhandledRejection", onUnhandled);
 
+/**
+ * Refuse to start (ADR-0024): the reason as one line through the output boundary, exit 2. `aiqh verify` also ends with its ERROR line,
+ * as a configuration error does; the other commands write the reason only. The root has no option that takes a value, so the first
+ * argument that is not an option names the command.
+ */
+function refuseToStart(line: string): void {
+  process.exitCode = EXIT_ERROR;
+  tryWriteError(line);
+  if (process.argv.slice(2).find((a) => !a.startsWith("-")) === "verify") tryWriteError("VERIFY ERROR (Node option error)");
+}
+
 // The last handler never throws: an exception here would be an unhandled rejection (onUnhandled above; before v0.5.42 Node printed it raw, exit 1).
 // The commands and options (side-effect free, src/cli-program.ts; M2-1-R3-005) are built inside the chain, so that a version that cannot
 // be read is reported by this handler (exit 2) and not thrown while this module loads.
-Promise.resolve().then(() => buildProgram({ version: readVersion(), signal: interruption.signal, onVerdictFixed }).parseAsync(process.argv)).catch((err: unknown) => {
+Promise.resolve().then((): unknown => (refusal !== null ? refuseToStart(refusal) : buildProgram({ version: readVersion(), signal: interruption.signal, onVerdictFixed }).parseAsync(process.argv))).catch((err: unknown) => {
   process.exitCode = EXIT_ERROR;
   // Through the output boundary like every other line (src/output.ts): a message can quote a path.
   tryWriteError(unexpectedErrorLine(err));
