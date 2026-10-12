@@ -10,12 +10,13 @@
 | ジョブ（名前） | runner | いつ走るか | 手順 | 失敗したとき |
 |---|---|---|---|---|
 | `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。**まだ必須チェックではない**（下の §2） |
-| `measure (windows)` | `windows-2025` | main への push と手動だけ（pull request では走らない。分数の節約） | 同じ | `continue-on-error`: 実行は赤にならない。測定だけ（Windows は対象外。ADR-0005） |
+| `measure (windows)` | `windows-2025` | **手動（`workflow_dispatch`）のときだけ**（main への push と pull request では走らない。分数の節約: Windows の分数は多く数えられ [推定]、POSIX 前提のテストで 30 分の上限まで走りうる） | 同じ | `continue-on-error`: 実行は赤にならない。測定だけ（Windows は対象外。ADR-0005） |
 
 共通:
 - トークンの権限は `contents: read` だけ（最上位で決め、ジョブで広げない）。checkout は `persist-credentials: false`。secrets は使わない。`pull_request_target` は使わない
 - アクション（`actions/checkout`・`actions/setup-node`）は完全な commit SHA で固定し、行末のコメントに版を書く。SHA は GitHub API で、タグが指す commit を引いて確かめた（ADR-0025）
 - キャッシュは使わない（setup-node の自動キャッシュも `package-manager-cache: false` で止める）。成果物（verify のレポート）はアップロードしない
+- npm の保護設定: 最上位の `env:` に `npm_config_ignore_scripts: "true"` を書いた（下の「npm の保護設定と CI」）
 - 同時実行: pull request は同じ ref の古い実行を取り消す。main への push と手動の実行は取り消さない
 - ジョブ名 `verify (ubuntu)` は、後で必須チェックに指定するときの名前なので変えない（変えると、必須チェックが「報告を待つ」のまま進まなくなる）
 
@@ -23,11 +24,14 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 
 ### npm の保護設定と CI
 
-手元の npm の保護設定（`min-release-age=7`・`allow-git=none`・`ignore-scripts=true`）は利用者の `~/.npmrc` にあり、リポジトリには無い。**runner では効かない**（runner の既定は `null`・`all`・`false`。手元で空の設定を指定して確かめた）。
+人間の決定（2026-10-12）: CI でも手元と同じにする（ワークフローに環境変数で書く）。手元の npm の保護設定（`ignore-scripts=true`・`min-release-age=7`・`allow-git=none`）は利用者の `~/.npmrc` にあり、リポジトリには無いので、そのままでは runner で効かない。
 
-- `npm ci` は `package-lock.json` のとおりに入れる。lockfile の 160 のパッケージはすべて `registry.npmjs.org` から integrity 付きで、git の依存は無い
-- インストールスクリプトを持つのは `fsevents` だけで、macOS 専用（Linux・Windows では入らない見込み [推定]）
-- そのため、いまの lockfile では差は小さい見込み [推定]。ワークフローでは変えていない（変えるなら別の決定）。案: `npm ci --ignore-scripts`、またはジョブの環境変数 `npm_config_ignore_scripts: "true"`
+- runner の npm が読めるものだけを、ワークフローの最上位の `env:` に書いた: **`npm_config_ignore_scripts: "true"`**
+- 確かめ方: Node 24.13.1 に同梱の npm 11.8.0（runner で使われる見込みの版）で、HOME と userconfig を空のディレクトリにして `npm config get` を見た。`npm_config_ignore_scripts=true` は `true` として読まれた。`npm_config_min_release_age=7`・`npm_config_allow_git=none` は `npm warn Unknown env config "min-release-age"`（`allow-git` も同じ）になった。11.8.0 はこの 2 つの設定を知らないので、書いていない
+- npm を上げて 2 つを効かせる手は取らない（人間の決定）。`npm ci` は `package-lock.json` のとおりに入れ（lockfile の 160 のパッケージはすべて `registry.npmjs.org` から integrity 付き、git の依存は無い）、新しい版を解決しないので、`min-release-age` と `allow-git` が無くても入るものは変わらない見込み [推定]
+- インストールスクリプトを持つのは `fsevents` だけで、macOS 専用（Linux・Windows では入らない見込み [推定]）。`ignore-scripts` はそれも止める
+- `ignore-scripts` は、`npm run verify` のような明示した script の実行は止めない（手元でも同じ設定で verify が通っている）
+- lockfile を変えるとき（依存関係の更新）は、手元の npm の保護設定で行う
 
 ## 2. 必須にする条件（案。決定は人間）
 
@@ -93,8 +97,8 @@ gh run view <run-id> --log-failed                  # 失敗した手順のログ
 ## 6. ワークフローを初めて push するとき
 
 - `.github/workflows/` の下のファイルを HTTPS で push するには、使う資格情報（OAuth のトークンや PAT）に `workflow` の権限が要る。無いと GitHub が push を拒む
-- このリポジトリの push は、git の `credential.helper`（`osxkeychain`）が保存した資格情報を使う（`gh` の資格情報の仲介は設定されていない。2026-10-12）。`gh auth status` のスコープは `gist`・`read:org`・`repo` で、`workflow` は無い
-- 最初の push で Actions の実行が始まる（§1 の表のとおり。main への push なので、`verify (ubuntu)` と `measure (windows)` の両方）
+- このリポジトリの push の認証（2026-10-12 の人間の設定）: このリポジトリの `.git/config`（local）で、github.com 用の credential helper を空の値と `!gh auth git-credential` の 2 つにした（system の `osxkeychain` をこのリポジトリの github.com では使わず、gh の資格情報を使う。Mac 全体の `gh auth setup-git` は使わない）。gh のトークンには `workflow` のスコープを足した
+- 最初の push で Actions の実行が始まる（§1 の表のとおり。main への push なので `verify (ubuntu)` だけ。`measure (windows)` は手動の実行のときだけ）
 
 ## 7. 確かめていないこと
 

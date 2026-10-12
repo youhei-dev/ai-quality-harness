@@ -1,6 +1,6 @@
 # Self CI of this repository (ADR-0025, docs/ops/ci-and-branch-protection.md).
 # Read-only token, actions pinned to full commit SHAs, no secrets, no cache, no uploaded artifacts.
-# "verify (ubuntu)" is not a required check yet; "measure (windows)" never fails the run.
+# "verify (ubuntu)" is not a required check yet; "measure (windows)" runs only on manual runs and never fails the run.
 name: ci
 
 on:
@@ -12,6 +12,11 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # The local npm protection settings (the user's ~/.npmrc), as far as the runner's npm reads them: npm 11.8.0,
+  # bundled with Node 24.13.1, reads ignore-scripts but does not know min-release-age or allow-git (ADR-0025).
+  npm_config_ignore_scripts: "true"
 
 concurrency:
   # A pull request cancels its own older runs; a push to main or a manual run gets its own group and is never cancelled.
@@ -37,8 +42,9 @@ jobs:
 
   measure-windows:
     # Measurement only (Windows is not a supported platform): a failure here does not fail the run.
+    # Manual runs only, to save minutes (Windows minutes count double on a private repository).
     name: measure (windows)
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2025
     timeout-minutes: 30
     continue-on-error: true
