@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.6.0 — aiqh review-import v1: the aiqh-findings JSON block of a review against its body; any disagreement is exit 2 and writes nothing (ADR-0026)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.6.0` / `git rev-parse v0.6.0` で確認し、次の記録の commit で記入）
+
+- **`aiqh review-import` を足した**（M2-2 の本体〈項目 15〉の最初の部品。rest2 の計画の波 3。3 commit: `61d6039`・`1124dde`・この release の commit。人間の決定 D1〜D12〈波 3 の SP1 の推奨どおり。直した状態の名前は `resolved`〉。ADR-0026）
+  - `aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> [--allow-missing-previous] [--cwd <dir>]`。独立レビューの md の中の **`aiqh-findings` の JSON のブロック 1 つ**（schema version 1）を正本にし、`docs/reviews/<label>/findings-r<N>.json`（git 管理）に、すべて `open` で書く
+  - **本文との突き合わせ**: `### <ID>` の見出し（ID だけ）が JSON の ID とちょうど同じ、`## 全体の結論` の中に `件数: High <n> / Medium <n> / Low <n>` の行がちょうど 1 行（節の外には無い）で JSON の summary と同じ、ID だけの見出しが `### <ID>` の形、**その回の ID の形がレビューのどこにあっても（本文・JSON の文字列）JSON の指摘である**（全角・小文字・ハイフンの形・文字参照・Markdown のエスケープ・強調の記号・ゼロ幅の文字を寄せて探す）。JSON の ID は 001 から欠番・重複なし、summary は指摘の数と同じ
+  - **食い違い・読めない入力はすべて exit 2 で、何も書かない**（警告して続けない。見つかった食い違いはすべて並べる）。端末には条件・ID・行番号だけを出し、レビュアーの文章は出さない。**`open` の件数は表示するだけで、終了コードには反映しない**（0 / 2。非目標）
+  - 同じ原文の再取り込みは exit 0 で何も書かない、違う原文は exit 2。回が 2 以上で前の回の findings のファイルが無い（ENOENT）ときは `--allow-missing-previous` でだけ通す。読めない・不正・別の label / 回 / 接頭辞は、オプションがあっても exit 2（ADR-0022）
+  - 保存する文字列はマスクを通し、禁止文字は JSON の表記にする（ADR-0020）。秘密の形と禁止文字は、件数と行番号を端末に出す
+  - 依頼文のひな形 `docs/ops/review-request-template.md`（レビュアーの出力の形の約束。v0.6.0 自身の独立レビューから使う）
+- `src/report/write.ts` の `writeAtomic` を export し、書き込みか rename に失敗したときに一時ファイルを消すようにした（以前は残った。verify のレポートの書き込みにも効く）
+- 先に書いたテスト 95 件（`tests/review-import.test.ts` 89 件・`tests/cli-review-import.test.ts` 6 件。SP1 で見つかった読み落としの危険な形をすべて fixture にした。正常系は、SP1 で厳しく読めた 6 件の原文に件数の行と JSON のブロックを足した `tests/fixtures/review-import/`）は、v0.5.45 の後の `d751427` で 95 件すべて FAIL（89 件はモジュールが無く読み込めない、6 件は実行して FAIL）
+- 利用者に見える変化: 新しいコマンド `review-import`。ほかのコマンドの判定・終了コード・レポートは変わらない
+- テスト 1,785 → 1,880 件（147 → 149 ファイル）。既存テストの期待値は変えていない。`package.json` version 0.6.0（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`tests/structure/`・禁止文字の集合は変えていない
+- 注記: v0.5.45 の見出しの SHA は、v0.5.45 の後の記録の commit（`d751427`）で記入済み
+
 ## v0.5.45 — commit 35ee9e7983617e872c5311e61de0e0d5172f31ae / tag object 9e36d6045f6dc73505f52e72ceb67edb018ca603 — Self CI: verify on Ubuntu (not a required check yet), Windows measurement on manual runs; CODEOWNERS; CI and branch protection procedures (ADR-0025)
 
 - **本体リポジトリの自己 CI を足した**（rest2 の計画の波 2〈M3 の前半〉。4 commit: `50946eb`・`0c916cd`・`f3cfeb7`・この release の commit。`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。ADR-0025）
