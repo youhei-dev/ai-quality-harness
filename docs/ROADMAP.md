@@ -542,7 +542,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
 - v0.5.44 の後・2 つ目（docs だけの commit。版は 0.5.44 のまま、タグなし）: **バックログ 20 の独立レビュー R2（範囲 `v0.5.43..v0.5.44`。変えていない 6 ファイルを `--doc` で足したパケット。問いは 3 つ）は、指摘なし（High 0・Medium 0・Low 0）。B20-R1-001 は解消**。依頼文に先に書いた基準（High・Medium が 0 なら終える）により、**バックログ 20 の独立レビューは R1〜R2 で終えた**。原文と対応記録は `docs/reviews/backlog-20/`（`review-r2.md`・`response-r2.md`）
   - R2 はコードを実行していない（静的な読解）。レビュアーの未確認範囲と、それぞれが当たる既知の限界（ADR-0024 の「追記（v0.5.44）」・決定 5、ADR-0023、項目 28）の対応は `response-r2.md`。原文は禁止文字・Security Scan に一致する行が無く、一字も変えずに収録した
   - **波 1 を終えた**（人間の判断）: v0.5.40（記録の整理）・v0.5.41（35・N1）・v0.5.42（20 の最小版）・v0.5.43（21）・v0.5.44（B20-R1-001）。独立レビューは 35-n1（R1）・21（R1）・20（R2）ですべて終わった。テストは 1,658 → 1,785 件（141 → 147 ファイル）。残したのは項目 37（B21-R1-001。未着手。後で）
-- 次: **波 2（M3 の前半: 自己 CI と手順書）に着手した**（2026-10-12。人間の決定: 非公開のまま〈波 4 で再判断〉、CI の結果は Claude Code が `gh` で読んでよい〈読み取りだけ〉、Windows は測定のジョブだけ〈`continue-on-error`〉、Ubuntu の CI は最初は必須にしない）。**その 1**（ワークフロー・CODEOWNERS・手順書・ADR-0025。v0.5.45 の予定）と **その 2**（npm の `ignore-scripts` を CI に写す、Windows の測定は手動の実行だけ）を、人間の承認と認証の設定〈このリポジトリだけ gh の資格情報、`workflow` のスコープ〉の後に push し、最初の CI（Ubuntu）と 1 回の手動の実行（Windows）の結果を読む（詳しくは下の M3 の「進み」）。その後: Ubuntu で落ちる箇所を直す（次の指示）→ 緑が続いたらタグの前の条件にする（後の版）。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 3**（15: M2-2 の本体）→ **波 4**（M3 の後半: 配布・再利用ワークフロー。Public 化・配布の方式の人間の判断の後）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 37（B21-R1-001。後で）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は波 5）。終わったレビュー（以後は依頼しない）: バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
+- 次: **波 2（M3 の前半: 自己 CI と手順書）は v0.5.45 で終えた**（自己 CI・手順書・CODEOWNERS。Branch Protection は、Public 化か有料のプランの判断〈波 4〉の後）。次は **波 3（M2-2 の本体: 項目 15）** で、ADR から始める。そのあいだ、main への push のたびに `verify (ubuntu)` の緑を数え（M3 の「進み」の表。v0.5.45 の push が 1 回目）、続けて 5 回に届いたら、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で）。Ubuntu の時間の見張り（`unit`・`unit-minpath` がチェックの上限の 80% を超えたら対策を決める）も続ける。Windows を対象にするかは後で決める。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 4**（M3 の後半: 配布・再利用ワークフロー。Public 化・配布の方式の人間の判断の後）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 37（B21-R1-001。後で）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は波 5）。終わったレビュー（以後は依頼しない）: バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -720,6 +720,7 @@ M2-1 の教訓（R3）:
 - **Windows での挙動確認**（v0.5.37 で足した。バックログの項目 18・30 の行き先。Windows は M0 から対象外）: 対象にするときは、少なくとも次を確かめる。
   (a) 消滅の確認の起点（項目 30: `groupAlive` は Windows で常に false なので、`close` が未着でも最初のポーリングで `goneAt` が入る。既定値〈猶予 5 秒・確認 2 秒〉では猶予より先に確定し、SIGKILL のタイマーは解除される）、
   (b) Windows の SIGTERM は強制終了で、子孫はグループが無いので止めていない（どの版も同じ）、(c) そのとき `errorSummary` の「process group terminated」は正確ではない、(d) `leaderGone`（v0.5.36）は Windows の分岐で効く
+  **v0.5.45 の前の測定**（手動の run 38243300245、`measure (windows)`、`windows-2025`〈イメージ windows-2025-vs2026、20260925.250.1〉、Node 24.13.1・npm 11.8.0。`continue-on-error` で実行は赤にしない）: ジョブ 11 分 14 秒、`npm ci` は成功、**verify は 8 チェックのうち 3 つが FAIL**（`unit`: チェックの上限 600 秒でタイムアウト。`unit-minpath`: `test-minimal-path: git was not found on PATH`。`package`: `spawnSync npm` が `ENOENT`）。見えた失敗の種類は 4 つ: (1) 時間〈`unit` が 10 分で終わらない〉、(2) シグナル・プロセスグループ〈`tests/regression-backlog16-r2-direct-signal.test.ts` の 6 件すべて〉、(3) コマンドの解決〈`scripts/test-minimal-path.ts` の `which()` が `git.exe` を見ない、`scripts/package-smoke.ts` がシェルなしで `npm` を起動し `npm.cmd` を見つけない。コードを読んだ推定〉、(4) ファイル名の制御文字〈backlog 8 O9 の ESC を含むディレクトリ名。推定〉。ほかに、git の `LF will be replaced by CRLF` の警告が繰り返し出た（失敗との関係は分からない）。`unit` は打ち切られ、端末には末尾 20 行しか出ず、レポートは runner の外に出していないので、**失敗の全数は分からない**（上は見えた範囲）。上の (c) のとおり、タイムアウトの文言「process group terminated」は Windows では正確でない。**Windows を対象にするかは後で決める**（人間の決定。記録だけ）
 - 独立レビュー R1 からの持ち越し:
   - **R-011（後半）**: Ubuntu の CI ジョブを最低 1 本追加し、正常終了・非ゼロ終了・タイムアウト・
     SIGTERM 無視の孫プロセス・大量出力を Linux で検証する（M0 は macOS のみで検証）
@@ -732,6 +733,30 @@ M2-1 の教訓（R3）:
   - npm の保護設定（`min-release-age=7`・`allow-git=none`・`ignore-scripts=true`）は利用者の `~/.npmrc` にあり、runner では効かない。いまの lockfile では差は小さい見込み [推定]（その 2 で、`ignore-scripts` だけを CI に写した）
   - 上の「内容」との対応: 本体リポジトリ自身の CI → `ci.yml`（結果は最初の push の後）。Branch Protection の手順書 → `docs/ops/ci-and-branch-protection.md`。Windows での挙動確認 → `measure (windows)`（測定だけ）。R-011（後半）→ `verify (ubuntu)` が兼ねる（正常終了・非ゼロ終了・タイムアウト・大量出力は `tests/execute.test.ts`、SIGTERM 無視の孫は `tests/regression-r1-runner.test.ts` の既存のテストで、それが Linux で走る。結果は最初の push の後）。R-006（候補 1）→ CODEOWNERS と手順書の §4（いまは強制されない）
 - **その 2**（2026-10-12。v0.5.45 の予定。人間の決定: push の認証はこのリポジトリだけ gh の資格情報〈`.git/config` の credential helper を空の値と `!gh auth git-credential` に。`workflow` のスコープを足した〉、Windows の測定は手動の実行だけ、npm の保護設定は CI でも手元と同じに）: `ci.yml` の最上位の `env:` に `npm_config_ignore_scripts: "true"`（Node 24.13.1 に同梱の npm 11.8.0 で、`ignore-scripts` は読まれ、`min-release-age`・`allow-git` は `Unknown env config` になった〈11.8.0 が知らない設定〉ので、その 2 つは書かない。npm は上げない〈人間の決定〉）。`measure (windows)` は `workflow_dispatch` のときだけ（分数の節約）。ADR-0025・手順書を合わせて直した。push の後、最初の CI（Ubuntu）と 1 回の手動の実行（Windows）を読む
+- **その 3 = v0.5.45**（2026-10-12。その 1〜その 2 の 3 commit〈`50946eb`・`0c916cd`・`f3cfeb7`〉を版にした。`src/`・`tests/` は変えていない）
+  - **最初の CI の結果**（`f3cfeb7`）: push の run 38241926903 は success（`verify (ubuntu)` 11 分 45 秒。`npm ci` 3 秒、`npm run verify` 11 分 27 秒）。手動の run 38243300245 でも `verify (ubuntu)` は success（11 分 50 秒、verify 11 分 32 秒）。runner のイメージ `ubuntu-24.04`（20261004.327.1、Ubuntu 24.04.5）、Node 24.13.1・npm 11.8.0
+
+    | チェック | CI（push の run） | CI（手動の run） | 手元（`f3cfeb7` の worktree） |
+    |---|---|---|---|
+    | lint | 6.3s | 6.0s | 2.2s |
+    | typecheck | 6.1s | 6.8s | 1.7s |
+    | unit | 5m38s | 5m40s | 1m10s |
+    | unit-minpath | 5m30s | 5m33s | 1m29s |
+    | build | 2.3s | 2.5s | 1.0s |
+    | package | 2.8s | 3.0s | 2.1s |
+    | security | 635ms | 663ms | 399ms |
+    | dependency | 399ms | 519ms | 518ms |
+    | 計 | 11m27s | 11m32s | 2m47s |
+
+  - **時間の見張り**（人間の決定: いまは変えない）: `unit`・`unit-minpath` は、チェックの上限 600 秒（`aiqh.config.jsonc` の `timeoutSec`）の約 56% を使っている（338〜340 秒・330〜333 秒）。**どちらかが上限の 80%（480 秒）を超えたら、対策〈上限を上げる設定の変更〈人間の承認〉か、テストの作業量を減らす〈項目 36 の記録〉〉を決める**。ジョブの上限 30 分に対しては 約 12 分
+  - **必須にする条件**（人間の決定）: `verify (ubuntu)` が **main への push で続けて 5 回緑**。手動の実行（`workflow_dispatch`）と pull request は数えない。v0.5.45 の release commit の push を 1 回目として数え始め、赤が 1 回でもあれば 0 から数え直す。5 回に届いたら、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で行う）。数え方の表（記録の commit などで足していく）:
+
+    | 回 | commit（main への push） | run | `verify (ubuntu)` |
+    |---|---|---|---|
+    | 1 | v0.5.45 の release commit | 次の記録の commit で記入 | 次の記録の commit で記入 |
+
+    （v0.5.45 の前の 2 回〈run 38241926903〈push、`f3cfeb7`〉と 38243300245〈手動〉〉は、数え始める前なので数えない）
+  - **Ubuntu でスキップされうるテストの確かめ**（静的。`tests/` の `skipIf`・`runIf`・早い `return` などを grep。直していない）: 飛ばす条件は 2 種類だけ。(1) root で動いているか（`isRoot`・`runsAsRoot`。13 ファイル・35 か所。mode 000 などの権限のテスト）: runner のジョブは GitHub の runner のユーザーのホームの下の作業ディレクトリで動いていて（CI のログ）、root ではない見込み → **飛ばない**〈推定。uid はログに出ていない〉。(2) `tests/zip-interop.test.ts` の `unzip`・`python3`（`import zipfile`）の有無（2 か所）: `actions/runner-images` の Ubuntu 24.04 の一覧〈Image Version 20261004.327.1。実行のイメージと同じ〉に `unzip 6.0-28ubuntu4.1` と `Python 3.12.3` がある → `unit` では**飛ばない**。`unit-minpath` では PATH が node と git だけなので、手元と同じく**飛ぶ**（設計どおり）。早い `return` など、ほかの形の飛ばし方は無かった
 
 ### 完了条件
 - [ ] 本体リポジトリの PR で verify が自動実行され、FAILED でマージ不可になる

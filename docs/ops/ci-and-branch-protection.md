@@ -1,9 +1,9 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-12（波 2〈M3 の前半〉の 1 つ目。ADR-0025）
+最終更新: 2026-10-12（波 2〈M3 の前半〉。v0.5.45 で必須にする条件を決定にした。ADR-0025）
 
 本体リポジトリ自身の CI（自己 CI）と、main を守る設定の手順をまとめる。決定の根拠は ADR-0025。
-この文書の時点では、ワークフローは**まだ GitHub で一度も走っていない**（push の前）。
+最初の 2 回（v0.5.45 の前。push の run 38241926903 と手動の run 38243300245）は、`verify (ubuntu)` が 2 回とも緑だった（結果は ADR-0025 の「追記（v0.5.45）」と ROADMAP の M3「進み」）。
 
 ## 1. CI の中身（`.github/workflows/ci.yml`）
 
@@ -33,16 +33,18 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 - `ignore-scripts` は、`npm run verify` のような明示した script の実行は止めない（手元でも同じ設定で verify が通っている）
 - lockfile を変えるとき（依存関係の更新）は、手元の npm の保護設定で行う
 
-## 2. 必須にする条件（案。決定は人間）
+## 2. 必須にする条件（決定。ADR-0025 の決定 7）
 
-人間の決定（2026-10-12）: 最初は必須にしない。Ubuntu で落ちる箇所を直して緑が続いてから、タグの前の条件にする（後の版で）。
+人間の決定（2026-10-12）: 最初は必須にしない。**`verify (ubuntu)` が main への push で続けて 5 回緑**になったら、タグの前の条件にする。
 
-案:
-1. `verify (ubuntu)` が、main への push で**続けて 5 回**緑（再実行での緑は数えない。少なくとも 2 つの版にまたがる）になったら、タグの前の条件に足す
-2. タグの前の条件の確かめ方: release の commit の SHA について、`gh run list --workflow ci.yml --commit <SHA>` で `verify (ubuntu)` が `success` であることを読む（読み取りだけ）
-3. 赤になったら: Ubuntu だけの失敗は原因を切り分ける。テストの直しは同じ波で、製品（信号の経路など）に及ぶものは別の版で独立レビュー。`npm audit` の勧告だけで赤になったときは、依存関係の判断として人間に渡す
-4. Branch Protection が使えるようになったら（§3）、`verify (ubuntu)` を必須チェックにする
-5. `measure (windows)` は必須にしない（測定だけ）
+1. **数えるもの**: main への push で始まった実行の `verify (ubuntu)`。手動の実行（`workflow_dispatch`）と pull request は数えない。再実行での緑も数えない
+2. **数え始め**: v0.5.45 の release commit の push が 1 回目（その前の 2 回は数えない）。**赤が 1 回でもあれば 0 から数え直す**
+3. **数え方**: push のたびに `gh run list --workflow ci.yml --event push --limit 5` で実行を特定し、`gh run view <run-id>` で `verify (ubuntu)` の結論を読む（読み取りだけ）。結果は ROADMAP の M3「進み」の表に、記録の commit などで足していく
+4. **5 回に届いたら**: プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で行う）。確かめ方は、release の commit の SHA について `gh run list --workflow ci.yml --commit <SHA>` で `verify (ubuntu)` が `success` であることを読む（読み取りだけ）
+5. 赤になったら: Ubuntu だけの失敗は原因を切り分ける。テストの直しは同じ波で、製品（信号の経路など）に及ぶものは別の版で独立レビュー。`npm audit` の勧告だけで赤になったときは、依存関係の判断として人間に渡す。再実行は `gh` の書き込みなので、人間の承認の後に行う
+6. Branch Protection が使えるようになったら（§3）、`verify (ubuntu)` を必須チェックにする
+7. `measure (windows)` は必須にしない（測定だけ）
+8. 時間の見張り（ADR-0025 の決定 8）: `unit`・`unit-minpath` のどちらかがチェックの上限 600 秒の 80%（480 秒）を超えたら、対策を決める。最初の 2 回は約 56%（5m30s〜5m40s）
 
 ## 3. Branch Protection（または rulesets）
 
@@ -102,6 +104,6 @@ gh run view <run-id> --log-failed                  # 失敗した手順のログ
 
 ## 7. 確かめていないこと
 
-- Ubuntu・Windows で一度も走っていない。落ちうる箇所の推定（rest2 の SP1）: dash でのシェルの構文、回収前のゾンビの扱い（`src/runner/execute.ts` の `groupAlive`）、vCPU が少ないことによる時間の余裕の小さいテスト、初めて走る unzip・python3 のテスト（`tests/zip-interop.test.ts`）、`npm audit` の勧告
+- （v0.5.45 で注記: Ubuntu は 2 回とも緑で、この推定の 5 つはどれも失敗として現れなかった。Windows は手動の 1 回で 3 チェックが FAIL〈ROADMAP の M3〉）v0.5.45 の前の推定（rest2 の SP1）: dash でのシェルの構文、回収前のゾンビの扱い（`src/runner/execute.ts` の `groupAlive`）、vCPU が少ないことによる時間の余裕の小さいテスト、初めて走る unzip・python3 のテスト（`tests/zip-interop.test.ts`）、`npm audit` の勧告
 - Actions の分数の上限（API は `user` のスコープが要り、取れなかった）
 - CODEOWNERS がいまのプランで何もしないこと（GitHub の文書による [推定]）

@@ -5,6 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.5.45 — Self CI: verify on Ubuntu (not a required check yet), Windows measurement on manual runs; CODEOWNERS; CI and branch protection procedures (ADR-0025)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.45` / `git rev-parse v0.5.45` で確認し、次の記録の commit で記入）
+
+- **本体リポジトリの自己 CI を足した**（rest2 の計画の波 2〈M3 の前半〉。4 commit: `50946eb`・`0c916cd`・`f3cfeb7`・この release の commit。`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。ADR-0025）
+  - `.github/workflows/ci.yml`: main への push・main への pull request・手動の実行で、**`verify (ubuntu)`**（`ubuntu-24.04`、Node 24.13.1、`npm ci` → `npm run verify`。手元と同じ 8 チェックを同じ CLI で）。**まだ必須チェックではない**。**`measure (windows)`**（`windows-2025`）は手動の実行のときだけで、失敗しても実行を赤にしない（測定だけ。Windows は対象外のまま）
+  - 安全: トークンの権限は `contents: read` だけ、`persist-credentials: false`、secrets なし、`pull_request_target` なし、アクションは完全な commit SHA で固定（`actions/checkout` v7.0.1、`actions/setup-node` v7.0.0。GitHub API でタグが指す commit を確かめた）、キャッシュとレポートのアップロードなし
+  - npm の保護設定: 手元の `~/.npmrc` の設定のうち、runner の npm 11.8.0 が読める `ignore-scripts` だけを環境変数で写した（`min-release-age`・`allow-git` は 11.8.0 が知らない設定）
+  - `.github/CODEOWNERS`（検証のしかたを決めるファイルの持ち主。非公開・いまのプランでは強制されない）、手順書 `docs/ops/ci-and-branch-protection.md`（CI の中身、必須にする条件と数え方、Branch Protection / rulesets の手順〈いまのプランでは HTTP 403 で使えない。使えるようになったときの手順〉、`gh` での結果の読み方）
+- **最初の CI の結果**（`f3cfeb7`）: `verify (ubuntu)` は push の run 38241926903 と手動の run 38243300245 で 2 回とも緑（ジョブ 11 分 45 秒・11 分 50 秒。`unit`・`unit-minpath` はチェックの上限 600 秒の約 56%）。`measure (windows)` は手動の 1 回で 3 チェックが FAIL（記録だけ。ROADMAP の M3）
+- **必須にする条件**（人間の決定。ADR-0025 の決定 7）: main への push で続けて 5 回緑。手動の実行は数えない。この版の release の commit の push を 1 回目として数え始める。時間の見張り（決定 8）: 上限の 80% を超えたら対策を決める
+- 利用者に見える変化: なし（CLI の動き・判定・終了コード・レポートは変わらない）
+- テスト 1,785 件（147 ファイル）は変わらない。`package.json` version 0.5.45（`package-lock.json` の `version` は 0.5.35 のまま）。v0.5.44 の見出しの SHA は、v0.5.44 の後の記録の commit（3577a48）で記入済み
+
 ## v0.5.44 — commit 3dc5ce13dc6336fdbd505351e9cc99c0e1a5b5ae / tag object 84599acab87e898cea2bbce2ee73ae3aa22d9951 — Independent review (backlog 20) R1, B20-R1-001: refuse to start under --unhandled-rejections=warn and --abort-on-uncaught-exception (ADR-0024, decision 6)
 
 - **v0.5.42 の独立レビュー（バックログ 20）R1（High 1・Medium 0・Low 0）に対応した**（4 commit。`src/` は `src/cli.ts` と新しい `src/node-options.ts`。`src/runner/execute.ts`・`src/cli-signals.ts`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-20/`）
