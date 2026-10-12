@@ -6,6 +6,7 @@
  */
 import { Command } from "commander";
 import { runInit } from "./commands/init.ts";
+import { runReviewImport } from "./commands/review-import.ts";
 import { runReviewPacket } from "./commands/review-packet.ts";
 import { runSecurityScan } from "./commands/security-scan.ts";
 import { runVerify } from "./commands/verify.ts";
@@ -25,7 +26,7 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-/** Positive integer option (bytes); anything else is a usage error (exit 2). */
+/** Positive integer option (bytes, a round); anything else is a usage error (exit 2). */
 function positiveInt(value: string): number {
   if (!/^[0-9]+$/.test(value) || Number(value) < 1 || !Number.isSafeInteger(Number(value))) {
     writeError(`aiqh: expected a positive integer, got ${JSON.stringify(value)}`);
@@ -154,6 +155,21 @@ export function buildProgram(deps: ProgramDeps): Command {
         process.exitCode = await runReviewPacket(args);
       },
     );
+
+  program
+    .command("review-import")
+    .description("Import an independent review (Markdown with one aiqh-findings JSON block) into docs/reviews/<label>/findings-r<N>.json, every finding open; nothing is written if the block is missing or invalid, or if it does not agree with the review's headings, count line or IDs")
+    .argument("<review>", "the review file (Markdown)")
+    .requiredOption("--label <name>", "docs/reviews/<label>/: lower-case ASCII letters, digits, \".\" and \"-\"")
+    .requiredOption("--round <n>", "the review round (1, 2, …)", positiveInt)
+    .requiredOption("--id-prefix <prefix>", "the prefix of the finding IDs: <prefix>-R<round>-<NNN> (for example B20 or M2-2-RI)")
+    .option("--allow-missing-previous", "round 2 or later without findings-r<round-1>.json (only when that file does not exist)", false)
+    .option("--cwd <dir>", "repository directory with docs/reviews/ (default: current directory)")
+    .action(async (review: string, opts: { label: string; round: number; idPrefix: string; allowMissingPrevious: boolean; cwd?: string }) => {
+      const args: Parameters<typeof runReviewImport>[0] = { review, label: opts.label, round: opts.round, idPrefix: opts.idPrefix, allowMissingPrevious: opts.allowMissingPrevious, toolVersion: deps.version };
+      if (opts.cwd !== undefined) args.cwd = opts.cwd;
+      process.exitCode = await runReviewImport(args);
+    });
 
   return program;
 }

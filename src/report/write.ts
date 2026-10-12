@@ -77,9 +77,18 @@ function removeQuietly(file: string): void {
   }
 }
 
-/** The one place the report files are written: a forbidden character never reaches a file raw (JSON: `\uXXXX`, Markdown: `\u{HEX}`; ADR-0020). */
-function writeAtomic(target: string, content: string, format: "json" | "md"): void {
+/**
+ * The one place the report files — and the findings files of review-import (ADR-0026) — are written: a forbidden character never reaches a
+ * file raw (JSON: `\uXXXX`, Markdown: `\u{HEX}`; ADR-0020). A temporary file next to the target, then a rename; when either step fails the
+ * temporary file is removed (v0.6.0: before, it was left behind) and the error is thrown.
+ */
+export function writeAtomic(target: string, content: string, format: "json" | "md"): void {
   const tmp = `${target}.tmp-${process.pid}`;
-  writeFileSync(tmp, format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep"), "utf8");
-  renameSync(tmp, target);
+  try {
+    writeFileSync(tmp, format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep"), "utf8");
+    renameSync(tmp, target);
+  } catch (err) {
+    removeQuietly(tmp);
+    throw err;
+  }
 }
