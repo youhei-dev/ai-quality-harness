@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.45 — Self CI: verify on Ubuntu (not a required check yet), Windows measurement on manual runs; CODEOWNERS; CI and branch protection procedures (ADR-0025)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.45` / `git rev-parse v0.5.45` で確認し、次の記録の commit で記入）
+## v0.5.45 — commit 35ee9e7983617e872c5311e61de0e0d5172f31ae / tag object 9e36d6045f6dc73505f52e72ceb67edb018ca603 — Self CI: verify on Ubuntu (not a required check yet), Windows measurement on manual runs; CODEOWNERS; CI and branch protection procedures (ADR-0025)
 
 - **本体リポジトリの自己 CI を足した**（rest2 の計画の波 2〈M3 の前半〉。4 commit: `50946eb`・`0c916cd`・`f3cfeb7`・この release の commit。`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。ADR-0025）
   - `.github/workflows/ci.yml`: main への push・main への pull request・手動の実行で、**`verify (ubuntu)`**（`ubuntu-24.04`、Node 24.13.1、`npm ci` → `npm run verify`。手元と同じ 8 チェックを同じ CLI で）。**まだ必須チェックではない**。**`measure (windows)`**（`windows-2025`）は手動の実行のときだけで、失敗しても実行を赤にしない（測定だけ。Windows は対象外のまま）
