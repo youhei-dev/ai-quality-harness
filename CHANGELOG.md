@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.5.44 — Independent review (backlog 20) R1, B20-R1-001: refuse to start under --unhandled-rejections=warn and --abort-on-uncaught-exception (ADR-0024, decision 6)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.5.44` / `git rev-parse v0.5.44` で確認し、次の記録の commit で記入）
+## v0.5.44 — commit 3dc5ce13dc6336fdbd505351e9cc99c0e1a5b5ae / tag object 84599acab87e898cea2bbce2ee73ae3aa22d9951 — Independent review (backlog 20) R1, B20-R1-001: refuse to start under --unhandled-rejections=warn and --abort-on-uncaught-exception (ADR-0024, decision 6)
 
 - **v0.5.42 の独立レビュー（バックログ 20）R1（High 1・Medium 0・Low 0）に対応した**（4 commit。`src/` は `src/cli.ts` と新しい `src/node-options.ts`。`src/runner/execute.ts`・`src/cli-signals.ts`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。原文と対応記録は `docs/reviews/backlog-20/`）
   - **B20-R1-001（High）**: Node を `--unhandled-rejections=warn` で動かすと、`unhandledRejection` のハンドラがマスクした 1 行を出しても、Node 自身が拒否の理由とスタックを生のまま出す（`NODE_OPTIONS` からも指定できる）。ADR-0024 の「必ず出口を通る」が成り立たなかった。Node v24.13.1 で再現した。v0.5.41 でも同じ警告が出た（v0.5.42 で悪くなったものではない）
