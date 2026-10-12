@@ -208,6 +208,7 @@ npm run build       # tsc → dist/
 絶対パスでの起動は防ぎません（保証の外。v0.5.37 で決めた、バックログ 6）。vitest に渡す環境変数は PATH（node と git）・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継ぎません（v0.5.37）。vitest は見張り役（`scripts/minpath-watchdog.ts`）が先頭の別のプロセスグループで動き、
 `test:minpath` が止まると（単独で SIGINT・SIGTERM を受けたときも、自己 verify の runner にプロセスグループごと止められたときも）、見張り役がそのグループごと止め、一時ディレクトリを消します（v0.5.38）。
 テストが自分で別のプロセスグループにした子は止めません。
+本体リポジトリの CI（`.github/workflows/ci.yml`）は Ubuntu で `npm ci` → `npm run verify` を走らせます（まだ必須チェックではなく、Windows は失敗しても止めない測定のジョブだけです。手順は `docs/ops/ci-and-branch-protection.md`、決定は ADR-0025）。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）

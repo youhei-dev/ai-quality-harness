@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-11（初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-12（初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -55,6 +55,8 @@ aiqh が担うのは「独立レビューAI への入力生成」「Quality Gate
 youhei-dev/ai-quality-harness（本体・本リポジトリ）
   ├─ src/        … CLI 本体（TypeScript）
   ├─ .github/workflows/verify.yml   … 再利用可能ワークフロー（workflow_call, M3）
+  ├─ .github/workflows/ci.yml       … 本体の自己 CI（`verify (ubuntu)`・`measure (windows)`。M3 の前半、v0.5.45 で追加。ADR-0025）
+  ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（非公開のいまは強制されない。ADR-0025）
   └─ tags: v0.1.0, v0.2.0, …        … 対象リポジトリはタグでバージョン固定
 
 対象リポジトリ（例: trim-manager, ai-tutor-browser, 将来の会社リポジトリ）
@@ -366,6 +368,8 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 | `artifacts/verification/` | git 管理外 | verify の出力（latest / history） |
 | `artifacts/ai-review/` | git 管理外 | レビューパケット、取り込んだ指摘 |
 | `docs/reports/` | git 管理 | 人間向けのマイルストーン報告（M0_REPORT.md 等） |
+| `docs/ops/` | git 管理 | 運用の手順書（CI と Branch Protection。v0.5.45） |
+| `.github/` | git 管理 | 自己 CI のワークフローと CODEOWNERS（v0.5.45。ADR-0025） |
 | `tmp/` | git 管理外 | 作業用一時ファイル |
 | `dist/` | git 管理外 | ビルド成果物 |
 
@@ -511,7 +515,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   v0.5.14 で解消した: 最上位の catch は最初に exit 2 を決め、投げられた値を調べる操作と 1 行目の組み立てを try の中でだけ行い、失敗したら固定の文
   `(the thrown value could not be inspected)` にする（値は読み直さない。書けない行は飛ばす。ADR-0018）
 - **対応プラットフォーム**: POSIX（macOS / Linux）。プロセスグループ制御と `realpath` に依存するため、
-  Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。
+  Windows は M0 の対象外（R-011）。Linux CI は M3 で追加する。（v0.5.45 で注記: 自己 CI〈`.github/workflows/ci.yml`〉に Ubuntu の `verify (ubuntu)` を足した。最初は必須にしない。Windows は失敗しても止めない測定のジョブだけで、対象外のまま。ADR-0025）
 - **レビューパケットの検査（M2-1、ADR-0014）**: `aiqh review-packet` は、描画されるオプションの値（入口の一覧から、git の前）→ すべてのパス →
   入力ごと（不正な UTF-8 → 生文字 → 秘密の形）→ 組み立てたパケット全体、の順に検査し、1 件でもあれば exit 1 で何も書かない。
   finding があっても検査は最後まで続け、finding のある値は git に渡さない。終了コードは検査不能（exit 2）→ 検出（exit 1）→ 出力しない判断（exit 2）の順（v0.5.0、ADR-0015）。

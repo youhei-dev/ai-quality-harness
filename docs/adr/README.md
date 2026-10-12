@@ -28,3 +28,4 @@
 | [0022](0022-unreadable-is-not-absent.md) | 読めないものを「無い」としない: パスの包含と書込の前提 | 採用（ADR-0010・0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる） | 2026-10-04 |
 | [0023](0023-unconfirmed-termination-is-not-terminated.md) | 確認できなかった終了を、終了したことにしない: タイムアウト・中断の後のグループの消滅の確認と有界時間 | 採用（ADR-0005 の「猶予後 SIGKILL」の後に確認を足す） | 2026-10-05 |
 | [0024](0024-unhandled-exceptions-exit-2.md) | 処理されなかった例外・拒否は、出口を通して exit 2 で終え、動いている子を片付ける | 採用（ADR-0019 の既知の限界のうち CLI の終わり方を決める。シグナルが先なら 130 / 143 のまま） | 2026-10-11 |
+| [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない） | 2026-10-12 |

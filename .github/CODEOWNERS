@@ -1,0 +1,15 @@
+# Owners of the files that decide how this repository is verified (ADR-0025, docs/ops/ci-and-branch-protection.md).
+# Not enforced now: the repository is private on a plan without code owners or branch protection
+# (the protection API answers HTTP 403). It takes effect only with branch protection or a ruleset
+# that requires code owner review, after the repository becomes public or the plan changes.
+/.github/              @youhei-dev
+/aiqh.config.jsonc     @youhei-dev
+/package.json          @youhei-dev
+/package-lock.json     @youhei-dev
+/tsconfig.json         @youhei-dev
+/tsconfig.build.json   @youhei-dev
+/eslint.config.js      @youhei-dev
+/vitest.config.ts      @youhei-dev
+/.gitignore            @youhei-dev
+/scripts/              @youhei-dev
+/tests/structure/      @youhei-dev
