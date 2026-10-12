@@ -96,6 +96,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 src/
   cli.ts                  … エントリ（bin: aiqh）。版の読込・シグナル処理・引数の解析と終了コード設定 [M0]
   cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
+  node-options.ts         … 起動を拒否する Node のオプション（`--unhandled-rejections=warn`・`--abort-on-uncaught-exception`。`process.execArgv` と NODE_OPTIONS。ADR-0024 決定 6） [v0.5.44]
   output.ts               … 端末への出力の出口（禁止文字を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
   commands/
     verify.ts             … verify のオーケストレーション                                 [M0]
@@ -553,6 +554,7 @@ verify の実行結果について、終了コードと最終行の文言は 1 �
 | レポート書込失敗 | 2 | `VERIFY ERROR (report write error)` | 部分的に書かれる可能性あり。標準エラーに理由を出す |
 | 予期しない例外（`package.json` の version が読めない場合を含む。ADR-0022） | 2 | `VERIFY ERROR (internal error)` | 書かない |
 | 処理されなかった例外・promise の拒否（コールバックの中など。ADR-0024） | 2（シグナルが先に中断していたときは 130 / 143 のまま） | `VERIFY ERROR (internal error)`（標準エラー。先に `aiqh: unexpected error: …` の 1 行） | 保証しない（判定の確定の前なら `interruptedBy: "internal error"` で書かれることがある）。新規チェックは起動せず、実行中のグループは SIGINT と同じ順で片付けてから終了。安全弁 8 秒。判定の確定の後（PASSED を書いた後）でも 2 |
+| 拒否する Node の起動オプション（`--unhandled-rejections=warn`、`--abort-on-uncaught-exception`。起動の引数と `NODE_OPTIONS`。ADR-0024 決定 6） | 2 | 理由の 1 行（`aiqh: refusing to start: …`）。verify は続けて `VERIFY ERROR (Node option error)` | 書かない（コマンドを読まず、check を起動しない）。これらのオプションでは Node・V8 が例外・拒否の値を生のまま出すため |
 | 使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなしの `aiqh`、未知の help の対象。全コマンドと本体で共通、ADR-0021） | 2 | commander の `error: …` の 1 行（コマンドなし・未知の help の対象は help）を標準エラーに出す。`VERIFY` の最終行は出ない | 書かない |
 | SIGINT 受信（Ctrl+C）、verdict 確定前 | 130（128 + 2） | `VERIFY ERROR (interrupted by SIGINT)` | 書く（`verdict: "ERROR"`、`interruptedBy: "SIGINT"`、未実行チェックは SKIPPED）。新規チェックは起動せず、実行中のグループへ SIGTERM → 最大 5 秒 → SIGKILL → 消滅確認（最大 2 秒。消えなかったときはレポートの `errorSummary` にそう書く。終了コードは変わらない）の後に終了。安全弁 8 秒（最後の強制終了。極端な停止ではレポートの完了前に発火しうる。終了コードは同じ。ADR-0023 決定 7） |
 | SIGINT / SIGTERM 受信、verdict 確定後 | 確定結果の 0 / 1（書込失敗時 2） | 確定結果の行（stderr に `… received after the verdict was fixed; result unchanged` を追加） | 確定済みの結果で書く |
