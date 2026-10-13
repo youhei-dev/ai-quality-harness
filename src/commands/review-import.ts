@@ -134,7 +134,31 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
     if (!decoded.ok) throw new Stop("input", `the review is not valid UTF-8 (line ${decoded.line})`);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-    // An existing findings file of this round: the same review is done already (exit 0, nothing written); another one is refused.
+    // The previous round (D8, ADR-0022): only ENOENT is "absent", and only --allow-missing-previous lets it pass. Checked for a new import
+    // and for the same review imported again alike (M2-2-RI-R1-003).
+    const checkPrevious = (): void => {
+      if (round > 1) {
+        const prevRel = path.join("docs", "reviews", label, `findings-r${round - 1}.json`);
+        const prevShown = prevRel.split(path.sep).join("/");
+        const prevPath = resolveInsideRoot(root, prevRel, "the previous findings file");
+        let prev: Stats | null;
+        try {
+          prev = lstatOrNull(prevPath);
+        } catch (err) {
+          throw new Stop("previous", `${prevShown} cannot be examined (${code(err)})`);
+        }
+        if (prev === null) {
+          if (options.allowMissingPrevious !== true) throw new Stop("previous", `${prevShown} does not exist; import round ${round - 1} first, or give --allow-missing-previous if it was never imported`);
+          log(`previous round: ${prevShown} does not exist (allowed by --allow-missing-previous)`);
+        } else {
+          const before = readFindingsFile(prevPath, "previous", prevShown);
+          if (before.label !== label || before.round !== round - 1 || before.idPrefix !== idPrefix) throw new Stop("previous", `${prevShown} is not round ${round - 1} of ${label} with the prefix ${idPrefix}`);
+        }
+      }
+    };
+
+    // An existing findings file of this round: the same review is done already (exit 0, nothing written) once the file is this round's and
+    // the previous round passes the checks of a new import (M2-2-RI-R1-003); another review is refused.
     let existing: Stats | null;
     try {
       existing = lstatOrNull(target);
@@ -144,6 +168,8 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
     if (existing !== null) {
       const before = readFindingsFile(target, "existing", relShown);
       if (before.source.sha256 !== sha256) throw new Stop("existing", `${relShown} exists and was imported from another review (sha256 ${before.source.sha256.slice(0, 12)}…); nothing is replaced`);
+      if (before.label !== label || before.round !== round || before.idPrefix !== idPrefix) throw new Stop("existing", `${relShown} is not round ${round} of ${label} with the prefix ${idPrefix}`);
+      checkPrevious();
       log(`aiqh review-import — ${label} R${round} (${idPrefix})`);
       log(`findings: ${relShown} (already imported from this review, sha256 ${sha256.slice(0, 12)}…)`);
       log("REVIEW IMPORT: already imported (same source); nothing written");
@@ -155,25 +181,7 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
     if (!read.ok) return problems(read.problems);
     const input: ReviewInput = read.input;
 
-    // The previous round (D8, ADR-0022): only ENOENT is "absent", and only --allow-missing-previous lets it pass.
-    if (round > 1) {
-      const prevRel = path.join("docs", "reviews", label, `findings-r${round - 1}.json`);
-      const prevShown = prevRel.split(path.sep).join("/");
-      const prevPath = resolveInsideRoot(root, prevRel, "the previous findings file");
-      let prev: Stats | null;
-      try {
-        prev = lstatOrNull(prevPath);
-      } catch (err) {
-        throw new Stop("previous", `${prevShown} cannot be examined (${code(err)})`);
-      }
-      if (prev === null) {
-        if (options.allowMissingPrevious !== true) throw new Stop("previous", `${prevShown} does not exist; import round ${round - 1} first, or give --allow-missing-previous if it was never imported`);
-        log(`previous round: ${prevShown} does not exist (allowed by --allow-missing-previous)`);
-      } else {
-        const before = readFindingsFile(prevPath, "previous", prevShown);
-        if (before.label !== label || before.round !== round - 1 || before.idPrefix !== idPrefix) throw new Stop("previous", `${prevShown} is not round ${round - 1} of ${label} with the prefix ${idPrefix}`);
-      }
-    }
+    checkPrevious();
 
     // What the terminal may say about the content: counts and lines only.
     const raw = findRawChars(decoded.text);
