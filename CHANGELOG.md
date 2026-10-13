@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.6.0 — aiqh review-import v1: the aiqh-findings JSON block of a review against its body; any disagreement is exit 2 and writes nothing (ADR-0026)（commit / tag object の SHA はタグ付与後に `git rev-list -n1 v0.6.0` / `git rev-parse v0.6.0` で確認し、次の記録の commit で記入）
+## v0.6.0 — commit c3f454fa7d9a3fc729a1d10f183b907284ed19a4 / tag object cbf5c4e51025a6d8f37127adb2d39b431562913c — aiqh review-import v1: the aiqh-findings JSON block of a review against its body; any disagreement is exit 2 and writes nothing (ADR-0026)
 
 - **`aiqh review-import` を足した**（M2-2 の本体〈項目 15〉の最初の部品。rest2 の計画の波 3。3 commit: `61d6039`・`1124dde`・この release の commit。人間の決定 D1〜D12〈波 3 の SP1 の推奨どおり。直した状態の名前は `resolved`〉。ADR-0026）
   - `aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> [--allow-missing-previous] [--cwd <dir>]`。独立レビューの md の中の **`aiqh-findings` の JSON のブロック 1 つ**（schema version 1）を正本にし、`docs/reviews/<label>/findings-r<N>.json`（git 管理）に、すべて `open` で書く

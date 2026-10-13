@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "label": "m2-2-review-import",
+  "round": 1,
+  "idPrefix": "M2-2-RI",
+  "source": {
+    "name": "independent-review-m2-2-review-import-r1-for-claude.md",
+    "bytes": 12107,
+    "sha256": "e6b71a89d0470e084a3effd3dd62a0ced4e0568ec71c0fd959df984a3c106064"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 3,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-13T03:42:02.144Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.6.0"
+  },
+  "findings": [
+    {
+      "id": "M2-2-RI-R1-001",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "src/review/import.ts: fold()、readReview() の ID mentions 検査（約115–130行、300–320行）",
+      "content": "HTML の名前付き文字参照で綴った当回IDが本文にあっても検出されない。JSON と正規形の見出し・件数が一致している状態で、別の指摘を名前付き文字参照のIDで本文に追加すると、その指摘が findings に無いまま exit 0 になり得る。",
+      "evidence": "fold() は数値文字参照（&#45; / &#x2D;）だけを復号し、HTML の名前付き文字参照（&hyphen; など）は復号しない。たとえば正常な1件のレビュー本文に「追加の指摘 M2&hyphen;2&hyphen;RI&hyphen;R1&hyphen;002」を記載しても、fold() 後の文字列は ID の正規表現に一致しない。JSON の findings が001のみ、本文の ### 見出しも001のみ、件数1件なら残りの検査もすべて一致する。Markdown の名前付き文字参照は表示時にハイフンへ復号される。パケット中の実装を静的に追跡した判断で、実行による再現は未実施。",
+      "fix": "Markdown/HTML の名前付き文字参照も、許可された実体参照の復号をした上でIDを探す。少なくともハイフン類を表す名前付き文字参照を網羅し、本文に未知の当回IDがある場合に exit 2・無書き込みを保証する回帰テストを追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "名前付きの文字参照は amp・lt・gt・quot・apos の 5 つだけを許し、ほかが本文か JSON の文字列にあれば exit 2 で何も書かない（新しい誤りの種類 entity）。許した 5 つと数値の参照は ID を探す前に戻す。同じ種類の穴の予防として、ID を探す前に HTML のコメントとタグを取り除く。依頼文のひな形で、文字参照と HTML のタグ・コメントを使わないよう頼む（人間の決定）",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.6.1",
+      "note": null
+    },
+    {
+      "id": "M2-2-RI-R1-002",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "src/report/write.ts: writeAtomic()（約86–94行）、src/commands/review-import.ts: 書き込み処理（約199–222行）",
+      "content": "書き込みの一時ファイル名が予測可能で、既存シンボリックリンクを排除せず writeFileSync で追跡する。対象ディレクトリに同名リンクが置かれていると、リポジトリ外のファイルを書き換えてから rename し得る。rename が失敗して exit 2 でも、外部ファイルの変更は戻らない。",
+      "evidence": "writeAtomic は `${target}.tmp-${process.pid}` に対して直接 writeFileSync(tmp, ...) しており、排他作成（wx）・lstat・シンボリックリンク非追跡を行わない。resolveInsideRoot の検査対象は最終 target で、tmp のリンク先ではない。攻撃・事故条件として書き込み先ディレクトリへの事前配置権限とリンク先への書き込み権限が必要。既存テストは tmp 名と同じ「ディレクトリ」による失敗を試すが、シンボリックリンクを試していない。",
+      "fix": "一時ファイルを同一ディレクトリでランダムな名前かつ排他作成 wx（可能なら O_NOFOLLOW）で開き、その fd へ書き込んで close、rename する。衝突は上書きせず別名を試し、自分が作成した一時ファイルだけを削除する。外部を指す tmp シンボリックリンクが事前に存在する場合の回帰テストを追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "writeAtomic の一時ファイルを、同じディレクトリのランダムな名前で排他的に作り（wx、使えれば O_NOFOLLOW）、その fd に書いて閉じてから rename する。名前が衝突したら別の名前で数回まで試し、失敗したときは自分が作った一時ファイルだけを消す",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.6.1",
+      "note": null
+    },
+    {
+      "id": "M2-2-RI-R1-003",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "src/commands/review-import.ts: existing source.sha256 一致時の早期 return（約134–153行）",
+      "content": "同一原文で再実行すると既存 findings ファイルの形式とハッシュだけを確認して exit 0 するため、前回ファイルの欠落・読取不能・別ラベル等を再検査しない。前回が存在することを要件とする round 2 以降で、初回後に前回のファイルが削除・破損した状態でも「already imported」で成功する。",
+      "evidence": "existing !== null の分岐で readFindingsFile(target) 後、before.source.sha256 === sha256 だけで EXIT_PASSED を返す。一方、前回ファイルの resolveInsideRoot・lstatOrNull・readFindingsFile および label/round/idPrefix 照合はこの return より後にある。たとえば round 2 を正常に取り込み、後で findings-r1.json を消し、同じ review.md を再実行すると、--allow-missing-previous なしでも早期成功する。加えて既存ファイル自身の label/round/idPrefix とコマンド引数の一致も確認しない。静的分岐確認であり、実機実行は未実施。",
+      "fix": "同一原文による冪等再実行でも、前回ファイルの ENOENT / 読取不能 / スキーマ / label・round・prefix を通常実行と同じ規則で検査してから成功させる。既存ファイルの識別子も引数と照合する。前回が削除・破損・不一致の場合と既存ファイルの識別子不一致の場合のテストを追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "同じ原文の再取り込みでも、既存のファイルの label・round・idPrefix と、前の回のファイル（ENOENT・読めない・スキーマ・label / round / 接頭辞）を通常の取り込みと同じ規則で検査してから exit 0 にする",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.6.1",
+      "note": null
+    }
+  ]
+}
