@@ -312,7 +312,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
    ▼ 実装AI が再修正 → aiqh verify → 再 review-packet …（status が全て resolved/accepted になるまで）
 ```
 
-（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026。v0.6.1 で注記: 名前付きの文字参照〈5 つを除く〉は exit 2、その回の ID は文字参照を戻し HTML を除いた形でも探す、同じ原文の再取り込みでも既存のファイルと前の回を確かめる〈ADR-0026 の追記〉。v0.7.0 で注記: 状態の検査とループ未完了の表示は `aiqh review-check`〈読み取りだけ。ADR-0027〉。review-import も書いた後に `REVIEW LOOP:` の行を出す）
+（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026。v0.6.1 で注記: 名前付きの文字参照〈5 つを除く〉は exit 2、その回の ID は文字参照を戻し HTML を除いた形でも探す、同じ原文の再取り込みでも既存のファイルと前の回を確かめる〈ADR-0026 の追記〉。v0.7.0 で注記: 状態の検査とループ未完了の表示は `aiqh review-check`〈読み取りだけ。ADR-0027〉。review-import も書いた後に `REVIEW LOOP:` の行を出す。手順は `docs/ops/review-loop.md`）
 
 ### 6.3 履歴（M4）
 

@@ -11,7 +11,7 @@
 3. 返ってきた原文（`independent-review-<label>-r<N>-for-claude.md`）を、収録（`docs/reviews/<label>/review-r<N>.md`。先頭に注記、後ろは原文と同一）とは別に、**受領したファイルのまま**取り込む:
    `aiqh review-import <受領したファイル> --label <label> --round <N> --id-prefix <prefix>`
    （回が 2 以上で、前の回を取り込んでいないときだけ `--allow-missing-previous`）。出力は `docs/reviews/<label>/findings-r<N>.json`（すべて `open`）。止まったら、端末の `[種類]` と行番号を見て、レビュアーに出力の形の書き直しを頼む（D3: 逃げ道は無い）
-4. 状態（`resolved`・`deferred`・`accepted`・`invalid`）は、実装者が人間の承認の下で findings の JSON を直す。直した後は `aiqh review-check --label <label>` で、状態ごとに要る欄とループ未完了を確かめる（v0.7.0、ADR-0027）
+4. 状態（`resolved`・`deferred`・`accepted`・`invalid`）は、実装者が人間の承認の下で findings の JSON を直す。直した後は `aiqh review-check --label <label>` で、状態ごとに要る欄とループ未完了を確かめる（v0.7.0、ADR-0027。手順の全体は `docs/ops/review-loop.md`）
 
 ## ひな形
 
