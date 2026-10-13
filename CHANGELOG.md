@@ -5,6 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.6.1 — review-import: refuse named character references, look for IDs with HTML removed, check the same review imported again; writeAtomic takes a random temporary name exclusively and does not follow links (m2-2-review-import R1)
+
+- **独立レビュー（m2-2-review-import）R1 の Medium 3 件を直した**（3 件とも VALID。5 commit: `a546839`・`76af3d9`・`259e093`・`7d99cd4`・`beb3009` とこの release の commit。ADR-0026 の追記〈決定 13〜17〉）
+  - **M2-2-RI-R1-001**（`src/review/import.ts`）: 名前付きの文字参照は `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` だけを許し、ほかが本文・JSON のブロックの行・JSON を解析した後の文字列のどこかにあれば、**exit 2 で何も書かない**（新しい種類 `[entity]`。行番号だけを出す）。`;` の無い古い形は、ID の文字になりうる 10 個（`sup2`・`frac12`・`shy` など）を止める（CommonMark は `;` の無い形を参照として読まない）。数値の文字参照はブラウザの読み方で戻す（`;` なし・128〜159 の表）。その回の ID は、書いたとおりの形に加えて、**HTML のコメントとタグを取り除いた 2 つの形**（CommonMark 0.31.2 の Raw HTML の形と、局所の形）でも探す。タグは止めない（`Array<string>` は通る）。線形の時間
+  - **M2-2-RI-R1-002**（`src/report/write.ts`）: `writeAtomic` の一時ファイルを、同じディレクトリの**ランダムな名前**（`.<名前>.tmp-<16 桁の 16 進数>`）で**排他的に作り**（`O_EXCL`、使えれば `O_NOFOLLOW`）、閉じてから数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（人間の決定 B-2）。以前の予測できる名前のリンクは追わない。開き直しの前のリンクへの差し替えは ELOOP、名前の削除は ENOENT。失敗したときは自分が作った名前だけを消す。verify のレポート・履歴の名前・中身・exit 2 は変わらない
+  - **M2-2-RI-R1-003**（`src/commands/review-import.ts`）: 同じ原文の再取り込みでも、既存のファイルの label・回・接頭辞と、前の回の findings のファイル（ENOENT・読めない・スキーマ・label / 回 / 接頭辞）を、通常の取り込みと同じ規則で確かめてから exit 0。食い違えば exit 2、何も書かない
+- 依頼文のひな形に、レビュアーの出力の形 7「文字参照と HTML のタグ・コメントを使わない」を足した。README と ADR-0026 に、`<review.md>` の相対パスは `--cwd` を基準に解決されることを書いた（v0.6.0 の Low の気づき）
+- `docs/reviews/m2-2-review-import/findings-r1.json` の 3 件を `resolved` にした（`fixedIn`・`regressionTest`・`guard`・`note`）
+- 利用者に見える変化: review-import が、名前付きの文字参照（5 つを除く）のあるレビューを `[entity]` で止める（v0.6.0 で取り込めた R1 の原文も止まる）。一時ファイルの名前が `.<名前>.tmp-<16 桁の 16 進数>` になる（強制終了で残ったときの名前）。ほかのコマンドの判定・終了コード・レポートは変わらない
+- テスト 1,880 → 1,941 件（149 → 152 ファイル）。先に書いたテスト 61 件は直す前の `a4bb7ec` で 48 件 FAIL・13 件 PASS（対照と正常系の fixture）。既存テストは `tests/review-import.test.ts` の 1 件の塞ぎ方だけを変えた（人間の決定 A-1。期待値の行は変えていない）。`package.json` version 0.6.1（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`tests/structure/`・書き込み箇所の表・禁止文字の集合は変えていない
+- 注記: v0.6.0 の見出しの SHA は、v0.6.0 の後の記録の commit（`a4bb7ec`）で記入済み
+
 ## v0.6.0 — commit c3f454fa7d9a3fc729a1d10f183b907284ed19a4 / tag object cbf5c4e51025a6d8f37127adb2d39b431562913c — aiqh review-import v1: the aiqh-findings JSON block of a review against its body; any disagreement is exit 2 and writes nothing (ADR-0026)
 
 - **`aiqh review-import` を足した**（M2-2 の本体〈項目 15〉の最初の部品。rest2 の計画の波 3。3 commit: `61d6039`・`1124dde`・この release の commit。人間の決定 D1〜D12〈波 3 の SP1 の推奨どおり。直した状態の名前は `resolved`〉。ADR-0026）
