@@ -8,12 +8,19 @@
  * The exit code never depends on the number of open findings (a reviewer's judgment does not become a pass / fail: the non-goal).
  */
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import type * as Crypto from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import { runReviewImport, type ReviewImportOptions } from "../src/commands/review-import.ts";
 import type { FindingsFile } from "../src/review/import.ts";
 import { fake, makeTempDir } from "./helpers.ts";
+
+// randomBytes passes through; one test fixes it to take writeAtomic's temporary name beforehand (v0.6.1, M2-2-RI-R1-002: the name is random)
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof Crypto>();
+  return { ...actual, randomBytes: vi.fn(actual.randomBytes) };
+});
 
 const FIXTURES = path.resolve(import.meta.dirname, "fixtures", "review-import");
 const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
@@ -572,7 +579,11 @@ describe("review-import: options, the repository and the write", () => {
   });
   it("a write that fails (the temporary name is taken by a directory) adds nothing and leaves what was there", async () => {
     const root = repo();
-    const taken = `findings-r1.json.tmp-${process.pid}`;
+    const fixed = Buffer.from("0123456789abcdef", "hex");
+    const random = vi.mocked(randomBytes) as unknown as Mock<(size: number) => Buffer>;
+    random.mockImplementation(() => fixed);
+    cleanups.push(() => random.mockReset()); // back to the real randomBytes (the function given to vi.fn)
+    const taken = `.findings-r1.json.tmp-${fixed.toString("hex")}`;
     mkdirSync(path.join(root, "docs", "reviews", "demo", taken), { recursive: true });
     expectRefused(await run(root, writeReview(root, review())), root, "write", [taken]);
   });
