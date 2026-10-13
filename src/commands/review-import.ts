@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, rmdirSync, statSync, type Stats } from "node:fs";
+import { mkdirSync, readFileSync, rmdirSync, statSync, type Stats } from "node:fs";
 import path from "node:path";
 import { ConfigError, resolveInsideRoot } from "../config/load.ts";
 import { copyJson, createOutput } from "../output.ts";
@@ -8,7 +8,9 @@ import { maskSecrets } from "../security/mask.ts";
 import { decodeUtf8Strict, findRawChars } from "../security/raw-chars.ts";
 import { scanString } from "../security/scan.ts";
 import { EXIT_ERROR, EXIT_PASSED } from "../types.ts";
-import { ID_PREFIX_PATTERN, LABEL_PATTERN, LIMITS, findingsFileSchema, readReview, type FindingsFile, type Problem, type ReviewInput } from "../review/import.ts";
+import { errorCode as code, lstatOrNull, readFindingsFile as readFindings } from "../review/findings-file.ts";
+import { ID_PREFIX_PATTERN, LABEL_PATTERN, LIMITS, readReview, type FindingsFile, type Problem, type ReviewInput } from "../review/import.ts";
+import { inspectLabel } from "./review-check.ts";
 
 export interface ReviewImportOptions {
   /** The review file (Markdown with one aiqh-findings block). */
@@ -37,40 +39,22 @@ class Stop extends Error {
   }
 }
 
-/** lstat, or null for ENOENT only; every other failure is thrown (ADR-0022: a path that cannot be examined is not absent). */
-function lstatOrNull(p: string): Stats | null {
-  try {
-    return lstatSync(p);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
-}
-
-function code(err: unknown): string {
-  return (err as NodeJS.ErrnoException).code ?? "error";
-}
-
 /** A findings file that exists: a regular file whose JSON is a findings file of schema version 1 (anything else: Stop). */
 function readFindingsFile(file: string, kind: "previous" | "existing", what: string): FindingsFile {
-  let bytes: Buffer;
+  const r = readFindings(file, what);
+  if (!r.ok) throw new Stop(kind, r.reason);
+  return r.file;
+}
+
+/** The loop line of the label after a write (review-check's, ADR-0027); `unknown` when its checks do not pass. Never changes the exit code. */
+function loopLine(root: string, label: string): string {
+  const unknown = `REVIEW LOOP: unknown (aiqh review-check --label ${label} shows why)`;
   try {
-    const st = lstatSync(file);
-    if (!st.isFile()) throw new Stop(kind, `${what} is not a regular file`);
-    bytes = readFileSync(file);
-  } catch (err) {
-    if (err instanceof Stop) throw err;
-    throw new Stop(kind, `${what} cannot be read (${code(err)})`);
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(bytes.toString("utf8"));
+    const r = inspectLabel(root, label);
+    return r.ok ? r.loop : unknown;
   } catch {
-    throw new Stop(kind, `${what} is not valid JSON`);
+    return unknown;
   }
-  const r = findingsFileSchema.safeParse(parsed);
-  if (!r.success) throw new Stop(kind, `${what} is not a findings file of schema version 1 (${r.error.issues.length} schema issue(s))`);
-  return r.data;
 }
 
 /**
@@ -235,6 +219,7 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
       const cats = [...new Set(shapes.map((f) => (f.category !== undefined ? `${f.kind}:${f.category}` : f.kind)))].join(", ");
       log(`secret-shaped strings in the review: ${shapes.length} (${cats}; line ${[...new Set(shapes.map((f) => f.line))].join(", ")}); the stored strings are masked`);
     }
+    log(loopLine(root, label));
     log("REVIEW IMPORT: written");
     return EXIT_PASSED;
   } catch (err) {

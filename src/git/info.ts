@@ -92,3 +92,27 @@ export function lookupGit(cwd: string): GitLookup {
 export function getGitInfo(cwd: string): GitInfo | null {
   return lookupGit(cwd).info;
 }
+
+/** Whether `cwd` is inside a git work tree, and why git did not answer when it did not (review-check: askInside, as for lookupGit). */
+export function workTree(cwd: string): { inside: boolean; problem: string | null } {
+  const r = askInside(cwd);
+  return { inside: r.answer === "true", problem: r.problem };
+}
+
+/**
+ * Whether `sha` (40 hexadecimal digits: the caller checks the form) is a commit object of the repository at `cwd` (`git cat-file -t`;
+ * review-check, ADR-0027): its type is "commit" — the SHA of an annotated tag is not, even though it names a commit. Exit 128 is git's
+ * "no such object" (the caller asks workTree first: outside a work tree git exits 128 as well). A git that cannot be run, times out or
+ * exits otherwise is a problem, never "not a commit".
+ */
+export function isCommitObject(cwd: string, sha: string): { commit: boolean } | { problem: string } {
+  try {
+    const out = execFileSync("git", ["cat-file", "-t", sha], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 });
+    return { commit: out.trim() === "commit" };
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { status?: number | null };
+    if (e.code === "ETIMEDOUT") return { problem: "git timed out after 10 s" };
+    if (typeof e.status !== "number") return { problem: `git could not be run (${e.code ?? "unknown error"})` };
+    return e.status === 128 ? { commit: false } : { problem: `git exited ${e.status}` };
+  }
+}

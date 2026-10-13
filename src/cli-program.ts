@@ -6,6 +6,7 @@
  */
 import { Command } from "commander";
 import { runInit } from "./commands/init.ts";
+import { runReviewCheck } from "./commands/review-check.ts";
 import { runReviewImport } from "./commands/review-import.ts";
 import { runReviewPacket } from "./commands/review-packet.ts";
 import { runSecurityScan } from "./commands/security-scan.ts";
@@ -169,6 +170,17 @@ export function buildProgram(deps: ProgramDeps): Command {
       const args: Parameters<typeof runReviewImport>[0] = { review, label: opts.label, round: opts.round, idPrefix: opts.idPrefix, allowMissingPrevious: opts.allowMissingPrevious, toolVersion: deps.version };
       if (opts.cwd !== undefined) args.cwd = opts.cwd;
       process.exitCode = await runReviewImport(args);
+    });
+
+  program
+    .command("review-check")
+    .description("Check the findings files of a label (docs/reviews/<label>/findings-r*.json; reads only): the rounds, their shape, the fields each state needs and the previous round's assessments; show the open findings. 0 = checked (open findings and warnings do not change it), 2 = a problem")
+    .requiredOption("--label <name>", "docs/reviews/<label>/: lower-case ASCII letters, digits, \".\" and \"-\"")
+    .option("--cwd <dir>", "repository directory with docs/reviews/ (default: current directory)")
+    .action(async (opts: { label: string; cwd?: string }) => {
+      const args: Parameters<typeof runReviewCheck>[0] = { label: opts.label };
+      if (opts.cwd !== undefined) args.cwd = opts.cwd;
+      process.exitCode = await runReviewCheck(args);
     });
 
   return program;

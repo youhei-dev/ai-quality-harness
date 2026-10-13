@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "label": "m2-2-review-import",
+  "round": 2,
+  "idPrefix": "M2-2-RI",
+  "source": {
+    "name": "independent-review-m2-2-review-import-r2-for-claude.md",
+    "bytes": 5379,
+    "sha256": "b3b420ec9173ee1aee38c1410b17d734cfffc71875921cd54cd427afb059b15f"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "M2-2-RI-R1-001",
+      "assessment": "解消。禁止された名前参照と危険な legacy 名を拒否し、数値参照・HTML 除去後と JSON 解析後の文字列も照合する実装と回帰テストを確認した。"
+    },
+    {
+      "id": "M2-2-RI-R1-002",
+      "assessment": "解消。予測困難な一時名の排他的作成、非追跡の再オープン、失敗時削除により前回のシンボリックリンク経路を塞いだ。"
+    },
+    {
+      "id": "M2-2-RI-R1-003",
+      "assessment": "解消。再取り込みでも既存ファイルの label・round・idPrefix と前回ファイルの有効性を確認してから成功する。"
+    }
+  ],
+  "importedAt": "2026-10-13T10:30:56.898Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.6.1"
+  },
+  "findings": []
+}
