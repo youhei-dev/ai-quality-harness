@@ -86,6 +86,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh security-scan` | M1（実装済み） | git 管理下のファイル + 未追跡で ignore されないファイル、`.gitignore` | 標準出力（`--json` 可）: 分類・パス・行番号（PEM は開始–終了行）のみ。値は出力しない。未走査分類と理由を表示 | 0=検出なし, 1=検出あり, 2=非 git / 読取エラー（fail closed）/ 使い方エラー（ADR-0021） |
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2（v0.6.0 で v1: 取り込みだけ） | レビューAI の指摘（Markdown）。v0.6.0: レビューの中の `aiqh-findings` の JSON のブロック 1 つを正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせる（ADR-0026） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況）（v0.6.0 で注記: **`docs/reviews/<label>/findings-r<N>.json`（git 管理）**に変えた。すべて `open`。ADR-0026） | 0 / 2（v0.6.0 で注記: 0 = 取り込んだ・同じレビューを取り込み済み、2 = 読めない・食い違う・使い方・書込のエラーで何も書かない。`open` の件数は表示だけで終了コードに反映しない） |
+| `aiqh review-check` | M2-2（v0.7.0: review-import の v2。ADR-0027） | `docs/reviews/<label>/findings-r*.json`（読み取りだけ）。`resolved` の `fixedIn` は git で commit を確かめる | 標準出力: 回ごとの重要度・状態の数、`open` の ID、前の回の評価、警告（終了コードに反映しない）、`REVIEW LOOP: complete` / `incomplete (open N)`。何も書かない | 0=検査に通った（`open` の数・警告にかかわらない）, 2=ファイル・形・状態の欄・前の回の評価の誤り、git が答えない、使い方 |
 | `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
 
 共通オプション（案）: `--config <path>`, `--cwd <dir>`, `--output-dir <dir>`, `--verbose`, `--json`（標準出力に JSON）。
@@ -105,6 +106,7 @@ src/
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
     security-scan.ts      … 内蔵 Security Scan の CLI                                      [M1 実装済み]
     review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
+    review-check.ts       … findings の状態の検査とループ未完了の表示。読み取りだけ（検査は review/check.ts、ファイルの読み取りは review/findings-file.ts）[M2-2 v2、v0.7.0、ADR-0027]
     review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0。v0.6.1: 名前付きの文字参照の拒否、HTML を除いた形でも ID を探す、再取り込みでも既存のファイルと前の回を確かめる。ADR-0026 の追記]
     history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
   config/
@@ -310,7 +312,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
    ▼ 実装AI が再修正 → aiqh verify → 再 review-packet …（status が全て resolved/accepted になるまで）
 ```
 
-（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026。v0.6.1 で注記: 名前付きの文字参照〈5 つを除く〉は exit 2、その回の ID は文字参照を戻し HTML を除いた形でも探す、同じ原文の再取り込みでも既存のファイルと前の回を確かめる〈ADR-0026 の追記〉）
+（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026。v0.6.1 で注記: 名前付きの文字参照〈5 つを除く〉は exit 2、その回の ID は文字参照を戻し HTML を除いた形でも探す、同じ原文の再取り込みでも既存のファイルと前の回を確かめる〈ADR-0026 の追記〉。v0.7.0 で注記: 状態の検査とループ未完了の表示は `aiqh review-check`〈読み取りだけ。ADR-0027〉。review-import も書いた後に `REVIEW LOOP:` の行を出す）
 
 ### 6.3 履歴（M4）
 

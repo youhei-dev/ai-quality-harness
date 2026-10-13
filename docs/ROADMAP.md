@@ -728,7 +728,7 @@ M2-1 の教訓（R3）:
 
 ### 完了条件
 - [x] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される（M2-1、v0.4.4 で完了。R1〜R4 のパケットをこのコマンドで生成）
-- [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される（v0.6.0 で注記: v1 は取り込みの時に `open` の件数を表示する。終了コードには反映しない〈非目標〉。ループ未完了の表示は v2。ADR-0026）
+- [ ] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される（v0.6.0 で注記: v1 は取り込みの時に `open` の件数を表示する。終了コードには反映しない〈非目標〉。ループ未完了の表示は v2。ADR-0026）（v0.7.0 で注記: `aiqh review-check` が `REVIEW LOOP: incomplete (open N)` / `complete` を表示する。review-import も書いた後に同じ行を出す。終了コードには反映しない。ADR-0027）
 - [ ] 本体の自己 verify PASS
 
 ---

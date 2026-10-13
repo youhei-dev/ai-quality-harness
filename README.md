@@ -186,6 +186,9 @@ aiqh review-packet --range <from>..<to> [options]
 
 aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> [--allow-missing-previous] [--cwd <dir>]
                              独立レビューの md（aiqh-findings の JSON のブロック 1 つ）を docs/reviews/<label>/findings-r<n>.json に取り込む
+
+aiqh review-check --label <label> [--cwd <dir>]
+                             docs/reviews/<label>/findings-r*.json の状態を検査し、ループ未完了（open が残る）を表示する（読み取りだけ）
 ```
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
@@ -195,7 +198,8 @@ aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> 
 `2` で、それまでの finding を「検査が完了していないため不完全」と明記して出します。上限超過など検査を妨げないエラーは finding が無いときだけ `2` です（ADR-0015）。
 `<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
 `aiqh review-import`（v0.6.0、ADR-0026）: レビューの中の `aiqh-findings` の JSON を正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせます。食い違い・読めない入力・前の回の findings のファイルが無い（`--allow-missing-previous` を除く）・読めないときは `2` で何も書きません。取り込んだ指摘はすべて `open` で、`open` の件数は表示するだけで終了コードには反映しません（`0` = 取り込んだ・同じレビューを取り込み済み）。依頼文のひな形は `docs/ops/review-request-template.md` です。
-`<review.md>` を相対パスで書いたときは、`--cwd` のディレクトリ（省略時はカレント）を基準に解決します。v0.6.1: 名前付きの文字参照（`&amp;` `&lt;` `&gt;` `&quot;` `&apos;` 以外。`;` の無い古い形の一部も）があれば `2`（`[entity]`）です。その回の ID は、文字参照を戻し、HTML のコメントとタグを取り除いた形でも探します（タグは止めません）。同じレビューを取り込み直すときも、既存のファイルの label・回・接頭辞と前の回の findings のファイルを確かめます（ADR-0026 の追記）。
+`<review.md>` を相対パスで書いたときは、`--cwd` のディレクトリ（省略時はカレント）を基準に解決します。v0.6.1: 名前付きの文字参照（`&amp;` `&lt;` `&gt;` `&quot;` `&apos;` 以外。`;` の無い古い形の一部も）があれば `2`（`[entity]`）です。その回の ID は、文字参照を戻し、HTML のコメントとタグを取り除いた形でも探します（タグは止めません）。同じレビューを取り込み直すときも、既存のファイルの label・回・接頭辞と前の回の findings のファイルを確かめます（ADR-0026 の追記）。書いた後に、その label の `REVIEW LOOP:` の行（下の review-check と同じ判定）を出します。
+`aiqh review-check`（ADR-0027）: `docs/reviews/<label>/findings-r*.json` だけを読み、何も書きません。回が 1 から欠けずにそろい、読めて、取り込んだときの形（ID・`summary`）のままで、状態ごとに要る欄（`resolved` は git が知っている commit の `fixedIn` と `regressionTest`、`deferred` は `destination`、`accepted`・`invalid` は `note`）があり、`previous` が前の回の指摘を指していれば `0` です。`open` が残っていれば `REVIEW LOOP: incomplete (open N)` と出しますが、終了コードは `0` のままです（`open` の数とレビューの評価は合否にしない）。前の回の評価と状態の食い違いは警告として出し、終了コードには反映しません。どれかの検査に通らなければ `2`（すべて並べて出す）。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなし）も `2` です（全コマンド共通。`VERIFY` の最終行は出さず、`error: …` の 1 行だけを標準エラーに出す。ADR-0021）。
 
