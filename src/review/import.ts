@@ -102,7 +102,7 @@ export type FindingsFile = z.infer<typeof findingsFileSchema>;
 
 /** A reason not to import: the condition, and where (a line of the review, an ID of the expected shape). Never the reviewer's text. */
 export interface Problem {
-  kind: "block" | "json" | "schema" | "label-round" | "id" | "summary" | "conclusion" | "count-line" | "heading" | "id-mention";
+  kind: "block" | "json" | "schema" | "label-round" | "id" | "summary" | "conclusion" | "count-line" | "heading" | "id-mention" | "entity";
   message: string;
 }
 
@@ -121,16 +121,61 @@ const COUNT_LINE = /^件数: High (\d{1,3}) \/ Medium (\d{1,3}) \/ Low (\d{1,3})
 /** Hyphen-like characters that NFKC leaves as they are (they are read as "-" when looking for IDs). */
 const HYPHENS = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
 
+/** The named character references that may appear; they are decoded before the IDs are looked for (M2-2-RI-R1-001, the human decision). */
+const ALLOWED_NAMED: ReadonlyMap<string, string> = new Map([
+  ["amp", "&"],
+  ["lt", "<"],
+  ["gt", ">"],
+  ["quot", '"'],
+  ["apos", "'"],
+]);
+/** A named character reference with its semicolon (an HTML5 name is ASCII letters and digits). */
+const NAMED_REFERENCE = /&([A-Za-z][A-Za-z0-9]{0,31});/g;
+/**
+ * The legacy names (HTML5 decodes them without the semicolon in raw HTML; CommonMark 0.31.2 §2.5 does not treat them as references) whose
+ * character folds into something with an ID character (a digit, a letter: `&sup2`, `&frac12`, `&szlig`) or into nothing (`&shy`): computed
+ * from the 106 legacy names of the HTML5 table (v0.6.1, ADR-0026). The other 96 fold into characters that are not in an ID. Followed by
+ * letters or digits and a semicolon, it is a named reference (above).
+ */
+const LEGACY_REFUSED = /&(?:frac12|frac14|frac34|ordf|ordm|shy|sup1|sup2|sup3|szlig)(?![A-Za-z0-9]*;)/g;
+/**
+ * Numeric references, read as a browser reads them (the semicolon may be missing, every digit is read), and the five allowed named ones,
+ * decoded in one pass (a decoded "&" does not start another reference).
+ */
+const DECODED = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|(amp|lt|gt|quot|apos);)/g;
+/**
+ * What a browser shows for the numeric references 128 to 159 (the HTML standard's table of windows-1252 characters: `&#150;` is an en dash,
+ * `&#153;` is a trade mark sign, "TM" after NFKC); 0: the code point itself.
+ */
+const C1_TABLE: readonly number[] = [
+  0x20ac, 0, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0, 0x017d, 0,
+  0, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0, 0x017e, 0x0178,
+];
+/** CommonMark 0.31.2 §6.6: an open tag (its attributes; a quoted value may hold ">") and a closing tag, tried where a "<" is. */
+const OPEN_TAG = /<[A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:[^"'=<>`\s]+|'[^']*'|"[^"]*"))?)*\s*\/?>/y;
+const CLOSING_TAG = /<\/[A-Za-z][A-Za-z0-9-]*\s*>/y;
+/** The local form of HTML: every `<…>` with no "<" or ">" inside (also what a browser drops and CommonMark does not read as HTML: `<?x>`, `</>`). */
+const HTML_LOCAL = /<[^<>]*>/g;
+
+/** How many references in `s` are refused: a named one that is not one of the five, or a legacy one of LEGACY_REFUSED. */
+function refusedReferences(s: string): number {
+  let n = 0;
+  for (const m of s.matchAll(NAMED_REFERENCE)) if (!ALLOWED_NAMED.has(m[1] ?? "")) n += 1;
+  return n + (s.match(LEGACY_REFUSED) ?? []).length;
+}
+
 /**
  * A line or a string as it is searched for IDs of this round: what a renderer would show as the ID is made the ID. Numeric character
- * references (`&#45;`, `&#x2D;`) are decoded, Markdown backslash escapes lose the backslash, the emphasis and code marks (`*`, `_`,
- * backquote, `~`) and format characters (zero-width ones, \p{Cf}) are removed, then NFKC, hyphen-like characters as "-", upper case.
- * Removing characters can join two words into a string that looks like an ID: that is refused (the safe side).
+ * references (`&#45;`, `&#x2D;`, also as a browser reads them: DECODED, C1_TABLE) and the five allowed named ones are decoded, Markdown
+ * backslash escapes lose the backslash, the emphasis and code marks (`*`, `_`, backquote, `~`) and format characters (zero-width ones,
+ * \p{Cf}) are removed, then NFKC, hyphen-like characters as "-", upper case. Removing characters can join two words into a string that looks
+ * like an ID: that is refused (the safe side). HTML is removed before this, in two forms searched besides the text as written (htmlForms).
  */
 function fold(s: string): string {
   return s
-    .replace(/&#(\d{1,7});/g, (_m, d: string) => safeChar(Number(d)))
-    .replace(/&#[xX]([0-9a-fA-F]{1,6});/g, (_m, h: string) => safeChar(parseInt(h, 16)))
+    .replace(DECODED, (_m, d: string | undefined, h: string | undefined, name: string | undefined) =>
+      d !== undefined ? safeChar(Number(d)) : h !== undefined ? safeChar(parseInt(h, 16)) : (ALLOWED_NAMED.get(name ?? "") ?? ""),
+    )
     .replace(/\\([!-/:-@[-`{-~])/g, "$1")
     .replace(/[*_`~]|\p{Cf}/gu, "")
     .normalize("NFKC")
@@ -138,8 +183,85 @@ function fold(s: string): string {
     .toUpperCase();
 }
 
+/**
+ * The raw HTML of `text` as CommonMark 0.31.2 §6.6 reads it, left to right: open and closing tags (OPEN_TAG, CLOSING_TAG), comments
+ * (`<!-->`, `<!--->`, or to the first "-->", or "--!>" where a browser ends one), processing instructions (to "?>"), declarations (`<!` and
+ * a letter, to ">") and CDATA (to "]]>"); a "<" that starts none of them is text. Linear: a closing string not found once is not looked for
+ * again (it is not after any later point either).
+ */
+function rawHtml(text: string): Array<[number, number]> {
+  const parts: Array<[number, number]> = [];
+  const absent = new Set<string>();
+  /** The index after the first `close` from `from`, or -1. */
+  const after = (from: number, close: string): number => {
+    const at = absent.has(close) ? -1 : text.indexOf(close, from);
+    if (at < 0) absent.add(close);
+    return at < 0 ? -1 : at + close.length;
+  };
+  const commentEnd = (from: number): number => {
+    const [a, b] = [after(from, "-->"), after(from, "--!>")];
+    return a < 0 ? b : b < 0 ? a : Math.min(a, b);
+  };
+  for (let at = text.indexOf("<"); at >= 0; ) {
+    let end = -1;
+    if (text.startsWith("<!--", at)) end = text.startsWith("<!-->", at) ? at + 5 : text.startsWith("<!--->", at) ? at + 6 : commentEnd(at + 4);
+    else if (text.startsWith("<?", at)) end = after(at + 2, "?>");
+    else if (text.startsWith("<![CDATA[", at)) end = after(at + 9, "]]>");
+    else if (text.startsWith("<!", at) && /[A-Za-z]/.test(text.charAt(at + 2))) end = after(at + 3, ">");
+    else {
+      OPEN_TAG.lastIndex = at;
+      CLOSING_TAG.lastIndex = at;
+      const m = OPEN_TAG.exec(text) ?? CLOSING_TAG.exec(text);
+      if (m !== null) end = at + m[0].length;
+    }
+    if (end > at) parts.push([at, end]);
+    at = text.indexOf("<", end > at ? end : at + 1);
+  }
+  return parts;
+}
+
+/**
+ * The lines with `parts` of their text (joined with "\n") removed. A removed part that spans lines joins its two ends on its first line,
+ * and its line breaks are put after that line, so every other line keeps its number.
+ */
+function linesWithout(lines: readonly string[], parts: ReadonlyArray<readonly [number, number]>): string[] {
+  const text = lines.join("\n");
+  let out = "";
+  let pending = 0;
+  let last = 0;
+  const copy = (segment: string): void => {
+    const nl = segment.indexOf("\n");
+    if (pending > 0 && nl >= 0) {
+      out += `${segment.slice(0, nl + 1)}${"\n".repeat(pending)}${segment.slice(nl + 1)}`;
+      pending = 0;
+    } else out += segment;
+  };
+  for (const [from, to] of parts) {
+    copy(text.slice(last, from));
+    pending += text.slice(from, to).split("\n").length - 1;
+    last = to;
+  }
+  copy(text.slice(last));
+  return `${out}${"\n".repeat(pending)}`.split("\n");
+}
+
+/**
+ * The two forms of the lines without HTML that are searched for IDs besides the lines as written (M2-2-RI-R1-001, the human decision 2):
+ * the raw HTML as CommonMark reads it (rawHtml: a quoted ">" or a comment with ">" in it), and the local form (HTML_LOCAL: what a browser
+ * drops but CommonMark does not read as HTML, and the tags after a "<" that put the first form out of step, e.g. one in a code span). HTML
+ * is only removed, never refused (`Array<string>` is a valid review); removing too much can only find more IDs, as the text as written is
+ * searched as well.
+ */
+function htmlForms(lines: readonly string[]): [string[], string[]] {
+  const text = lines.join("\n");
+  const local: Array<[number, number]> = [...text.matchAll(HTML_LOCAL)].map((m) => [m.index, m.index + m[0].length]);
+  return [linesWithout(lines, rawHtml(text)), linesWithout(lines, local)];
+}
+
+/** The character a browser shows for a numeric reference (C1_TABLE for 128 to 159); 0 and what is past U+10FFFF are removed (the safe side). */
 function safeChar(cp: number): string {
-  return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : "";
+  if (!(cp > 0 && cp <= 0x10ffff)) return "";
+  return String.fromCodePoint(cp >= 0x80 && cp <= 0x9f ? C1_TABLE[cp - 0x80] || cp : cp);
 }
 
 /** Every string value of a JSON value (the data the schema let through). */
@@ -307,19 +429,36 @@ export function readReview(textOfReview: string, target: ReviewTarget): ReadResu
     for (const id of ids) if (!headings.has(id)) problems.push({ kind: "heading", message: `${id} is a finding of the JSON without a "### ${id}" heading in the body` });
   }
 
+  // Character references (M2-2-RI-R1-001): a named one other than the five allowed, or a legacy one that folds into an ID character, anywhere
+  // in the review — every line, the JSON block's included, and the JSON's strings after parsing — is refused (the line only, never the name).
+  let blockEntities = 0;
+  s.forEach((l, i) => {
+    if (refusedReferences(l) === 0) return;
+    if (inBlock(i)) blockEntities += 1;
+    problems.push({ kind: "entity", message: `a character reference other than &amp; &lt; &gt; &quot; &apos; and the numeric ones (line ${i + 1}); write the character itself` });
+  });
+  if (input !== null && blockEntities === 0 && stringsOf(input).some((str) => refusedReferences(str) > 0)) {
+    problems.push({ kind: "entity", message: "a character reference other than &amp; &lt; &gt; &quot; &apos; and the numeric ones in a string of the JSON (written with JSON escapes)" });
+  }
+
   // Mentions: an ID of this round anywhere in the review — the body and the strings of the JSON block alike (case, width and hyphen forms
   // folded) — must be a finding of the JSON: an ID named only in a JSON string (a `content` that says "see P-R1-002") is a finding left out.
+  // Each line and each string is searched as written and in the two forms without HTML (htmlForms: an ID split by HTML, or one inside a
+  // comment, is found).
   const mention = new RegExp(`(?<![A-Z0-9-])${escapeRegExp(target.idPrefix.toUpperCase())}-R${target.round}-\\d+(?![0-9])`, "g");
   const known = new Set([...ids].map((x) => x.toUpperCase()));
   if (input !== null) {
+    const [commonMark, local] = htmlForms(s);
     s.forEach((l, i) => {
-      for (const m of fold(l).matchAll(mention)) {
-        if (!known.has(m[0])) problems.push({ kind: "id-mention", message: `${m[0]} (line ${i + 1}) is an ID of this round that is not a finding of the JSON` });
-      }
+      const found = new Set<string>();
+      for (const form of [l, commonMark[i] ?? "", local[i] ?? ""]) for (const m of fold(form).matchAll(mention)) if (!known.has(m[0])) found.add(m[0]);
+      for (const id of found) problems.push({ kind: "id-mention", message: `${id} (line ${i + 1}) is an ID of this round that is not a finding of the JSON` });
     });
-    // The JSON's strings once more after parsing: an ID written with JSON escapes (a "-" for "-") is not visible in the lines.
+    // The JSON's strings once more after parsing: an ID written with JSON escapes (a backslash-u escape for the hyphen) is not visible in the lines.
     const inJson = new Set<string>();
-    for (const str of stringsOf(input)) for (const m of fold(str).matchAll(mention)) if (!known.has(m[0])) inJson.add(m[0]);
+    for (const str of stringsOf(input)) {
+      for (const form of [str, ...htmlForms([str]).map((f) => f.join("\n"))]) for (const m of fold(form).matchAll(mention)) if (!known.has(m[0])) inJson.add(m[0]);
+    }
     for (const id of inJson) problems.push({ kind: "id-mention", message: `${id} is an ID of this round in a string of the JSON that is not a finding of the JSON` });
   }
 
