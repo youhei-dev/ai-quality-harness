@@ -128,10 +128,12 @@ function describeDirty(dirty: boolean | null): string {
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const sec = ms / 1000;
-  if (sec < 60) return `${sec.toFixed(1)}s`;
-  const min = Math.floor(sec / 60);
-  const rest = Math.round(sec - min * 60);
-  return `${min}m${rest.toString().padStart(2, "0")}s`;
+  // Round the whole value to the unit it is shown in before splitting it (ROADMAP item 38): 59.96 s is "1m00s", not "60.0s", and 239.6 s
+  // is "4m00s", not "3m60s". Below a minute the shown value is toFixed(1), as before; from a minute, whole seconds.
+  const tenths = sec.toFixed(1);
+  if (Number(tenths) < 60) return `${tenths}s`;
+  const whole = Math.round(sec);
+  return `${Math.floor(whole / 60)}m${(whole % 60).toString().padStart(2, "0")}s`;
 }
 
 /** A value in a table cell or between backticks: one line, and a `|` stays in its cell. */
