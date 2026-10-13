@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-12（波 2〈M3 の前半〉。v0.5.45 で必須にする条件を決定にした。ADR-0025）
+最終更新: 2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 本体リポジトリ自身の CI（自己 CI）と、main を守る設定の手順をまとめる。決定の根拠は ADR-0025。
 最初の 2 回（v0.5.45 の前。push の run 38241926903 と手動の run 38243300245）は、`verify (ubuntu)` が 2 回とも緑だった（結果は ADR-0025 の「追記（v0.5.45）」と ROADMAP の M3「進み」）。
@@ -40,11 +40,18 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 1. **数えるもの**: main への push で始まった実行の `verify (ubuntu)`。手動の実行（`workflow_dispatch`）と pull request は数えない。再実行での緑も数えない
 2. **数え始め**: v0.5.45 の release commit の push が 1 回目（その前の 2 回は数えない）。**赤が 1 回でもあれば 0 から数え直す**
 3. **数え方**: push のたびに `gh run list --workflow ci.yml --event push --limit 5` で実行を特定し、`gh run view <run-id>` で `verify (ubuntu)` の結論を読む（読み取りだけ）。結果は ROADMAP の M3「進み」の表に、記録の commit などで足していく
-4. **5 回に届いたら**: プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で行う）。確かめ方は、release の commit の SHA について `gh run list --workflow ci.yml --commit <SHA>` で `verify (ubuntu)` が `success` であることを読む（読み取りだけ）
+4. **5 回に届いたら**: プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で行う）。**2026-10-13 に届き、足した**（下の 2-1）。確かめ方は、release の commit の SHA について `gh run list --workflow ci.yml --commit <SHA>` で `verify (ubuntu)` が `success` であることを読む（読み取りだけ）
 5. 赤になったら: Ubuntu だけの失敗は原因を切り分ける。テストの直しは同じ波で、製品（信号の経路など）に及ぶものは別の版で独立レビュー。`npm audit` の勧告だけで赤になったときは、依存関係の判断として人間に渡す。再実行は `gh` の書き込みなので、人間の承認の後に行う
 6. Branch Protection が使えるようになったら（§3）、`verify (ubuntu)` を必須チェックにする
 7. `measure (windows)` は必須にしない（測定だけ）
 8. 時間の見張り（ADR-0025 の決定 8）: `unit`・`unit-minpath` のどちらかがチェックの上限 600 秒の 80%（480 秒）を超えたら、対策を決める。最初の 2 回は約 56%（5m30s〜5m40s）
+
+### 2-1. 届いた記録と、手順に入れたこと（2026-10-13）
+
+- 5 回とも success: 1 回目 `35ee9e7`（run 38315238218）、2 回目 `d751427`（38319589345）、3 回目 `c3f454f`（38337593923）、4 回目 `a4bb7ec`（38344644237）、5 回目 `c322eb3`（38381026032。v0.6.1 の release。タグはこれが success になってから付けた）
+- プロジェクトの `CLAUDE.md` のリリースの手順に足した一文: 「注釈付きタグを付ける前に、その release commit の push で始まった `verify (ubuntu)`（`.github/workflows/ci.yml`）が success であることを `gh` で確かめる。success でなければタグを付けない」
+- Branch Protection が使えない（§3）ので、これは**人の手順**として守る。記録の commit の push の後も、結果を読んで報告に書く
+- 時間の見張り: 5 回目の `unit` 約 5 分 48 秒が一番長い（上限 600 秒の約 58%）
 
 ## 3. Branch Protection（または rulesets）
 

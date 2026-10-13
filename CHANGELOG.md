@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.6.1 — review-import: refuse named character references, look for IDs with HTML removed, check the same review imported again; writeAtomic takes a random temporary name exclusively and does not follow links (m2-2-review-import R1)
+## v0.6.1 — commit c322eb3080ff6dc8f96135bbd51979f663b1e311 / tag object ea4df37ebf41516ce2a4f0811ebf07030a3d41ca — review-import: refuse named character references, look for IDs with HTML removed, check the same review imported again; writeAtomic takes a random temporary name exclusively and does not follow links (m2-2-review-import R1)
 
 - **独立レビュー（m2-2-review-import）R1 の Medium 3 件を直した**（3 件とも VALID。5 commit: `a546839`・`76af3d9`・`259e093`・`7d99cd4`・`beb3009` とこの release の commit。ADR-0026 の追記〈決定 13〜17〉）
   - **M2-2-RI-R1-001**（`src/review/import.ts`）: 名前付きの文字参照は `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` だけを許し、ほかが本文・JSON のブロックの行・JSON を解析した後の文字列のどこかにあれば、**exit 2 で何も書かない**（新しい種類 `[entity]`。行番号だけを出す）。`;` の無い古い形は、ID の文字になりうる 10 個（`sup2`・`frac12`・`shy` など）を止める（CommonMark は `;` の無い形を参照として読まない）。数値の文字参照はブラウザの読み方で戻す（`;` なし・128〜159 の表）。その回の ID は、書いたとおりの形に加えて、**HTML のコメントとタグを取り除いた 2 つの形**（CommonMark 0.31.2 の Raw HTML の形と、局所の形）でも探す。タグは止めない（`Array<string>` は通る）。線形の時間
