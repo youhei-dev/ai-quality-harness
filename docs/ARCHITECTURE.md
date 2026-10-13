@@ -105,7 +105,7 @@ src/
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
     security-scan.ts      … 内蔵 Security Scan の CLI                                      [M1 実装済み]
     review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
-    review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0]
+    review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0。v0.6.1: 名前付きの文字参照の拒否、HTML を除いた形でも ID を探す、再取り込みでも既存のファイルと前の回を確かめる。ADR-0026 の追記]
     history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
   config/
     schema.ts             … 設定スキーマ（zod）。型は zod から導出                          [M0]
@@ -118,7 +118,7 @@ src/
     verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
     build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
     markdown.ts           … レポート → Markdown                                            [M0]
-    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]
+    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]。`writeAtomic` の一時ファイルは、同じディレクトリのランダムな名前（`.<名前>.tmp-<16 桁の 16 進数>`）を `O_EXCL | O_NOFOLLOW` で排他的に作って閉じ、数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（リンクを追わない。Windows は O_NOFOLLOW が無い）[v0.6.1、ADR-0026 決定 16]
   security/
     mask.ts               … 秘密情報らしき文字列のパターンマスク。url-credential は正規表現でなく「://」を手がかりにした線形の走査（同じ一致・同じ置換）[M0 / v0.5.41]
   git/
@@ -310,7 +310,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
    ▼ 実装AI が再修正 → aiqh verify → 再 review-packet …（status が全て resolved/accepted になるまで）
 ```
 
-（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026）
+（v0.6.0 で注記: 出力は `docs/reviews/<label>/findings-r<N>.json`（git 管理）。入力はレビューの中の `aiqh-findings` の JSON のブロックで、本文と食い違えば exit 2 で何も書かない。状態は `open`・`resolved`・`deferred`・`accepted`・`invalid` の 5 つで、「未完了」は `open` が 1 つでもあること。v1 は取り込み〈すべて `open`〉だけで、状態の検査・前の回の状態の引き継ぎ・未完了の表示は v2。依頼文のひな形は `docs/ops/review-request-template.md`。ADR-0026。v0.6.1 で注記: 名前付きの文字参照〈5 つを除く〉は exit 2、その回の ID は文字参照を戻し HTML を除いた形でも探す、同じ原文の再取り込みでも既存のファイルと前の回を確かめる〈ADR-0026 の追記〉）
 
 ### 6.3 履歴（M4）
 
