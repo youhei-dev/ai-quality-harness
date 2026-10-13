@@ -5,6 +5,20 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.7.0 — aiqh review-check (review-import v2): the state of the findings files checked read only, the review loop shown; the re-fix loop procedure; formatDuration carries; the hasBrand cut pinned (ADR-0027)
+
+- **`aiqh review-check` を足した**（review-import の v2。M2-2。6 commit: `4fd561f`・`040ae08`・`b2a557b`・`0767236`・`14f8b23`・この release の commit。ADR-0027）
+  - `aiqh review-check --label <label> [--cwd <dir>]`。`docs/reviews/<label>/findings-r*.json` だけを読み、**何も書かない**
+  - **exit 2**（すべて並べて出す）: findings のファイルが無い・名前の形が違う・回が欠ける、読めない（ADR-0022）・不正な JSON・スキーマ違反、中の label・回が違う、回で接頭辞が違う、ID の欠番・重複、`summary` が数と違う、状態に要る欄が無い（`resolved`: git が commit と答える 40 桁の `fixedIn` と `regressionTest`。`deferred`: `destination`。`accepted`・`invalid`: `note`）、`verdict` が状態に合わない、`resolved` があるのに git が答えない（fail closed）、`previous` が前の回の指摘を指さない・重なる
+  - **exit 0**: `open` の数にかかわらない（D7・非目標）。回ごとの重要度と状態の数、`open` の ID、前の回の評価（先頭の語だけ: 解消・部分的に解消・未解消・その他）、警告（評価と状態の食い違い、評価の無い指摘。終了コードに反映しない）、`REVIEW LOOP: complete` / `incomplete (open N)`、`REVIEW CHECK: passed`。レビュアーの文章は出さない
+  - review-import は、書いた後に同じ label の `REVIEW LOOP: …` の行（検査に通らなければ `unknown`）を出す（最後の行と終了コードは変わらない）
+  - 細部: `fixedIn` は commit そのものの SHA（注釈付きタグの object の SHA は通さない）、16 進は小文字だけ
+- **再修正ループの手順書** `docs/ops/review-loop.md`（依頼文とパケット → 人間が渡す → 取り込み → 収録 → 実装者の欄 → 直す〈テストを先に〉→ `resolved` → review-check → 次の回。終える基準・ループ未完了の意味・止まったときの対処）
+- **項目 38**: `formatDuration` が全体を表示の単位で丸めてから分と秒に分ける（`3m60s`・`60.0s` が `4m00s`・`1m00s` になる。ほかの値の表示は変わらない）。verify の端末の行と Markdown のレポートの、繰り上がりの値だけが変わる
+- **項目 37（B21-R1-001）**: brand-guard の `hasBrand()` の 50,000 型の打ち切りの向き（source 側 true・target 側 false）と、打ち切った答えを memo に残さないことをテストで固定した（`tests/structure/` は変えていない。直す前の `3ad0781` でも PASS する、いまの振る舞いのテスト）
+- 利用者に見える変化: 新しいコマンド `review-check`、review-import の `REVIEW LOOP:` の 1 行、繰り上がりの時間の表示。ほかのコマンドの判定・終了コード・レポートの欄は変わらない
+- テスト 1,941 → 2,036 件（152 → 156 ファイル）。先に書いたテスト: P1（review-check）70 件は `3ad0781` で全件 FAIL（63 件はモジュールが無く読み込めない、7 件は実行して FAIL）、項目 38 の 17 件は 7 件 FAIL・10 件 PASS（繰り上がりの無い値の対照）、項目 37 の 8 件は 8 件 PASS（いまの振る舞いの固定）。既存テストの期待値は変えていない。`package.json` version 0.7.0（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`tests/structure/`・書き込み箇所の表・禁止文字の集合は変えていない
+
 ## v0.6.1 — commit c322eb3080ff6dc8f96135bbd51979f663b1e311 / tag object ea4df37ebf41516ce2a4f0811ebf07030a3d41ca — review-import: refuse named character references, look for IDs with HTML removed, check the same review imported again; writeAtomic takes a random temporary name exclusively and does not follow links (m2-2-review-import R1)
 
 - **独立レビュー（m2-2-review-import）R1 の Medium 3 件を直した**（3 件とも VALID。5 commit: `a546839`・`76af3d9`・`259e093`・`7d99cd4`・`beb3009` とこの release の commit。ADR-0026 の追記〈決定 13〜17〉）
