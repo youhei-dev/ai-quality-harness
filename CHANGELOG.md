@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.7.0 — aiqh review-check (review-import v2): the state of the findings files checked read only, the review loop shown; the re-fix loop procedure; formatDuration carries; the hasBrand cut pinned (ADR-0027)
+## v0.7.0 — commit f9258c838050bd55ab02204555449b439631070e / tag object b6d6755be9f2e8514911f140d04f838377b18cab — aiqh review-check (review-import v2): the state of the findings files checked read only, the review loop shown; the re-fix loop procedure; formatDuration carries; the hasBrand cut pinned (ADR-0027)
 
 - **`aiqh review-check` を足した**（review-import の v2。M2-2。6 commit: `4fd561f`・`040ae08`・`b2a557b`・`0767236`・`14f8b23`・この release の commit。ADR-0027）
   - `aiqh review-check --label <label> [--cwd <dir>]`。`docs/reviews/<label>/findings-r*.json` だけを読み、**何も書かない**

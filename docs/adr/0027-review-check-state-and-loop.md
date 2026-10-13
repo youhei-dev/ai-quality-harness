@@ -1,7 +1,7 @@
 # ADR-0027: review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ）
 
-- 状態: 採用（review-import v2。ADR-0026 の D11〈v1 は取り込みだけ。状態の検査・前の回の状態の引き継ぎ・ループ未完了の表示は v2〉の v2。ADR-0026 の決定 D1〜D18 は変えない。ROADMAP の M2-2 の完了条件「指摘 JSON に未対応〈open〉が残る間はループ未完了と表示される」を満たす）
-- 日付: 2026-10-13（v0.7.0）
+- 状態: 採用（review-import v2。ADR-0026 の D11〈v1 は取り込みだけ。状態の検査・前の回の状態の引き継ぎ・ループ未完了の表示は v2〉の v2。ADR-0026 の決定 D1〜D18 は変えない。ROADMAP の M2-2 の完了条件「指摘 JSON に未対応〈open〉が残る間はループ未完了と表示される」を満たす。独立レビュー m2-2-review-check の R1〈指摘なし〉で、このレビューを終えた〈下の「追記（R1 の後）」〉）
+- 日付: 2026-10-13（v0.7.0）。追記: 2026-10-14（R1 の後。docs だけで、版は 0.7.0 のまま。R1 の結果、review-check で見た最初のレビューの記録。決定は変えない）
 
 ## 文脈
 - v0.6.0・v0.6.1 で `aiqh review-import`（取り込み）が入り、`docs/reviews/<label>/findings-r<N>.json` が状態の正本になった（D5）。状態（D4: `open`・`resolved`・`deferred`・`accepted`・`invalid`）と実装者の欄（`verdict`・`fixedIn`・`regressionTest`・`destination`・`note` など）は、実装者が人間の承認の下で手で書く。m2-2-review-import の R1（3 件）で、実装者の欄を手で書いた最初の実例ができた
@@ -53,3 +53,25 @@
 - 変更: `src/cli-program.ts`（コマンドの登録）、`src/git/info.ts`（`workTree`・`isCommitObject`）、`src/commands/review-import.ts`（読み取りの部品の共有、ループの行）
 - 文書: ARCHITECTURE（コマンドの表・モジュール）、ROADMAP（M2-2 の完了条件の注記）、README（CLI）、依頼文のひな形の使い方、再修正ループの手順書（`docs/ops/review-loop.md`）
 - 依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合・npm の保護設定・既存テストの期待値・書き込み箇所の表は変えない（review-check は fs の書き込みを持たない）
+
+## 追記（R1 の後: 独立レビュー m2-2-review-check R1 の結果と、review-check で見た最初のレビュー。2026-10-14、docs だけ）
+
+### 文脈
+- v0.7.0 の独立レビュー R1（範囲 `v0.6.1..v0.7.0`、接頭辞 `M2-2-RC`）は **High 0・Medium 0・Low 0**。依頼文に先に書いた基準（High・Medium が 0）に達したので、`m2-2-review-check` のレビューは R1 で終えた（人間の判断。記録は `docs/reviews/m2-2-review-check/response-r1.md`）
+- レビュアーは静的な読解だけで、コード・テストは実行していない。問い 1〜5（状態の欄と `fixedIn` の実在、読めない・欠けた・形の違うファイル、`open` と警告の終了コード、書き込みと文章の端末出力、`formatDuration` と B21-R1-001 のテスト）のどれにも、要る欄が無いのに通る・異常を「問題なし」とする・終了コードが変わる・書き込む・文章を出す経路を特定しなかった
+
+### R1 の結果（`docs/reviews/m2-2-review-check/findings-r1.json`）
+- v0.7.0 の `aiqh review-import` で取り込んだ: exit 0、`High 0 / Medium 0 / Low 0; open 0`、`REVIEW LOOP: complete`（決定 6 の行が実際の取り込みで出た最初の回）
+- `findings` と `previous` は空（回 1）。`source`: `independent-review-m2-2-review-check-r1-for-claude.md`、4,839 バイト、SHA-256 `fdb95d4e31d5dad91b0e3c1169310ac5e886705cc84fb5f76403ebc838338e1a`（受領ファイルと一致）
+
+### review-check で見た最初のレビュー
+- review-check ができてから取り込んだ最初のレビューで、取り込みの直後に `aiqh review-check --label m2-2-review-check` にかけた最初の回: exit 0、`R1: High 0 / Medium 0 / Low 0; open 0, resolved 0, deferred 0, accepted 0, invalid 0`、`open: none`、`warnings: 0`、`REVIEW LOOP: complete`、`REVIEW CHECK: passed`
+- 指摘 0 件の回なので、働いたのはファイル・名前・回・label・接頭辞・`summary` の検査と表示だけ。状態ごとに要る欄の検査、`fixedIn` の git への問い、前の回の評価の突き合わせは、この回では使われていない。それらを実データで使ったのは、v0.7.0 を作るときに後から review-check にかけた m2-2-review-import（R1・R2。`resolved` 3 件。exit 0・`complete`・警告 0）
+- この回も、レビュアーに出力の形の書き直しを頼む必要は無かった（review-import で取り込んだレビューは、m2-2-review-import の R1・R2 とあわせて 3 回とも、そのまま取り込めた）
+
+### レビュアーの但し書きの位置づけ（決定は変えない）
+- 「`REVIEW LOOP: complete` は全回の `open` が 0 という意味で、レビューの中身の正しさを自動で保証しない」: 非目標と既知の限界のとおり（D7。AI の答えを品質保証の根拠にしない）
+- 「`formatDuration` は負数・非有限値に新しい保証を付けていない」「B21-R1-001 のテストは実行による再現を確かめていない」: この ADR の範囲の外（項目 38・37）。受け止めは `response-r1.md`
+
+### 影響
+- 文書だけ（この ADR、`docs/reviews/m2-2-review-check/` の R1 の 3 ファイル、CHANGELOG の v0.7.0 の見出しの SHA、ROADMAP）。`src/`・`tests/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えない

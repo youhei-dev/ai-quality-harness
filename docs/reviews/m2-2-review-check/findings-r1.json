@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "label": "m2-2-review-check",
+  "round": 1,
+  "idPrefix": "M2-2-RC",
+  "source": {
+    "name": "independent-review-m2-2-review-check-r1-for-claude.md",
+    "bytes": 4839,
+    "sha256": "fdb95d4e31d5dad91b0e3c1169310ac5e886705cc84fb5f76403ebc838338e1a"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-13T22:21:48.975Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.7.0"
+  },
+  "findings": []
+}
