@@ -32,3 +32,4 @@
 | [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま） | 2026-10-13 |
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない） | 2026-10-13 |
 | [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま） | 2026-10-14 |
+| [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない） | 2026-10-14 |
