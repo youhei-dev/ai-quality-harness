@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-13（初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-14（初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -121,12 +121,18 @@ src/
     build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
     markdown.ts           … レポート → Markdown                                            [M0]
     write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]。`writeAtomic` の一時ファイルは、同じディレクトリのランダムな名前（`.<名前>.tmp-<16 桁の 16 進数>`）を `O_EXCL | O_NOFOLLOW` で排他的に作って閉じ、数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（リンクを追わない。Windows は O_NOFOLLOW が無い）[v0.6.1、ADR-0026 決定 16]
+  parse/                  … check の出力を表示のためだけに読む（判定と終了コードは見ない。ADR-0028） [v0.8.0]
+    select.ts             … パーサの選び方: コマンドの語と、`npm run <script>` / `npm test` なら作業ディレクトリの package.json の script（設定の欄は無い）
+    text.ts               … 入力の準備と上限（各ストリームの末尾 1 MiB・1 行 4,096・名前 50 × 300・1,000 ms）、名前のマスク（行ごと、切る前）
+    read.ts               … 選んで読む。例外を投げない（parser-error・time-limit は unparsed）
+    vitest.ts / eslint.ts / npm-audit.ts / security-scan.ts … 4 つのパーサ（tool.ts は共通の型）
+    describe.ts           … 端末と latest.md の要約の文
   security/
     mask.ts               … 秘密情報らしき文字列のパターンマスク。url-credential は正規表現でなく「://」を手がかりにした線形の走査（同じ一致・同じ置換）[M0 / v0.5.41]
   git/
     info.ts               … commit / branch / dirty の取得（非 git でも動作。git が答えられなかったときも null、理由は標準出力の行。ADR-0022）  [M0]
-  adapters/               … 検出器 + 推奨コマンド + 任意の出力パーサ（実行経路は持たない）    [M1 実装済み]
-    types.ts              … Adapter / Detection / Suggestion / RepoContext / OutputParser（型のみ）
+  adapters/               … 検出器 + 推奨コマンド（実行経路は持たない。出力パーサは parse/）    [M1 実装済み]
+    types.ts              … Adapter / Detection / Suggestion / RepoContext（M1 の `OutputParser` の下書きは v0.8.0 で消した。パーサは parse/。ADR-0028）
     context.ts            … 読み取り専用の RepoContext（.env* は読まない。ENOENT 以外の失敗は ExaminationError。ADR-0022 決定 9）
     node.ts / python.ts / builtin.ts / index.ts … Node 7 / Python 7 / 内蔵 security 1、分類ごとの解決
   config/generate.ts      … 解決結果 → コメント付き JSONC                                   [M1]
@@ -176,6 +182,7 @@ checks[] を設定順に順次実行
    ├─ timeoutSec 超過 → プロセスグループへ SIGTERM → 猶予後 SIGKILL → グループの消滅を確認（SIGKILL の後は最大 2 秒。ADR-0023）→ status FAIL(timedOut)
    ├─ 起動失敗（ENOENT 等）→ FAIL
    └─ exit code 0 → PASS、それ以外 → FAIL
+   ├─ 状態が決まった後で、コマンドから選んだパーサが出力の末尾を読む → checks[].parsed（表示用。判定・分類・終了コードは見ない。ADR-0028。v0.8.0）
    ▼
 verdict: 必須チェックが全て PASS → PASSED、それ以外 → FAILED
          分類（lint/typecheck/unit/build/security/dependency/e2e）ごとのサマリ。
@@ -352,7 +359,16 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
       "startedAt": "…", "durationMs": 4200,
       "errorSummary": null,                   // FAIL 時: 先頭行など短い要約
       "stdoutTail": "…", "stderrTail": "…",   // マスク済み・末尾 N 行
-      "outputTruncated": false
+      "outputTruncated": false,
+      "parsed": {                             // v0.8.0（ADR-0028）。表示用で判定には使わない。古いレポートには無い。schemaVersion は 1 のまま
+        "tool": "vitest",                     // "vitest" | "eslint" | "npm-audit" | "aiqh-security-scan" | null
+        "status": "parsed",                   // "parsed" | "unparsed" | "not-applicable"
+        "reason": null,                       // 決まった語（no-parser / several-tools / not-run / script-unreadable / no-summary / unexpected-summary / time-limit / parser-error）
+        "truncated": false,
+        "counts": { "testFiles": 156, "testFilesPassed": 156, "tests": 2036, "testsPassed": 2036 },  // ツールごとの決まったキー（抜粋）
+        "items": [],                          // { kind, name }（名前は行ごとにマスクしてから 300 で切る。最大 50）
+        "itemsOmitted": 0
+      }
     }
   ]
 }
@@ -362,6 +378,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 
 見出し、最終判定、メタ情報（日時・commit・branch・dirty・所要時間）、チェック一覧表、
 分類別サマリ表、失敗チェックの詳細（errorSummary と出力末尾）。人間と独立レビューAI がそのまま読める形にする。
+v0.8.0: どれかの check の出力が読まれたときだけ、チェック一覧表の後ろに `## Parsed Output`（ツール・状態・要約の表と、check ごとの名前の一覧。ADR-0028）。
 
 ---
 
