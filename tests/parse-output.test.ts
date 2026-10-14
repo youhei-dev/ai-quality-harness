@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseOutputAs, type ReadDeps } from "../src/parse/read.ts";
-import { PARSED_ITEMS_MAX, PARSED_NAME_MAX, PARSE_INPUT_MAX, PARSE_LINE_MAX, PARSE_TIME_LIMIT_MS } from "../src/parse/text.ts";
+import { CLOCK_EVERY, PARSED_ITEMS_MAX, PARSED_NAME_MAX, PARSE_INPUT_MAX, PARSE_LINE_MAX, PARSE_TIME_LIMIT_MS } from "../src/parse/text.ts";
 import type { ParserTool } from "../src/types.ts";
 import { fake } from "./helpers.ts";
 
@@ -228,6 +228,21 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     "digits": (n) => ({ stdout: fill(`Tests  ${"1".repeat(1000)} passed (1)\n`, n) }),
   };
   const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan"];
+  const linesOf = (s: string): number => {
+    let n = 1;
+    for (let i = s.indexOf("\n"); i !== -1; i = s.indexOf("\n", i + 1)) n += 1;
+    return n;
+  };
+  // The time limit is a backstop that linear code never reaches. This clock moves only when the parser looks at it (once per
+  // CLOCK_EVERY lines it reads), so here the limit stands for WORK_PER_LINE lines read per input line, whatever the load of the machine:
+  // the parsers read at most about 1.3 per input line, a quadratic path far more. (With the real clock, a parallel full run once took
+  // over 1,000 ms for a linear 1 MiB read.)
+  const WORK_PER_LINE = 8;
+  const workClock = (out: Out): (() => number) => {
+    const looksAllowed = Math.ceil((WORK_PER_LINE * (linesOf(out.stdout ?? "") + linesOf(out.stderr ?? ""))) / CLOCK_EVERY) + 1;
+    let looks = 0;
+    return () => (looks++ * PARSE_TIME_LIMIT_MS) / looksAllowed;
+  };
   it.each(Object.keys(shapes))("%s", (shape) => {
     const make = shapes[shape];
     if (make === undefined) throw new Error(shape);
@@ -235,10 +250,10 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
       const out = make(size);
       for (const tool of tools) {
         const t0 = performance.now();
-        const r = parse(tool, out);
+        const r = parse(tool, out, { now: workClock(out) });
         const ms = performance.now() - t0;
         expect(["parsed", "unparsed"]).toContain(r.status);
-        // the time limit is a backstop: linear code never reaches it, so reaching it here means a slow path
+        // reaching the time limit here means more than WORK_PER_LINE lines read per input line: a slow path
         expect(r.reason, `${tool} ${shape} ${size / KIB} KiB`).not.toBe("time-limit");
         // Linear code reads 1 MiB in tens of milliseconds; a quadratic path over 1 MiB would take minutes.
         expect(ms, `${tool} ${shape} ${size / KIB} KiB took ${ms.toFixed(0)} ms`).toBeLessThan(size <= 256 * KIB ? 1500 : 3000);

@@ -19,7 +19,7 @@ export const PARSED_ITEMS_MAX = 50;
 /** A name is cut to this many code units (the last one is "…"). */
 export const PARSED_NAME_MAX = 300;
 /** Lines read between two looks at the clock. */
-const CLOCK_EVERY = 1024;
+export const CLOCK_EVERY = 1024;
 /** The largest number a summary may hold: 15 digits (a safe integer); anything longer is not a count of a run. */
 const MAX_DIGITS = 15;
 
