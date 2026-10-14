@@ -1,3 +1,4 @@
+import { statusText, summaryText } from "../parse/describe.ts";
 import { escapeRawChars } from "../security/raw-chars.ts";
 import { CATEGORY_KINDS, type CheckResult, type VerificationReport } from "../types.ts";
 
@@ -62,6 +63,8 @@ export function renderMarkdown(report: VerificationReport): string {
   });
   lines.push("");
 
+  lines.push(...renderParsed(report.checks));
+
   const failures = report.checks.filter((c) => c.status !== "PASS");
   if (failures.length > 0) {
     lines.push("## Failure Details");
@@ -77,6 +80,37 @@ export function renderMarkdown(report: VerificationReport): string {
   );
   lines.push("");
   return lines.join("\n");
+}
+
+/**
+ * ADR-0028: what was read from each check's output, only when some check was read (a report without one renders as before). The names
+ * are values of the masked report, written on one line each like the other values.
+ */
+function renderParsed(checks: readonly CheckResult[]): string[] {
+  if (!checks.some((c) => c.parsed !== undefined && c.parsed.status !== "not-applicable")) return [];
+  const lines: string[] = [];
+  lines.push("## Parsed Output");
+  lines.push("");
+  lines.push("Read from each check's output for display only: the verdict and the exit code do not use it (ADR-0028).");
+  lines.push("");
+  lines.push("| # | Check | Tool | Status | Summary |");
+  lines.push("|---|---|---|---|---|");
+  checks.forEach((c, i) => {
+    const p = c.parsed;
+    if (p === undefined) return;
+    lines.push(`| ${i + 1} | ${cell(c.name)} | ${p.tool ?? "-"} | ${statusText(p)} | ${p.status === "parsed" ? cell(summaryText(p)) : "-"} |`);
+  });
+  lines.push("");
+  for (const c of checks) {
+    const p = c.parsed;
+    if (p === undefined || p.status !== "parsed" || (p.items.length === 0 && p.itemsOmitted === 0)) continue;
+    lines.push(`### ${oneLine(c.name)} — ${p.tool ?? "-"}`);
+    lines.push("");
+    for (const item of p.items) lines.push(`- ${oneLine(item.kind)}: ${oneLine(item.name)}`);
+    if (p.itemsOmitted > 0) lines.push(`- … ${p.itemsOmitted} more (not listed)`);
+    lines.push("");
+  }
+  return lines;
 }
 
 function renderFailure(c: CheckResult): string[] {

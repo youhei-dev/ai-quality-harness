@@ -1,0 +1,13 @@
+
+> ai-quality-harness@0.7.0 test
+> vitest run
+
+
+ RUN  v5.0.0 /work/aiqh
+
+
+ Test Files  156 passed (156)
+      Tests  2036 passed (2036)
+   Start at  08:28:57
+   Duration  151.79s (tests 88%, import 11%, transform 1%)
+

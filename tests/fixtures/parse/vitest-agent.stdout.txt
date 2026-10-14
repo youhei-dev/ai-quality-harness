@@ -1,0 +1,14 @@
+
+ RUN  v5.0.0 /work/sample-vitest
+
+ ❯ tests/broken.test.ts (0 test)
+ ❯ tests/math.test.ts (5 tests | 2 failed | 1 skipped | 1 todo) 5ms
+   ❯ math (4)
+     × subtracts wrongly 3ms
+   × top level fails 0ms
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  2 failed | 2 passed | 1 skipped | 1 todo (6)
+   Start at  08:34:43
+   Duration  136ms (transform 60%, import 19%, worker 11%, tests 10%)
+

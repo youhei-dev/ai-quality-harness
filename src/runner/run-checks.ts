@@ -1,3 +1,4 @@
+import { notRun, readCheckOutput } from "../parse/read.ts";
 import type { CheckResult, ExecutionResult, ResolvedCheck, ResolvedConfig } from "../types.ts";
 import { executeCommand } from "./execute.ts";
 import { utf8SafeTail } from "./utf8-trim.ts";
@@ -97,6 +98,7 @@ export function toCheckResult(check: ResolvedCheck, exec: ExecutionResult): Chec
       stdoutTail: stdoutTail.text,
       stderrTail: stderrTail.text,
       outputTruncated,
+      parsed: readCheckOutput(check, exec),
     };
   }
   const failed = exec.spawnError !== null || exec.timedOut || exec.exitCode !== 0;
@@ -118,6 +120,8 @@ export function toCheckResult(check: ResolvedCheck, exec: ExecutionResult): Chec
     stdoutTail: stdoutTail.text,
     stderrTail: stderrTail.text,
     outputTruncated,
+    // ADR-0028: read after the status and every other field are decided, and never thrown from: display only (P1, P2)
+    parsed: readCheckOutput(check, exec),
   };
 }
 
@@ -140,6 +144,7 @@ function skippedResult(check: ResolvedCheck, reason: string): CheckResult {
     stdoutTail: "",
     stderrTail: "",
     outputTruncated: false,
+    parsed: notRun(),
   };
 }
 

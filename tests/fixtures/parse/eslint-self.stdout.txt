@@ -1,0 +1,4 @@
+
+> ai-quality-harness@0.7.0 lint
+> eslint .
+

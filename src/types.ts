@@ -105,6 +105,47 @@ export interface ExecutionResult {
   durationMs: number;
 }
 
+/** The tools whose output aiqh reads (ADR-0028). pytest is not one of them yet (ROADMAP). */
+export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit"] as const;
+
+export type ParserTool = (typeof PARSER_TOOLS)[number];
+
+/**
+ * Why a check's output was not read (ADR-0028): a fixed word, never text from the output.
+ * not-applicable: "not-run" (the command was not started), "no-parser" (nothing in the command, or in the npm script it names, is a tool
+ * aiqh reads), "several-tools" (more than one is). unparsed: "script-unreadable" (package.json could not be read; not "absent", ADR-0022),
+ * "no-summary" (the tool's summary was not found), "unexpected-summary" (a summary whose words or numbers do not add up), "time-limit",
+ * "parser-error" (the parser threw or returned what is not JSON data: a bug, and verify goes on).
+ */
+export type ParseReason = "not-run" | "no-parser" | "several-tools" | "script-unreadable" | "no-summary" | "unexpected-summary" | "time-limit" | "parser-error";
+
+/** One named entry read from an output: a failed test, a lint error, a vulnerable package (ADR-0028). */
+export interface ParsedItem {
+  kind: string;
+  /** Masked as the whole line, then cut to PARSED_NAME_MAX. */
+  name: string;
+}
+
+/**
+ * What aiqh read from a check's output, for display only (ADR-0028, v0.8.0): it never takes part in the verdict, the categories or the
+ * exit code. Absent from reports of earlier versions.
+ */
+export interface ParsedOutput {
+  /** The parser aiqh chose from the command (and the npm script it names), or null when none applies. */
+  tool: ParserTool | null;
+  status: "parsed" | "unparsed" | "not-applicable";
+  /** null when parsed. */
+  reason: ParseReason | null;
+  /** Only the end of a stream was read (PARSE_INPUT_MAX), or the runner had already cut it: the counts are the tool's, the names may miss early ones. */
+  truncated: boolean;
+  /** Numbers of the tool's summary (keys by tool, ADR-0028); empty unless parsed. */
+  counts: Record<string, number>;
+  /** At most PARSED_ITEMS_MAX, in the order of the output. */
+  items: ParsedItem[];
+  /** Entries found beyond PARSED_ITEMS_MAX. */
+  itemsOmitted: number;
+}
+
 /** Result of one check as stored in the report. */
 export interface CheckResult {
   name: string;
@@ -124,6 +165,8 @@ export interface CheckResult {
   stdoutTail: string;
   stderrTail: string;
   outputTruncated: boolean;
+  /** v0.8.0 (ADR-0028): what was read from the output, for display only. Always written by verify; absent in older reports. */
+  parsed?: ParsedOutput;
 }
 
 export interface GitInfo {

@@ -82,15 +82,6 @@ export interface Adapter {
   detect(ctx: RepoContext): Detection | null;
 }
 
-/**
- * Optional output parser: turns a check's captured output into a one-line summary for reports.
- * Interface only in M1 — implementations arrive with the M2 report structuring.
- */
-export interface OutputParser {
-  id: string;
-  parse(stdout: string, stderr: string): { summary: string } | null;
-}
-
 export interface KindResolution {
   chosen: Detection | null;
   alternatives: Detection[];

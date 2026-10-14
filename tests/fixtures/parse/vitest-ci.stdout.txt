@@ -1,0 +1,24 @@
+
+ RUN  v5.0.0 /work/sample-vitest
+
+ ❯ tests/broken.test.ts (0 test)
+ ✓ tests/ok.test.ts (1 test) 1ms
+ ❯ tests/math.test.ts (5 tests | 2 failed | 1 skipped | 1 todo) 5ms
+   ❯ math (4)
+     ✓ adds 1ms
+     × subtracts wrongly 3ms
+     ↓ skipped one
+     □ todo one
+   × top level fails 0ms
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  2 failed | 2 passed | 1 skipped | 1 todo (6)
+   Start at  08:34:43
+   Duration  103ms (transform 50%, import 23%, worker 14%, tests 14%, environment 1%)
+
+
+::error file=/work/sample-vitest/tests/broken.test.ts,title=tests/broken.test.ts,line=2,column=1::Error: Cannot find module './does-not-exist.ts' imported from /work/sample-vitest/tests/broken.test.ts%0A ❯ tests/broken.test.ts:2:1%0A%0A⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯%0ASerialized Error: { code: 'ERR_MODULE_NOT_FOUND' }%0A
+
+::error file=/work/sample-vitest/tests/math.test.ts,title=tests/math.test.ts > math > subtracts wrongly,line=8,column=19::AssertionError: expected 1 to be 3 // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- 3%0A+ 1%0A%0A ❯ tests/math.test.ts:8:19%0A%0A
+
+::error file=/work/sample-vitest/tests/math.test.ts,title=tests/math.test.ts > top level fails,line=17,column=9::Error: boom%0A ❯ tests/math.test.ts:17:9%0A%0A

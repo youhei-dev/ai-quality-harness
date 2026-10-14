@@ -1,0 +1,769 @@
+
+> ai-quality-harness@0.7.0 test:minpath
+> node scripts/test-minimal-path.ts
+
+test-minimal-path: vitest with PATH = { node, git } only
+
+ RUN  v5.0.0 /work/aiqh
+
+ ✓ tests/regression-m2-1-r2-006-range-doc-check.test.ts (6 tests) 11276ms
+   ✓ M2-1-R2-006: --range and --doc are checked before rendering (6)
+     ✓ a valid ref whose name contains U+2028 in --range: exit 1 (range), nothing written, value not shown 1016ms
+     ✓ a valid ref whose name contains U+202E in --range: exit 1 (range), nothing written, value not shown 1213ms
+     ✓ a --doc path with U+202E that is not in the changed-file list: exit 1 (doc path 1), nothing written 2236ms
+     ✓ a --doc path with U+2028 that is not in the changed-file list: exit 1 (doc path 1), nothing written 2327ms
+     ✓ secret shapes in a ref name and in a --doc path are input findings with their source (not only the whole-packet check) 2170ms
+     ✓ control: an ordinary ref and --doc path are rendered (exit 0) 2311ms
+ ✓ tests/regression-m2-2-r1-config-read.test.ts (13 tests) 12068ms
+   ✓ the default config that exists but cannot be read is a config error (review-packet) (4)
+     ✓ a symbolic link into a directory at mode 000: exit 2, nothing written (skipped as root: root bypasses mode 000) 337ms
+     ✓ a symbolic link loop (ELOOP): exit 2, nothing written 507ms
+     ✓ control: no default config (ENOENT): the defaults, exit 0 as before 998ms
+     ✓ control: a readable default config is used; an invalid one is exit 2 as before 1574ms
+   ✓ the default config that exists but cannot be read is a config error (security-scan) (4)
+     ✓ S-a (control): the readable config adds .env.staging, which .gitignore does not cover: exit 1 371ms
+     ✓ S-b: the same config through a symbolic link into a directory at mode 000: exit 2, not the defaults' exit 0 (skipped as root: root bypasses mode 000) 683ms
+     ✓ a symbolic link loop (ELOOP): exit 2 437ms
+     ✓ control: no default config (ENOENT): the defaults, exit 0 as before 372ms
+   ✓ an explicit --config is handled as before (3)
+     ✓ a --config that does not exist: exit 2, config file not found (both commands) 329ms
+     ✓ a readable --config elsewhere is used (security-scan: its probe fails; review-packet: written) 1017ms
+     ✓ a --config that is a symbolic link loop: exit 2, could not be read (both commands) 310ms
+   ✓ one reader for both commands (2)
+     ✓ the same default config gives the same error text in review-packet and security-scan 353ms
+     ✓ both commands call loadSecurityConfig and read the config no other way (type checker) 4778ms
+ ✓ tests/regression-m2-1-r2-007-findings-before-errors.test.ts (11 tests) 19487ms
+   ✓ M2-1-R2-007: path findings come before size errors (3)
+     ✓ invalid UTF-8 path + a blob over --max-file-bytes: exit 1 (invalid-utf8, path) 1686ms
+     ✓ raw-character path + a blob over --max-file-bytes: exit 1 (raw-char, path) 1527ms
+     ✓ a raw-character path that exists only in one commit's file list + an oversized file: exit 1 2769ms
+   ✓ M2-1-R2-007: a detection comes before an error wherever both can happen (8)
+     ✓ a secret in one changed file + another changed file over --max-file-bytes: exit 1 1338ms
+     ✓ a --doc that is not a file + a secret in a changed file: exit 1 1494ms
+     ✓ a --doc over --max-file-bytes + a secret in a changed file: exit 1 2237ms
+     ✓ latest.json for <to> that is not valid JSON + a secret in a changed file: exit 1 2041ms
+     ✓ a raw character in the --request file name + the file cannot be read: exit 2, the name finding listed as incomplete (M2-2, ADR-0015) 549ms
+     ✓ a secret-shaped -o file name + a changed file over --max-file-bytes: exit 1 (output file name) 1793ms
+     ✓ a raw character in --range + a --cwd path with a raw character: exit 1 (range) 1496ms
+     ✓ controls: a size error alone and an unknown ref alone stay exit 2 2550ms
+ ✓ tests/regression-m2-2-builtin-r5-entrance-forms.test.ts (75 tests) 15829ms
+   ✓ M2-2-BUILTIN-R5: the fixtures (4)
+     ✓ every single-file fixture type-checks (the shared program has no type error) 882ms
+     ✓ s07_stdio_override_as_const: TypeScript rejects it (a form that cannot be compiled) 2794ms
+     ✓ s09_duplicate_literal_computed: TypeScript rejects it (a form that cannot be compiled) 2720ms
+   ✓ M2-2-BUILTIN-R5: src/ (1)
+     ✓ has no violation of the output guard or the brand guard 8149ms
+ ✓ tests/regression-m2-2-r3-002-exit-priority.test.ts (38 tests) 26295ms
+   ✓ M2-1-R3-002: exit codes follow ADR-0015 (the SP1 reproduction cases) (32)
+     ✓ A4: -o secret-shaped + a ref that does not resolve -> exit 2 422ms
+     ✓ A5: -o secret-shaped + a missing blob -> exit 2 910ms
+     ✓ A6: --label with U+202E + a missing blob -> exit 2 602ms
+     ✓ A7: --exclude secret-shaped + a missing blob -> exit 2 1340ms
+     ✓ A8: --doc with U+202E + a missing blob -> exit 2 760ms
+     ✓ A9: --request name with U+202E + the file is missing -> exit 2 619ms
+     ✓ A10: --range with U+202E (git blocked by that finding) + a missing blob -> exit 1 433ms
+     ✓ A12: -o secret-shaped + unreadable latest.json -> exit 2 745ms
+     ✓ B1: path with U+202E + another file's missing blob -> exit 2 678ms
+     ✓ B2: path with U+202E + a missing blob of the previous version -> exit 2 954ms
+     ✓ B3: path with U+202E + unreadable latest.json -> exit 2 829ms
+     ✓ B4: path with U+202E + unreadable --request -> exit 2 598ms
+     ✓ B5: path with U+202E + a --doc that is not a file (deferred) -> exit 1 1045ms
+     ✓ B6: path with U+202E + the file's own missing blob -> exit 2 928ms
+     ✓ C1: secret in a changed file + another file's missing blob -> exit 2 827ms
+     ✓ C2: secret in a changed file + unreadable latest.json -> exit 2 800ms
+     ✓ D1: secret in a changed file + --cwd with U+2028 -> exit 1 939ms
+     ✓ D2: secret in a changed file + an invalid --label -> exit 1 1574ms
+     ✓ D4: path with U+202E + an invalid --label -> exit 1 977ms
+     ✓ D5: secret in a changed file + -o in a directory with U+2028 -> exit 1 1191ms
+     ✓ D6: secret in a changed file + --range without <from>..<to> -> exit 2 327ms
+     ✓ E1: path with U+202E + a file over --max-file-bytes -> exit 1 841ms
+     ✓ E2: secret in a changed file + another file over --max-file-bytes -> exit 1 1306ms
+     ✓ A4c: a ref that does not resolve alone -> exit 2 408ms
+     ✓ A5c: a missing blob alone -> exit 2 945ms
+     ✓ A12c: unreadable latest.json alone -> exit 2 782ms
+     ✓ D2c: an invalid --label alone -> exit 2 745ms
+   ✓ M2-1-R3-002: what an incomplete inspection reports (4)
+     ✓ B1: the git error and the path findings, marked as an incomplete list 776ms
+     ✓ B1 --json: result error, the error message and the findings 821ms
+     ✓ A10: a finding in --range blocks git; the result is the finding (no git error) 386ms
+     ✓ A5: the -o name finding and the missing blob are both reported 632ms
+ ✓ tests/regression-b21-r1-001-visit-limit.test.ts (8 tests) 14263ms
+   ✓ B21-R1-001: the fixtures (1)
+     ✓ type-check 2005ms
+   ✓ B21-R1-001: a walk cut at the visit limit gives each side's fail-closed answer, and the cut is not remembered (7)
+     ✓ source_cut: 1 widened-container report(s), nothing else 1209ms
+     ✓ target_cut: 1 widened-container report(s), nothing else 1409ms
+     ✓ memo_source_then_target: 2 widened-container report(s), nothing else 1830ms
+     ✓ memo_target_then_source: 2 widened-container report(s), nothing else 1753ms
+     ✓ the same file asked again with the same checker gives the same answers (a cut is cut again, not answered from the memo) 6040ms
+ ✓ tests/regression-m2-2-r3-003-latest-json.test.ts (16 tests) 14995ms
+   ✓ M2-1-R3-003: malformed latest.json is checked as text (7)
+     ✓ a secret shape in latest.json that is not JSON: exit 1, never shown 1184ms
+     ✓ a raw U+2028 in latest.json that is not JSON: exit 1 828ms
+     ✓ a raw U+202E in latest.json that is not JSON: exit 1 1100ms
+     ✓ a raw U+000D in latest.json that is not JSON: exit 1 759ms
+     ✓ a BOM before otherwise valid JSON (JSON.parse rejects it): exit 1 (U+FEFF) 747ms
+     ✓ clean text that is not JSON stays exit 2 (not valid JSON) 878ms
+     ✓ invalid UTF-8 stays exit 1 (decoded strictly first) 721ms
+   ✓ M2-1-R3-003: the shape of the result of <to> (7)
+     ✓ checks that are not an array: exit 2 with the reason, also as JSON 632ms
+     ✓ a check that is null: exit 2 with the reason, also as JSON 677ms
+     ✓ another shape with a raw character in its text: exit 1 (the whole text is checked) 694ms
+     ✓ latest.json that is null: no verify result for <to> (as for any other non-report) 833ms
+     ✓ latest.json that is null + a secret in a changed file: exit 1 (no internal error) 1321ms
+     ✓ a number, or git null: no verify result for <to> (unchanged) 1611ms
+     ✓ a raw character in a value that is not rendered (a check's output) stays out of scope: written (unchanged) 637ms
+   ✓ M2-1-R3-003: latest.json that cannot be read (2)
+     ✓ is an inspection error: cannot read (exit 2), not a write failure 1044ms
+     ✓ with a finding: exit 2, the finding listed as incomplete 1327ms
+ ✓ tests/regression-m2-1-r1-002-output-paths.test.ts (6 tests) 21609ms
+   ✓ M2-1-R1-002: forbidden characters in output paths (6)
+     ✓ -o and --zip-output with U+2028 in a parent directory: exit 2, no raw character in stdout / stderr / JSON, existing files unchanged 5098ms
+     ✓ -o and --zip-output with U+202E in a parent directory: exit 2, no raw character in stdout / stderr / JSON, existing files unchanged 4545ms
+     ✓ -o and --zip-output with CR in a parent directory: exit 2, no raw character in stdout / stderr / JSON, existing files unchanged 4044ms
+     ✓ --cwd whose path contains U+2028: exit 2, no raw character printed 1488ms
+     ✓ user strings inside error messages (--doc, an unreadable --request) are printed safely 3910ms
+     ✓ LF in an output directory is allowed but printed as \u{A} (one line per message) 2521ms
+ ✓ tests/regression-backlog21-brand-container-context.test.ts (20 tests) 8727ms
+   ✓ backlog 21: the fixtures (1)
+     ✓ type-check 319ms
+   ✓ backlog 21: src/ stays clean (1)
+     ✓ the brand guard reports nothing in src/ 8112ms
+ ✓ tests/regression-m2-1-sp3.test.ts (5 tests) 7165ms
+   ✓ M2-1 SP3 #1: diff findings show the file line too (3)
+     ✓ an added line: `diff <path>:<diff line> (<path>:<file line>)` 929ms
+     ✓ a removed line that exists only in <from>: `(<path>@from:<line>)` 1133ms
+     ✓ a raw character in a diff line gets the file line as well 1352ms
+   ✓ M2-1 SP3 #6: excluded files get a blob SHA-256 (1)
+     ✓ the Integrity row of an excluded file carries the SHA-256 of its blob; its content is not shown 903ms
+   ✓ M2-1 SP3 #5 (guard): with --cwd the default config comes from the --cwd directory (1)
+     ✓ an allow-all config in the process's current directory does not suppress a finding in the --cwd repository 2843ms
+ ✓ tests/regression-m2-2-r4-002-builtin-allowlist.test.ts (61 tests) 5158ms
+   ✓ backlog 1: the fixtures (1)
+     ✓ every fixture type-checks, except import() of a data: URL, which tsc rejects (Cannot find module) 816ms
+   ✓ backlog 1: src/ and the lists of the guard (3)
+     ✓ src/ has no violation 4004ms
+ ✓ tests/review-packet.test.ts (28 tests) 39440ms
+   ✓ review-packet: content (4)
+     ✓ writes the sections in order with metadata, trailer-free messages, request, review and documents 1336ms
+     ✓ classifies added, modified, deleted, renamed, binary, lock, excluded and submodule entries 2380ms
+     ✓ keeps paths with a newline, spaces and non-ASCII characters intact (read with -z, blobs by id) 1507ms
+     ✓ uses a fence longer than any backtick run in the content 1101ms
+   ✓ review-packet: range and usage errors (exit 2, nothing written) (5)
+     ✓ rejects a non-ancestor range, unknown or option-like refs, an empty range and malformed ranges 1022ms
+     ✓ rejects labels outside [a-z0-9.-] and non-ASCII output names 4803ms
+     ✓ a changed file above --max-file-bytes is an error unless excluded, and --exclude records it 1226ms
+     ✓ a packet above --max-packet-bytes is an error and nothing is written 1445ms
+   ✓ review-packet: fail closed (exit 1, nothing written, values never printed) (15)
+     ✓ secret-shaped string in a changed file 1330ms
+     ✓ secret-shaped string in a commit message 1129ms
+     ✓ secret-shaped string in the request 874ms
+     ✓ U+2028 in a changed file 898ms
+     ✓ U+2029 in a commit message 1194ms
+     ✓ BOM at the start of a changed file 893ms
+     ✓ CR (CRLF line ends) in a changed file 1231ms
+     ✓ bidi control in a --doc 1141ms
+     ✓ invalid UTF-8 (no NUL) in a changed file 891ms
+     ✓ invalid UTF-8 in the request 816ms
+     ✓ NUL (C0) in a previous review 759ms
+     ✓ raw character in a check name of latest.json for <to> 688ms
+     ✓ text that appears only in the packet's metadata (an --exclude glob) is checked before rendering 1535ms
+     ✓ --exclude lets a file with invalid UTF-8 through and records it as excluded 1261ms
+     ✓ --json reports findings without values 1113ms
+   ✓ review-packet: security.allow (1)
+     ✓ an allow rule for the path and line suppresses the full source and the diff line, and is listed 2105ms
+   ✓ review-packet: verification, ZIP and reproducibility (3)
+     ✓ includes the verify result only when latest.json is for <to> on a clean tree 2524ms
+     ✓ --zip writes a stored ZIP with the packet as its only entry; --zip-output chooses the path 1524ms
+     ✓ two runs give the same packet and ZIP bytes (no wall-clock time in the output) 2678ms
+ ✓ tests/regression-m2-2-r1-001-rejected-range-preflight.test.ts (14 tests) 4856ms
+   ✓ M2-2-R1-001: a rejected --range no longer hides that the inspection cannot be done (5)
+     ✓ a --range with U+202E + latest.json that cannot be read (EISDIR): exit 2 402ms
+     ✓ a --range with U+202E + latest.json behind a parent at mode 000: exit 2 (skipped as root: root bypasses mode 000) 440ms
+   ✓ M2-2-R1-001 controls: unchanged combinations (2)
+     ✓ a valid work tree + a --range with U+202E: exit 1, the finding (as before) 401ms
+   ✓ M2-2-R1-001: the blocked range value never reaches git (3)
+     ✓ A10's check: a --range with U+202E + a missing blob: exit 1 and no git error (the changes were not read) 478ms
+     ✓ a --range with U+202E whose ref does not exist: exit 1, the ref was never resolved 451ms
+     ✓ a rejected --range without <from>..<to> is not form-checked (its finding stands for it): exit 1 367ms
+   ✓ M2-2-R1-001: what is still inspected when the range has a finding (ADR-0015 §3) (4)
+     ✓ latest.json that is not JSON is checked as text: a secret shape in it is a finding 350ms
+     ✓ latest.json that is valid JSON: its values are not checked (which of them are rendered depends on <to>) 1009ms
+     ✓ the derived values that do not come from the range (the aiqh version) are checked 331ms
+     ✓ the repository root is known (for the default output name with --label); git and the <to> label are not 489ms
+ ✓ tests/regression-m2-1-r2-002-same-target.test.ts (5 tests) 5886ms
+   ✓ M2-1-R2-002: packet and ZIP paths that resolve to the same file are rejected (5)
+     ✓ a symbolic link in the parent (real/same.md and alias/same.md): exit 2, the existing file byte for byte unchanged 876ms
+     ✓ a case-only difference (p.md and P.md): exit 2 on every file system, the existing file unchanged 848ms
+     ✓ a case-only difference in a parent directory through the link (alias/Sub vs real/sub): exit 2 1851ms
+     ✓ parents that do not exist yet are compared through their nearest existing ancestor; nothing is created 1189ms
+     ✓ control: a symbolic link parent that leads to a different file is allowed (exit 0) 1121ms
+ ✓ tests/regression-backlog8b-p11-version.test.ts (9 tests) 6840ms
+   ✓ backlog 8 P11: a version that cannot be read is an error, not '0.0.0' (7)
+     ✓ package.json does not exist (ENOENT): exit 2, nothing on standard output, the reason on standard error 556ms
+     ✓ package.json cannot be read (EACCES): exit 2 931ms
+     ✓ package.json has no version: exit 2, never printed as a version 1046ms
+     ✓ package.json has a version that is a number: exit 2, never printed as a version 1028ms
+     ✓ package.json has an empty version: exit 2, never printed as a version 451ms
+     ✓ package.json has a version that is null: exit 2, never printed as a version 916ms
+     ✓ verify does not run, and no report is written, when the version cannot be read 831ms
+   ✓ backlog 8 P11 controls (pass before and after) (2)
+     ✓ a package.json with a version string: --version prints it, exit 0 500ms
+     ✓ verify records the version of the package.json it was started with in the report 554ms
+ ✓ tests/regression-m2-1-r3-001-filesystem-identity.test.ts (11 tests) 11093ms
+   ✓ M2-1-R3-001: the same-target check asks the file system (dev + ino) (11)
+     ✓ parent directory names U+00DF / ss: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 896ms
+     ✓ parent directory names U+03C2 / U+03C3: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 1890ms
+     ✓ parent directory names U+00B5 / U+03BC: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 1124ms
+     ✓ parent directory names U+212A / k: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 1090ms
+     ✓ parent directory names U+0130 / i + U+0307: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 888ms
+     ✓ parent directory names U+FB00 / ff: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 1051ms
+     ✓ parent directory names fullwidth U+FF21 / A: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 819ms
+     ✓ parent directory names fullwidth U+FF41 / fullwidth U+FF21: same directory on this file system ⇒ exit 2 and the existing file unchanged; otherwise both written 840ms
+     ✓ a parent symbolic link swapped after the string check (at prepare:packet): exit 2, the existing file unchanged, nothing left behind 892ms
+     ✓ a parent symbolic link swapped after the string check (at check:same-target): exit 2, the existing file unchanged, nothing left behind 850ms
+     ✓ a parent that changes during the write without a collision (link to another empty directory): exit 2, nothing written 751ms
+ ✓ tests/review-check.test.ts (63 tests) 9874ms
+   ✓ review-check: the recorded m2-2-review-import rounds (a copy; only the fixedIn SHAs are commits of a temporary repository) (1)
+     ✓ R1 (three resolved) and R2 (no finding, previous of the three): exit 0, complete, no warning 1301ms
+   ✓ review-check: passed (exit 0) whatever the number of open findings (5)
+     ✓ an open finding left: exit 0, incomplete, its ID listed 421ms
+   ✓ review-check: the fields each state needs (exit 2) (18)
+     ✓ resolved with the SHA of an annotated tag (a tag object, not the commit itself) 319ms
+ ✓ tests/regression-m2-2-r3-001-line-breaks.test.ts (8 tests) 6546ms
+   ✓ M2-2-R3-001: a value with LF / TAB stays inside its line (security-scan, verify, init) (4)
+     ✓ a file name with LF cannot forge a line (security-scan) 432ms
+     ✓ a --cwd with LF: the headings of security-scan, verify and init are one line each 1123ms
+   ✓ M2-2-R3-001: a command's own multi-line text is a block (3)
+     ✓ the proposed config keeps its lines; a comment value with LF / TAB / U+202E is escaped where the config is made (the written file too) 393ms
+     ✓ commander: an unknown option with LF is one line (whole or partly quoted); the suggestion keeps its line 1680ms
+   ✓ M2-2-R3-001 control: normal output is byte-identical to v0.5.3 (1)
+     ✓ usage errors with commander's suggestion, a config error, help on standard error, the proposal and a verify run 2309ms
+ ✓ tests/regression-backlog11-usage-errors.test.ts (36 tests) 20396ms
+   ✓ backlog 11: a usage error is exit 2 (36)
+     ✓ an unknown command: exit 2 (was 1), one error line on standard error, nothing on standard output 304ms
+     ✓ an unknown command with an unknown option: exit 2 (was 1), one error line on standard error, nothing on standard output 424ms
+     ✓ verify: an unknown long option: exit 2 (was 1), one error line on standard error, nothing on standard output 414ms
+     ✓ verify: an unknown short option: exit 2 (was 1), one error line on standard error, nothing on standard output 399ms
+     ✓ verify: an abbreviation (with commander's suggestion): exit 2 (was 1), one error line on standard error, nothing on standard output 367ms
+     ✓ init: an unknown option: exit 2 (was 1), one error line on standard error, nothing on standard output 459ms
+     ✓ security-scan: an unknown option: exit 2 (was 1), one error line on standard error, nothing on standard output 830ms
+     ✓ verify: --config without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 996ms
+     ✓ verify: --cwd without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 939ms
+     ✓ verify: -o without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 456ms
+     ✓ init: --cwd without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 635ms
+     ✓ security-scan: --cwd without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 758ms
+     ✓ security-scan: --config without a value: exit 2 (was 1), one error line on standard error, nothing on standard output 552ms
+     ✓ verify: an excess argument: exit 2 (was 1), one error line on standard error, nothing on standard output 442ms
+     ✓ init: an excess argument: exit 2 (was 1), one error line on standard error, nothing on standard output 324ms
+     ✓ security-scan: an excess argument: exit 2 (was 1), one error line on standard error, nothing on standard output 359ms
+     ✓ no command given: the help on standard error and exit 2 (was 1), nothing on standard output 434ms
+     ✓ help for a command that does not exist: the help on standard error and exit 2 (was 1), nothing on standard output 334ms
+     ✓ review-packet: no arguments (--range is required): exit 2 (as before) 312ms
+     ✓ review-packet: an unknown option: exit 2 (as before) 304ms
+     ✓ review-packet: --range without a value: exit 2 (as before) 323ms
+     ✓ review-packet: --max-file-bytes 0: exit 2 (as before) 346ms
+     ✓ review-packet: --max-packet-bytes 1.5: exit 2 (as before) 415ms
+     ✓ review-packet: an excess argument: exit 2 (as before) 421ms
+     ✓ --help: exit 0, nothing on standard error 397ms
+     ✓ -h: exit 0, nothing on standard error 346ms
+     ✓ help: exit 0, nothing on standard error 329ms
+     ✓ --version: exit 0, nothing on standard error 752ms
+     ✓ -V: exit 0, nothing on standard error 343ms
+     ✓ verify --help: exit 0, nothing on standard error 535ms
+     ✓ init --help: exit 0, nothing on standard error 624ms
+     ✓ security-scan --help: exit 0, nothing on standard error 981ms
+     ✓ review-packet --help: exit 0, nothing on standard error 2416ms
+     ✓ exit 1 stays VERIFY FAILED: a failing required check is 1, not 2 1570ms
+ ✓ tests/regression-m2-1-r1-001-git-paths.test.ts (8 tests) 14236ms
+   ✓ M2-1-R1-001: git paths are decoded strictly and checked for raw characters (8)
+     ✓ a path with byte 0xFF: exit 1 (invalid-utf8, source path), nothing written, no raw byte or U+FFFD printed 1544ms
+     ✓ an --exclude'd file is still checked for its path 1188ms
+     ✓ a valid UTF-8 path with U+2028: exit 1 (raw-char), nothing written 1153ms
+     ✓ a valid UTF-8 path with CR: exit 1 (raw-char), nothing written 1236ms
+     ✓ a valid UTF-8 path with U+202E: exit 1 (raw-char), nothing written 1150ms
+     ✓ LF and TAB in a path stay allowed (exit 0) and the path's diff and full source are present 1229ms
+     ✓ an NFD path with core.precomposeunicode=true (the macOS default of git init) still gets its diff and full source 1651ms
+     ✓ changes whose diff is legitimately short are not empty: mode only, pure rename, empty file added and deleted 5080ms
+ ✓ tests/regression-m2-2-builtin-r4-union-and-element-forms.test.ts (91 tests) 22723ms
+   ✓ M2-2-BUILTIN-R4: the fixtures (5)
+     ✓ every fixture type-checks (the shared program has no type error) 489ms
+     ✓ d03_computed_const_key: TypeScript rejects it (a form that cannot be compiled) 3360ms
+     ✓ d04_computed_literal_key: TypeScript rejects it (a form that cannot be compiled) 2689ms
+     ✓ d06_getter_named: TypeScript rejects it (a form that cannot be compiled) 1447ms
+     ✓ d08_shorthand_after: TypeScript rejects it (a form that cannot be compiled) 1443ms
+   ✓ M2-2-BUILTIN-R4: src/ (1)
+     ✓ src/ has no violation (output guard and brand guard) 12790ms
+ ✓ tests/regression-backlog8b-p4-temporary-file-listing.test.ts (5 tests) 9371ms
+   ✓ backlog 8 P4: a temporary file that cannot be reached is named, not taken as absent (3)
+     ✓ prepare phase: the directory becomes unreachable: the file left on disk is named in the error (exit 2) 1703ms
+     ✓ rollback: only the temporary file that is really left is named (the one already renamed into place is not) 1331ms
+     ✓ the message and the names go through the output boundary: a secret-shaped directory name is masked, no raw control character 1956ms
+   ✓ backlog 8 P4 controls (pass before and after) (2)
+     ✓ an ordinary failure (the directory stays reachable): the temporary file is removed, nothing is named 1602ms
+     ✓ a rollback that works: the previous files are restored and no temporary file is left 2776ms
+ ✓ tests/regression-m2-1-r2-001-zip-entry-name.test.ts (5 tests) 12233ms
+   ✓ M2-1-R2-001: the output file name is checked before it becomes the ZIP entry name (5)
+     ✓ a secret-shaped -o basename with --zip: exit 1 (output file name), no packet, no ZIP, no fragment printed 1940ms
+     ✓ the same with --json: result findings, source output file name, no value 2311ms
+     ✓ the file name is checked without --zip too (the packet's own name) 2516ms
+     ✓ a forbidden character in the basename is an output file name finding (exit 1), not shown 3750ms
+     ✓ control: an ordinary -o basename is the ZIP entry name (exit 0) 1712ms
+ ✓ tests/regression-backlog8c-o3-git-failure.test.ts (21 tests) 19198ms
+   ✓ backlog 8 O3: lookupGit tells git that failed from git that said 'no' (5)
+     ✓ git cannot be run (not on PATH): no info, and the problem says it could not be run (before: indistinguishable from a non-repository) 838ms
+     ✓ git exits 128 with something other than 'not a git repository' (a refusal): the problem carries git's own line 1270ms
+     ✓ git exits with another status and no message: the problem names the status 504ms
+     ✓ a repository and a non-repository have no problem (git answered); only a failure has one 915ms
+     ✓ getGitInfo keeps its contract: null for every one of those 603ms
+   ✓ backlog 8 O3 controls: getGitInfo (pass before and after) (3)
+     ✓ a repository: branch, commit and a clean tree 425ms
+     ✓ a failing `git status` is 'unknown', not 'clean' (R-009) 854ms
+   ✓ backlog 8 O3: the verify command says what happened (real CLI) (4)
+     ✓ a repository, but git cannot be run: 'git: unavailable (…)', verdict unchanged (exit 0), the report's git is null (before: 'git: not a git repository') 1772ms
+     ✓ a refusal by git is shown with git's own line 2165ms
+     ✓ control: a directory that is not a repository still says 'not a git repository' 1543ms
+     ✓ control: a repository shows branch and commit 3169ms
+   ✓ backlog 8 O3: git's own line goes through the output boundary (1)
+     ✓ a secret-shaped string and an ESC in git's message: masked on verify's stdout, ESC written as notation 1236ms
+   ✓ backlog 8 O3: review-packet keeps git's own words when git fails (2)
+     ✓ resolving a revision: git exits 128 (a fatal, not 'no such revision'): exit 2, git's line in the message (before: 'does not name a commit') 636ms
+     ✓ the work-tree question: git refuses (dubious ownership): the message does not claim 'not inside a git work tree' (before: it did) 1004ms
+   ✓ backlog 8 O3: git's own line in a review-packet message goes through the output boundary (1)
+     ✓ a secret-shaped string and an ESC in git's message: masked, and the ESC is written as notation 825ms
+   ✓ backlog 8 O3 controls: review-packet (pass before and after) (4)
+     ✓ a revision that does not exist (git exits 1, silently): the plain message 436ms
+     ✓ git exits 1 for the resolving call (the status of 'not a valid name'): the plain message 672ms
+ ✓ tests/regression-backlog16-r3-group-errno.test.ts (6 tests) 12806ms
+   ✓ B16-R3-001: the group's errno is kept when the direct fallback finds the leader gone (4)
+     ✓ abort: group EPERM, leader ESRCH: unconfirmed with killError EPERM and "could not be signalled (EPERM)" 788ms
+     ✓ timeout: group EPERM, leader ESRCH: unconfirmed with killError EPERM and "could not be signalled (EPERM)" 4233ms
+     ✓ control: group EPERM, the direct signal to the leader is delivered: the leader is signalled directly and no errno is kept 1179ms
+     ✓ control: group ESRCH: `gone` is latched, nothing more is sent and the leader gets no direct signal 675ms
+   ✓ a leader pid that answered ESRCH to a direct signal is not signalled directly again (2)
+     ✓ the CLI interrupt order (abort, then terminateActiveChildren): one direct SIGTERM to the leader, then nothing to its pid 2880ms
+     ✓ the opposite order (terminateActiveChildren first, then the abort): same 3026ms
+ ✓ tests/regression-m2-2-r3-004-brand-forgery.test.ts (9 tests) 16331ms
+   ✓ M2-1-R3-004: static — the brand guard with the type checker (3)
+     ✓ every fixture type-checks (tsc accepts each bypass) 366ms
+     ✓ src creates the brands only in the issuers, called only by the renderers 8845ms
+   ✓ M2-1-R3-004: the registry changes no output (2)
+     ✓ two packets and ZIPs from the same input are byte-identical, with other packets built in between 3915ms
+     ✓ the packet built in this process equals the one built by a fresh process 2938ms
+ ✓ tests/regression-m2-2-cli-catch-001-thrown-value.test.ts (25 tests) 25944ms
+   ✓ CLI top-level catch: a thrown value whose inspection throws becomes the fixed text (11)
+     ✓ a Proxy whose getPrototypeOf throws (instanceof fails): exit 2, the fixed text, nothing of the value 694ms
+     ✓ a revoked Proxy (instanceof fails with the engine's TypeError): exit 2, the fixed text, nothing of the value 319ms
+     ✓ an Error whose message getter throws: exit 2, the fixed text, nothing of the value 449ms
+     ✓ the same Error seen through a recording Proxy: exit 2, the fixed text, nothing of the value 609ms
+     ✓ an object whose toString throws: exit 2, the fixed text, nothing of the value 1029ms
+     ✓ an object whose Symbol.toPrimitive throws: exit 2, the fixed text, nothing of the value 2085ms
+     ✓ an object with no prototype (String() cannot convert it): exit 2, the fixed text, nothing of the value 1685ms
+     ✓ an Error whose message is a symbol (the template cannot convert it): exit 2, the fixed text, nothing of the value 902ms
+     ✓ an Error whose message is an object whose toString throws: exit 2, the fixed text, nothing of the value 1057ms
+     ✓ a Proxy whose getPrototypeOf throws a string: exit 2, the fixed text, nothing of the value 869ms
+     ✓ an Error whose message getter throws a Proxy whose getPrototypeOf throws: exit 2, the fixed text, nothing of the value 1724ms
+   ✓ CLI top-level catch: the value is not read again after the inspection fails (8)
+     ✓ getPrototypeOf-throws: no operation after the first failure 785ms
+     ✓ message-getter-throws: no operation after the first failure 1539ms
+     ✓ message-getter-throws-watched: no operation after the first failure 635ms
+     ✓ toString-throws: no operation after the first failure 1299ms
+     ✓ toPrimitive-throws: no operation after the first failure 2541ms
+     ✓ message-toString-throws: no operation after the first failure 820ms
+     ✓ getPrototypeOf-throws-string: no operation after the first failure 435ms
+     ✓ getter-throws-hostile: no operation after the first failure 667ms
+   ✓ CLI top-level catch: a report line that cannot be written (1)
+     ✓ console.error throws on the first line: exit 2, the verdict line still written, what it threw untouched 764ms
+   ✓ CLI top-level catch: an ordinary thrown value is reported as before (same bytes as v0.5.13) (5)
+     ✓ an Error: exit 2 and the same two lines 1651ms
+     ✓ a string: exit 2 and the same two lines 1246ms
+     ✓ an object with toString: exit 2 and the same two lines 671ms
+     ✓ a symbol: exit 2 and the same two lines 1012ms
+     ✓ an Error whose message is an object with toString: exit 2 and the same two lines 454ms
+ ✓ tests/cli-review-check.test.ts (7 tests) 7780ms
+   ✓ aiqh review-check (real CLI) (7)
+     ✓ is listed in the help and has its own help (exit 0) 2676ms
+     ✓ a usage error (no --label) is exit 2 and says what is wrong 1083ms
+     ✓ a usage error (an unknown option) is exit 2 and says what is wrong 766ms
+     ✓ a usage error (an extra argument) is exit 2 and says what is wrong 764ms
+     ✓ checks a label (exit 0): an open finding left is incomplete, not a failure 678ms
+     ✓ --cwd names the repository 677ms
+     ✓ a git that cannot be run (not on PATH) is exit 2 when a resolved finding needs it (fail closed) 1135ms
+ ✓ tests/regression-m2-1-r2-003-rollback-reporting.test.ts (5 tests) 4690ms
+   ✓ M2-1-R2-003: rollback reporting, commit point and retained backups (5)
+     ✓ before the commit point: installing the ZIP and removing the new packet both fail → exit 2, the packet left behind is listed, no 'restored' 930ms
+     ✓ before the commit point with every rollback action succeeding: 'the previous files were restored', exit 2 1236ms
+     ✓ after the commit point: the packet's backup cannot be removed → exit 0, warning with its location, last line 'written (backup files retained)' 946ms
+     ✓ after the commit point with --json: result written, backupsRetained lists the backup 810ms
+     ✓ control: a normal write reports no retained backups 765ms
+ ✓ tests/regression-m2-2-r2-001-output-boundary.test.ts (21 tests) 8995ms
+   ✓ M2-2-R2-001: security-scan (the review's case and the other paths that quote a path) (6)
+     ✓ d: a finding in a file whose name has U+202E: exit 1, the file name escaped (text and --json) 404ms
+   ✓ M2-2-R2-001: the CLI's own output (default sinks, commander, the option parser) (3)
+     ✓ security-scan through the CLI: standard error escaped (the default sinks go through the boundary) 731ms
+     ✓ commander: an unknown option and an unknown command with U+202E are escaped 1177ms
+     ✓ the option parser: --max-file-bytes with U+202E is escaped (exit 2) 302ms
+   ✓ M2-2-R2-001 controls: secret shapes stay masked; output without raw characters is unchanged (4)
+     ✓ help and --version have no escape notation (commander's output goes through the boundary unchanged) 1360ms
+   ✓ M2-2-R2-001: static — only the boundary writes to the terminal (tests/structure/output-guard.ts) (5)
+     ✓ src/ writes to the terminal only in src/output.ts 3815ms
+ ✓ tests/regression-backlog16-r1-pgid-reuse.test.ts (6 tests) 10347ms
+   ✓ B16-R1-001: a group seen gone is not probed or signalled again (6)
+     ✓ close pending, group gone before the SIGKILL timer: nothing is sent to the group after the first ESRCH 2030ms
+     ✓ close pending: the wait for `close` counts from the first sight of the disappearance, not from the SIGKILL timer 1797ms
+     ✓ the first signal already got ESRCH (the leader and the group ended before the timeout): no SIGKILL, no probes afterwards 4559ms
+     ✓ terminateActiveChildren: a target seen gone is not probed or signalled again; a live target still gets its SIGKILL 835ms
+     ✓ control: a group that is still alive after the grace period gets SIGKILL and is gone when the run settles 584ms
+     ✓ control: `close` first and the group gone before the SIGKILL timer: settles when it is gone, no SIGKILL 499ms
+ ✓ tests/regression-backlog8b-p3-resolve-commit.test.ts (8 tests) 9633ms
+   ✓ backlog 8 P3: a revision is resolved once, and a git call that fails is an error (4)
+     ✓ the second git call of a revision fails (annotated tag): exit 2, no packet (before: exit 0, a packet without the tag object) 1003ms
+     ✓ the same with a lightweight tag (no tag object exists): the failing call is still an error, not 'no tag object' 1064ms
+     ✓ the second git call of <to> fails: exit 2, no packet 866ms
+     ✓ the tag moves to another commit between the git calls: the tag object shown is the one that belongs to the commit shown 1770ms
+   ✓ backlog 8 P3 controls (pass before and after) (4)
+     ✓ an annotated tag shows its tag object for <from>, and <to> = HEAD shows none 1606ms
+     ✓ a lightweight tag and a full SHA show no tag object 1973ms
+     ✓ the first git call fails: exit 2 with the same message as for a revision that does not exist 778ms
+     ✓ a revision that is not a commit (a tree) is refused with the same message 565ms
+ ✓ tests/regression-b20-r1-001-node-options.test.ts (20 tests) 11884ms
+   ✓ B20-R1-001: under the refused Node options the CLI does not start: one line, exit 2, no check, no report, no raw value (14)
+     ✓ argv --unhandled-rejections=warn 1026ms
+     ✓ argv --unhandled-rejections warn 339ms
+     ✓ argv --unhandled_rejections=warn 421ms
+     ✓ NODE_OPTIONS --unhandled-rejections=warn 567ms
+     ✓ NODE_OPTIONS --unhandled_rejections warn 507ms
+     ✓ NODE_OPTIONS warn overridden by a later throw 866ms
+     ✓ NODE_OPTIONS warn with the name split by quotes 362ms
+     ✓ NODE_OPTIONS a quoted safe mode (cannot be read one way) 343ms
+     ✓ argv --abort-on-uncaught-exception 343ms
+     ✓ NODE_OPTIONS --abort-on-uncaught-exception 454ms
+     ✓ NODE_OPTIONS --abort_on_uncaught_exception 402ms
+     ✓ argv --no-abort-on-uncaught-exception 304ms
+     ✓ argv abort overridden by a later --no- 312ms
+     ✓ NODE_OPTIONS abort with strict, a rejection 740ms
+   ✓ B20-R1-001 controls: not refused, and an unhandled rejection or exception still ends with the masked line, exit 2, the check gone (6)
+     ✓ argv --unhandled-rejections=warn-with-error-code, a rejection 1084ms
+     ✓ NODE_OPTIONS --unhandled-rejections=none, a rejection 814ms
+     ✓ NODE_OPTIONS --unhandled-rejections=strict, an exception 680ms
+     ✓ argv --unhandled-rejections throw, a rejection 725ms
+     ✓ NODE_OPTIONS --trace-uncaught, an exception 569ms
+     ✓ NODE_OPTIONS --enable-source-maps, a rejection 1023ms
+ ✓ tests/regression-r3-cli.test.ts (3 tests) 3249ms
+   ✓ R3-002 CLI signal handling cancels the pipeline (3)
+     ✓ SIGINT: check 2 never starts, check 1's descendants are gone, exit 130, no PASSED 866ms
+     ✓ SIGTERM: check 2 never starts, check 1's descendants are gone, exit 143, no PASSED 912ms
+     ✓ pid file created empty and written later: the pid read is valid and the SIGTERM guarantees hold 1465ms
+ ✓ tests/regression-m2-2-builtin-r2-001-type-is-not-the-value.test.ts (100 tests) 8116ms
+   ✓ M2-2-BUILTIN-R2-001: the fixtures (1)
+     ✓ every fixture type-checks, except the angle-bracket assertion (erasableSyntaxOnly) 1068ms
+   ✓ M2-2-BUILTIN-R2-001: src/ (1)
+     ✓ src/ has no violation 6299ms
+ ✓ tests/cli-review-packet.test.ts (4 tests) 10325ms
+   ✓ aiqh review-packet (CLI) (4)
+     ✓ usage errors exit 2 (exit 1 is reserved for findings) 3827ms
+     ✓ writes the same bytes under different TZ and LANG (default label = 12 hex digits of <to>) 2505ms
+     ✓ --request - reads standard input; --json prints a summary 2540ms
+     ✓ a secret-shaped string in a changed file: exit 1, no files, value not printed 1452ms
+ ✓ tests/regression-backlog17-symlink-kind.test.ts (7 tests) 7381ms
+   ✓ backlog 17: a symbolic link is listed as kind symlink, with its diff and without a full source (5)
+     ✓ an added link: kind symlink; the diff shows mode 120000 and the target; no full source 954ms
+     ✓ a regular file that becomes a link: symlink (type change), no full source 1923ms
+     ✓ a deleted link: kind symlink (the displayed side is the old one; before: deleted) 1174ms
+     ✓ a link named like a lockfile: symlink, not lock (its blob is a target, not a generated file); the diff is shown 762ms
+     ✓ the Changed Files and Full Source headings name the kind 659ms
+   ✓ backlog 17 controls (pass before and after) (2)
+     ✓ a link that becomes a regular file: text (type change), with the new file's full source 1071ms
+     ✓ a secret-shaped link target is still a finding: exit 1, nothing written 836ms
+ ✓ tests/regression-backlog28-probe-after-exit.test.ts (5 tests) 7435ms
+   ✓ backlog 28: a group that disappeared after its leader exited is seen gone before its number is reused (3)
+     ✓ interruption after the reuse: no signal other than 0 reaches the number (before: SIGTERM, then SIGKILL) 1094ms
+     ✓ timeout after the reuse: no signal other than 0 reaches the number (before: SIGTERM at the timeout, then SIGKILL) 3544ms
+     ✓ terminateActiveChildren after the reuse: no signal other than 0 reaches the number (before: SIGTERM, then SIGKILL) 957ms
+   ✓ backlog 28 controls (pass before and after) (2)
+     ✓ a command whose member outlives the leader and then ends: exit code 0, only signal 0 to the group, nothing after the run settled 323ms
+     ✓ a member still running at the timeout after the leader exited: the timeout's SIGTERM still reaches the group 1517ms
+ ✓ tests/regression-m2-2-r1-007-unreadable-parent.test.ts (9 tests) 6075ms
+   ✓ M2-2-R1-007: latest.json that exists but cannot be reached is an inspection error, not absent (6)
+     ✓ the parent artifacts/verification at mode 000: exit 2, cannot read (EACCES), nothing written (skipped as root: root bypasses mode 000) 838ms
+     ✓ the parent at mode 000, --json: result error with the message (skipped as root: root bypasses mode 000) 694ms
+     ✓ the grandparent artifacts at mode 000: exit 2, nothing written (skipped as root: root bypasses mode 000) 543ms
+     ✓ artifacts/verification is a file (ENOTDIR): exit 2, nothing written 515ms
+     ✓ latest.json is a symbolic link loop (ELOOP): exit 2, nothing written 502ms
+     ✓ the parent at mode 000 + a finding in a changed file: exit 2, the finding listed as incomplete (skipped as root: root bypasses mode 000) 968ms
+   ✓ M2-2-R1-007 controls: ENOENT is still 'no verify result' (3)
+     ✓ latest.json does not exist: exit 0, the packet says so 621ms
+     ✓ artifacts/ does not exist at all: exit 0, the packet says so 705ms
+     ✓ a readable latest.json for <to> is rendered as before 685ms
+ ✓ tests/regression-m2-1-r1-003-two-phase-write.test.ts (5 tests) 4200ms
+   ✓ M2-1-R1-003: packet and ZIP are replaced together or not at all (5)
+     ✓ (a) the ZIP's parent is a regular file (mkdir fails): exit 2, existing files unchanged, nothing left behind 741ms
+     ✓ (b) the ZIP target is an existing directory: exit 2, existing files unchanged, the directory untouched 1032ms
+     ✓ (c) the second rename of the commit phase fails: the packet is restored from its backup, exit 2 809ms
+     ✓ (d) restoring fails too: exit 2, the backup location is printed (safe display) and the backup is kept 861ms
+     ✓ success replaces both existing files and leaves no temporary or backup files 754ms
+ ✓ tests/regression-m1r2-004-long-line-window.test.ts (5 tests) 6258ms
+   ✓ M1-R2-004: sliding window over a single huge line (5)
+     ✓ secret at the end of a 20 MiB line without newline → found at line 1, once 1314ms
+     ✓ secret at the start → found at line 1 992ms
+     ✓ secret straddling the first window boundary (just before / after MAX_LINE_BYTES) → found once 3743ms
+ ✓ tests/regression-m2-2-builtin-r6-reexport-and-listener-forms.test.ts (58 tests) 6934ms
+   ✓ M2-2-BUILTIN-R6: src/ (1)
+     ✓ has no violation of the output guard or the brand guard 5881ms
+ ✓ tests/regression-backlog16-r2-direct-signal.test.ts (6 tests) 4993ms
+   ✓ B16-R2-001: nothing is sent to the leader of a group that was seen gone (6)
+     ✓ the CLI interrupt order (abort, then terminateActiveChildren): no signal to the group or to the leader after the first ESRCH 919ms
+     ✓ the opposite order (terminateActiveChildren sees the ESRCH first, then the command is aborted): same invariant 924ms
+     ✓ control: a group send that fails with EPERM still falls back to the leader (SIGTERM, then SIGKILL after the grace period) 1562ms
+     ✓ control: a group that ignores SIGTERM gets SIGKILL after the grace period, still without a direct signal 768ms
+     ✓ control: a command that ends by itself gets no signal other than 0 (changed in v0.5.38, backlog 28: before, no call at all) 658ms
+ ✓ tests/regression-m2-1-r1-005-submodule-type-change.test.ts (4 tests) 4290ms
+   ✓ M2-1-R1-005: submodule classification follows the displayed side (4)
+     ✓ (a) regular file -> submodule: T, submodule (type change), no content 755ms
+     ✓ (b) submodule -> regular file: kind text, full source and a diff with the type change and the body 1020ms
+     ✓ (c) submodule deleted: submodule, no content 1883ms
+     ✓ (d) submodule added: submodule, no content 630ms
+ ✓ tests/regression-m2-2-flake-001-timeout-after-abort.test.ts (1 test) 4074ms
+   ✓ M2-2-FLAKE-001 a timeout that expires after the interruption is not recorded (1)
+     ✓ abort first; the timeout expires during the grace period -> timedOut stays false 4074ms
+ ✓ tests/regression-backlog16-confirm-termination.test.ts (12 tests) 5985ms
+   ✓ backlog 16: the run settles when the group is gone, within a bound (4)
+     ✓ settles when the group disappears after the leader's close, not at the end of the grace period 545ms
+     ✓ settles within the bound when a descendant outside the group keeps the pipes open 727ms
+     ✓ SIGKILL path: the group is gone when the run settles 380ms
+   ✓ backlog 2: a kill that fails with EPERM does not end the run as a spawn failure (3)
+     ✓ timeout: settles within the bound, unconfirmed (EPERM), not as a spawn failure; the child is still running 3666ms
+     ✓ abort: settles within the bound, unconfirmed (EPERM), not as a spawn failure; the child is still running 603ms
+ ✓ tests/regression-backlog5-minpath-watchdog.test.ts (8 tests) 3957ms
+   ✓ backlog 5 / N3: stopping test:minpath stops vitest and everything left in its group (3)
+     ✓ a SIGTERM to the script alone: exit 143, vitest and its worker are gone (before: the worker lived on) 386ms
+     ✓ a SIGKILL to the script alone: vitest and its worker are gone, and so is aiqh-minpath-* (before: all three were left) 413ms
+     ✓ a SIGKILL to the script's group, as the runner sends it: vitest and its worker are gone, and so is aiqh-minpath-* (before: the directory was left) 787ms
+   ✓ backlog 5: exit codes through the watchdog (2)
+     ✓ control: vitest's exit code is the script's (0 and 3), and the script removes its PATH directory (pass before and after) 1442ms
+     ✓ vitest ended by a signal n: the script exits 128 + n (143 for SIGTERM; before: 2) 312ms
+ ✓ tests/cli.test.ts (7 tests) 3787ms
+   ✓ aiqh verify (end-to-end) (7)
+     ✓ exits 0 and writes reports when all required checks pass 449ms
+     ✓ exits 1 when a required check fails, still runs the rest, and masks secrets 951ms
+     ✓ --fail-fast skips later checks and the verdict stays FAILED 582ms
+     ✓ exits 2 without writing a report when the config is invalid 484ms
+     ✓ exits 2 when the config file is missing 349ms
+     ✓ honours --config and --output-dir 512ms
+     ✓ prints a version 457ms
+ ✓ tests/cli-init-scan.test.ts (2 tests) 3587ms
+   ✓ aiqh init (CLI) (1)
+     ✓ proposal only → exit 0, nothing written; --write → file; second --write → exit 2; --force → exit 0 1913ms
+   ✓ aiqh security-scan (CLI) (1)
+     ✓ exit 0 when clean, exit 1 with a finding (value not printed), exit 2 outside git 1672ms
+ ✓ tests/regression-backlog20-unhandled.test.ts (6 tests) 3585ms
+   ✓ backlog 20: an exception nothing handled ends the CLI with exit 2, through the output boundary, after the clean-up (6)
+     ✓ an exception from a timer while a check runs: exit 2, one masked line, the check is gone 782ms
+     ✓ a rejected promise while a check runs: exit 2, one masked line, the check is gone 638ms
+     ✓ a second exception while the first is handled: still exit 2, one line, the check is gone 547ms
+     ✓ a SIGINT after the exception changes nothing: exit 2, the signal is not taken as an interruption 498ms
+     ✓ an exception after a SIGINT: the interruption keeps its exit code 130, the line is still written, the check is gone 666ms
+     ✓ an exception after the report was written (the verdict was fixed as PASSED): exit 2, never 0 452ms
+ ✓ tests/execute.test.ts (8 tests) 3777ms
+   ✓ executeCommand (8)
+     ✓ times out and kills the whole process group, including grandchildren 3318ms
+ ✓ tests/regression-backlog16-r3-probe-every-target.test.ts (2 tests) 3663ms
+   ✓ S-1: terminateActiveChildren probes every target during the grace period (2)
+     ✓ a later target that leaves on SIGTERM while an earlier one stays is probed, seen gone, and gets no SIGKILL 1693ms
+     ✓ control: an earlier target that leaves on SIGTERM while a later one stays: the later one gets SIGKILL, the earlier one nothing after its ESRCH 1963ms
+ ✓ tests/security-scan.test.ts (12 tests) 3378ms
+   ✓ scanRepository (8)
+     ✓ flags .gitignore that does not cover .env and .env.* 1154ms
+     ✓ ignores aiqh's own canonical markers but still finds a secret that follows one on the same line 336ms
+ ✓ tests/regression-r2-runner.test.ts (1 test) 3650ms
+   ✓ R2-002 killTree escalation survives the leader's close event (1)
+     ✓ SIGKILLs a TERM-ignoring grandchild that closed its stdio after the leader exited 3646ms
+ ✓ tests/regression-m2-2-builtin-r1-001-literal-typed-key.test.ts (39 tests) 5268ms
+   ✓ M2-2-BUILTIN-R1-001: the fixtures (1)
+     ✓ every fixture type-checks, except the enum (erasableSyntaxOnly) 463ms
+   ✓ M2-2-BUILTIN-R1-001: src/ (1)
+     ✓ src/ has no violation 4612ms
+ ✓ tests/regression-r1-runner.test.ts (1 test) 3542ms
+   ✓ R-004 killTree: SIGKILL escalation reaches the group after the leader exited (1)
+     ✓ kills a TERM-ignoring grandchild within the grace period 3541ms
+ ✓ tests/regression-backlog25-git-unknown.test.ts (5 tests) 1566ms
+   ✓ backlog 25: a git failure is shown as unknown, not as git's answer (2)
+     ✓ the commit lookup fails: "(commit: unknown)" (before: "(no commit)"); the report's git keeps commit null 458ms
+     ✓ both branch lookups fail: "(branch: unknown)" (before: "(detached)"); the report's git keeps branch null 412ms
+ ✓ tests/regression-backlog8c-o4-cwd-examination.test.ts (9 tests) 1368ms
+   ✓ backlog 8 O4: through the real verify command (the path changes after the config load) (3)
+     ✓ a check that makes the directory untraversable: the second check FAILS to start (exit 1, as for ENOENT) with 'cannot be examined (EACCES)' 480ms
+     ✓ control: a path that really is gone is still 'does not exist' (exit 1) 397ms
+     ✓ the new message goes through the output boundary: a secret-shaped name is masked and an ESC is written as notation 462ms
+ ✓ tests/regression-m2-2-builtin-r3-allow-branches.test.ts (129 tests) 105214ms
+   ✓ M2-2-BUILTIN-R3: the fixtures (2)
+     ✓ every source-only fixture type-checks, except the spread after stdio with a literal (TS2783) 1302ms
+     ✓ every edit of a repository file type-checks 45786ms
+   ✓ M2-2-BUILTIN-R3: R3-001: a writer of src/output.ts calls exactly its own terminal member with one argument that is Safe in every branch (8)
+     ✓ r1a_union_safe_error: reported 5944ms
+     ✓ r1g_union_safe_string: reported 4624ms
+     ✓ r1h_control_plain_string: reported 5710ms
+     ✓ r1b_console_trace: reported 3016ms
+     ✓ r1c_console_trace_no_arg: reported 3795ms
+     ✓ r1d_console_warn: reported 2977ms
+     ✓ r1e_stdout_end: reported 2081ms
+     ✓ r1f_control_real: not reported 1324ms
+   ✓ M2-2-BUILTIN-R3: R3-002: a writer / a creator of a brand is the top-level declaration of that name, not a local one of the same name (also K2: the callers of the issuers) (11)
+     ✓ r2a_local_safetext: reported 2486ms
+     ✓ r2b_method_safetext: reported 1827ms
+     ✓ r2c_nested_emitout: reported 1783ms
+     ✓ r2d_local_safejson: reported 2979ms
+     ✓ r2h_control_outside_creator: reported 1365ms
+     ✓ r2i_control_outside_creator_checked: reported 1402ms
+     ✓ r2e_local_issue_checked: reported 1631ms
+     ✓ r2f_local_issuemd: reported 1988ms
+     ✓ r2g_local_rejected: reported 2482ms
+     ✓ r2j_local_md_caller: reported 2590ms
+     ✓ r2k_local_checkvalue_caller: reported 1959ms
+   ✓ M2-2-BUILTIN-R3: src/ (1)
+     ✓ src/ has no violation (output guard and brand guard) 5680ms
+ ✓ tests/regression-backlog16-r2-confirm-origin.test.ts (1 test) 1914ms
+   ✓ B16-R2-002: the bounded wait for `close` counts from the SIGKILL when the SIGKILL came first (1)
+     ✓ close pending, SIGKILL sent, the group seen gone later: the run settles CONFIRM_MS after the SIGKILL 1912ms
+ ✓ tests/cli-review-import.test.ts (6 tests) 2456ms
+   ✓ aiqh review-import (real CLI) (6)
+     ✓ is listed in the help and has its own help (exit 0) 696ms
+     ✓ a usage error (--round 0) is exit 2, says what is wrong, and writes nothing 440ms
+     ✓ imports a review (exit 0) into docs/reviews/<label>/findings-r<N>.json 453ms
+ ✓ tests/regression-m2-1-r2-checked-inventory.test.ts (2 tests) 861ms
+   ✓ M2-1 R2: checked strings and the option inventory (2)
+     ✓ found by the typed template: latest.json values for another commit (git.commit, git.dirty) cannot change the Markdown 858ms
+ ✓ tests/regression-backlog8c-o5-o9-init-examination.test.ts (18 tests) 1172ms
+ ✓ tests/regression-r4-report.test.ts (2 tests) 3330ms
+   ✓ R4-002 interrupted checks keep timedOut / outputTruncated (2)
+     ✓ outputTruncated stays true when a chatty check is interrupted 305ms
+     ✓ timedOut stays true when an abort overlaps a timeout 3023ms
+ ✓ tests/regression-m2-0-007-security-allow.test.ts (6 tests) 1081ms
+   ✓ M2-0 §7: security.allow (6)
+     ✓ suppresses matching findings, reports the count and the rules used, exit reflects the rest 329ms
+ ✓ tests/regression-m1r1-005-gitignore-negation.test.ts (5 tests) 910ms
+ ✓ tests/regression-backlog9-cli-file-output.test.ts (3 tests) 1134ms
+   ✓ backlog 9: aiqh verify writes no forbidden character raw (real CLI) (2)
+     ✓ a check prints all of them; the three report files and the terminal hold none, and the JSON still has the data 405ms
+     ✓ a name with an LF and a heading does not add a heading to latest.md 447ms
+ ✓ tests/regression-m2-2-r3-003-output-guard.test.ts (7 tests) 3043ms
+   ✓ M2-2-R3-003: inside src/output.ts only the two writers reach the terminal, with Safe values (3)
+     ✓ src/ has no violation, and every terminal reference of src/ is inside emitOut / emitErr 2883ms
+ ✓ tests/regression-m2-0r2-001-window-completeness.test.ts (23 tests) 754ms
+ ✓ tests/regression-m2-1-r1-004-markdown-structure.test.ts (1 test) 726ms
+   ✓ M2-1-R1-004: metadata cannot change the packet's Markdown structure (1)
+     ✓ LF + '# Fake', backtick runs and backslash + pipe in names, globs, check names, subjects and paths 724ms
+ ✓ tests/regression-m1r2-001-untracked-env.test.ts (5 tests) 915ms
+ ✓ tests/regression-m2-2-r3-002-json-keys.test.ts (10 tests) 958ms
+   ✓ M2-2-R3-002 control: every command's --json has identifier keys only (user-derived values in the output) (3)
+     ✓ review-packet --json: a changed file and the request file name with U+202E (findings) 634ms
+ ✓ tests/regression-m2-1-r2-005-inline-backtick.test.ts (1 test) 729ms
+   ✓ M2-1-R2-005: no raw backtick inside inline code (1)
+     ✓ paths, globs, file names, verify values and commit subjects with backticks render as whole code spans without U+0060 727ms
+ ✓ tests/regression-m2-0r1-001-window-limits.test.ts (8 tests) 738ms
+   ✓ M2-0-R1-001: cross-field validation of the window settings (4)
+     ✓ the reviewer's reproduction (10 / 20 / 64 with an 11-char line) ends with exit 2 through the CLI 373ms
+ ✓ tests/regression-m2-0-008-security-settings.test.ts (4 tests) 465ms
+ ✓ tests/regression-m1r1-002-multiline-pem.test.ts (5 tests) 797ms
+ ✓ tests/regression-m2-0r3-001-private-key-anchor.test.ts (8 tests) 646ms
+   ✓ M2-0-R3-001: property test with limit-derived lengths (1)
+     ✓ whole-line findings are never lost; a secret within maxCarryBytes keeps its category 466ms
+ ✓ tests/regression-backlog35-url-credential-linear.test.ts (21 tests) 853ms
+   ✓ backlog 35 (a): maskSecrets redacts exactly what the url-credential regex redacted (12)
+     ✓ random inputs from a fixed seed: identical output, and the oracle redacts in many of them 802ms
+ ✓ tests/regression-item38-format-duration.test.ts (17 tests) 795ms
+   ✓ item 38: the rounding carries into the next unit (7)
+     ✓ no duration from 1 s to 2 h is shown as 60.0s or with 60 seconds, and the shown value is the duration rounded to its unit 786ms
+ ✓ tests/regression-m2-0r1-003-untracked-gitignore-write.test.ts (3 tests) 458ms
+ ✓ tests/regression-backlog16-r1-win32-branch.test.ts (1 test) 880ms
+   ✓ B16-R1-001 control: the Windows branch keeps sending its signals (1)
+     ✓ win32: SIGTERM, then SIGKILL after the grace period, to the child's pid only; no group is probed or signalled 878ms
+ ✓ tests/regression-m2-0-004-tracked-gitignore.test.ts (3 tests) 619ms
+ ✓ tests/regression-m2-0-006-key-value.test.ts (6 tests) 522ms
+   ✓ M2-0 §6: key-value scanning (4)
+     ✓ detects secret-like assignments in code, JSON, dotenv and shell forms; reports file:line only 332ms
+ ✓ tests/regression-m2-2-r3-005-option-inventory.test.ts (7 tests) 859ms
+   ✓ M2-1-R3-005: the option inventory against the Command object (7)
+     ✓ importing the program factory has no side effects (no parse, no output, no signal handler, no exit) 561ms
+ ✓ tests/regression-m2-0-003-artifact-probes.test.ts (4 tests) 636ms
+ ✓ tests/regression-backlog10-check-env.test.ts (6 tests) 703ms
+   ✓ backlog 10: aiqh verify starts a check with that environment (real CLI) (1)
+     ✓ a parent with FORCE_COLOR, PY_COLORS and CLICOLOR_FORCE: the check sees NO_COLOR=1, no FORCE_COLOR, no PY_COLORS, and still CLICOLOR_FORCE 686ms
+ ✓ tests/regression-m1r1-004-large-text.test.ts (3 tests) 675ms
+ ✓ tests/review-import.test.ts (89 tests) 316ms
+ ✓ tests/regression-m1r2-005-artifacts-gitignore.test.ts (6 tests) 510ms
+ ✓ tests/regression-m2-0-001-carry-over.test.ts (3 tests) 321ms
+ ✓ tests/regression-backlog10-r1-004-options-env.test.ts (5 tests) 247ms
+ ✓ tests/regression-m2-0r1-002-scan-output-mask.test.ts (3 tests) 284ms
+ ✓ tests/regression-r2-cli-signal.test.ts (1 test) 617ms
+   ✓ R2-002 terminateActiveChildren (CLI signal path) (1)
+     ✓ SIGKILLs TERM-ignoring descendants of every active check after the grace period 616ms
+ ✓ tests/regression-m2-2-r5-001-test-cleanup.test.ts (5 tests) 525ms
+ ↓ tests/zip-interop.test.ts (2 tests | 2 skipped)
+ ✓ tests/regression-m1r1-001-untracked-scan.test.ts (2 tests) 280ms
+ ✓ tests/regression-m2-0-002-write-gitignore-repair.test.ts (1 test) 251ms
+ ✓ tests/init.test.ts (9 tests) 251ms
+ ✓ tests/security-compat.test.ts (3 tests) 170ms
+ ✓ tests/regression-m1r2-002-stat-errors.test.ts (2 tests) 169ms
+ ✓ tests/regression-m2-2-ri-r1-003-reimport.test.ts (8 tests) 620ms
+ ✓ tests/regression-m2-0-005-block-dedupe.test.ts (1 test) 202ms
+ ✓ tests/regression-r1-git.test.ts (2 tests) 187ms
+ ✓ tests/regression-m2-2-ri-r1-001-entities.test.ts (45 tests) 299ms
+ ✓ tests/regression-r4-finalize.test.ts (2 tests) 223ms
+ ✓ tests/docs-no-raw-separators.test.ts (1 test) 173ms
+ ✓ tests/regression-backlog8a-o2-untraversable-path.test.ts (12 tests) 165ms
+ ✓ tests/regression-r4-output-tail.test.ts (2 tests) 140ms
+ ✓ tests/regression-rest2-n1-history-name-race.test.ts (3 tests) 157ms
+ ✓ tests/regression-r1-verify.test.ts (1 test) 146ms
+ ✓ tests/regression-backlog8a-o7-o8-init-dangling-link.test.ts (13 tests) 223ms
+ ✓ tests/regression-backlog8d-o6-context-throw.test.ts (22 tests) 143ms
+ ✓ tests/regression-backlog23-r1-boundary.test.ts (7 tests) 158ms
+ ✓ tests/regression-backlog9-report-file-notation.test.ts (93 tests) 176ms
+ ✓ tests/config.test.ts (18 tests) 37ms
+ ✓ tests/regression-m2-2-r4-001-json-data.test.ts (34 tests) 51ms
+ ✓ tests/raw-chars.test.ts (8 tests) 113ms
+ ✓ tests/regression-backlog24-security-scan-root.test.ts (4 tests) 96ms
+ ✓ tests/regression-m2-2-ri-r1-002-write-atomic.test.ts (8 tests) 65ms
+ ✓ tests/regression-r2-config.test.ts (5 tests) 27ms
+ ✓ tests/regression-r5-utf8-tail.test.ts (1 test) 72ms
+ ✓ tests/regression-backlog23-init-symlink-outside.test.ts (6 tests) 90ms
+ ✓ tests/regression-r7-output-buffer.test.ts (5 tests) 54ms
+ ✓ tests/regression-m1r1-008-schema-parity.test.ts (4 tests) 11ms
+ ✓ tests/regression-m1r1-003-init-no-script-bodies.test.ts (4 tests) 78ms
+ ✓ tests/regression-backlog26-package-json-shape.test.ts (16 tests) 80ms
+ ✓ tests/mask.test.ts (25 tests) 7ms
+ ✓ tests/regression-backlog9-report-json-copy.test.ts (10 tests) 37ms
+ ✓ tests/regression-m1r1-010-init-write-errors.test.ts (2 tests) 35ms
+ ✓ tests/regression-m2-0r3-001-regex-equivalence.test.ts (5 tests) 44ms
+ ✓ tests/regression-b20-r1-001-node-options-rule.test.ts (57 tests) 15ms
+ ✓ tests/zip.test.ts (5 tests) 10ms
+ ✓ tests/regression-m1r1-007-local-tool-evidence.test.ts (5 tests) 16ms
+ ✓ tests/regression-m2-0r3-002-url-scheme-mask.test.ts (5 tests) 6ms
+ ✓ tests/report.test.ts (4 tests) 18ms
+ ✓ tests/regression-r1-config.test.ts (3 tests) 18ms
+ ✓ tests/regression-m1r1-006-required-zero.test.ts (1 test) 44ms
+ ✓ tests/regression-m2-2-r7-json-data-proxy.test.ts (17 tests) 20ms
+ ✓ tests/regression-r3-package.test.ts (5 tests) 22ms
+ ✓ tests/regression-m1r1-009-python-prerequisites.test.ts (3 tests) 17ms
+ ✓ tests/regression-m1r2-003-python-executable.test.ts (3 tests) 25ms
+ ✓ tests/regression-m2-1-r2-008-version-consistency.test.ts (1 test) 4ms
+ ✓ tests/regression-r6-tail.test.ts (2 tests) 8ms
+ ✓ tests/adapters-resolve.test.ts (5 tests) 9ms
+ ✓ tests/regression-r5-signals.test.ts (1 test) 6ms
+ ✓ tests/regression-r1-mask.test.ts (18 tests) 7ms
+ ✓ tests/schema.test.ts (2 tests) 7ms
+ ✓ tests/verdict.test.ts (6 tests) 7ms
+ ✓ tests/regression-m2-0r2-002-control-chars.test.ts (2 tests) 44ms
+ ✓ tests/regression-r2-mask.test.ts (14 tests) 7ms
+ ✓ tests/adapters-node.test.ts (9 tests) 9ms
+ ✓ tests/adapters-python.test.ts (7 tests) 5ms
+ ✓ tests/regression-r3-mask.test.ts (8 tests) 7ms
+ ✓ tests/markdown.test.ts (4 tests) 3ms
+ ✓ tests/file-write-sites.test.ts (40 tests) 104ms
+ ✓ tests/regression-m2-2-r3-006-external-commands.test.ts (7 tests) 44ms
+
+ Test Files  155 passed | 1 skipped (156)
+      Tests  2034 passed | 2 skipped (2036)
+   Start at  08:31:29
+   Duration  122.73s (tests 88%, import 11%, transform 1%)
+

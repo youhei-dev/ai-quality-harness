@@ -1,0 +1,16 @@
+
+/work/sample-eslint/src/a.js
+  1:7   error    'unused' is assigned a value but never used  no-unused-vars
+  2:1   warning  Unexpected console statement                 no-console
+  3:7   error    Expected '===' and instead saw '=='          eqeqeq
+  3:13  warning  Unexpected console statement                 no-console
+
+/work/sample-eslint/src/b.js
+  1:1  warning  Unexpected console statement  no-console
+
+/work/sample-eslint/src/d.js
+  1:11  error  Parsing error: Unexpected token ;
+
+✖ 6 problems (3 errors, 3 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

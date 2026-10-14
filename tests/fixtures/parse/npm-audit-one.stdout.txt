@@ -1,0 +1,13 @@
+# npm audit report
+
+minimist  1.0.0 - 1.2.5
+Severity: critical
+Prototype Pollution in minimist - https://github.com/advisories/GHSA-xvch-5gv4-984h
+fix available via `npm audit fix --force`
+Will install minimist@1.2.8, which is outside the stated dependency range
+node_modules/minimist
+
+1 critical severity vulnerability
+
+To address all issues, run:
+  npm audit fix --force

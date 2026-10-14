@@ -1,6 +1,7 @@
 import path from "node:path";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
 import { lookupGit } from "../git/info.ts";
+import { consoleLines } from "../parse/describe.ts";
 import { buildReport } from "../report/build-report.ts";
 import { formatDuration } from "../report/markdown.ts";
 import { writeReports } from "../report/write.ts";
@@ -111,6 +112,8 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
       const tag = result.status === "PASS" ? "PASS" : result.status === "FAIL" ? "FAIL" : "SKIP";
       const detail = result.errorSummary ? ` — ${maskSecrets(result.errorSummary)}` : "";
       log(`      ${tag}  ${formatDuration(result.durationMs)}${detail}`);
+      // ADR-0028: what was read from the output (display only); a name is one line, masked and turned into notation by log()
+      for (const line of consoleLines(result.parsed)) log(`      ${line}`);
       if (result.status === "FAIL") {
         printTail(log, "stderr", result.stderrTail, options.verbose ?? false);
         printTail(log, "stdout", result.stdoutTail, options.verbose ?? false);
