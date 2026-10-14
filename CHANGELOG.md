@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.8.0 — output parsers for display only: vitest, eslint, npm audit and the aiqh security-scan entries in checks[].parsed; the key-value false positive record defined (ADR-0028, ADR-0029)
+
+- **出力パーサ**（M2-2 の残り。Q1。ADR-0028）: verify が各 check の出力の末尾を読み、レポートの各 check の最後に `parsed` の欄を書く。**表示のためだけで、判定・分類・終了コード・check のほかの欄は見ない**（P1）。読む関数は例外を投げない（P2）。6 commit: `b93f6f5`（Q1）・`4e6e585`（Q2）・`a145b53`（ADR-0028）・`78f9adb`（ADR-0029）・`3648544`（P3 のテストの時計）・この release の commit
+  - `parsed`: `tool`（`vitest` / `eslint` / `npm-audit` / `aiqh-security-scan` / null）、`status`（`parsed` / `unparsed` / `not-applicable`）、`reason`（決まった語だけ）、`truncated`、`counts`（ツールごとの決まったキー）、`items`（`{ kind, name }`、最大 50）、`itemsOmitted`
+  - **パーサの選び方**: コマンドの語（`vitest`・`eslint`・`npm … audit`・`aiqh`/`cli.ts`/`cli.js` と `security-scan`）。コマンドが 1 つの `npm run <script>` / `npm test` なら、作業ディレクトリの package.json の script（1 段）。**設定の欄は無く、コマンドは書き換えない**（P5）。合うツールが無い・2 つ以上なら `not-applicable`。package.json が読めない（リンク・ディレクトリ・1 MiB 超・不正な JSON・ENOENT 以外の失敗）なら `unparsed`（`script-unreadable`。ADR-0022）
+  - **vitest**: 要約の行（`Test Files` と `Tests`。vitest の語だけ、内訳は合計以下）と `Errors` の行。失敗の名前は `Failed Tests` / `Failed Suites` の節の `FAIL` の行。**eslint**（stylish）: `✖ N problems (E errors, W warnings)`、何も出さず終了コード 0 なら 0 件、error の位置とルールを名前に。**npm audit**（テキスト）: 3 つの要約の形、`Severity:` の行が続くパッケージを名前に。語や数が合わない要約は `unexpected-summary`（別のツールの出力を件数として出さない）
+  - **上限**（P3）: 各ストリームの末尾 1 MiB（切った最初の部分行は読まない）・1 行 4,096・名前 50 × 300・1,000 ms（1,024 行ごとに時計を見る）・数は 15 桁まで。どれも 1 回の走査。敵対的な 12 の形で 1 MiB でも数十 ms
+  - **マスクと表記**（P4）: 名前は 1 行まるごとをマスクしてから切る。レポート・Markdown・端末は従来の出口を通る（入力全体はマスクしない: masker の超線形の形があるため。項目 40）
+  - 端末: 各 check の状態の行の直後に `parsed: <tool> — <要約>` と名前を最大 10。`not-applicable` は何も出さない。latest.md: どれかが読まれたときだけ `## Parsed Output`
+  - `schemaVersion` は 1 のまま（足すだけ。最上位のキーは変えない。review-packet の Verification の節は変わらない）。M1 の型の下書き `OutputParser` は消した（`src/parse/tool.ts` に置き換え。ADR-0011 の状態の行）
+- **security-scan の項目**（Q2）: security の check が `aiqh security-scan` のとき、oversized-candidate・`security.allow` で許したもの・使われた／期限切れ／使われないルール・各 finding を `parsed.items` に（種類は `kind`。判定に効く finding と効かない許可が混ざるので「警告」とは呼ばない）。scan の終了コードは変えない（oversized-candidate はいままでどおり finding）
+- **key-value 誤検出の継続記録の定義**（Q3。ADR-0029。実装はしない）: 何を誤検出と呼ぶか、扱いの順（書き換え → 狭い `security.allow`〈`reason` は `key-value false positive: <分類>: <理由>`〉→ パターンの変更は ADR）、記録の場所（`reason` と、最初の 1 件で作る `docs/ops/key-value-false-positives.md`。値は書かない）、見直しの契機
+- 利用者に見える変化: レポートの各 check の `parsed`、latest.md の `## Parsed Output`、verify の端末の `parsed:` の行（パーサの合う check だけ）。判定・終了コード・ほかの欄・設定の仕様は変わらない。推奨: 各ツールは既定のテキストの出力のまま使う（JSON の出力は `unparsed`）
+- テスト 2,036 → 2,141 件（156 → 160 ファイル）。先に書いたテスト 105 件（parse-output 48・parse-select 41・parse-verify 8・parse-security 8）は `91ee0fc` で 4 ファイルとも読み込めずに FAIL、Q2 に関わる 13 件は Q1 の `b93f6f5` で FAIL。src を 8 通りに壊すと、それぞれ関係するテストが落ちることを確かめた。P3 の「線形の読みは時間の上限に届かない」は、パーサが時計を見るたびに進む時計で確かめる（機械の負荷に依らない。壁時計の上限 3 秒は別に確かめる）。fixture は実際の出力の写し（ホームのパスは `/work/...` に置き換えた）。既存テストの期待値は変えていない。`package.json` version 0.8.0（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`tests/structure/`・書き込み箇所の表・禁止文字の集合・npm の保護設定は変えていない
+
 ## v0.7.0 — commit f9258c838050bd55ab02204555449b439631070e / tag object b6d6755be9f2e8514911f140d04f838377b18cab — aiqh review-check (review-import v2): the state of the findings files checked read only, the review loop shown; the re-fix loop procedure; formatDuration carries; the hasBrand cut pinned (ADR-0027)
 
 - **`aiqh review-check` を足した**（review-import の v2。M2-2。6 commit: `4fd561f`・`040ae08`・`b2a557b`・`0767236`・`14f8b23`・この release の commit。ADR-0027）
