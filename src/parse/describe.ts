@@ -35,6 +35,12 @@ export function summaryText(p: ParsedOutput): string {
       const severities = ["low", "moderate", "high", "critical"].filter((s) => n(c, s) > 0).map((s) => `${n(c, s)} ${s}`);
       return `${plural(n(c, "vulnerabilities"), "vulnerability", "vulnerabilities")}${severities.length > 0 ? ` (${severities.join(", ")})` : ""}`;
     }
+    case "aiqh-security-scan":
+      return (
+        `findings ${n(c, "findings")} (secret-shaped ${n(c, "secretShaped")}, oversized candidates ${n(c, "oversizedCandidates")}, tracked .env ${n(c, "trackedEnv")}, ` +
+        `untracked .env not ignored ${n(c, "untrackedEnv")}, .gitignore ${n(c, "gitignore")}); suppressed by security.allow ${n(c, "suppressed")}; ` +
+        `allow rules used ${n(c, "allowRulesUsed")}, expired ${n(c, "expiredAllowRules")}, unused ${n(c, "unusedAllowRules")}`
+      );
     default:
       return "-";
   }

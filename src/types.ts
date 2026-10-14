@@ -106,7 +106,7 @@ export interface ExecutionResult {
 }
 
 /** The tools whose output aiqh reads (ADR-0028). pytest is not one of them yet (ROADMAP). */
-export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit"] as const;
+export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit", "aiqh-security-scan"] as const;
 
 export type ParserTool = (typeof PARSER_TOOLS)[number];
 
@@ -119,7 +119,7 @@ export type ParserTool = (typeof PARSER_TOOLS)[number];
  */
 export type ParseReason = "not-run" | "no-parser" | "several-tools" | "script-unreadable" | "no-summary" | "unexpected-summary" | "time-limit" | "parser-error";
 
-/** One named entry read from an output: a failed test, a lint error, a vulnerable package (ADR-0028). */
+/** One named entry read from an output: a failed test, a lint error, a vulnerable package, a security-scan entry (ADR-0028). */
 export interface ParsedItem {
   kind: string;
   /** Masked as the whole line, then cut to PARSED_NAME_MAX. */

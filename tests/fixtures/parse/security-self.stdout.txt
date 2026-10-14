@@ -1,0 +1,14 @@
+
+> ai-quality-harness@0.7.0 security
+> node src/cli.ts security-scan
+
+aiqh security-scan — /work/aiqh
+tracked files: 412, untracked (not ignored): 0, scanned: 412, skipped binary: 0
+scanned categories: private-key, url-credential, anthropic, openai, aws, github, slack, google, gitlab, jwt, key-value (key-value: only values that look like secrets)
+not scanned (mask-only categories; values in reports are still redacted):
+  - bearer: mask-only: bare 'Bearer <token>' shapes match ordinary code and prose; values are still redacted from reports
+  - basic: mask-only: 'Basic <base64>' shapes match ordinary text; values are still redacted from reports
+
+findings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)
+
+SECURITY SCAN: no findings

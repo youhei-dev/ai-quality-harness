@@ -1,8 +1,8 @@
 /**
  * Which parser reads a check's output (ADR-0028, P5): decided by aiqh from the command alone — no config field, and the command is
  * never changed. The command is split into words (quotes dropped; `;`, `|`, `&`, `(` and `)` end a simple command) and a tool is named
- * by a word's last path segment: `vitest` / `vitest.mjs`, `eslint` / `eslint.js`, `npm` followed by `audit`. When the whole command
- * is one `npm run <script>` / `npm run-script <script>`
+ * by a word's last path segment: `vitest` / `vitest.mjs`, `eslint` / `eslint.js`, `npm` followed by `audit`, `security-scan` with
+ * `aiqh` / `cli.ts` / `cli.js` in the same simple command. When the whole command is one `npm run <script>` / `npm run-script <script>`
  * / `npm test` (`t`, `tst`), the script of package.json in the check's directory is read instead (one level; npm's lookup of a parent
  * package.json is not followed). The kind and the name of a check are not used: they do not tell which tool runs. No tool, or more
  * than one: not-applicable. A package.json that exists but cannot be read is unparsed (ADR-0022: unreadable is not absent).
@@ -92,6 +92,7 @@ function toolsIn(segments: string[][]): Set<ParserTool> {
     if (names.includes("eslint") || names.includes("eslint.js")) tools.add("eslint");
     const npm = names.indexOf("npm");
     if (npm !== -1 && names.slice(npm + 1).includes("audit")) tools.add("npm-audit");
+    if (names.includes("security-scan") && (names.includes("aiqh") || names.includes("cli.ts") || names.includes("cli.js"))) tools.add("aiqh-security-scan");
   }
   return tools;
 }

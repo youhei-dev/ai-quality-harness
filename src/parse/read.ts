@@ -7,6 +7,7 @@
 import type { ExecutionResult, ParsedItem, ParsedOutput, ParseReason, ParserTool, ResolvedCheck } from "../types.ts";
 import { ESLINT_PARSER } from "./eslint.ts";
 import { NPM_AUDIT_PARSER } from "./npm-audit.ts";
+import { SECURITY_SCAN_PARSER } from "./security-scan.ts";
 import { selectParser, type ScriptsRead } from "./select.ts";
 import { Budget, PARSED_ITEMS_MAX, prepareStream, TimeLimitReached } from "./text.ts";
 import type { ToolParser } from "./tool.ts";
@@ -16,6 +17,7 @@ export const PARSERS: Readonly<Record<ParserTool, ToolParser>> = {
   vitest: VITEST_PARSER,
   eslint: ESLINT_PARSER,
   "npm-audit": NPM_AUDIT_PARSER,
+  "aiqh-security-scan": SECURITY_SCAN_PARSER,
 };
 
 /** For tests: the clock, the parsers and the package.json reader can be replaced. Not reachable from the config or the CLI. */

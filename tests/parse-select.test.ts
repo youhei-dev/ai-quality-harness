@@ -36,6 +36,10 @@ describe("the command names the tool", () => {
     ["node node_modules/eslint/bin/eslint.js .", "eslint"],
     ["npm audit --audit-level=high", "npm-audit"],
     ["npm --loglevel=error audit", "npm-audit"],
+    ["npx aiqh security-scan", "aiqh-security-scan"],
+    ["aiqh security-scan --config aiqh.config.jsonc", "aiqh-security-scan"],
+    ["node src/cli.ts security-scan", "aiqh-security-scan"],
+    ["node dist/cli.js security-scan", "aiqh-security-scan"],
     ['"vitest" run', "vitest"],
   ])("%s -> %s", (command, tool) => {
     expect(selectParser(command, dir())).toEqual({ kind: "tool", tool });
@@ -56,13 +60,14 @@ describe("the command names the tool", () => {
 });
 
 describe("npm run <script> / npm test: the script in the check's package.json", () => {
-  const scripts = { lint: "eslint .", test: "vitest run", "test:minpath": "node scripts/test-minimal-path.ts", build: "tsc -p tsconfig.build.json", dependency: "npm audit --audit-level=high", both: "eslint . && vitest run" };
+  const scripts = { lint: "eslint .", test: "vitest run", "test:minpath": "node scripts/test-minimal-path.ts", security: "node src/cli.ts security-scan", build: "tsc -p tsconfig.build.json", dependency: "npm audit --audit-level=high", both: "eslint . && vitest run" };
   it.each([
     ["npm run lint", { kind: "tool", tool: "eslint" }],
     ["npm run-script lint", { kind: "tool", tool: "eslint" }],
     ["npm test", { kind: "tool", tool: "vitest" }],
     ["npm t", { kind: "tool", tool: "vitest" }],
     ["npm run test -- --bail 1", { kind: "tool", tool: "vitest" }],
+    ["npm run security", { kind: "tool", tool: "aiqh-security-scan" }],
     ["npm run dependency", { kind: "tool", tool: "npm-audit" }],
     ["npm run test:minpath", { kind: "none", status: "not-applicable", reason: "no-parser" }],
     ["npm run build", { kind: "none", status: "not-applicable", reason: "no-parser" }],

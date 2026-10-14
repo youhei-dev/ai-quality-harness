@@ -227,7 +227,7 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     "npm audit packages": (n) => ({ stdout: `# npm audit report\n\n${fill("a  1\nSeverity: high\n", n)}` }),
     "digits": (n) => ({ stdout: fill(`Tests  ${"1".repeat(1000)} passed (1)\n`, n) }),
   };
-  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit"];
+  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan"];
   it.each(Object.keys(shapes))("%s", (shape) => {
     const make = shapes[shape];
     if (make === undefined) throw new Error(shape);
