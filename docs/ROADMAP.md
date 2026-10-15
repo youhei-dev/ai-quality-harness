@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-15
+最終更新: 2026-10-16
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -590,7 +590,13 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - 先に書いたテスト 29 件（`tests/regression-m2-2-ps-r1-001-markdown-names.test.ts`）は、`2e7d2b0` で 27 件 FAIL・2 件 PASS（対照）。src を 8 通りに壊して、どれも捕まることを確かめた（`fenceFor` の長さを最長の並びと同じにする形は、不変条件の 1 件だけが捕まえる。一覧の行は fence を閉じられないため）。テスト 2,141 → 2,170 件（160 → 161 ファイル）。既存テストの期待値は変えていない
   - `findings-r1.json` の M2-2-PS-R1-001 を `resolved` にした（`fixedIn` は `b147f9d`）。`review-check --label m2-2-parsers` は exit 0・`REVIEW LOOP: complete`
   - `package.json` 0.8.1（`package-lock.json` は 0.5.35 のまま）。独立レビュー（label `m2-2-parsers`、R2、接頭辞 `M2-2-PS`、範囲 `v0.8.0..v0.8.1`）を付ける
-- 次: **波 2（M3 の前半: 自己 CI と手順書）は v0.5.45 で終えた**（自己 CI・手順書・CODEOWNERS。Branch Protection は、Public 化か有料のプランの判断〈波 4〉の後）。**波 3（M2-2 の本体: 項目 15）は v0.6.0 で `aiqh review-import` v1（取り込みだけ）を入れた**。その独立レビュー R1 は Medium 3（上の記録）で、**v0.6.1 で 3 件を直し、`findings-r1.json` の 3 件を `resolved` にした**。**R2 は指摘なしで、m2-2-review-import のレビューを終えた**（ADR-0026 の決定 18: 検査の前提）。**v0.7.0 で review-import の v2 を `aiqh review-check` として入れ（ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）を書き、項目 37・38 を閉じた**。**その独立レビュー（m2-2-review-check）R1 は指摘なしで、R1 で終えた**（ADR-0027 の追記）。**v0.8.0 で M2-2 の残り（出力パーサ・security-scan の項目・key-value 誤検出の記録の定義）を入れた**（ADR-0028・0029。pytest は項目 39）。**その独立レビュー（m2-2-parsers）R1 は Medium 1（上の記録。VALID）で、v0.8.1 で直して `resolved` にした**。次は **v0.8.1 の独立レビュー**（label `m2-2-parsers`、R2）→ M2-2 の完了の判断 → 波 4 の準備。CI は、main への push で続けて 5 回緑に届き、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる」を入れた（ADR-0025 の追記）。Ubuntu の時間の見張り（`unit`・`unit-minpath` がチェックの上限の 80% を超えたら対策を決める）も続ける。Windows を対象にするかは後で決める。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 4**（M3 の後半: 配布・再利用ワークフロー。Public 化・配布の方式の人間の判断の後）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 39（pytest の出力パーサ）・40（masker の private-key の形の超線形。Low）。37・38 は v0.7.0 で閉じた。状態を変えるコマンドと `response-rN.md` の生成は review-import の v3（ADR-0027 の代替案）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は波 5）。終わったレビュー（以後は依頼しない）: m2-2-review-check は R1、m2-2-review-import は R2、バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
+  - CI（タグの前の確かめ）: release commit `a467093` の push（`2e7d2b0..a467093`）にできた workflow `ci` の run は **1 つだけ**（38807960457。event push・branch main）で、`verify (ubuntu)` の **success** を確かめてからタグを付けた（`measure (windows)` は skipped。タグの push では run はできない）。`verify (ubuntu)` はジョブ 11 分 31 秒（verify の duration 11m08s、VERIFY PASSED 8/8）。`unit` 5m24s（324 秒、上限 600 秒の 54.0%）・`unit-minpath` 5m29s（329 秒、54.8%）で、見張りの線（72%、432 秒）にも 80% にも届いていない（記録だけ）。タグ v0.8.1 = commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537
+  - タグの後の手元の self verify（R2 のパケットの Verification の節のため）: 1 回目は、負荷で `unit-minpath` の中の型を読むガードのテスト 5 件が 30 秒の時間切れになり FAILED（直後の 15 分平均 91.53）。静かなときの 2 回目は PASSED（同じ commit は単体検証の verify と `verify:dist` でも PASS）。パケットは 2 回目の結果を使った
+- v0.8.1 の後（docs だけの 1 commit。版は 0.8.1 のまま、タグなし）: **独立レビュー（m2-2-parsers）R2 は High 0・Medium 0・Low 0**、R1 の M2-2-PS-R1-001 は「解消」。**m2-2-parsers のレビューは R2 で終えた**（ADR-0028 の追記）。v0.8.1 の `aiqh review-import` で取り込み（exit 0、`High 0 / Medium 0 / Low 0; open 0`、`REVIEW LOOP: complete`）、続けて `aiqh review-check --label m2-2-parsers`（exit 0、`R1 to R2`、`previous: M2-2-PS-R1-001 (R1, resolved) — R2: 解消`、警告 0、`REVIEW LOOP: complete`）。原文・対応記録・`findings-r2.json` は `docs/reviews/m2-2-parsers/`
+  - レビュアーの但し書き（指摘ではない）: 独立の実行はしていない、check の名前・コマンド・作業ディレクトリなどの表記上の制約は既知の限界、外部のレンダラ・未提示の読み手との互換は断言しない。受け止めは `response-r2.md`
+  - CHANGELOG の v0.8.1 の見出しに commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537 を記入した
+  - M2-2 の完了条件の「本体の自己 verify PASS」に、v0.8.1 で確かめたことを書いた（下の完了条件）。**M2-2 を完了とするかは人間の判断**
+- 次: **波 2（M3 の前半: 自己 CI と手順書）は v0.5.45 で終えた**（自己 CI・手順書・CODEOWNERS。Branch Protection は、Public 化か有料のプランの判断〈波 4〉の後）。**波 3（M2-2 の本体: 項目 15）は v0.6.0 で `aiqh review-import` v1（取り込みだけ）を入れた**。その独立レビュー R1 は Medium 3（上の記録）で、**v0.6.1 で 3 件を直し、`findings-r1.json` の 3 件を `resolved` にした**。**R2 は指摘なしで、m2-2-review-import のレビューを終えた**（ADR-0026 の決定 18: 検査の前提）。**v0.7.0 で review-import の v2 を `aiqh review-check` として入れ（ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）を書き、項目 37・38 を閉じた**。**その独立レビュー（m2-2-review-check）R1 は指摘なしで、R1 で終えた**（ADR-0027 の追記）。**v0.8.0 で M2-2 の残り（出力パーサ・security-scan の項目・key-value 誤検出の記録の定義）を入れた**（ADR-0028・0029。pytest は項目 39）。**その独立レビュー（m2-2-parsers）R1 は Medium 1（上の記録。VALID）で、v0.8.1 で直して `resolved` にした**。**R2 は指摘なしで、m2-2-parsers のレビューを R2 で終えた**（ADR-0028 の追記）。次は **M2-2 の完了の判断（人間）** → **波 4（M3 の後半: 配布・再利用ワークフロー）の準備**。CI は、main への push で続けて 5 回緑に届き、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる」を入れた（ADR-0025 の追記）。Ubuntu の時間の見張り（`unit`・`unit-minpath` がチェックの上限の 80% を超えたら対策を決める）も続ける。Windows を対象にするかは後で決める。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 4**（M3 の後半: 配布・再利用ワークフロー。Public 化・配布の方式の人間の判断の後）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 39（pytest の出力パーサ）・40（masker の private-key の形の超線形。Low）。37・38 は v0.7.0 で閉じた。状態を変えるコマンドと `response-rN.md` の生成は review-import の v3（ADR-0027 の代替案）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は波 5）。終わったレビュー（以後は依頼しない）: m2-2-parsers は R2、m2-2-review-check は R1、m2-2-review-import は R2、バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -746,7 +752,7 @@ M2-1 の教訓（R3）:
 - **正規表現やテキスト解析による構造テスト**（`as Checked` の grep、help の解析、外部コマンドの正規表現）**は迂回できる**。構造の保証には AST や実体（commander の `Command` オブジェクト）を使う（R3-004〜006）
 
 ### 内容（M2-1 以降。M2-0 の後に行う）
-- 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化（v0.8.0 で注記: vitest・eslint・npm audit と `aiqh security-scan` を入れた。レポートの各 check の `parsed`〈表示用。判定と終了コードは見ない〉。パーサはコマンドから aiqh が選ぶ。ADR-0028。pytest は項目 39）（v0.8.1 で注記: latest.md の名前の一覧はコードブロックの行、失敗の詳細の Summary は行内のコード。M2-2-PS-R1-001。ADR-0028 の追記）
+- 出力パーサの実装（M1 は `OutputParser` の型定義のみ）: vitest / pytest / eslint / npm audit の件数・失敗名をレポートに構造化（v0.8.0 で注記: vitest・eslint・npm audit と `aiqh security-scan` を入れた。レポートの各 check の `parsed`〈表示用。判定と終了コードは見ない〉。パーサはコマンドから aiqh が選ぶ。ADR-0028。pytest は項目 39）（v0.8.1 で注記: latest.md の名前の一覧はコードブロックの行、失敗の詳細の Summary は行内のコード。M2-2-PS-R1-001。ADR-0028 の追記）（v0.8.1 の後に注記: 独立レビュー m2-2-parsers は R2 で終えた。後に回したもの: pytest〈項目 39〉、key-value 誤検出の継続記録の実装〈ADR-0029 は定義だけ〉）
 - `aiqh review-packet`（v0.4.0、ADR-0014）: commit 範囲 `<from>..<to>` から、人間の依頼文・前回レビュー（任意）、commit メッセージ、変更ファイル一覧、
   ファイルごとの差分、`<to>` 時点の**変更ファイルの全文**、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ）で
   Markdown パケットを生成する。**実装者の自己評価・手書きの節は載せない**。不正な UTF-8・生文字・秘密の形を入力ごとと組み立て後の 2 段で検査し、
@@ -757,7 +763,7 @@ M2-1 の教訓（R3）:
 ### 完了条件
 - [x] M2-0 R1〜R3 の手作業パケットと同等以上の内容（ただし手書きの節〈Architecture Decisions / Verification Results の手書き表 / Known Risks〉を除く）が `aiqh review-packet` で自動生成される（M2-1、v0.4.4 で完了。R1〜R4 のパケットをこのコマンドで生成）
 - [x] 指摘 JSON に未対応（open）が残る間はループ未完了と表示される（v0.7.0 で完了。v0.6.0 で注記: v1 は取り込みの時に `open` の件数を表示する。終了コードには反映しない〈非目標〉。ループ未完了の表示は v2。ADR-0026）（v0.7.0 で注記: `aiqh review-check` が `REVIEW LOOP: incomplete (open N)` / `complete` を表示する。review-import も書いた後に同じ行を出す。終了コードには反映しない。ADR-0027）
-- [ ] 本体の自己 verify PASS
+- [x] 本体の自己 verify PASS（v0.8.1 の後に注記: v0.8.1 の release commit `a467093` で、各 commit の単体検証の `npm run verify`・`verify:dist`・CI の `verify (ubuntu)`〈run 38807960457〉が PASSED。タグの後の手元の 1 回目は負荷による時間切れで FAILED、静かなときの 2 回目は PASSED〈上の v0.8.1 の記録〉。**この欄の状態は事実の記録で、M2-2 を完了とするかは人間の判断**。見出しはまだ「すべて達成」にしない）
 
 ---
 

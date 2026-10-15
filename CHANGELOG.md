@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.8.1 — latest.md: the parsed names in a code block, the failure summary in a code span (m2-2-parsers R1, M2-2-PS-R1-001)
+## v0.8.1 — commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537 — latest.md: the parsed names in a code block, the failure summary in a code span (m2-2-parsers R1, M2-2-PS-R1-001)
 
 - **独立レビュー（m2-2-parsers）R1 の Medium 1 件を直した**（VALID。人間の決定: 案 A・範囲 S2。4 commit: `b147f9d`・`0648dbe`・`7a34fba` とこの release の commit。ADR-0028 の追記〈決定 10・11〉）
   - **M2-2-PS-R1-001**（`src/report/markdown.ts`）: latest.md の `## Parsed Output` の check ごとの名前の一覧を、1 つのコードブロック（info string `text`、fence は出力の末尾と同じ `fenceFor`）の行にした。ツールの出力から来る名前の中のリンク・画像・インライン HTML・文字参照・強調・自動リンクは、Markdown の構文として読まれない（数値の文字参照が、表示のときに禁止文字に戻ることもない）

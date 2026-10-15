@@ -179,3 +179,22 @@
 - 新規: `tests/regression-m2-2-ps-r1-001-markdown-names.test.ts`
 - 文書: この追記、ARCHITECTURE の §7.2、ROADMAP、CHANGELOG、README の状態の行
 - 依存関係・`package-lock.json`・禁止文字の集合・npm の保護設定・`tests/structure/`・既存テストの期待値は変えない
+
+## 追記（R2 の後: 独立レビュー m2-2-parsers R2 の結果。2026-10-16、docs だけ）
+
+### 文脈
+- v0.8.1 の独立レビュー R2（範囲 `v0.8.0..v0.8.1`、接頭辞 `M2-2-PS`）は **High 0・Medium 0・Low 0**。R1 の M2-2-PS-R1-001 は「解消」と評価された
+- 依頼文に先に書いた基準（High・Medium が 0）に達したので、**`m2-2-parsers` のレビューは R2 で終えた**（記録は `docs/reviews/m2-2-parsers/response-r2.md`）
+- レビュアーは静的な読解だけで、コード・テストは実行していない。問い 1〜5（R1 の指摘、区切りを抜ける経路、ほかのツールの出力から来る文字列、JSON・端末・判定・終了コード、既存の Markdown の読み手）のどれにも、新しい High・Medium・Low を特定しなかった
+
+### R2 の結果（`docs/reviews/m2-2-parsers/findings-r2.json`）
+- v0.8.1 の `aiqh review-import` で取り込んだ: exit 0、`High 0 / Medium 0 / Low 0; open 0`、`REVIEW LOOP: complete`
+- `findings` は空、`previous` に R1 の 1 件（解消）。`source`: `independent-review-m2-2-parsers-r2-for-claude.md`、3,387 バイト、SHA-256 `4bcd8f443d390e24ac72599f8a6fab833e1575165063d4a392951a21cde4c508`（受領ファイルと一致）
+- 続けて `aiqh review-check --label m2-2-parsers`: exit 0、`R1 to R2`、`previous: M2-2-PS-R1-001 (R1, resolved) — R2: 解消`、警告 0、`REVIEW LOOP: complete`
+
+### レビュアーの但し書きの位置づけ（決定は変えない）
+- 独立の実行をしていないこと: 品質の根拠は、機械で再現できる結果（v0.8.1 の単体検証・全テスト 10 回連続・`verify:dist`・CI の success）であって、レビュアーの結論ではない
+- check の名前・コマンド・作業ディレクトリなどの表記上の制約と、外部のレンダラ・未提示の読み手との互換: 上の v0.8.1 の追記の「既知の限界」のとおり
+
+### 影響
+- 文書だけ（この ADR、`docs/reviews/m2-2-parsers/` の R2 の 3 ファイル、CHANGELOG の v0.8.1 の見出しの SHA、ROADMAP）。`src/`・`tests/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えない

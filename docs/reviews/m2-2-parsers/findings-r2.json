@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "label": "m2-2-parsers",
+  "round": 2,
+  "idPrefix": "M2-2-PS",
+  "source": {
+    "name": "independent-review-m2-2-parsers-r2-for-claude.md",
+    "bytes": 3387,
+    "sha256": "4bcd8f443d390e24ac72599f8a6fab833e1575165063d4a392951a21cde4c508"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "M2-2-PS-R1-001",
+      "assessment": "解消。抽出名は閉じられないコードブロック内に入り、Failure Details の Summary も適切な区切り長と空白処理を持つコードスパンに置かれ、Markdown 構文として解釈される経路を塞いだ。"
+    }
+  ],
+  "importedAt": "2026-10-15T22:23:03.311Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.8.1"
+  },
+  "findings": []
+}
