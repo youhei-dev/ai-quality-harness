@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
-- 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）
-- 日付: 2026-10-14（v0.8.0）
+- 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -69,9 +69,9 @@
    | 数 | 15 桁まで | それより長い数字は数として読まない（unexpected-summary。レポートは JSON のデータのまま） |
    - 線形の時間: 行に分けるのも、制御シーケンス（色）を除くのも 1 回の走査。各パーサは各行を決まった回数だけ見る。入れ子の量指定のある正規表現は使わない（使う正規表現は 4,096 以下の行への単純な文字クラスだけ）。64 KiB〜1 MiB の敵対的な 12 の形で、1 MiB でも最大 80 ms 程度（テストの上限は 3 秒）
 5. **失敗の扱い**（P2）: 読む関数は例外を投げない。パーサが投げた・JSON のデータでない数（無限大など）を返した → `unparsed`（`parser-error`）。時間の上限 → `unparsed`（`time-limit`）。例外の文言はどこにも出さない。始まらなかった check（`--fail-fast`・中断）は `not-applicable`（`not-run`）
-6. **マスクと表記**（P4）: 名前は、**1 行まるごとを `maskSecrets` に通してから**切る（切った後に秘密の一部が残らないように）。入力全体はマスクしない（上の下調べ: masker の超線形）。レポートは従来どおり `copyJson(report, maskSecrets)` を通り、ファイルの出口で禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`）。端末は出口（`createOutput` の `log`）が 1 行ずつ表記にしてマスクする。Markdown の名前は 1 行の表記（`oneLine`）、表のセルは `cell`
+6. **マスクと表記**（P4）: 名前は、**1 行まるごとを `maskSecrets` に通してから**切る（切った後に秘密の一部が残らないように）。入力全体はマスクしない（上の下調べ: masker の超線形）。レポートは従来どおり `copyJson(report, maskSecrets)` を通り、ファイルの出口で禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`）。端末は出口（`createOutput` の `log`）が 1 行ずつ表記にしてマスクする。Markdown の名前は 1 行の表記（`oneLine`）、表のセルは `cell`（**v0.8.1 の注記**: Markdown の構文としても読まれない形にした。下の追記の決定 10・11）
 7. **端末**: 各 check の状態の行の直後（FAIL の末尾の出力より前）に、`parsed: <tool> — <要約>` の 1 行と、名前を最大 10（`  <kind>: <name>`）、残りは `  … N more`。読めなかったときは `parsed: <tool> — not read (<reason>)` の 1 行。`not-applicable` のときは何も出さない（パーサの無い check の出力は今までと同じ）
-8. **Markdown**: どれかの check が読まれた（`not-applicable` 以外）ときだけ、Checks の表の後ろに `## Parsed Output`（表: #・Check・Tool・Status・Summary と、check ごとの名前の一覧）。読まれた check が無いレポートの Markdown は v0.7.0 と同じ
+8. **Markdown**: どれかの check が読まれた（`not-applicable` 以外）ときだけ、Checks の表の後ろに `## Parsed Output`（表: #・Check・Tool・Status・Summary と、check ごとの名前の一覧）。読まれた check が無いレポートの Markdown は v0.7.0 と同じ（**v0.8.1 の注記**: 名前の一覧は 1 つのコードブロックの行に変えた。下の追記の決定 10。M2-2-PS-R1-001）
 9. **互換**（P9）: `schemaVersion` は 1 のまま（足すだけの変更。ADR-0003 の「後方互換の変更のみ」と R3-002 の前例）。最上位のキーは変えない。review-packet は知らないキーを読まないので、Verification の節は変わらない（テストで確かめた）。読む側は「`parsed` が無い」を「v0.8.0 より前のレポート」と読む
 
 ## 細部の決定（指示で「自分で決めてよい」とされたもの。理由つき）
@@ -109,3 +109,73 @@
 - 変更: `src/types.ts`（`ParsedOutput` など・`CheckResult.parsed`）、`src/runner/run-checks.ts`（`parsed` を書く）、`src/commands/verify.ts`（端末の行）、`src/report/markdown.ts`（`## Parsed Output`）、`src/adapters/types.ts`（M1 の下書き `OutputParser` を消した）
 - 文書: ARCHITECTURE（レポートの仕様・モジュール）、README、ROADMAP、ADR-0011 の状態の行
 - 依存関係・`package-lock.json`・禁止文字の集合・npm の保護設定・`tests/structure/`・既存テストの期待値・設定の仕様・書き込み箇所の表は変えない（パーサは書き込まない。読むのは package.json だけ）
+
+## 追記（v0.8.1: 独立レビュー R1 の 1 件。M2-2-PS-R1-001。2026-10-15）
+
+### 文脈
+- v0.8.0 の独立レビュー m2-2-parsers R1 は **Medium 1**（High 0・Low 0）。VALID（記録は `docs/reviews/m2-2-parsers/response-r1.md`）
+  - M2-2-PS-R1-001: latest.md の `## Parsed Output` の名前の一覧に、ツールの出力から読んだ名前が Markdown のリスト項目としてそのまま入る。リンク・画像・インライン HTML・文字参照・強調・自動リンクとして読まれうる。数値の文字参照は表示のときに文字に戻るので、禁止文字の表記（決定 6）もすり抜ける
+  - 同じ形が、M0 からある Failure Details の `- Summary:` の行（`errorSummary`: ツールの出力の最初の意味のある行）にもある
+- 人間の決定（2026-10-15）: **案 A**（名前の一覧をコードブロックに入れる）、**範囲 S2**（`- Summary:` の行も同じ版で、区切りの安全な行内のコードにする）、版は v0.8.1
+
+### 決定 10: 名前の一覧は 1 つのコードブロックの行（決定 8 の Markdown の形を変える）
+- `## Parsed Output` の check ごとの名前の一覧（`- <kind>: <name>` と `- … N more (not listed)`）を、1 つのコードブロック（info string `text`）の行にする。fence は Failure Details の出力の末尾と同じ `fenceFor`（一覧の中の最長のバッククォートの並び +1。3 以上）
+- 根拠は CommonMark 0.31.2 の §4.5（仕様の本文で確かめた。2026-10-15）
+  - コードブロックの中身は「文字として扱い、行内の構文として解析しない」
+  - 閉じの fence は、行頭（空白 3 つまで）にある、開きと同じ数以上のバッククォートで、後ろは空白とタブだけ
+  - §2.5: 文字参照は、コードブロックとコードの範囲（code span）の中では読まれない
+- 一覧の行はどれも `- ` で始まるので、名前が fence を閉じることは無い
+  - fence の長さは、この安全のためには要らない
+  - それでも出力の末尾と同じ部品を使い、「中のどの並びより長い」を保つ（形が変わったときの備え。テストで固定）
+- 行の文字は v0.8.0 と同じ（`oneLine` の表記、名前の範囲・順・件数）。表示は、箇条書きから等幅の文字になる
+- 表と見出し（`### <check> — <tool>`）は変えない
+
+### 決定 11: `- Summary:` の行は 1 つの行内のコード（S2）
+- `errorSummary`（ツールの出力の最初の意味のある行、または aiqh の理由）を、`oneLine` で 1 行にしてから、1 つの code span にする（`src/report/markdown.ts` の `codeSpan`）。`errorSummary` が null のときは従来どおり `-`
+- 仕様（CommonMark 0.31.2 §6.1。本文で確かめた。2026-10-15）:
+  - バッククォートの文字列は、前後がバッククォートでない、1 つ以上のバッククォート
+  - code span は、その文字列で始まり、**同じ長さ**のバッククォートの文字列で終わる。対になる文字列が無ければ、バッククォートは文字のまま
+  - 中の改行は空白になる。中身が空白で始まって空白で終わり、空白だけではないときは、前と後ろから空白を 1 つずつ取る
+  - code span の中では、バックスラッシュのエスケープも文字参照も働かない
+  - code span のバッククォートは、HTML のタグと自動リンクを除く、どの行内の構文よりも優先される
+- 決めた規則（細部の決定）:
+  - **区切り**: 中の最長のバッククォートの並び +1 のバッククォート（並びが無ければ 1 つ）。中に同じ長さの並びが無いので、途中で閉じない
+  - **端の空白**: 次の 2 つのときに、両端に空白を 1 つずつ足す
+    - 中身がバッククォートで始まるか終わる（区切りとつながって、長さの違う文字列になるため）
+    - 中身が空白で始まって空白で終わり、空白だけではない（仕様が 1 つずつ取るため）
+    - どちらのときも、仕様がちょうどその 2 つを取るので、表示は元の文字列と同じになる。空白だけの中身には足さない（仕様が取らないため）
+  - **空の文字列**は空のまま（空の code span は書けない。runner は空の要約を作らない）
+  - 改行・TAB・禁止文字は、`oneLine` で `\u{HEX}` の表記になってから入る。行は 1 行のままで、表記の `\` は code span の中では文字のまま
+  - **優先の規則**: 行は `- Summary: ` のすぐ後ろが開きの区切りなので、前から HTML のタグや自動リンクが始まって code span にかかることは無い
+- コードブロックにしなかった理由: 1 行の値で、行内のコードで表示が崩れない形が取れた（人間の決定の「取れなければコードブロックでもよい」の前段）
+- 表示の変化: `- Summary: exit code 1: …` が、`exit code 1: …` を行内のコードで囲んだ形になる。既存テストの期待値（部分一致・行頭の検査）は変わらなかった
+
+### 採らなかった案（R1 の `response-r1.md` の案 B・C）
+- **案 B（名前ごとの code span）**: 既存テストの期待値が 2 つ変わる（`tests/parse-verify.test.ts` の `- failed-test: a | b`、`tests/parse-security.test.ts` の `- oversized-candidate: …`）。一覧は複数行なので、1 つのコードブロックのほうが単純
+- **案 C（Markdown のメタ文字のバックスラッシュ・エスケープ。レビュアーの修正案の字義どおりの形）**: 採らない。理由は次の 3 つ
+  - 止める構文を数え上げる拒否リストなので、漏れやすい（GFM の裸の URL の自動リンクは、`:` や `.` までエスケープしないと止まらない）
+  - マスクの `[REDACTED:…]` や vitest の名前の区切り `>` にも `\` が付き、文字として読みにくい
+  - 既存テストの期待値が 1 つ変わる
+
+### 確かめたこと
+- テスト `tests/regression-m2-2-ps-r1-001-markdown-names.test.ts`（29 件）。依存関係を足さない（P8）ので、Markdown のレンダラは使わない。§4.5・§6.1 の規則をテストの中に書いて確かめた
+  - 名前と Summary の両方に、次の入力を使った: リンク・画像・インライン HTML・HTML のコメント、名前付きと数値の文字参照、強調・取り消し線、バッククォートの 1・3・6 の並び、山括弧の自動リンク・裸の URL、fence のように始まる文字列、生の U+202E、端の空白とバッククォート、空白だけ
+  - `runVerify` を通した 1 件で、`latest.json` と端末の値が変わらないことも確かめた
+  - 直す前の `2e7d2b0` で 27 件 FAIL・2 件 PASS（PASS は対照: 要約が無いときの `-` と、`latest.json`・端末の値）
+- src をわざと壊す確かめ 8 つ（fence を外す、`fenceFor` や code span の長さを最長の並びと同じにする、端の空白を足さない・常に足す、code span を外す、「… N more」を fence の外に出す）: どれも 1〜24 件 FAIL
+  - `fenceFor` の長さを最長の並びと同じにする形を捕まえたのは、「fence は中のどの並びより長い」の 1 件だけ（上の決定 10 のとおり、一覧の行は fence を閉じられないため）
+- `latest.json`・端末・判定・終了コード・`schemaVersion` は変わらない（P1・P9）。原則 P1〜P9 と ADR-0026 の決定は変えない
+
+### 既知の限界（足すもの）
+- 実際のレンダラ（GitHub・エディタのプレビューなど）での表示は見ていない。仕様の規則から判断した
+- latest.md のほかの値は、従来どおり `cell`・`oneLine` だけを通る
+  - 対象: check の名前、コマンド、作業ディレクトリ、プロジェクトの名前、設定のパス、git のブランチ
+  - どれも設定とリポジトリの値（利用者自身のもの）なので、この版では変えない
+  - コマンドと作業ディレクトリは 1 つのバッククォートの code span の中にあるので、バッククォートを含む値はそこで閉じうる
+- 出力の末尾（stdout・stderr）は、従来どおりコードブロック（バックログ 9）
+
+### 影響（v0.8.1）
+- 変更: `src/report/markdown.ts`（`renderParsed` の一覧のコードブロック、`renderFailure` の Summary の行、`codeSpan`）
+- 新規: `tests/regression-m2-2-ps-r1-001-markdown-names.test.ts`
+- 文書: この追記、ARCHITECTURE の §7.2、ROADMAP、CHANGELOG、README の状態の行
+- 依存関係・`package-lock.json`・禁止文字の集合・npm の保護設定・`tests/structure/`・既存テストの期待値は変えない

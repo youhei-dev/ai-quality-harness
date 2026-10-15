@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-14（初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-15（初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -379,6 +379,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 見出し、最終判定、メタ情報（日時・commit・branch・dirty・所要時間）、チェック一覧表、
 分類別サマリ表、失敗チェックの詳細（errorSummary と出力末尾）。人間と独立レビューAI がそのまま読める形にする。
 v0.8.0: どれかの check の出力が読まれたときだけ、チェック一覧表の後ろに `## Parsed Output`（ツール・状態・要約の表と、check ごとの名前の一覧。ADR-0028）。
+v0.8.1（M2-2-PS-R1-001）: ツールの出力から来る文字列は Markdown の構文として読まれない形で書く。check ごとの名前の一覧は 1 つのコードブロック（fence は出力の末尾と同じ `fenceFor`）の行、失敗の詳細の `- Summary:` の行（`errorSummary`）は 1 つの行内のコード（区切りは中の最長のバッククォートの並び +1。端の規則は ADR-0028 の追記の決定 11）。`latest.json` と端末は変わらない。
 
 ---
 
