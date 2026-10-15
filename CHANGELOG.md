@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.8.0 — output parsers for display only: vitest, eslint, npm audit and the aiqh security-scan entries in checks[].parsed; the key-value false positive record defined (ADR-0028, ADR-0029)
+## v0.8.0 — commit 89475fa2937f52498252ecd0d5b77c95e3288bfa / tag object 7572eb78f343d13f66650fa0b273eba5ce8431d7 — output parsers for display only: vitest, eslint, npm audit and the aiqh security-scan entries in checks[].parsed; the key-value false positive record defined (ADR-0028, ADR-0029)
 
 - **出力パーサ**（M2-2 の残り。Q1。ADR-0028）: verify が各 check の出力の末尾を読み、レポートの各 check の最後に `parsed` の欄を書く。**表示のためだけで、判定・分類・終了コード・check のほかの欄は見ない**（P1）。読む関数は例外を投げない（P2）。6 commit: `b93f6f5`（Q1）・`4e6e585`（Q2）・`a145b53`（ADR-0028）・`78f9adb`（ADR-0029）・`3648544`（P3 のテストの時計）・この release の commit
   - `parsed`: `tool`（`vitest` / `eslint` / `npm-audit` / `aiqh-security-scan` / null）、`status`（`parsed` / `unparsed` / `not-applicable`）、`reason`（決まった語だけ）、`truncated`、`counts`（ツールごとの決まったキー）、`items`（`{ kind, name }`、最大 50）、`itemsOmitted`

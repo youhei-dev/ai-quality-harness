@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "m2-2-parsers",
+  "round": 1,
+  "idPrefix": "M2-2-PS",
+  "source": {
+    "name": "independent-review-m2-2-parsers-r1-for-claude.md",
+    "bytes": 6050,
+    "sha256": "c29657780c0b913073e3e0c31974fd8a8240f20014fd27dd0c3fe4dfed6a6200"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-15T07:51:16.641Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.8.0"
+  },
+  "findings": [
+    {
+      "id": "M2-2-PS-R1-001",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "src/report/markdown.ts:104-117,181-185; src/parse/text.ts:130-133",
+      "content": "未信頼の失敗名がMarkdownのリスト項目へ構文エスケープなしで挿入され、リンク・画像・インラインHTMLなどとして解釈され得る。",
+      "evidence": "ItemList.addからnameOfに渡される名前はマスクと長さ制限のみ。renderParsedはoneLine(item.name)をMarkdownへ直接挿入し、oneLineはescapeRawCharsのみ。リンク構文を含む名前はMarkdownリンクになり得る。",
+      "fix": "Markdown表示境界で名前の構文とHTML解釈を無効化するエスケープを追加し、リンク・画像・インラインHTML・バッククォートの回帰テストを加える。JSONの値は維持する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": null,
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": null,
+      "note": "判定の根拠・直し方の案（推奨: check ごとの名前の一覧を、出力の末尾と同じ形の fence〈fenceFor〉の中に置く）・先に書くテストの案は response-r1.md。直し方と行き先（action・destination）は人間の決定待ち。原文の target の行番号は v0.8.0 のファイルと合わない（renderParsed は src/report/markdown.ts の 89〜114 行、oneLine は 179〜181 行、nameOf は src/parse/text.ts の 116〜119 行。指す関数は合っている）。同じ形は v0.8.0 より前からの Failure Details の Summary の行（errorSummary: ツールの出力の最初の行）にもある。直す範囲も人間の決定待ち"
+    }
+  ]
+}
