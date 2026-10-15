@@ -29,14 +29,14 @@
       "evidence": "ItemList.addからnameOfに渡される名前はマスクと長さ制限のみ。renderParsedはoneLine(item.name)をMarkdownへ直接挿入し、oneLineはescapeRawCharsのみ。リンク構文を含む名前はMarkdownリンクになり得る。",
       "fix": "Markdown表示境界で名前の構文とHTML解釈を無効化するエスケープを追加し、リンク・画像・インラインHTML・バッククォートの回帰テストを加える。JSONの値は維持する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "案 A・範囲 S2（人間の決定 2026-10-15）: Parsed Output の check ごとの名前の一覧を、1 つのコードブロック（fence は fenceFor、info string text）の行にした。Failure Details の `- Summary:` の行（errorSummary）を、1 つの code span にした（区切りは中の最長のバッククォートの並び +1、端の空白の規則は ADR-0028 の追記の決定 11）。latest.json・端末・判定・終了コードは変えない",
+      "fixedIn": "b147f9de19471313fb7eeabf7a4c1d6fc2775576",
+      "regressionTest": "tests/regression-m2-2-ps-r1-001-markdown-names.test.ts（29 件: the names of a parsed check are lines of one code block・the Summary line of Failure Details is one code span that shows the summary as it is・through verify）。直す前の 2e7d2b045c46b88df3ab4268dbe68ae600b87272 で 27 件 FAIL・2 件 PASS（PASS は対照: 要約が無いときの `-` と、latest.json・端末の値）。src/report/markdown.ts を壊す 8 通り（M1〜M8）で、各 1〜24 件 FAIL",
       "guard": null,
-      "destination": null,
-      "note": "判定の根拠・直し方の案（推奨: check ごとの名前の一覧を、出力の末尾と同じ形の fence〈fenceFor〉の中に置く）・先に書くテストの案は response-r1.md。直し方と行き先（action・destination）は人間の決定待ち。原文の target の行番号は v0.8.0 のファイルと合わない（renderParsed は src/report/markdown.ts の 89〜114 行、oneLine は 179〜181 行、nameOf は src/parse/text.ts の 116〜119 行。指す関数は合っている）。同じ形は v0.8.0 より前からの Failure Details の Summary の行（errorSummary: ツールの出力の最初の行）にもある。直す範囲も人間の決定待ち"
+      "destination": "v0.8.1",
+      "note": "人間の決定（2026-10-15）: 案 A・範囲 S2・版 v0.8.1。同じ形の Failure Details の Summary の行（M0 から）も同じ版で直した。細部の決定と CommonMark 0.31.2 の規則（§4.5・§6.1・§2.5）は ADR-0028 の追記の決定 10・11。原文の target の行番号は v0.8.0 のファイルと合わない（renderParsed は src/report/markdown.ts の 89〜114 行、oneLine は 179〜181 行、nameOf は src/parse/text.ts の 116〜119 行。指す関数は合っている）"
     }
   ]
 }

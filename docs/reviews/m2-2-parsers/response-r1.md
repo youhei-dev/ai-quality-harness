@@ -98,3 +98,18 @@
 - `docs/reviews/m2-2-parsers/findings-r1.json`（新規。v0.8.0 の `review-import` で取り込み、`verdict`・`note` を書いた。`status` は `open`）
 - `CHANGELOG.md`: v0.8.0 の見出しに commit / tag object の SHA
 - `docs/ROADMAP.md`: v0.8.0 の CI の記録、v0.8.0 の後の記録、「次:」、最終更新の日付
+
+## v0.8.1 の注記（2026-10-15。上の記録は書き換えていない）
+
+- **人間の決定**（2026-10-15）: 推奨どおり。直し方は**案 A**、範囲は **S2**、版は **v0.8.1**。そのあと R2（label `m2-2-parsers`、round 2、範囲 `v0.8.0..v0.8.1`）
+- **直した**（`b147f9de19471313fb7eeabf7a4c1d6fc2775576`、`src/report/markdown.ts`）:
+  - `renderParsed`: check ごとの名前の一覧（`- <kind>: <name>` と `- … N more (not listed)`）を、1 つのコードブロック（info string `text`、fence は `fenceFor`）の行にした
+  - `renderFailure`: `- Summary:` の行（`errorSummary`）を、1 つの code span にした（`codeSpan`）。区切りは中の最長のバッククォートの並び +1。端に空白を足すのは、バッククォートで始まるか終わるときと、空白で始まって空白で終わる（空白だけではない）とき。要約が無いときは従来どおり `-`
+  - 規則の根拠（CommonMark 0.31.2 の §4.5・§6.1・§2.5、仕様の本文で確かめた）と、案 B・C を採らなかった理由は、ADR-0028 の追記（決定 10・11）
+  - `latest.json`・端末・判定・終了コード・`schemaVersion` は変えていない。既存テストの期待値は変えていない（上の「変えない見込み」は、テストの実行で確かめた）
+- **テスト**（`tests/regression-m2-2-ps-r1-001-markdown-names.test.ts`、29 件）:
+  - 上の「先に書くテスト」の 1〜4 に、S2 のテストを足した
+  - 入力: リンク・画像・インライン HTML・HTML のコメント、名前付きと数値の文字参照、強調・取り消し線、バッククォートの 1・3・6 の並び、山括弧の自動リンク・裸の URL、fence のように始まる文字列、生の U+202E、端の空白とバッククォート、空白だけ
+  - 直す前の `2e7d2b0` で **27 件 FAIL・2 件 PASS**（PASS は対照: 要約が無いときの `-` と、`latest.json`・端末の値）
+  - src をわざと壊す 8 通り（fence を外す、`fenceFor` や code span の長さを最長の並びと同じにする、端の空白を足さない・常に足す、code span を外す、「… N more」を fence の外に出す）で、どれも 1〜24 件 FAIL。`fenceFor` の長さの壊し方を捕まえたのは「fence は中のどの並びより長い」の 1 件だけ（一覧の行は `- ` で始まるので、もともと fence を閉じられない）
+- `findings-r1.json` の M2-2-PS-R1-001 を `resolved` にした（`fixedIn` は `b147f9de19471313fb7eeabf7a4c1d6fc2775576`、`regressionTest`・`action`・`destination: "v0.8.1"`・`note` を書いた）
