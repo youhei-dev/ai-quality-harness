@@ -84,7 +84,9 @@ export function renderMarkdown(report: VerificationReport): string {
 
 /**
  * ADR-0028: what was read from each check's output, only when some check was read (a report without one renders as before). The names
- * are values of the masked report, written on one line each like the other values.
+ * are values of the masked report, written on one line each like the other values, as the lines of one code block per check
+ * (M2-2-PS-R1-001): they come from a tool's output, and inside a code block Markdown reads no link, image, HTML, character reference
+ * or emphasis. No line of the list can close the block (each starts with "- "); the fence is still longer than any run inside.
  */
 function renderParsed(checks: readonly CheckResult[]): string[] {
   if (!checks.some((c) => c.parsed !== undefined && c.parsed.status !== "not-applicable")) return [];
@@ -106,8 +108,10 @@ function renderParsed(checks: readonly CheckResult[]): string[] {
     if (p === undefined || p.status !== "parsed" || (p.items.length === 0 && p.itemsOmitted === 0)) continue;
     lines.push(`### ${oneLine(c.name)} — ${p.tool ?? "-"}`);
     lines.push("");
-    for (const item of p.items) lines.push(`- ${oneLine(item.kind)}: ${oneLine(item.name)}`);
-    if (p.itemsOmitted > 0) lines.push(`- … ${p.itemsOmitted} more (not listed)`);
+    const list = p.items.map((item) => `- ${oneLine(item.kind)}: ${oneLine(item.name)}`);
+    if (p.itemsOmitted > 0) list.push(`- … ${p.itemsOmitted} more (not listed)`);
+    const fence = fenceFor(list.join("\n"));
+    lines.push(`${fence}text`, ...list, fence);
     lines.push("");
   }
   return lines;
@@ -118,7 +122,9 @@ function renderFailure(c: CheckResult): string[] {
   lines.push(`### ${oneLine(c.name)} — ${c.status}`);
   lines.push("");
   lines.push(`- Command: \`${cell(c.command)}\` (cwd: \`${oneLine(c.cwd)}\`)`);
-  lines.push(`- Summary: ${oneLine(c.errorSummary ?? "-")}`);
+  // M2-2-PS-R1-001 (S2): the summary is a line of the tool's output (or aiqh's reason): one code span, read as text
+  const summary = c.errorSummary ?? null;
+  lines.push(`- Summary: ${summary === null ? "-" : codeSpan(oneLine(summary))}`);
   if (c.timedOut) lines.push(`- Timed out after ${c.timeoutSec}s`);
   if (c.signal) lines.push(`- Signal: ${c.signal}`);
   if (c.outputTruncated) lines.push("- Output was truncated (tail only)");
@@ -152,6 +158,21 @@ function renderFailure(c: CheckResult): string[] {
 function fenceFor(text: string): string {
   const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
   return "`".repeat(Math.max(3, longest + 1));
+}
+
+/**
+ * One-line text as one code span that shows it as it is (CommonMark 0.31.2 §6.1, ADR-0028 addendum v0.8.1). The backtick string is
+ * one longer than the longest run in the text, so no run inside can close it (the first backtick string of the same length would). A
+ * space goes at each end when the text starts or ends with a backtick (it would join the backtick string) or starts and ends with a
+ * space without being only spaces (Markdown takes one space off each end of such content): Markdown then takes exactly those two off.
+ * Empty text stays empty (an empty code span cannot be written).
+ */
+function codeSpan(text: string): string {
+  if (text.length === 0) return "";
+  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+  const ticks = "`".repeat(longest + 1);
+  const pad = text.startsWith("`") || text.endsWith("`") || (text.startsWith(" ") && text.endsWith(" ") && !/^ +$/.test(text)) ? " " : "";
+  return `${ticks}${pad}${text}${pad}${ticks}`;
 }
 
 function describeDirty(dirty: boolean | null): string {
