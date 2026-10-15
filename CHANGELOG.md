@@ -5,6 +5,15 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.8.2 — M2-2 complete — completion record (docs and version only; no code change)
+
+- **M2-2 を完了とした**（人間の決定。m2-2-parsers R2 の報告の §7〈完了条件 3 つを満たした〉を見て）。完了ベースライン v0.8.1（commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537）、完了記録は本タグ。前例（M2-0 の v0.3.4、M2-1 の v0.4.4）と同じ形。2 commit: `ecbbc80`（完了報告と ROADMAP）とこの release の commit
+- 完了報告 `docs/reports/M2-2_COMPLETION.md`: 完了条件ごとの根拠、内容と項目 15、波 3〈v0.6.0〜v0.8.1〉の版と独立レビュー、ADR-0026〜0029、後に回したもの、テストの件数と CI の時間の推移、波 3 の運用で学んだこと
+- ROADMAP: M2-2 の見出しを「完了」、完了条件を「（すべて達成）」に。新しい項目 41（負荷に弱いテスト `tests/regression-backlog16-r2-confirm-origin.test.ts`。準備の順序の確かめが要る）・42（CI の `unit`・`unit-minpath` の時間の見張りの線: 上限 600 秒の 72% で対処の案、80% で対処）。次は、公開の前の履歴の点検の結果を見て Public 化の判断（人間）→ 波 4（M3 の後半: 配布・再利用ワークフロー）の設計
+- README の「現在の状態」: M2-2 完了（v0.8.2）
+- コード変更なし（`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json` は v0.8.1 と同一）。テスト 2,170 件（161 ファイル）。docs と version だけの版なので、HEAD の 10 回連続と `verify:dist` は省く（人間の指示）
+- `package.json` version 0.8.2（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.8.1 — commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537 — latest.md: the parsed names in a code block, the failure summary in a code span (m2-2-parsers R1, M2-2-PS-R1-001)
 
 - **独立レビュー（m2-2-parsers）R1 の Medium 1 件を直した**（VALID。人間の決定: 案 A・範囲 S2。4 commit: `b147f9d`・`0648dbe`・`7a34fba` とこの release の commit。ADR-0028 の追記〈決定 10・11〉）
