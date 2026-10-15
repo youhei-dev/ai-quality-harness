@@ -5,6 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.8.1 — latest.md: the parsed names in a code block, the failure summary in a code span (m2-2-parsers R1, M2-2-PS-R1-001)
+
+- **独立レビュー（m2-2-parsers）R1 の Medium 1 件を直した**（VALID。人間の決定: 案 A・範囲 S2。4 commit: `b147f9d`・`0648dbe`・`7a34fba` とこの release の commit。ADR-0028 の追記〈決定 10・11〉）
+  - **M2-2-PS-R1-001**（`src/report/markdown.ts`）: latest.md の `## Parsed Output` の check ごとの名前の一覧を、1 つのコードブロック（info string `text`、fence は出力の末尾と同じ `fenceFor`）の行にした。ツールの出力から来る名前の中のリンク・画像・インライン HTML・文字参照・強調・自動リンクは、Markdown の構文として読まれない（数値の文字参照が、表示のときに禁止文字に戻ることもない）
+  - **範囲 S2**: Failure Details の `- Summary:` の行（`errorSummary`: ツールの出力の最初の行。M0 から）を、1 つの行内のコード（code span）にした
+    - 区切りは、中の最長のバッククォートの並び +1
+    - 中身がバッククォートで始まるか終わるとき、または空白で始まって空白で終わる（空白だけではない）ときは、両端に空白を 1 つずつ足す。CommonMark 0.31.2 の §6.1 がちょうどそれを取るので、表示は元の文字列と同じ
+    - 要約が無いときは従来どおり `-`
+  - `latest.json`・端末・判定・終了コード・`schemaVersion` は変わらない
+- `docs/reviews/m2-2-parsers/findings-r1.json` の 1 件を `resolved` にした（`fixedIn`・`regressionTest`・`action`・`destination`・`note`）。`review-check --label m2-2-parsers` は `REVIEW LOOP: complete`
+- 利用者に見える変化: latest.md の名前の一覧が、箇条書きからコードブロック（等幅の文字）になる。失敗の詳細の Summary が行内のコードになる。ほかは変わらない
+- テスト 2,141 → 2,170 件（160 → 161 ファイル）
+  - 先に書いた `tests/regression-m2-2-ps-r1-001-markdown-names.test.ts` の 29 件は、直す前の `2e7d2b0` で 27 件 FAIL・2 件 PASS（PASS は対照）
+  - src を 8 通りに壊すと、どれも 1〜24 件 FAIL
+  - 既存テストの期待値は変えていない
+- `package.json` version 0.8.1（`package-lock.json` の `version` は 0.5.35 のまま）
+- 注記: v0.8.0 の見出しの SHA は、v0.8.0 の後の記録の commit（`2e7d2b0`）で記入済み
+
 ## v0.8.0 — commit 89475fa2937f52498252ecd0d5b77c95e3288bfa / tag object 7572eb78f343d13f66650fa0b273eba5ce8431d7 — output parsers for display only: vitest, eslint, npm audit and the aiqh security-scan entries in checks[].parsed; the key-value false positive record defined (ADR-0028, ADR-0029)
 
 - **出力パーサ**（M2-2 の残り。Q1。ADR-0028）: verify が各 check の出力の末尾を読み、レポートの各 check の最後に `parsed` の欄を書く。**表示のためだけで、判定・分類・終了コード・check のほかの欄は見ない**（P1）。読む関数は例外を投げない（P2）。6 commit: `b93f6f5`（Q1）・`4e6e585`（Q2）・`a145b53`（ADR-0028）・`78f9adb`（ADR-0029）・`3648544`（P3 のテストの時計）・この release の commit
