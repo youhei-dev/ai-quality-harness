@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.8.4 — after the public switch: the main ruleset, the description and the topics recorded; the external-organization application plan cancelled; items 43 and 44
+## v0.8.4 — commit 54ab7aae0be8ab4d4c6df3dac2f93bf4a166a4ea / tag object f2e98df510d37c28411b1d334beef02f16ff724c — after the public switch: the main ruleset, the description and the topics recorded; the external-organization application plan cancelled; items 43 and 44
 
 - **公開の後の設定の記録**（docs と version だけ。コード変更なし）。2026-10-16 の 13:50 ごろ（JST）に人間が GitHub の画面でリポジトリを Public に切り替えた（ADR-0030 の決定 7）。その後、人間の指示で `gh api` により設定した: main の ruleset `main-protection`（id 25218296。既定のブランチ、active、規則は `deletion` と `non_fast_forward`、Bypass は Repository admin。必須チェックは未設定）、description（「AI 駆動開発のための fail-closed な品質ゲート CLI（TypeScript / Node.js）」）、topics（`ai-assisted-development`・`ci`・`cli`・`quality-gate`・`typescript`）。4 commit: `12e147a`・`70487d0`・`de806d4`・この release の commit
 - ADR-0025 に注記（決定 6 の前提が変わった。必須チェックを足す条件は決定 7 の「main への push で続けて 5 回緑」）。ADR-0030 に注記。ADR の一覧の 2 行。手順書 `docs/ops/ci-and-branch-protection.md` の §3 に「実施済み」、§2 の 6・§4 に注記。ARCHITECTURE の CODEOWNERS の行
