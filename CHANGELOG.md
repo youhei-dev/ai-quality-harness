@@ -5,6 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.8.4 — after the public switch: the main ruleset, the description and the topics recorded; the external-organization application plan cancelled; items 43 and 44
+
+- **公開の後の設定の記録**（docs と version だけ。コード変更なし）。2026-10-16 の 13:50 ごろ（JST）に人間が GitHub の画面でリポジトリを Public に切り替えた（ADR-0030 の決定 7）。その後、人間の指示で `gh api` により設定した: main の ruleset `main-protection`（id 25218296。既定のブランチ、active、規則は `deletion` と `non_fast_forward`、Bypass は Repository admin。必須チェックは未設定）、description（「AI 駆動開発のための fail-closed な品質ゲート CLI（TypeScript / Node.js）」）、topics（`ai-assisted-development`・`ci`・`cli`・`quality-gate`・`typescript`）。4 commit: `12e147a`・`70487d0`・`de806d4`・この release の commit
+- ADR-0025 に注記（決定 6 の前提が変わった。必須チェックを足す条件は決定 7 の「main への push で続けて 5 回緑」）。ADR-0030 に注記。ADR の一覧の 2 行。手順書 `docs/ops/ci-and-branch-protection.md` の §3 に「実施済み」、§2 の 6・§4 に注記。ARCHITECTURE の CODEOWNERS の行
+- 適用先の予定の取り消し（人間の決定）: 適用先は個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`）だけ。ARCHITECTURE の構成図の対象リポジトリの例を書き換え、ROADMAP の M3 の「内容」と v0.8.4 の記録に書いた
+- ROADMAP: 新しい項目 43（`tests/` の 7 つのファイルのコメント「see CLAUDE.md」。Low）・44（必須チェック `verify (ubuntu)` を ruleset に足す。条件は ADR-0025 の決定 7。人間の承認）。v0.8.3 の CI の記録、公開の後の作業のチェック、「次:」
+- CHANGELOG の v0.8.3 の見出しの SHA。README の「現在の状態」: v0.8.4、次は波 4
+- 利用者に見える変化: CLI の動きは変わらない
+- コード変更なし（`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json` は v0.8.3 と同一）。テスト 2,170 件（161 ファイル）。docs と version だけの版なので、HEAD の 10 回連続と `verify:dist` は省く（人間の指示）
+- `package.json` version 0.8.4（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.8.3 — commit 1f708ac7d7893fe78335543637d5d6ed9bbde87b / tag object c97685389870cfa7e96f83d2703dab647c77588c — public preparation: the MIT license, the repository fields of package.json, the README for a public repository, the project CLAUDE.md untracked (ADR-0030; the visibility is not switched)
 
 - **公開の準備**（人間の決定: 案 1〈いまのリポジトリを、履歴を書き換えずにそのまま Public に〉・MIT・プロジェクトの `CLAUDE.md` は追跡外。ADR-0030）。**Visibility の切り替えはしていない**（人間が GitHub の画面で行う）。5 commit: `80e13a8`・`76b2047`・`864ced8`・`fb51c4d`・この release の commit
