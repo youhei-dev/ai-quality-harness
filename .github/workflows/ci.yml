@@ -40,9 +40,17 @@ jobs:
       - run: npm ci
       - run: npm run verify
 
+  reusable-self:
+    # The reusable workflow (verify.yml) applied to this repository itself, the way a caller uses it (ADR-0031).
+    # Same triggers as verify (ubuntu); not a required check (ROADMAP item 44).
+    name: reusable (self)
+    uses: ./.github/workflows/verify.yml
+    with:
+      setup-command: npm ci
+
   measure-windows:
     # Measurement only (Windows is not a supported platform): a failure here does not fail the run.
-    # Manual runs only, to save minutes (Windows minutes count double on a private repository).
+    # Manual runs only: a measurement, not a supported platform (ADR-0025 decision 4).
     name: measure (windows)
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2025
