@@ -47,7 +47,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**v0.8.4 — 公開の後の設定の記録**（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ。コード変更なし。ADR-0025 と ADR-0030 の注記）。v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3 の前半として本体リポジトリの自己 CI を動かしています。次は波 4（M3 の後半: 配布・再利用ワークフロー）の設計です。
+**v0.9.0 — 再利用ワークフロー `verify.yml`**（波 4 の最初の版。他のリポジトリの CI から 40 桁の commit SHA で固定して呼び、aiqh はワークフローと同じ commit のソースを使う〈配布物なし〉。自己適用の job `reusable (self)`。`src/` の変更なし。ADR-0031）。v0.8.4 で公開の後の設定（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ）、v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3 の前半として本体リポジトリの自己 CI を動かしています。次は、適用先 2 つ（個人のリポジトリ）の手元の確認と適用です（波 4 の残り）。
 版ごとの内容は [`CHANGELOG.md`](CHANGELOG.md)、マイルストーンの進みと残りの項目は [`docs/ROADMAP.md`](docs/ROADMAP.md)、
 マイルストーンごとの総括は `docs/reports/`（[M0](docs/reports/M0_COMPLETION.md)・[M1](docs/reports/M1_COMPLETION.md)・[M2-0](docs/reports/M2-0_COMPLETION.md)・[M2-1](docs/reports/M2-1_COMPLETION.md)・[M2-2](docs/reports/M2-2_COMPLETION.md)）を参照してください。
 **v0.1.3 と v0.2.0 は superseded**（v0.1.3: 確定点の yield が不十分。v0.2.0: 自己 verify の security チェックが FAIL する状態でタグ付けされた）で、
@@ -60,7 +60,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
-| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.8.4（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
+| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.9.0（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。pytest は後。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉） |
 | 本体リポジトリの自己 CI（GitHub Actions。Ubuntu の verify、Windows の手動の測定） | v0.5.45（M3 の前半。v0.6.1 から、タグの前に `verify (ubuntu)` の success を確かめる〈人の手順。Branch Protection の必須チェックではない〉。ADR-0025） |

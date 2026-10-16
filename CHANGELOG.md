@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.9.0 — the reusable workflow .github/workflows/verify.yml (distribution D: aiqh from the workflow's own commit; callers pin a commit SHA) and the self-application job reusable (self) (ADR-0031)
+
+- **波 4 の最初の版**（人間の決定: CI での配布は案 D、呼び出す側は 40 桁の commit SHA で固定。ADR-0031）。適用先 2 つには触れていない。5 commit: `71bfc27`・`d794c9b`・`8bd758c`・`c713578`・この release の commit
+- `.github/workflows/verify.yml`（新規）: `on: workflow_call` だけ、権限は `contents: read` だけ、アクションはすべて 40 桁の commit SHA（setup-python v7.0.0 = `5fda3b95a4ea91299a34e894583c3862153e4b97`）
+  - 対象は `target/`、aiqh は `aiqh-src/` に `job.workflow_repository` の `job.workflow_sha` で checkout する（どちらも `persist-credentials: false`）
+  - `git rev-parse HEAD` が `job.workflow_sha` と同じでなければ止める（空も止める。fail closed）。同じなら `npm ci --omit=dev`（実行時の依存だけ）と、`node <aiqh-src>/src/cli.ts` を起動する `aiqh` を PATH に置く
+  - inputs は 6 つ（`node-version` 既定 24.13.1・`python-version`・`setup-command`・`working-directory`・`config`・`job-summary`）。入力は `env:` を通して script に渡す。`working-directory` の `..`・絶対パス・外への解決は止める。Node 24 未満は失敗する
+  - job の `env:` に `npm_config_ignore_scripts: "true"`。artifact は上げない。`job-summary: true` のときだけ `latest.md` を Job Summary に足す
+- `ci.yml`: job `reusable (self)`（`uses: ./.github/workflows/verify.yml`、`setup-command: npm ci`）で、aiqh 自身を対象に再利用ワークフローを走らせる。必須チェックではない（ROADMAP の項目 44）。`measure (windows)` のコメントと `.github/CODEOWNERS` の 2〜4 行目を、公開の後の文に直した
+- テスト: 新しい 2 ファイル（`tests/reusable-workflow.test.ts` 11 件、`tests/reusable-workflow-self.test.ts` 2 件。YAML のテキストを読む）。実装の前に `54ab7aa` の上で 13 件中 12 件の FAIL を記録した
+- docs: ADR-0031（新規）、ADR-0009・ADR-0025 の注記、ADR の一覧、ARCHITECTURE §3（配布モデル。呼び出す側の例をタグから SHA に）、`docs/ops/reusable-workflow.md`（新規。最小の例・inputs・SHA の見つけ方・呼び出す側の設定の注意・タグの運用）、手順書の §1、ROADMAP（M3 の完了条件 2 つ、波 4 の SP1 と決定と残り、v0.8.4 の CI の記録）、README。CHANGELOG の v0.8.4 の見出しの SHA
+- 利用者に見える変化: 他のリポジトリの CI から `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@<40 桁の commit SHA>` で `aiqh verify` を走らせられる。CLI の動きは変わらない
+- `src/`・既存のテスト・`tests/structure/`・依存関係・`package-lock.json` は v0.8.4 と同一。テスト 2,170 → 2,183 件（161 → 163 ファイル）。テストを足す版なので、HEAD の 10 回連続と `verify:dist` も行う
+- `package.json` version 0.9.0（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.8.4 — commit 54ab7aae0be8ab4d4c6df3dac2f93bf4a166a4ea / tag object f2e98df510d37c28411b1d334beef02f16ff724c — after the public switch: the main ruleset, the description and the topics recorded; the external-organization application plan cancelled; items 43 and 44
 
 - **公開の後の設定の記録**（docs と version だけ。コード変更なし）。2026-10-16 の 13:50 ごろ（JST）に人間が GitHub の画面でリポジトリを Public に切り替えた（ADR-0030 の決定 7）。その後、人間の指示で `gh api` により設定した: main の ruleset `main-protection`（id 25218296。既定のブランチ、active、規則は `deletion` と `non_fast_forward`、Bypass は Repository admin。必須チェックは未設定）、description（「AI 駆動開発のための fail-closed な品質ゲート CLI（TypeScript / Node.js）」）、topics（`ai-assisted-development`・`ci`・`cli`・`quality-gate`・`typescript`）。4 commit: `12e147a`・`70487d0`・`de806d4`・この release の commit
