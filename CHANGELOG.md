@@ -5,6 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.8.3 — public preparation: the MIT license, the repository fields of package.json, the README for a public repository, the project CLAUDE.md untracked (ADR-0030; the visibility is not switched)
+
+- **公開の準備**（人間の決定: 案 1〈いまのリポジトリを、履歴を書き換えずにそのまま Public に〉・MIT・プロジェクトの `CLAUDE.md` は追跡外。ADR-0030）。**Visibility の切り替えはしていない**（人間が GitHub の画面で行う）。5 commit: `80e13a8`・`76b2047`・`864ced8`・`fb51c4d`・この release の commit
+- `LICENSE`: MIT の標準の本文、`Copyright (c) 2026 youhei-dev`（GitHub のアカウント名）。`npm pack` の tarball にも入る
+- `package.json`: `license`（MIT）・`repository`・`bugs`・`homepage`。`private: true`・`files` は変えない
+- プロジェクトの `CLAUDE.md` を追跡外にした（`git rm --cached`。作業者のローカルのファイルとして残す）。`.gitignore` に `/CLAUDE.md`。文書が `CLAUDE.md` を指す箇所に注記（ARCHITECTURE・ADR-0012・ADR-0025・`docs/ops/ci-and-branch-protection.md`・`docs/ops/review-loop.md`）。過去の記録は変えない
+- README: 冒頭に aiqh がすること・しないこと、新しい英語の要約、CI のバッジ。「現在の状態」を短くした（版ごとの経緯は CHANGELOG・ROADMAP・完了報告へ）。`npm link` の手順は `<clone した場所>`。独立レビューの運用の節、ライセンスの節（MIT）
+- ADR-0030（公開の決定・点検の要約〈値は書かない〉・受け入れたもの・代替案）。ROADMAP: 公開の判断と公開の後の作業、v0.8.2 の CI の記録、「次:」。CHANGELOG の v0.8.2 の見出しの SHA
+- 利用者に見える変化: CLI の動きは変わらない。tarball に LICENSE が入る
+- コード変更なし（`src/`・`tests/`・`scripts/`・依存関係・`package-lock.json` は v0.8.2 と同一）。テスト 2,170 件（161 ファイル）。docs と設定だけの版なので、HEAD の 10 回連続と `verify:dist` は省く（人間の指示）
+- `package.json` version 0.8.3（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.8.2 — commit 5abdf0a6234697ad7289cf8c720b7ec29567c763 / tag object 862ba85f8cdffbbbea7ce68206cd91ea91dfd4b8 — M2-2 complete — completion record (docs and version only; no code change)
 
 - **M2-2 を完了とした**（人間の決定。m2-2-parsers R2 の報告の §7〈完了条件 3 つを満たした〉を見て）。完了ベースライン v0.8.1（commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537）、完了記録は本タグ。前例（M2-0 の v0.3.4、M2-1 の v0.4.4）と同じ形。2 commit: `ecbbc80`（完了報告と ROADMAP）とこの release の commit
