@@ -12,7 +12,7 @@
 | [0006](0006-secret-masking.md) | 出力の秘密情報はパターンマスクし、値を保存しない | 採用 | 2026-09-15 |
 | [0007](0007-artifacts-untracked.md) | `artifacts/` を git 管理外にする | 採用 | 2026-09-15 |
 | [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用 | 2026-09-15 |
-| [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価） | 2026-09-18 |
+| [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価。注記〈v0.9.0〉: CI は ADR-0031 の案 D、手元は `npm link` のまま） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
 | [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用（出力パーサの型の項を 0028 で置換） | 2026-09-18 |
 | [0012](0012-security-allow.md) | `security.allow` による例外指定と key-value 走査の方針 | 採用（追記の一部を 0016 で置換） | 2026-09-20 |
@@ -28,9 +28,10 @@
 | [0022](0022-unreadable-is-not-absent.md) | 読めないものを「無い」としない: パスの包含と書込の前提 | 採用（ADR-0010・0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる） | 2026-10-04 |
 | [0023](0023-unconfirmed-termination-is-not-terminated.md) | 確認できなかった終了を、終了したことにしない: タイムアウト・中断の後のグループの消滅の確認と有界時間 | 採用（ADR-0005 の「猶予後 SIGKILL」の後に確認を足す） | 2026-10-05 |
 | [0024](0024-unhandled-exceptions-exit-2.md) | 処理されなかった例外・拒否は、出口を通して exit 2 で終え、動いている子を片付ける | 採用（ADR-0019 の既知の限界のうち CLI の終わり方を決める。シグナルが先なら 130 / 143 のまま） | 2026-10-11 |
-| [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない。注記〈v0.8.4〉: Public にした後、main の ruleset〈削除と force push の禁止。必須チェックは未設定〉） | 2026-10-12 |
+| [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない。注記〈v0.8.4〉: Public にした後、main の ruleset〈削除と force push の禁止。必須チェックは未設定〉。注記〈v0.9.0〉: 再利用ワークフロー `verify.yml` と自己適用の job〈ADR-0031〉） | 2026-10-12 |
 | [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま） | 2026-10-13 |
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない） | 2026-10-13 |
 | [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま） | 2026-10-14 |
 | [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない） | 2026-10-14 |
 | [0030](0030-public-as-is-mit-claude-md-untracked.md) | このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外） | 採用（v0.8.3 は準備まで。切り替えは人間。切り替えの後、ADR-0025 の決定 6 の前提が変わる。2026-10-16 に切り替えた〈v0.8.4 の注記〉） | 2026-10-16 |
+| [0031](0031-ci-distribution-reusable-workflow-own-source.md) | CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D。呼び出す側は 40 桁の commit SHA で固定） | 採用（v0.9.0。ADR-0009 の CI の部分。手元の `npm link` は変えない） | 2026-10-16 |

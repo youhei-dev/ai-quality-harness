@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-16（v0.8.4。§3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉。その前: v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-16（v0.9.0。§3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -52,26 +52,27 @@ aiqh が担うのは「独立レビューAI への入力生成」「Quality Gate
 ## 3. 配布モデル
 
 ```
-youhei-dev/ai-quality-harness（本体・本リポジトリ）
+youhei-dev/ai-quality-harness（本体・本リポジトリ。Public）
   ├─ src/        … CLI 本体（TypeScript）
-  ├─ .github/workflows/verify.yml   … 再利用可能ワークフロー（workflow_call, M3）
-  ├─ .github/workflows/ci.yml       … 本体の自己 CI（`verify (ubuntu)`・`measure (windows)`。M3 の前半、v0.5.45 で追加。ADR-0025）
+  ├─ .github/workflows/verify.yml   … 再利用ワークフロー（`workflow_call` だけ。v0.9.0、ADR-0031）。自分と同じ commit の aiqh のソースを使う（案 D）
+  ├─ .github/workflows/ci.yml       … 本体の自己 CI（`verify (ubuntu)`・`reusable (self)`〈verify.yml を自分に当てる。v0.9.0〉・`measure (windows)`。M3 の前半、v0.5.45 で追加。ADR-0025）
   ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（強制されない: main の ruleset は Code Owners のレビューを必須にしていない。ADR-0025）
-  └─ tags: v0.1.0, v0.2.0, …        … 対象リポジトリはタグでバージョン固定
+  └─ tags: v0.1.0, v0.2.0, …        … 注釈付きタグ（semver の `v0.x.y`）。対象リポジトリは、タグが指す commit の 40 桁の SHA で固定する（タグそのものでは固定しない。v0.9.0 で改めた）
 
 対象リポジトリ（個人のリポジトリ 2 つ: trim-manager, ai-tutor-browser）
   ├─ aiqh.config.jsonc              … 設定 1 枚（秘密情報なし）
-  ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@vX.Y.Z`（M3 で verify.yml を足した後のタグ。v0.5.40 の時点で verify.yml は無い）
+  ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@<40 桁の commit SHA> # vX.Y.Z`（v0.9.0 から。手順は `docs/ops/reusable-workflow.md`）
   └─ artifacts/verification/        … verify の出力（git 管理外）
 ```
 
-CLI の呼び出し方は次の 2 系統。
+CLI の呼び出し方は次の 3 系統。
 
 - 本体リポジトリ内: `npm run verify`（Node 24 のネイティブ TypeScript 実行で `src/cli.ts` を直接起動）、`npm run verify:dist`
 - 対象リポジトリ: **`npm link` で PATH に置いた `aiqh`**（M1 の方針、ADR-0009）。本体で `npm run build && npm link` →
   対象で `aiqh init` / `aiqh verify`。対象の `package.json` に依存は追加しない（`security` チェックのコマンド `aiqh security-scan`
   は PATH の `aiqh` に依存し、`init` の監査レポートが解決元（リンク先と version）を表示する）。git 依存（`allow-git=none`）や
-  公開配布（`min-release-age=7`）は M3 で Public 化と一緒に判断
+  公開配布（`min-release-age=7`）は M3 で Public 化と一緒に判断 → **決まった結果**（2026-10-16、ADR-0031）: どちらも採らない。CI は下の案 D、手元は `npm link` のまま
+- 対象リポジトリの CI（v0.9.0、ADR-0031）: 再利用ワークフロー `verify.yml` が、`job.workflow_sha` の aiqh のソースを checkout し、`npm ci --omit=dev` で実行時の依存だけを入れて、`node <aiqh-src>/src/cli.ts` を起動する `aiqh` を PATH に置く。tarball・npm のパッケージ・GitHub Releases の資産は作らない。対象の `package.json` に依存は足さない
 
 npm レジストリへの公開は行わない（`private: true`）。
 

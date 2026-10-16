@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）。その前: 2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-10-16（v0.9.0。§1 に `reusable (self)`）。その前: 2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -12,6 +12,7 @@
 | ジョブ（名前） | runner | いつ走るか | 手順 | 失敗したとき |
 |---|---|---|---|---|
 | `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。**まだ必須チェックではない**（下の §2） |
+| `reusable (self)` | `ubuntu-24.04`（呼ばれた `verify.yml` の中） | `verify (ubuntu)` と同じ | `uses: ./.github/workflows/verify.yml`（`setup-command: npm ci`）。再利用ワークフローを、このリポジトリ自身を対象に呼ぶ（v0.9.0、ADR-0031。手順は `docs/ops/reusable-workflow.md`） | 実行が赤になる。必須チェックではない（ROADMAP の項目 44）。check の名前は `reusable (self) / aiqh verify` |
 | `measure (windows)` | `windows-2025` | **手動（`workflow_dispatch`）のときだけ**（main への push と pull request では走らない。分数の節約: Windows の分数は多く数えられ [推定]、POSIX 前提のテストで 30 分の上限まで走りうる） | 同じ | `continue-on-error`: 実行は赤にならない。測定だけ（Windows は対象外。ADR-0005） |
 
 共通:

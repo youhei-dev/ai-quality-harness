@@ -20,7 +20,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 - 設定に書いたコマンドを隔離しない（そのまま shell で実行する。設定はリポジトリ所有者の信頼された入力。下の「信頼境界」）
 - 対象リポジトリにツールを勝手に入れない。コードを直さない
 - verify の結果を外部のサービスへ送らない
-- Windows は対象外（POSIX 前提。下の「対応プラットフォーム」）。npm には公開していない（配布は `npm link`）
+- Windows は対象外（POSIX 前提。下の「対応プラットフォーム」）。npm には公開していない（配布は手元の `npm link` と、CI の再利用ワークフロー `verify.yml`。ADR-0031）
 
 > **English summary** — `aiqh` is a small TypeScript CLI (Node 24+) that runs a repository's quality checks
 > (lint, typecheck, unit tests, build, security scan, dependency audit, …) from a single JSONC config and
@@ -30,7 +30,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 > `security-scan`, and commands for an independent review loop (`review-packet`, `review-import`,
 > `review-check`). It is applied to itself first; milestones M0 to M2 are done (see `docs/ROADMAP.md`).
 > It does not sandbox the configured commands (the config is trusted input), install tools, fix code,
-> send results anywhere, or support Windows. It is not published on npm (local `npm link`). License: MIT.
+> send results anywhere, or support Windows. It is not published on npm (local `npm link`; in CI, a reusable GitHub Actions workflow pinned by commit SHA). License: MIT.
 
 ## 設計思想
 
@@ -64,7 +64,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。pytest は後。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉） |
 | 本体リポジトリの自己 CI（GitHub Actions。Ubuntu の verify、Windows の手動の測定） | v0.5.45（M3 の前半。v0.6.1 から、タグの前に `verify (ubuntu)` の success を確かめる〈人の手順。Branch Protection の必須チェックではない〉。ADR-0025） |
-| GitHub Actions 再利用ワークフロー | M3 予定 |
+| GitHub Actions 再利用ワークフロー（`.github/workflows/verify.yml`。他のリポジトリの CI から、40 桁の commit SHA で固定して呼ぶ） | v0.9.0（M3 の後半〈波 4〉。aiqh は自分と同じ commit のソースを使う〈配布物なし〉。ADR-0031。手順は `docs/ops/reusable-workflow.md`） |
 | 履歴 DB・ローカルダッシュボード | M4 予定 |
 
 ## 必要環境
@@ -141,6 +141,18 @@ aiqh init --write --write-gitignore --write-scripts
 # 検証と、内蔵の秘密情報スキャン単体
 aiqh verify
 aiqh security-scan
+```
+
+### 対象リポジトリの CI で使う（v0.9.0: 再利用ワークフロー）
+
+対象リポジトリのワークフローから、`verify.yml` を **40 桁の commit SHA** で固定して呼びます（タグでは固定しません）。aiqh は、そのワークフローと同じ commit のソースが使われます（ADR-0031）。inputs・SHA の見つけ方・呼び出す側の Actions の設定の注意・タグの運用は `docs/ops/reusable-workflow.md` にあります。
+
+```yaml
+jobs:
+  aiqh:
+    uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@<40 桁の commit SHA> # v0.9.0
+    with:
+      setup-command: npm ci
 ```
 
 `aiqh init` は `aiqh` を PATH のどこから解決したか（リンク先と version）を表示します。生成される `aiqh.config.jsonc` の例：
@@ -243,7 +255,7 @@ npm run build       # tsc → dist/
 絶対パスでの起動は防ぎません（保証の外。v0.5.37 で決めた、バックログ 6）。vitest に渡す環境変数は PATH（node と git）・`NO_COLOR`・`FORCE_COLOR` だけで、ほかは引き継ぎません（v0.5.37）。vitest は見張り役（`scripts/minpath-watchdog.ts`）が先頭の別のプロセスグループで動き、
 `test:minpath` が止まると（単独で SIGINT・SIGTERM を受けたときも、自己 verify の runner にプロセスグループごと止められたときも）、見張り役がそのグループごと止め、一時ディレクトリを消します（v0.5.38）。
 テストが自分で別のプロセスグループにした子は止めません。
-本体リポジトリの CI（`.github/workflows/ci.yml`）は Ubuntu で `npm ci` → `npm run verify` を走らせます（Branch Protection が使えないので必須チェックではありませんが、タグの前に、その release commit の push の `verify (ubuntu)` が success であることを `gh` で確かめる手順です。Windows は失敗しても止めない測定のジョブだけです。手順は `docs/ops/ci-and-branch-protection.md`、決定は ADR-0025）。
+本体リポジトリの CI（`.github/workflows/ci.yml`）は Ubuntu で `npm ci` → `npm run verify` を走らせます（必須チェックではありませんが〈main の ruleset は削除と force push の禁止だけ。ROADMAP の項目 44〉、タグの前に、その release commit の push の `verify (ubuntu)` が success であることを `gh` で確かめる手順です。Windows は失敗しても止めない測定のジョブだけです。v0.9.0 からは、再利用ワークフローをこのリポジトリ自身に当てる `reusable (self)` も走ります。手順は `docs/ops/ci-and-branch-protection.md`、決定は ADR-0025・ADR-0031）。
 
 ```bash
 # 配布 smoke test 単体（npm pack → 一時ディレクトリへ install → npx --no-install aiqh verify）
@@ -276,7 +288,7 @@ tests/               Vitest（ユニット + CLI 結合テスト）
 scripts/             配布 smoke test・最小 PATH でのテスト・JSON Schema の生成
 schema/              設定ファイルの JSON Schema
 docs/                ARCHITECTURE / ROADMAP / CONFIG_SPEC / adr / ops / reports / reviews
-.github/             自己 CI（workflows/ci.yml）と CODEOWNERS
+.github/             自己 CI（workflows/ci.yml）、再利用ワークフロー（workflows/verify.yml）と CODEOWNERS
 aiqh.config.jsonc    このリポジトリ自身の検証設定
 artifacts/           verify 出力・レビューパケット（git 管理外）
 LICENSE              MIT

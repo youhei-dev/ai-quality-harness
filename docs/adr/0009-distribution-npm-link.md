@@ -1,7 +1,7 @@
 # ADR-0009: M1 の配布は `npm link` によるローカル配布とする
 
 - 状態: 採用（M3 で再評価）
-- 日付: 2026-09-18
+- 日付: 2026-09-18。注記: 2026-10-16（v0.9.0。M3 での再評価の結果。下の「注記（v0.9.0）」）
 
 ## 文脈
 対象リポジトリから `aiqh` を使う経路が必要。本機の npm 設定は `allow-git=none`（git 依存の導入不可）、`min-release-age=7`
@@ -23,3 +23,9 @@
 ## 代替案
 - git 依存（`github:youhei-dev/ai-quality-harness#v0.2.0`）: `allow-git=none` で不可
 - 即時 publish: `min-release-age=7` で本機に入らない。Public 化の判断（M3）が先
+
+## 注記（v0.9.0: M3 での再評価の結果）
+- 2026-10-16 の人間の決定で、**CI での配布は ADR-0031 の案 D** にした: 再利用ワークフロー `.github/workflows/verify.yml` が、自分と同じ commit の aiqh のソースを checkout して使う。呼び出す側は、そのワークフローを 40 桁の commit SHA で固定する
+- **手元は、この ADR のとおり `npm link` のまま**。対象の `package.json` に依存は足さない
+- 上の「M3 でローカル導入に切り替える際の論点」のうち、「CI では `npm link` が使えない」と「対象ごとに version を固定できない」は、CI の上では ADR-0031（呼び出す側の SHA）で解いた。公開パッケージ（npm）・git 依存・GitHub Releases の tarball は採らなかった（理由は ADR-0031 の代替案）。手元で対象ごとに版を固定することは、引き続きできない
+- この ADR の文は、書いた時点の記録として変えない
