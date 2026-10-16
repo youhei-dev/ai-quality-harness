@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-16（v0.8.3。プロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-16（v0.8.4。§3 の構成の CODEOWNERS の行〈公開の後〉。その前: v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -56,7 +56,7 @@ youhei-dev/ai-quality-harness（本体・本リポジトリ）
   ├─ src/        … CLI 本体（TypeScript）
   ├─ .github/workflows/verify.yml   … 再利用可能ワークフロー（workflow_call, M3）
   ├─ .github/workflows/ci.yml       … 本体の自己 CI（`verify (ubuntu)`・`measure (windows)`。M3 の前半、v0.5.45 で追加。ADR-0025）
-  ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（非公開のいまは強制されない。ADR-0025）
+  ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（強制されない: main の ruleset は Code Owners のレビューを必須にしていない。ADR-0025）
   └─ tags: v0.1.0, v0.2.0, …        … 対象リポジトリはタグでバージョン固定
 
 対象リポジトリ（例: trim-manager, ai-tutor-browser, 将来の会社リポジトリ）

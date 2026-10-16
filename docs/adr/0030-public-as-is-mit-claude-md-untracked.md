@@ -1,7 +1,7 @@
 # ADR-0030: このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外）
 
 - 状態: 採用（v0.8.3 は準備まで。Visibility の切り替えは人間が GitHub の画面で行う。切り替えの後、ADR-0025 の決定 6〈非公開のままでは Branch Protection・rulesets が使えない〉の前提が変わる。ADR-0009〈配布は `npm link`〉は変えない）
-- 日付: 2026-10-16（v0.8.3）
+- 日付: 2026-10-16（v0.8.3）。注記: 2026-10-16（v0.8.4。切り替えの後。下の「注記（v0.8.4）」）
 
 ## 文脈
 - このリポジトリは、Public にしてポートフォリオに載せる前提で作ってきた（会社の情報・個人の情報をどこにも書かない規則）。M2-2 の完了（v0.8.2）の後、公開の前に履歴を点検した
@@ -41,3 +41,7 @@
 - 公開の後、Branch Protection か rulesets が使えるようになる（ADR-0025 の決定 6 の前提が変わる）。`verify (ubuntu)` を必須チェックにするか、pull request の流れにするかは、手順書の §3-2 の案 A・B から人間が決める
 - 以後の commit・docs もそのまま公開される。会社の情報・個人の情報を書かない規則と、push の前の走査は続ける
 - リリースの手順（commit → 各 commit の SHA 固定の worktree での検証 → push → CI の `verify (ubuntu)` の success → 注釈付きタグ）は、作業者のローカルの決まりに残る。公開の文書では、ARCHITECTURE（リリースの判定の根拠は commit 済み HEAD での verify）と、ADR-0025 の追記・手順書の 2-1（タグの前の `verify (ubuntu)` の確かめ）に要点がある
+
+## 注記（v0.8.4）
+- 2026-10-16 の 13:50 ごろ（JST）、人間が GitHub の画面で Visibility を Public に切り替えた（決定 7）。人間の確かめ: `visibility` は `public`・`private` は false、ログインなしの表示は 200、main の保護の GET は HTTP 404（`Branch not protected`）
+- 決定 7 の「次の指示」の設定は v0.8.4 で行った（人間の指示。`gh api`）: main の ruleset `main-protection`（削除と force push の禁止。必須チェックは未設定。ADR-0025 の「注記（v0.8.4: 公開と ruleset）」）、description、topics。`sha_pinning_required` は変えていない（任意のまま）

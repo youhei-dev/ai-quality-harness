@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-16（v0.8.3。下の注記）。その前: 2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）。その前: 2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -44,7 +44,7 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 3. **数え方**: push のたびに `gh run list --workflow ci.yml --event push --limit 5` で実行を特定し、`gh run view <run-id>` で `verify (ubuntu)` の結論を読む（読み取りだけ）。結果は ROADMAP の M3「進み」の表に、記録の commit などで足していく
 4. **5 回に届いたら**: プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その commit の `verify (ubuntu)` が緑」を足す（届いたときの指示で行う）。**2026-10-13 に届き、足した**（下の 2-1）。確かめ方は、release の commit の SHA について `gh run list --workflow ci.yml --commit <SHA>` で `verify (ubuntu)` が `success` であることを読む（読み取りだけ）
 5. 赤になったら: Ubuntu だけの失敗は原因を切り分ける。テストの直しは同じ波で、製品（信号の経路など）に及ぶものは別の版で独立レビュー。`npm audit` の勧告だけで赤になったときは、依存関係の判断として人間に渡す。再実行は `gh` の書き込みなので、人間の承認の後に行う
-6. Branch Protection が使えるようになったら（§3）、`verify (ubuntu)` を必須チェックにする
+6. Branch Protection が使えるようになったら（§3）、`verify (ubuntu)` を必須チェックにする（注記〈2026-10-16、v0.8.4〉: Public にして使えるようになったが、必須チェックはまだ入れていない。足すときは改めて人間の承認を得る。§3 の「実施済み」と ROADMAP の項目 44）
 7. `measure (windows)` は必須にしない（測定だけ）
 8. 時間の見張り（ADR-0025 の決定 8）: `unit`・`unit-minpath` のどちらかがチェックの上限 600 秒の 80%（480 秒）を超えたら、対策を決める。最初の 2 回は約 56%（5m30s〜5m40s）
 
@@ -59,6 +59,14 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 
 **いまの状態**（2026-10-12 に GET で確かめた）: `GET repos/youhei-dev/ai-quality-harness/branches/main/protection` と `GET …/rulesets` は、どちらも HTTP 403 `Upgrade to GitHub Pro or make this repository public to enable this feature.`。**非公開のまま・いまのプランでは使えない**。
 以下は、使えるようになったとき（Public にするか、有料のプランにしたとき）の手順。
+
+**実施済み（2026-10-16、v0.8.4）**: 2026-10-16 の 13:50 ごろ（JST）に人間がリポジトリを Public に切り替え、`GET …/branches/main/protection` は HTTP 404（`Branch not protected`）になった（403 ではなくなった）。その後、次の ruleset を API で作った（人間の指示。classic の Branch Protection は使っていない）。上の「いまの状態」の文は、書いた時点の記録として残す。
+
+- ruleset `main-protection`（id 25218296）: target `branch`、enforcement `active`、対象 `~DEFAULT_BRANCH`（main）。作り方: `gh api --method POST repos/youhei-dev/ai-quality-harness/rulesets --input <JSON のファイル>`（JSON の欄は name・target・enforcement・conditions・rules・bypass_actors）
+- 規則: `deletion`（3-1 の 2）と `non_fast_forward`（3-1 の 3）だけ
+- Bypass list: Repository admin の役割（`RepositoryRole` の id 5、`bypass_mode: always`。3-3）
+- 入れていないもの: 必須チェック（3-1 の 4。§2 の条件〈main への push で続けて 5 回緑〉を見て、足すときは改めて人間の承認を得る。ROADMAP の項目 44）、pull request の必須（3-1 の 5。いまは 3-2 の案 B の形）、承認の数、Code Owners のレビュー、tag ruleset（3-3 の最後）
+- 確かめ（読み取りだけ）: `gh api repos/youhei-dev/ai-quality-harness/rules/branches/main --jq '[.[].type]'` → `["deletion","non_fast_forward"]`。`gh api repos/youhei-dev/ai-quality-harness/rulesets --jq 'length'` → 1
 
 ### 3-1. 設定する内容（rulesets の場合。Settings → Rules → Rulesets → New branch ruleset）
 
@@ -91,6 +99,7 @@ classic の Branch Protection を使う場合も、同じ 4 つ（削除の禁�
 
 - 持ち主を `@youhei-dev` にしたもの: `.github/`、`aiqh.config.jsonc`、`package.json`、`package-lock.json`、`tsconfig.json`・`tsconfig.build.json`、`eslint.config.js`、`vitest.config.ts`、`.gitignore`、`scripts/`、`tests/structure/`（検証のしかたを決めるファイル。ROADMAP の R-006 の候補 1）
 - **いまは強制されない**: 非公開のリポジトリで、いまのプランでは Branch Protection も rulesets も使えない（§3）。Code Owners のレビューを必須にするには、Branch Protection か ruleset が要る
+  - 注記（2026-10-16、v0.8.4）: Public にした後も、ruleset（§3 の「実施済み」）は Code Owners のレビューを必須にしていないので、強制されないまま
 - 1 人のリポジトリでは、自分の pull request に自分は承認を出せないので、Code Owners のレビューを必須にすると締め出される（3-3）。持ち主の記録として置く
 
 ## 5. CI の結果の読み方（読み取りだけ）

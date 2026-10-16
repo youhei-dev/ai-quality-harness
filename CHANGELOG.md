@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.8.3 — public preparation: the MIT license, the repository fields of package.json, the README for a public repository, the project CLAUDE.md untracked (ADR-0030; the visibility is not switched)
+## v0.8.3 — commit 1f708ac7d7893fe78335543637d5d6ed9bbde87b / tag object c97685389870cfa7e96f83d2703dab647c77588c — public preparation: the MIT license, the repository fields of package.json, the README for a public repository, the project CLAUDE.md untracked (ADR-0030; the visibility is not switched)
 
 - **公開の準備**（人間の決定: 案 1〈いまのリポジトリを、履歴を書き換えずにそのまま Public に〉・MIT・プロジェクトの `CLAUDE.md` は追跡外。ADR-0030）。**Visibility の切り替えはしていない**（人間が GitHub の画面で行う）。5 commit: `80e13a8`・`76b2047`・`864ced8`・`fb51c4d`・この release の commit
 - `LICENSE`: MIT の標準の本文、`Copyright (c) 2026 youhei-dev`（GitHub のアカウント名）。`npm pack` の tarball にも入る

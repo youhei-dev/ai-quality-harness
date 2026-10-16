@@ -1,7 +1,7 @@
 # ADR-0025: 自己 CI は Ubuntu の verify から始め、最初は必須にしない
 
 - 状態: 採用（M3 の前半〈rest2 の計画の波 2〉。ROADMAP の M3「本体リポジトリ自身の CI」、R-011 の後半〈Linux での検証〉、R-006 の候補 1〈CODEOWNERS の手順〉の始まり。ADR-0005 の Windows の扱いは変えない）
-- 日付: 2026-10-12（v0.5.45 の予定。ワークフローは、この ADR の時点では GitHub で一度も走っていない）。追記: 2026-10-12（v0.5.45。最初の結果と、必須にする条件〈決定 7〉・時間の見張り〈決定 8〉。下の「追記（v0.5.45）」）、2026-10-13（v0.6.1 の後。決定 7 の条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。下の「追記（決定 7 の条件に届いた）」）、2026-10-16（v0.8.3。プロジェクトの `CLAUDE.md` が追跡外になった注記。下の「注記（v0.8.3）」）
+- 日付: 2026-10-12（v0.5.45 の予定。ワークフローは、この ADR の時点では GitHub で一度も走っていない）。追記: 2026-10-12（v0.5.45。最初の結果と、必須にする条件〈決定 7〉・時間の見張り〈決定 8〉。下の「追記（v0.5.45）」）、2026-10-13（v0.6.1 の後。決定 7 の条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。下の「追記（決定 7 の条件に届いた）」）、2026-10-16（v0.8.3。プロジェクトの `CLAUDE.md` が追跡外になった注記。下の「注記（v0.8.3）」）、2026-10-16（v0.8.4。Public にした後の ruleset。下の「注記（v0.8.4: 公開と ruleset）」）
 
 ## 文脈
 - 本体の検証は M0 から手元の macOS だけ。Linux は「設計上は対応」で、実際には確かめていない（R-011 の後半。ADR-0022・ADR-0023 にも「Linux 未確認」）。Windows は対象外（ADR-0005）
@@ -21,6 +21,7 @@
    - キャッシュは使わない（setup-node の自動キャッシュも `package-manager-cache: false` で止める）。verify のレポートを成果物としてアップロードしない（マスク済みでも、レポートを runner の外へ出さない）
    - 同時実行: pull request は同じ ref の古い実行を取り消す。main への push と手動の実行は、実行ごとの group で取り消さない
 6. **Branch Protection は、いまは使えない**: 非公開・いまのプランでは GET が 403。手順書に、使えるようになったとき（Public 化か有料のプラン）の手順を書く。`.github/CODEOWNERS` は持ち主の記録として置くが、いまは強制されない
+   - 注記（2026-10-16、v0.8.4）: Public にした後、GET は HTTP 404 になり、ruleset `main-protection` を設定した。下の「注記（v0.8.4: 公開と ruleset）」
 
 ## 代替案
 - `ubuntu-latest`・`windows-latest`: 版が黙って変わり、失敗の原因が分かりにくくなる。採らない
@@ -96,3 +97,14 @@
 
 ## 注記（v0.8.3）
 - この ADR が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。決定 7 で足した一文は、上の「プロジェクトの `CLAUDE.md` に足したこと」と `docs/ops/ci-and-branch-protection.md` の 2-1 に同じ文で残っている。決定と手順は変えない
+
+## 注記（v0.8.4: 公開と ruleset。決定 6 の前提が変わった）
+- 2026-10-16 の 13:50 ごろ（JST）、人間が GitHub の画面でリポジトリを Public に切り替えた（ADR-0030 の決定 7）。切り替えの後、`GET repos/youhei-dev/ai-quality-harness/branches/main/protection` は HTTP 403（`Upgrade to GitHub Pro or make this repository public to enable this feature.`）から HTTP 404（`Branch not protected`）に変わった。決定 6 の「いまは使えない」の前提は、もう成り立たない
+- 旧来の Branch Protection（`branches/main/protection` の API）ではなく、**ruleset** を使った（人間の指示。2026-10-16、v0.8.4）。`gh api --method POST repos/youhei-dev/ai-quality-harness/rulesets` で 1 つ作った:
+  - 名前 `main-protection`、id `25218296`、target `branch`、enforcement `active`、対象は既定のブランチ（`~DEFAULT_BRANCH`。main）
+  - 規則は `deletion`（削除の禁止）と `non_fast_forward`（force push の禁止）の 2 つだけ。`GET repos/youhei-dev/ai-quality-harness/rules/branches/main` は `["deletion","non_fast_forward"]`
+  - Bypass は Repository admin の役割（`RepositoryRole` の id 5、`bypass_mode: always`）。締め出されないため（手順書の 3-3）
+- **必須チェックは未設定**: `verify (ubuntu)` を ruleset の必須チェックにしていない。承認の数・Code Owners のレビュー・pull request の必須も入れていない。いまの形は手順書の 3-2 の案 B（直接の push を続け、ruleset は削除と force push の禁止だけ。CI はタグの前の条件で使う）に当たる
+- **必須チェックを足す条件は、決定 7 のとおり「`verify (ubuntu)` が main への push で続けて 5 回緑」**。足すときは改めて人間の承認を得る（ROADMAP の項目 44）。必須チェックを足すと、チェックを通っていない commit を main に直接 push できなくなる（チェックは push の後に走る。手順書の 3-2）ので、pull request の流れにするかと一緒に決める。数えた記録: 2026-10-16 の時点で、v0.5.45 の release（`35ee9e7`）から v0.8.3 の release（`1f708ac`）までの、main への push で始まった run 15 回（`f9258c8` だけ 2 run）は、すべて success（赤は 0 回）
+- `.github/CODEOWNERS` は、ruleset が Code Owners のレビューを必須にしていないので、公開の後も強制されない
+- 決定 6 の文と、上の追記の「Branch Protection は引き続き使えない」の節は、書いた時点の記録として変えない
