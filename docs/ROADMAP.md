@@ -613,6 +613,7 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
   - ADR-0025 に注記（決定 6 の前提が変わった: GET が 403 から 404 に。classic の Branch Protection ではなく ruleset。必須チェックは未設定で、足す条件は決定 7 の「main への push で続けて 5 回緑」）。ADR-0030 に注記（切り替えた日時と、決定 7 の次の指示の設定）。ADR の一覧の 2 行に注記
   - 手順書 `docs/ops/ci-and-branch-protection.md`: §3 に「実施済み（2026-10-16、v0.8.4）」と今回の設定、§2 の 6 と §4（CODEOWNERS）に注記。ARCHITECTURE の構成の CODEOWNERS の行（「非公開のいまは」を外し、ruleset が Code Owners のレビューを必須にしていないので強制されない、に）
   - CHANGELOG の v0.8.3 の見出しに commit 1f708ac7d7893fe78335543637d5d6ed9bbde87b / tag object c97685389870cfa7e96f83d2703dab647c77588c を記入した。v0.8.3 の CI の記録は上の v0.8.3 の項に書いた
+  - **適用先の予定の取り消し**（人間の決定。2026-10-16）: aiqh は外部の組織とは関係のない個人のプロジェクトとして進め、適用先は個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`）だけにする。追跡しているファイルを語で探すと 13 行が当たり、予定に当たるのは ARCHITECTURE の構成図の対象リポジトリの例の 1 行だけだった。これを「個人のリポジトリ 2 つ」に書き換え、M3 の「内容」に適用先を書いた。残りの 12 行は、会社の情報を書かない規則と公開の前の点検の説明で、予定ではないので変えていない（ADR・`docs/reviews/`・`docs/reports/`・CHANGELOG の過去の項に予定の記述は無く、注記も要らなかった）
   - 変えていない設定: Visibility（人間が切り替えた後のまま）、Actions の設定（`sha_pinning_required` は false のまま）、tag ruleset、npm への公開
   - `src/`・`tests/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えていない。docs と version だけの版なので、HEAD の 10 回連続と `verify:dist` は省いた（人間の指示）。独立レビューは付けていない
   - `package.json` 0.8.4（`package-lock.json` は 0.5.35 のまま）。CHANGELOG の v0.8.4 の見出しの SHA と、この版の CI の記録は、次の記録の commit で書く
@@ -793,6 +794,7 @@ M2-1 の教訓（R3）:
 
 ### 内容
 - `.github/workflows/verify.yml`（`workflow_call`）: 対象リポジトリはタグ固定で参照するだけ
+- **適用先**（人間の決定。2026-10-16、v0.8.4）: 個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`。M1 で aiqh を当てたもの）だけ。外部の組織リポジトリへの適用の予定は取り消した（それまでは ARCHITECTURE の構成図の対象リポジトリの例に、外部の組織のリポジトリが入っていた）
 - 入力: Node / Python バージョン、作業ディレクトリ、設定パス。出力: verify 結果を workflow artifact としてアップロード、Job Summary に latest.md を表示
 - 本体リポジトリ自身の CI（自己 verify を PR ごとに実行）
 - Branch Protection の手順書（必須ステータスチェック、レビュー必須、force push 禁止）

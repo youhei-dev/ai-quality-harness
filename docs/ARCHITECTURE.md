@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-16（v0.8.4。§3 の構成の CODEOWNERS の行〈公開の後〉。その前: v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-16（v0.8.4。§3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉。その前: v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -59,7 +59,7 @@ youhei-dev/ai-quality-harness（本体・本リポジトリ）
   ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（強制されない: main の ruleset は Code Owners のレビューを必須にしていない。ADR-0025）
   └─ tags: v0.1.0, v0.2.0, …        … 対象リポジトリはタグでバージョン固定
 
-対象リポジトリ（例: trim-manager, ai-tutor-browser, 将来の会社リポジトリ）
+対象リポジトリ（個人のリポジトリ 2 つ: trim-manager, ai-tutor-browser）
   ├─ aiqh.config.jsonc              … 設定 1 枚（秘密情報なし）
   ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@vX.Y.Z`（M3 で verify.yml を足した後のタグ。v0.5.40 の時点で verify.yml は無い）
   └─ artifacts/verification/        … verify の出力（git 管理外）
