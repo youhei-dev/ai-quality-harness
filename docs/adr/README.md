@@ -33,3 +33,4 @@
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない） | 2026-10-13 |
 | [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま） | 2026-10-14 |
 | [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない） | 2026-10-14 |
+| [0030](0030-public-as-is-mit-claude-md-untracked.md) | このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外） | 採用（v0.8.3 は準備まで。切り替えは人間。切り替えの後、ADR-0025 の決定 6 の前提が変わる） | 2026-10-16 |

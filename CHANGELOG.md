@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.8.2 — M2-2 complete — completion record (docs and version only; no code change)
+## v0.8.2 — commit 5abdf0a6234697ad7289cf8c720b7ec29567c763 / tag object 862ba85f8cdffbbbea7ce68206cd91ea91dfd4b8 — M2-2 complete — completion record (docs and version only; no code change)
 
 - **M2-2 を完了とした**（人間の決定。m2-2-parsers R2 の報告の §7〈完了条件 3 つを満たした〉を見て）。完了ベースライン v0.8.1（commit a467093a44da5e50297c44d11af19f5adcb6bbca / tag object 2e9d10ec5a88ea9ad836145982d9ab23b079d537）、完了記録は本タグ。前例（M2-0 の v0.3.4、M2-1 の v0.4.4）と同じ形。2 commit: `ecbbc80`（完了報告と ROADMAP）とこの release の commit
 - 完了報告 `docs/reports/M2-2_COMPLETION.md`: 完了条件ごとの根拠、内容と項目 15、波 3〈v0.6.0〜v0.8.1〉の版と独立レビュー、ADR-0026〜0029、後に回したもの、テストの件数と CI の時間の推移、波 3 の運用で学んだこと
