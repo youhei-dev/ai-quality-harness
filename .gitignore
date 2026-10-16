@@ -23,3 +23,6 @@ coverage/
 # OS / editor
 .DS_Store
 *.log
+
+# the project's working rules for the AI coding assistant (kept locally; untracked from v0.8.3)
+/CLAUDE.md
