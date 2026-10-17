@@ -5,6 +5,20 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.9.2 — main requires pull requests: two required checks (verify (ubuntu), reusable (self) / aiqh verify), merge commits only, no bypass (ADR-0032; docs and version only)
+
+- **本体の main を pull request 必須にした**（人間の決定。2026-10-17）。この版が、新しい運用の最初の pull request（branch `release/v0.9.2`）。3 commit: `f78d881`・`e256acb`・この release の commit
+- ruleset `main-protection`（id 25218296）を `gh api --method PUT` で 1 回切り替えた:
+  - `pull_request`: 承認 0、Code Owners のレビューなし、merge の方式は merge commit だけ（`allowed_merge_methods: ["merge"]`。branch の commit の SHA を保つ）
+  - `required_status_checks`: `verify (ubuntu)` と `reusable (self) / aiqh verify`（GitHub Actions、integration 15368）、strict。`measure (windows)` は入れない
+  - Bypass は外した（`bypass_actors: []`）。困ったときは、人間が Settings から ruleset を止める
+  - `deletion`・`non_fast_forward` はそのまま
+- merge は、必須チェックが緑になった後に `gh pr merge --merge --match-head-commit <SHA> --delete-branch`（`--admin` は使わない）。タグは release の commit（branch の commit）に付ける
+- docs: ADR-0032（新規）、ADR-0025 の注記、ADR の一覧、手順書 `docs/ops/ci-and-branch-protection.md` の §3（いまの設定）と §8（リリースの手順）、ROADMAP（項目 44 を閉じた、M3 の完了条件の 1 つめに注記、v0.9.1 の CI の記録）、README（いまの状態と CI の文）。CHANGELOG の v0.9.1 の見出しの SHA
+- 利用者に見える変化: 無い（CLI と `verify.yml` は v0.9.0 と同じ）。このリポジトリへの変更は、pull request でしか入らない
+- `src/`・`tests/`・`tests/structure/`・`.github/`・依存関係・`package-lock.json` は v0.9.1 と同一。docs と version だけの版なので、HEAD の 10 回連続と `verify:dist` は省いた（人間の指示）
+- `package.json` version 0.9.2（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.9.1 — commit d013e892f8b151187d491705606eaf833e382787 / tag object d78775bbd88e0a55a153c25ead98c73c4147373d — wave 4 closeout: the application of the reusable workflow to two personal repositories recorded (docs and version only)
 
 - **波 4 の締めの記録**（docs と version だけ。コード変更なし）。2 commit: `532251e`・この release の commit
