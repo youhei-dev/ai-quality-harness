@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.9.1 — wave 4 closeout: the application of the reusable workflow to two personal repositories recorded (docs and version only)
+## v0.9.1 — commit d013e892f8b151187d491705606eaf833e382787 / tag object d78775bbd88e0a55a153c25ead98c73c4147373d — wave 4 closeout: the application of the reusable workflow to two personal repositories recorded (docs and version only)
 
 - **波 4 の締めの記録**（docs と version だけ。コード変更なし）。2 commit: `532251e`・この release の commit
 - 波 4 の適用（2026-10-17。個人のリポジトリ 2 つ。どちらも直しと CI を 1 つの PR に入れ、merge は人間）:
