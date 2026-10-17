@@ -1,7 +1,7 @@
 # ADR-0031: CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D）
 
 - 状態: 採用（v0.9.0。ADR-0009 の「M3 で再評価」の結果のうち CI の部分。手元の `npm link` は ADR-0009 のまま）
-- 日付: 2026-10-16（v0.9.0）
+- 日付: 2026-10-16（v0.9.0）。注記: 2026-10-17（v0.9.1。適用で確かめたこと。下の「注記（v0.9.1: 適用で確かめたこと）」）
 
 ## 文脈
 - 波 4（M3 の後半）では、aiqh の配布の方式・他のリポジトリから呼ぶ再利用ワークフロー・個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`）への適用を決める。適用先は 2 つとも private で、ワークフローは無い（SP1、2026-10-16）
@@ -74,3 +74,25 @@
   - Node の TypeScript の実行（型を消して動かす）に頼るので、Node 24 以上でしか動かない（`engines` と同じ）。対象のビルドに 24 未満の Node が要るときは、この形では使えない
   - `setup-command` は、呼び出す側が書いたコマンドを、呼び出す側の job でそのまま走らせる（設定ファイルと同じく、呼び出す側の信頼された入力）
 - private の呼び出し側では、実行は非公開の runner（2 CPU）で、分数は呼び出す側の無料枠から引かれる（runner と料金は呼び出す側で決まる）
+
+## 注記（v0.9.1: 適用で確かめたこと）
+2026-10-17 に、個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`。どちらも private）へ適用した（ROADMAP の M3 の「波 4」）。上の「結果と未確認の点」のうち、次を確かめた。決定は変えない。
+- ほかのリポジトリ（private）から、公開の aiqh の `verify.yml` を 40 桁の commit SHA で呼べる（`uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@7f2146da61702e859f0fddf0834a4f6414b0b6fb # v0.9.0`）
+- `job.workflow_repository` と `job.workflow_sha` は、呼ばれた側（`youhei-dev/ai-quality-harness`・`7f2146d…`）を指す。aiqh の checkout はその commit で、`git rev-parse HEAD` との照合が通った
+- private の呼び出し側の既定のトークンで、公開の aiqh を checkout できる（トークンは渡していない）
+- `python-version` の経路（setup-python。CPython 3.13 系）が動く。設定のコマンドが `.venv/bin/python` を使う形でも、`setup-command` で `.venv` を作れば動く
+- `working-directory` が既定の `.` の経路が動く
+- run: trim-manager の PR #2 の `38985874746`・main の `38986865678`、ai-tutor-browser の PR #1 の `38989579565`・main の `38990545338`。どれも success
+
+残る未確認の点:
+- `workflow_dispatch`（手動の実行）と、呼び出す側の `concurrency` の取り消しの動き
+- Node 24 未満のときの文言（`aiqh needs Node.js 24 or later`）
+- `job.workflow_sha` が空、または aiqh の checkout と食い違うときに止まる経路
+- GitHub Enterprise Server（`job.workflow_*` が使えない）
+- CI で通っていない入力の経路: `job-summary: true`、`working-directory` が `.` 以外
+- Bypass が `always` のときの必須チェックの扱い（ROADMAP の項目 44）
+
+分かった制約（ROADMAP の項目 39・45・46）:
+- CI のログに pytest の件数が出ない（PASS のチェックの出力は表示されず、pytest の読み取りが無い）
+- `actions/runs/<id>/timing` の `billable` が 0 を返した。呼び出す側の分数は、請求の画面で確かめる
+- `aiqh init` が node:test を unit として検出しない

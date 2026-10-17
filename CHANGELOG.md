@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.9.0 — the reusable workflow .github/workflows/verify.yml (distribution D: aiqh from the workflow's own commit; callers pin a commit SHA) and the self-application job reusable (self) (ADR-0031)
+## v0.9.0 — commit 7f2146da61702e859f0fddf0834a4f6414b0b6fb / tag object d67144a32b8878b27b2c2ec3baa848e217244df0 — the reusable workflow .github/workflows/verify.yml (distribution D: aiqh from the workflow's own commit; callers pin a commit SHA) and the self-application job reusable (self) (ADR-0031)
 
 - **波 4 の最初の版**（人間の決定: CI での配布は案 D、呼び出す側は 40 桁の commit SHA で固定。ADR-0031）。適用先 2 つには触れていない。5 commit: `71bfc27`・`d794c9b`・`8bd758c`・`c713578`・この release の commit
 - `.github/workflows/verify.yml`（新規）: `on: workflow_call` だけ、権限は `contents: read` だけ、アクションはすべて 40 桁の commit SHA（setup-python v7.0.0 = `5fda3b95a4ea91299a34e894583c3862153e4b97`）

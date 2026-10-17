@@ -1,6 +1,6 @@
 # 再利用ワークフロー（verify.yml）の手順書
 
-最終更新: 2026-10-16（v0.9.0。新規）
+最終更新: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
 
 ほかのリポジトリの CI から `aiqh verify` を走らせるための再利用ワークフロー `.github/workflows/verify.yml` の使い方。決定の根拠は ADR-0031（CI での配布は案 D）。aiqh は、tarball や npm のパッケージとしては配らない。ワークフローが、自分と同じ commit の aiqh のソースを使う。
 
@@ -24,8 +24,27 @@ jobs:
 ```
 
 - `@` の後ろは **40 桁の commit SHA** にし、行末に版のコメントを付ける（タグやブランチにしない）。この SHA が、ワークフローと aiqh のソースの両方を決める
+- SHA は v0.9.0（`7f2146da61702e859f0fddf0834a4f6414b0b6fb`）のままでよい。`verify.yml` は v0.9.1 で変わらない（v0.9.1 は docs と version だけ）ので、v0.9.1 の SHA で呼んでも動きは同じ（`aiqh --version` が 0.9.1 を出すことだけが違う）
 - 呼び出す側の check の名前は `<呼び出す側の job の名前> / aiqh verify`（上の例では `aiqh / aiqh verify`）
-- Python の対象では、`python-version` を足し、`setup-command` に依存を入れるコマンド（例: `python -m pip install -r requirements.txt`）を書く。設定のコマンドが手元の venv を前提にしていないかは、適用の前に確かめる
+- Python の対象は、下の §1.1 の例を見る（`python-version` を足し、`setup-command` で依存を入れる）
+
+### 1.1 Python の対象の例（v0.9.1）
+
+設定のコマンドが、`.venv/bin/python -m pytest -q tests/` のように、リポジトリの中の `.venv` を使う形のとき:
+
+```yaml
+jobs:
+  aiqh:
+    uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@<40 桁の commit SHA> # v0.9.0
+    with:
+      python-version: "3.13"
+      setup-command: python -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+- setup-python が入れた `python` で、作業ディレクトリに `.venv` を作り、依存を入れる。設定のコマンドの `.venv/bin/python` は、その `.venv` を指す
+- `.venv/` は、呼び出す側の `.gitignore` で ignore しておく（security の走査が、未追跡のファイルとして読まないように）
+- `on:`・`permissions:` などは、上の例と同じ
+- 適用の前に、§8 の注意（`.env` と手元の venv に頼らない、依存の版の固定）を確かめる
 
 ## 2. inputs
 
@@ -75,7 +94,7 @@ CHANGELOG の各版の見出しにも、`commit <SHA> / tag object <SHA>` の形
 - 個人のアカウントで `local_only` にしたとき、同じ利用者の別のリポジトリの再利用ワークフローが許されるかは、文書に明記が無い [未確認]
 - `sha_pinning_required`（アクションを完全な commit SHA で固定することを強制する設定）は、再利用ワークフローの参照そのものには効かない [確認: GitHub の文書]。このワークフローの中のアクションは、すべて SHA で固定してある
 - runner の割り当てと料金は、いつも**呼び出す側**で決まる [確認]。**private の呼び出し側では、非公開の runner（2 CPU）で走り、分数は呼び出す側のアカウントの無料枠（GitHub Free は月 2,000 分）から引かれる**。公開リポジトリの標準の runner は無料
-- 公開の aiqh を、呼び出す側の既定のトークンで checkout できるのは推定（GitHub の文書の例が、トークンを渡さずに自分のソースを checkout している）。private の呼び出し側からは、最初の適用のときに確かめる
+- 公開の aiqh を、呼び出す側の既定のトークンで checkout できる [確認: 2026-10-17、private の呼び出し側 2 つで。v0.9.0 の時点では、GitHub の文書の例からの推定だった]。トークンは渡さない
 
 参考（2026-10-16 の SP1 で読んだ GitHub の文書）:
 - 再利用ワークフローの呼び出し方と ref（SHA が最も安全）: https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows
@@ -100,3 +119,13 @@ CHANGELOG の各版の見出しにも、`commit <SHA> / tag object <SHA>` の形
 | `aiqh needs Node.js 24 or later` | `node-version` が 24 未満 |
 | `the aiqh checkout is not the commit of this workflow (job.workflow_sha)` | aiqh の checkout が、ワークフローの commit と違う（`job.workflow_sha` が空のときも）。fail closed で止めた |
 | `VERIFY FAILED` | 対象のチェックが失敗した（aiqh の判定どおり） |
+
+## 8. 適用で分かった注意（v0.9.1）
+
+2026-10-17 の、個人のリポジトリ 2 つ（private）への適用で分かったこと。
+
+- **CI には `.env` も手元の venv も無い**。テストや設定のコマンドが、それに頼らないようにする。たとえば、`.env` の値が無いと import のときに終わるモジュールを、テストが値を置かずに import すると、pytest は 1 件も走らずに止まる。適用の前に、追跡しているファイルだけの clone（`.env` なし）と新しい venv で、テストが通るかを手元で確かめる
+- **依存は版を固定しておく**。`>=` だけだと、CI はその日の最新を入れ、手元と違う版になる（実際に、新しい版の依存が、テストの import するパッケージを連れてこなくなり、集める途中で止まった）。少なくとも直接の依存は `==` で固定し、テストが直接 import するパッケージも requirements に書く
+- **pytest の件数はログに出ない**。aiqh は PASS のチェックの出力を表示せず、pytest の出力の読み取りも無い（ROADMAP の項目 39）。`job-summary: true` にしても、Job Summary に足されるのは `latest.md` で、pytest の件数は入らない。件数は手元で確かめる
+- **`actions/runs/<id>/timing` の `billable` は 0 を返した**（private の呼び出し側 2 つの run。`run_duration_ms` は 51,000）。0 の意味は確かめていない。呼び出す側の分数は、GitHub の請求の画面で確かめる（ROADMAP の項目 46）
+- 1 回の job の時間の目安（2026-10-17）: Node の対象（5 チェック）で 46〜47 秒、Python の対象（2 チェック。venv と pip を含む）で 41〜47 秒
