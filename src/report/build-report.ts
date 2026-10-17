@@ -23,6 +23,8 @@ export function buildReport(input: BuildReportInput): VerificationReport {
     tool: { name: "ai-quality-harness", version: input.toolVersion },
     project: { name: input.config.project.name, root: input.config.projectRoot },
     configPath: input.config.configPath,
+    // Right after configPath, only when the config was read from a file (ADR-0033: absent, never null).
+    ...(input.config.configSha256 === undefined ? {} : { configSha256: input.config.configSha256 }),
     startedAt: input.startedAt.toISOString(),
     finishedAt: input.finishedAt.toISOString(),
     durationMs: input.finishedAt.getTime() - input.startedAt.getTime(),

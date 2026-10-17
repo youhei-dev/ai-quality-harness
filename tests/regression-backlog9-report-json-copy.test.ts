@@ -20,6 +20,7 @@ function report(results: CheckResult[]): VerificationReport {
     config: {
       projectRoot: "/proj",
       configPath: "/proj/aiqh.config.jsonc",
+      configSha256: "0123456789abcdef".repeat(4),
       project: { name: "demo" },
       outputDir: "/proj/artifacts/verification",
       security: DEFAULT_SECURITY,
@@ -72,7 +73,7 @@ describe("backlog 9: buildReport copies the report as JSON data", () => {
     const results = [checkResult({ name: "lint", kind: "lint" }), checkResult({ name: "unit", kind: "unit", status: "FAIL", exitCode: 1, errorSummary: "exit code 1: x", stdoutTail: "line 1\nline 2", stderrTail: "e" })];
     const r = report(results);
     expect(JSON.stringify(r)).toBe(JSON.stringify(maskDeep(JSON.parse(JSON.stringify(r)))));
-    expect(Object.keys(r)).toEqual(["schemaVersion", "tool", "project", "configPath", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"]);
+    expect(Object.keys(r)).toEqual(["schemaVersion", "tool", "project", "configPath", "configSha256", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"]);
   });
 });
 
