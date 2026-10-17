@@ -9,8 +9,8 @@
 | [0003](0003-report-format-json-markdown.md) | レポートを JSON（機械）+ Markdown（人間）の 2 形式にする | 採用 | 2026-09-15 |
 | [0004](0004-fail-closed-verdict.md) | 最終判定は fail closed とし、必須チェック 0 件を許さない | 採用 | 2026-09-15 |
 | [0005](0005-child-process-execution.md) | チェックは shell 経由・プロセスグループ管理で実行する | 採用 | 2026-09-15 |
-| [0006](0006-secret-masking.md) | 出力の秘密情報はパターンマスクし、値を保存しない | 採用 | 2026-09-15 |
-| [0007](0007-artifacts-untracked.md) | `artifacts/` を git 管理外にする | 採用 | 2026-09-15 |
+| [0006](0006-secret-masking.md) | 出力の秘密情報はパターンマスクし、値を保存しない | 採用（注記〈v0.10.0〉: CI ではレポートを artifact に上げない） | 2026-09-15 |
+| [0007](0007-artifacts-untracked.md) | `artifacts/` を git 管理外にする | 採用（注記〈v0.10.0〉: CI の artifact と履歴 DB は、そのとおりにはならなかった） | 2026-09-15 |
 | [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用 | 2026-09-15 |
 | [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価。注記〈v0.9.0〉: CI は ADR-0031 の案 D、手元は `npm link` のまま） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
@@ -36,3 +36,4 @@
 | [0030](0030-public-as-is-mit-claude-md-untracked.md) | このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外） | 採用（v0.8.3 は準備まで。切り替えは人間。切り替えの後、ADR-0025 の決定 6 の前提が変わる。2026-10-16 に切り替えた〈v0.8.4 の注記〉） | 2026-10-16 |
 | [0031](0031-ci-distribution-reusable-workflow-own-source.md) | CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D。呼び出す側は 40 桁の commit SHA で固定） | 採用（v0.9.0。ADR-0009 の CI の部分。手元の `npm link` は変えない） | 2026-10-16 |
 | [0032](0032-main-requires-pull-requests-two-required-checks.md) | 本体リポジトリの main は pull request を必須にする（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし） | 採用（v0.9.2。ADR-0025 の決定 3 を終え、決定 6・7 の後を決めた。ROADMAP の項目 44） | 2026-10-17 |
+| [0033](0033-config-sha256-recorded-not-pinned.md) | verify のレポートに、設定ファイルのバイト列の SHA-256 を `configSha256` として記録する（固定ではなく記録） | 採用（v0.10.0。R-006 の対策候補 2 を「記録」として入れる。候補 3 は docs の手順） | 2026-10-17 |
