@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.9.1 — wave 4 closeout: the application of the reusable workflow to two personal repositories recorded (docs and version only)
+
+- **波 4 の締めの記録**（docs と version だけ。コード変更なし）。2 commit: `532251e`・この release の commit
+- 波 4 の適用（2026-10-17。個人のリポジトリ 2 つ。どちらも直しと CI を 1 つの PR に入れ、merge は人間）:
+  - `youhei-dev/trim-manager`: PR #2（merge の commit `1d23e76`）。PR の run `38985874746`（5 チェック PASSED）・main の run `38986865678` が success。npm audit の high 5 件を `overrides` で 0 件に（`@grpc/grpc-js` 1.9.16 → 1.14.6・`source-map-js` 1.2.1 → 1.2.2。GHSA-m9gg-hp2v-232j・GHSA-f596-whhp-79r4・GHSA-68fv-2mgg-jv7q）、unit のチェック（`npm test`）を足した
+  - `youhei-dev/ai-tutor-browser`: PR #1（merge の commit `c65c405`）。PR の run `38989579565`（2 チェック PASSED）・main の run `38990545338` が success。テストが `.env` に頼らないようにし、直接の依存を固定して httpx を足した。Python の経路（setup-python 3.13 と `setup-command` の venv）が CI で動いた
+  - どちらも `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@7f2146da61702e859f0fddf0834a4f6414b0b6fb # v0.9.0`
+- ADR-0031 に「注記（v0.9.1: 適用で確かめたこと）」: private の呼び出し側から SHA で呼べる、`job.workflow_repository`・`job.workflow_sha` は呼ばれた側を指す、既定のトークンで公開の aiqh を checkout できる、`python-version` の経路と `working-directory` の既定の経路が動く。残る未確認の点（`workflow_dispatch` と concurrency の取り消し、Node 24 未満の文言、`job.workflow_sha` が空・食い違いのとき、GHES など）も書いた
+- `docs/ops/reusable-workflow.md`: Python の対象の例（§1.1）、適用で分かった注意（§8: `.env` と手元の venv に頼らない、依存の版の固定、pytest の件数はログに出ない、timing の API の `billable`）、v0.9.1 の SHA で呼んでも `verify.yml` は同じであること
+- ROADMAP: v0.9.0 の CI の記録（run `38883693702`、`unit` 156 秒〈26.0%〉・`unit-minpath` 153 秒〈25.5%〉、`reusable (self)` 5 分 55 秒・8/8）、波 4 の適用の記録と完了、項目 39 の注記、新しい項目 45（`aiqh init` が node:test を検出しない）・46（timing の `billable` が 0。記録だけ）、適用先の側の残り、「次:」（項目 44 と本体リポジトリの PR の運用の決定、その後に M4）
+- CHANGELOG の v0.9.0 の見出しの SHA
+- 利用者に見える変化: 無い（`verify.yml` と CLI は v0.9.0 と同じ。v0.9.1 の SHA で呼んでも動きは同じで、`aiqh --version` が 0.9.1 を出す）
+- `src/`・`tests/`・`tests/structure/`・`.github/`・依存関係・`package-lock.json` は v0.9.0 と同一。docs と version だけの版なので、HEAD の 10 回連続と `verify:dist` は省いた（人間の指示）
+- `package.json` version 0.9.1（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.9.0 — commit 7f2146da61702e859f0fddf0834a4f6414b0b6fb / tag object d67144a32b8878b27b2c2ec3baa848e217244df0 — the reusable workflow .github/workflows/verify.yml (distribution D: aiqh from the workflow's own commit; callers pin a commit SHA) and the self-application job reusable (self) (ADR-0031)
 
 - **波 4 の最初の版**（人間の決定: CI での配布は案 D、呼び出す側は 40 桁の commit SHA で固定。ADR-0031）。適用先 2 つには触れていない。5 commit: `71bfc27`・`d794c9b`・`8bd758c`・`c713578`・この release の commit
