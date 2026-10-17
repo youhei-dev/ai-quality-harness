@@ -5,6 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.10.1 — timeoutSec at most 2,147,483 seconds, the longest wait of a Node.js timer (Q12 of the M4 design R3)
+
+- **設定の `timeoutSec` の上限**（人間の決定。2026-10-18）。branch `release/v0.10.1`、4 commit: `e4cb40e`（v0.10.0 の記録）・`eaeabaf`（テストと実装）・`4681c2e`（docs）・この release の commit
+- check の `timeoutSec` と `defaults.timeoutSec` は 1 以上 2,147,483 以下（2,147,483,647 ms を 1000 で割って切り捨てた値）。超える値は設定の誤り（exit 2、レポートは書かない）で、文言に上限とタイマーの理由が入る
+  - v0.10.0 までは、超える値が `setTimeout` に渡り、Node.js がそれを 1 ms にして（`TimeoutOverflowWarning` を標準エラーに出して）、check がすぐ時間切れ（FAIL）になっていた。判定が PASS になることは無かった
+  - `schema/aiqh.config.schema.json` を生成し直した（`maximum` が 2147483）
+- テスト: `tests/config-timeout-max.test.ts`（新規、10 件）。変更の前の `9599db9` で 6 件 FAIL（2,147,484 で verify が exit 1）・4 件 PASS（上限ちょうどの値が読め、タイマーの警告なしに動く対照）。既存のテストの期待値は変えていない
+- docs: `docs/CONFIG_SPEC.md` の §3・§4、ADR-0005 の注記と ADR の一覧、ROADMAP（v0.10.0 の CI の記録、v0.10.1 の項）、CHANGELOG の v0.10.0 の見出しの SHA
+- 利用者に見える変化: `timeoutSec` が 2,147,484 以上の設定は、設定の誤り（exit 2）になる（それまでは、check がすぐ時間切れの FAIL）。ほかは v0.10.0 と同じ
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/` は v0.10.0 と同一
+- `package.json` version 0.10.1（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.10.0 — commit a9c8e13674706ba4b81076f5a1522611b4b516ff / tag object 64d69f790546debb876e624e4ef17ffa71c16c05 — configSha256: the SHA-256 of the config file's bytes, recorded at the top level of the report (ADR-0033; the first version of M4)
 
 - **M4 の最初の版**（人間の決定 D9・D10・Q9。2026-10-17）。branch `release/v0.10.0`、4 commit: `e02aa0f`（設計のレビューの記録）・`4e1331d`（ADR と計画の docs）・`89844b3`（テストと実装）・この release の commit
