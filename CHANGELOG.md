@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.10.0 — configSha256: the SHA-256 of the config file's bytes, recorded at the top level of the report (ADR-0033; the first version of M4)
+## v0.10.0 — commit a9c8e13674706ba4b81076f5a1522611b4b516ff / tag object 64d69f790546debb876e624e4ef17ffa71c16c05 — configSha256: the SHA-256 of the config file's bytes, recorded at the top level of the report (ADR-0033; the first version of M4)
 
 - **M4 の最初の版**（人間の決定 D9・D10・Q9。2026-10-17）。branch `release/v0.10.0`、4 commit: `e02aa0f`（設計のレビューの記録）・`4e1331d`（ADR と計画の docs）・`89844b3`（テストと実装）・この release の commit
 - **verify のレポートに `configSha256`**（`latest.json`・`history/<ts>.json` の最上位、`configPath` の直後）: verify が読んだ設定ファイルのバイト列の SHA-256（小文字 16 進 64 桁）。人は `shasum -a 256 aiqh.config.jsonc` で同じ値を出せる
