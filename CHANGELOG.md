@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.10.0 — configSha256: the SHA-256 of the config file's bytes, recorded at the top level of the report (ADR-0033; the first version of M4)
+
+- **M4 の最初の版**（人間の決定 D9・D10・Q9。2026-10-17）。branch `release/v0.10.0`、4 commit: `e02aa0f`（設計のレビューの記録）・`4e1331d`（ADR と計画の docs）・`89844b3`（テストと実装）・この release の commit
+- **verify のレポートに `configSha256`**（`latest.json`・`history/<ts>.json` の最上位、`configPath` の直後）: verify が読んだ設定ファイルのバイト列の SHA-256（小文字 16 進 64 桁）。人は `shasum -a 256 aiqh.config.jsonc` で同じ値を出せる
+  - 設定ファイルは 1 回だけ、バイト列として読む。同じ Buffer から、設定の文字列（それまでの `readFileSync(path, "utf8")` と同じ復号）と SHA-256 を作る。読み込みの誤りの扱いと文言は変えない
+  - 値が無いときは欄を書かない（`null` にしない）。v0.10.0 より前のレポートには無い。`schemaVersion` は 1 のまま
+  - **記録であって固定ではない**: 期待の値はどこにも置かず、判定は変わらない。設定の外の変更（`package.json` の scripts・テスト・道具の設定・環境変数・依存の版）は値に表れない。R-006 の対策候補 2 を「記録」として入れた（候補 3〈品質ポリシーの変更の別承認〉は M4 の運用テンプレートの docs の手順）
+  - `latest.md` と端末の出力は変えない（Q9）。review-packet は `latest.json` の知らない欄を読まないので変わらない
+- テスト: `tests/config-sha256.test.ts`（新規、19 件）。変更の前の `fe8de3a` では 11 件が FAIL、8 件が PASS（変わらないことを確かめる対照）。既存のテストの期待値の変更は、人間が承認した 3 か所だけ（`tests/regression-backlog9-report-json-copy.test.ts` の最上位のキーの配列と補助関数の設定、`tests/parse-verify.test.ts` の `REPORT_KEYS` とテストの名前）
+- M4 の設計の独立レビュー（label `m4-design`）: R1 は High 0 / Medium 4 / Low 1、R2 は High 0 / Medium 3 / Low 0（R1 の 5 件は解消 3・部分的に解消 2）。R3 は依頼しない（人間の決定。R2 の 3 件は v0.11.0 の実装レビューで確かめる）。`docs/reviews/m4-design/` に、原文の収録・`aiqh review-import` で取り込んだ findings（8 件とも `open`。直す版は v0.11.0・v0.12.0）・対応記録・設計 R3
+- docs: ADR-0033（新規）、ADR-0006・0007 の注記（CI ではレポートを artifact に上げない。M4 は履歴 DB を持たない）、ADR の一覧、ARCHITECTURE の §7.1、CONFIG_SPEC の §1、ROADMAP（M4 の節の書き直し、項目 47〈R-010 の行き先〉、v0.10.0 の項）、README（いまの状態と機能の表）
+- 利用者に見える変化: `latest.json`・`history/<ts>.json` の最上位の欄が 1 つ増える（`configSha256`）。最上位のキーの並びを固定して読む利用者は、15 個になることに注意。`verify.yml`・CLI の引数・終了コード・`latest.md`・端末は変わらない
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/` は v0.9.2 と同一。組み込みのモジュールの一覧（ADR-0019）と書き込みの出口（ADR-0020）も変わらない
+- `package.json` version 0.10.0（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.9.2 — commit 549ccda597028c58b5912e93e186c7f0fe361a3f / tag object 5cc8c596deecc3b5b8bed18f1fdc7d3a05732e89 — main requires pull requests: two required checks (verify (ubuntu), reusable (self) / aiqh verify), merge commits only, no bypass (ADR-0032; docs and version only)
 
 - **本体の main を pull request 必須にした**（人間の決定。2026-10-17）。この版が、新しい運用の最初の pull request（branch `release/v0.9.2`）。3 commit: `f78d881`・`e256acb`・この release の commit

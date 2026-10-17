@@ -47,9 +47,9 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**v0.9.2 — 本体の main を pull request 必須に**（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし。docs と version だけ。ADR-0032）。v0.9.1 で波 4 を締めた（個人のリポジトリ 2 つ〈`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`〉の CI に、再利用ワークフロー `verify.yml` を 40 桁の commit SHA で入れた記録）、v0.9.0 で再利用ワークフロー `verify.yml`（他のリポジトリの CI から 40 桁の commit SHA で固定して呼び、aiqh はワークフローと同じ commit のソースを使う〈配布物なし〉。自己適用の job `reusable (self)`。ADR-0031）、v0.8.4 で公開の後の設定（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ）、v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3 として本体リポジトリの自己 CI と、ほかのリポジトリから呼ぶ再利用ワークフローを動かしています（波 4 まで）。次は、M3 の完了の記録、その後に M4 です。
+**v0.10.0 — M4 の最初の版: 設定のハッシュ `configSha256`**（verify のレポート〈`latest.json`・`history/<ts>.json`〉の最上位に、設定ファイルのバイト列の SHA-256 を記録する。固定ではなく記録で、設定の外の変更〈scripts・テスト・依存など〉は表れない。`latest.md` と端末は変えない。ADR-0033。M4 の設計と独立レビュー R1・R2 の記録は `docs/reviews/m4-design/`）。v0.9.2 で本体の main を pull request 必須にした（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし。ADR-0032）。v0.9.1 で波 4 を締めた（個人のリポジトリ 2 つ〈`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`〉の CI に、再利用ワークフロー `verify.yml` を 40 桁の commit SHA で入れた記録）、v0.9.0 で再利用ワークフロー `verify.yml`（他のリポジトリの CI から 40 桁の commit SHA で固定して呼び、aiqh はワークフローと同じ commit のソースを使う〈配布物なし〉。自己適用の job `reusable (self)`。ADR-0031）、v0.8.4 で公開の後の設定（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ）、v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3（本体リポジトリの自己 CI と、ほかのリポジトリから呼ぶ再利用ワークフロー、main の pull request 必須）は 2026-10-17 に完了しました（完了ベースライン `v0.9.2`）。いまは M4（履歴の集計・ローカルダッシュボード・運用テンプレート）を進めています。次は `aiqh history`（v0.11.0 の予定）です。
 版ごとの内容は [`CHANGELOG.md`](CHANGELOG.md)、マイルストーンの進みと残りの項目は [`docs/ROADMAP.md`](docs/ROADMAP.md)、
-マイルストーンごとの総括は `docs/reports/`（[M0](docs/reports/M0_COMPLETION.md)・[M1](docs/reports/M1_COMPLETION.md)・[M2-0](docs/reports/M2-0_COMPLETION.md)・[M2-1](docs/reports/M2-1_COMPLETION.md)・[M2-2](docs/reports/M2-2_COMPLETION.md)）を参照してください。
+マイルストーンごとの総括は `docs/reports/`（[M0](docs/reports/M0_COMPLETION.md)・[M1](docs/reports/M1_COMPLETION.md)・[M2-0](docs/reports/M2-0_COMPLETION.md)・[M2-1](docs/reports/M2-1_COMPLETION.md)・[M2-2](docs/reports/M2-2_COMPLETION.md)・[M3](docs/reports/M3_COMPLETION.md)）を参照してください。
 **v0.1.3 と v0.2.0 は superseded**（v0.1.3: 確定点の yield が不十分。v0.2.0: 自己 verify の security チェックが FAIL する状態でタグ付けされた）で、
 それぞれ v0.1.4 以降 / v0.2.1 以降を使ってください。
 
@@ -60,12 +60,13 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
-| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.9.2（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
+| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.10.0（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。pytest は後。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉） |
 | 本体リポジトリの自己 CI（GitHub Actions。Ubuntu の verify、Windows の手動の測定） | v0.5.45（M3 の前半。v0.6.1 から、タグの前に `verify (ubuntu)` の success を確かめる〈人の手順〉。v0.9.2 から、`verify (ubuntu)` と `reusable (self) / aiqh verify` は main の pull request の必須チェック〈ADR-0032〉。ADR-0025） |
 | GitHub Actions 再利用ワークフロー（`.github/workflows/verify.yml`。他のリポジトリの CI から、40 桁の commit SHA で固定して呼ぶ） | v0.9.0（M3 の後半〈波 4〉。aiqh は自分と同じ commit のソースを使う〈配布物なし〉。ADR-0031。手順は `docs/ops/reusable-workflow.md`） |
-| 履歴 DB・ローカルダッシュボード | M4 予定 |
+| 設定のハッシュ（レポートの最上位の `configSha256`。設定ファイルのバイト列の SHA-256。記録であって固定ではない） | v0.10.0（M4。ADR-0033） |
+| 履歴の集計（`aiqh history`。DB を持たず `history/*.json` を読み取りだけで集計）・ローカルダッシュボード（静的 HTML） | M4 予定（v0.11.0・v0.12.0。設計は `docs/reviews/m4-design/design-r3.md`） |
 
 ## 必要環境
 
