@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-16（v0.9.0。§3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-17（v0.10.0。§7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -340,6 +340,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "tool": { "name": "ai-quality-harness", "version": "0.1.0" },
   "project": { "name": "ai-quality-harness", "root": "/abs/path" },
   "configPath": "/abs/path/aiqh.config.jsonc",
+  "configSha256": "3f1c…（64 桁）",                                      // v0.10.0（ADR-0033）: 設定ファイルのバイト列の SHA-256（小文字 16 進 64 桁）。記録であって固定ではない（設定の外の変更は表れない）。古いレポートには無い。schemaVersion は 1 のまま
   "startedAt": "2026-09-15T12:00:00.000Z",
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,

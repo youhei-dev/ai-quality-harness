@@ -72,6 +72,8 @@ export interface ResolvedConfig {
   projectRoot: string;
   /** Absolute path of the config file. */
   configPath: string;
+  /** SHA-256 of the config file's bytes, 64 lower-case hex digits (ADR-0033). Set by loadConfig; absent for a config made without a file. */
+  configSha256?: string;
   project: {
     name: string;
     type?: ProjectType;
@@ -189,6 +191,8 @@ export interface VerificationReport {
   tool: { name: string; version: string };
   project: { name: string; root: string };
   configPath: string;
+  /** SHA-256 of the config file's bytes that verify read (v0.10.0, ADR-0033): a record, not a pinned value. Absent in older reports, never null. */
+  configSha256?: string;
   startedAt: string;
   finishedAt: string;
   durationMs: number;

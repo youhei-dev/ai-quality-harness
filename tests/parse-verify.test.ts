@@ -71,7 +71,7 @@ async function verify(dir: string, failFast = false): Promise<{ code: number; li
 }
 
 const CHECK_KEYS = ["name", "kind", "command", "cwd", "required", "timeoutSec", "description", "status", "exitCode", "signal", "timedOut", "startedAt", "durationMs", "errorSummary", "stdoutTail", "stderrTail", "outputTruncated"];
-const REPORT_KEYS = ["schemaVersion", "tool", "project", "configPath", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"];
+const REPORT_KEYS = ["schemaVersion", "tool", "project", "configPath", "configSha256", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"];
 
 describe("P1: the parsers change nothing that decides the result", () => {
   it("the same output read by a parser and not read: same exit code, verdict, summary, categories and check results", async () => {
@@ -136,7 +136,7 @@ describe("P4: names reach the terminal and the files masked, raw characters as n
 });
 
 describe("P9: the report's shape for the readers that exist", () => {
-  it("top-level keys and schemaVersion unchanged; parsed is the last key of every check", async () => {
+  it("top-level keys (configSha256 added in v0.10.0) and schemaVersion unchanged; parsed is the last key of every check", async () => {
     const r = await verify(project({ unit: "vitest.mjs", lint: "eslint.js" }));
     expect(Object.keys(r.report)).toEqual(REPORT_KEYS);
     expect(r.report.schemaVersion).toBe(1);

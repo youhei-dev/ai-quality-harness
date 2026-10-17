@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-16
+最終更新: 2026-10-17
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -648,7 +648,12 @@ M1 完了時点（v0.2.2）で残った Security Scan / `init` の指摘を、ke
     - branch は、手元とリモートの両方で消えた。API の既定の値 `require_extra_approval_for_unattributed_changes: true` は、承認 0 のこの merge を止めなかった
     - タグ v0.9.2 は release の commit `549ccda` に付け、タグの push は拒まれなかった（新しい run も無い）
   - CHANGELOG の v0.9.2 の見出しに commit 549ccda597028c58b5912e93e186c7f0fe361a3f / tag object 5cc8c596deecc3b5b8bed18f1fdc7d3a05732e89 を記入した（記録の PR `docs/m3-completion`）。**M3 を完了とした**（下の M3 の節、`docs/reports/M3_COMPLETION.md`。版とタグは無し）
-- 次: **波 2（M3 の前半: 自己 CI と手順書）は v0.5.45 で終えた**（自己 CI・手順書・CODEOWNERS。Branch Protection は、Public 化か有料のプランの判断〈波 4〉の後）。**波 3（M2-2 の本体: 項目 15）は v0.6.0 で `aiqh review-import` v1（取り込みだけ）を入れた**。その独立レビュー R1 は Medium 3（上の記録）で、**v0.6.1 で 3 件を直し、`findings-r1.json` の 3 件を `resolved` にした**。**R2 は指摘なしで、m2-2-review-import のレビューを終えた**（ADR-0026 の決定 18: 検査の前提）。**v0.7.0 で review-import の v2 を `aiqh review-check` として入れ（ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）を書き、項目 37・38 を閉じた**。**その独立レビュー（m2-2-review-check）R1 は指摘なしで、R1 で終えた**（ADR-0027 の追記）。**v0.8.0 で M2-2 の残り（出力パーサ・security-scan の項目・key-value 誤検出の記録の定義）を入れた**（ADR-0028・0029。pytest は項目 39）。**その独立レビュー（m2-2-parsers）R1 は Medium 1（上の記録。VALID）で、v0.8.1 で直して `resolved` にした**。**R2 は指摘なしで、m2-2-parsers のレビューを R2 で終えた**（ADR-0028 の追記）。**v0.8.2 で M2-2 を完了とした**（人間の決定。完了報告 `docs/reports/M2-2_COMPLETION.md`）。**v0.8.3 で公開の準備をした**（人間の決定: 案 1〈履歴を書き換えずにそのまま Public に〉・MIT・プロジェクトの `CLAUDE.md` は追跡外。ADR-0030。M3 の「公開の判断と公開の後の作業」）。**2026-10-16 に Public にし（人間）、v0.8.4 で公開の後の設定（main の ruleset `main-protection`〈削除と force push の禁止。必須チェックは未設定〉・description・topics）を記録した**（M3 の「公開の判断と公開の後の作業」）。**v0.9.0 で波 4 の最初の版（再利用ワークフロー `verify.yml`。案 D。ADR-0031）を入れ、個人のリポジトリ 2 つへの適用（2026-10-17）の後、v0.9.1 で波 4 を締めた**（M3 の「波 4」）。**v0.9.2 で、本体の main を pull request 必須にした**（必須チェック 2 つ・merge commit だけ・Bypass なし。ADR-0032。項目 44 を閉じた）。**記録の PR（`docs/m3-completion`）で M3 を完了とした**（`docs/reports/M3_COMPLETION.md`）。次は **M4（波 5）**。CI は、main への push で続けて 5 回緑に届き、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる」を入れた（ADR-0025 の追記。`CLAUDE.md` は v0.8.3 から追跡外で、その一文は ADR-0025 と手順書の 2-1 にもある）。Ubuntu の時間の見張り（`unit`・`unit-minpath`。項目 42: 上限の 72% で対処の案、80% で対処）も続ける。Windows を対象にするかは後で決める。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 4**（M3 の後半: 配布・再利用ワークフロー。配布の方式の人間の判断の後。Public 化は v0.8.3 で決めた。v0.9.1 で締めた）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 39（pytest の出力パーサ）・40（masker の private-key の形の超線形。Low）・41（負荷に弱いテスト。Low）・42（CI の時間の見張り）・43（`tests/` のコメント「see CLAUDE.md」。Low）・45（`aiqh init` の node:test の検出。Low）・46（timing の API の `billable`。記録だけ）。37・38 は v0.7.0 で、44 は v0.9.2 で閉じた。状態を変えるコマンドと `response-rN.md` の生成は review-import の v3（ADR-0027 の代替案）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は波 5）。終わったレビュー（以後は依頼しない）: m2-2-parsers は R2、m2-2-review-check は R1、m2-2-review-import は R2、バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
+- v0.10.0（M4 の最初の版: 設定のハッシュ `configSha256`。ADR-0033）: 人間の決定（2026-10-17。D9・D10・Q9）で、verify のレポートの最上位に、設定ファイルのバイト列の SHA-256 を `configSha256` として足した（`configPath` の直後。小文字 16 進 64 桁。`schemaVersion` は 1 のまま。`latest.md` と端末は変えない）。R-006 の対策候補 2 を「固定」ではなく「記録」として入れた（設定の外の変更は検出しない。期待の値は固定しない）。branch `release/v0.10.0`、4 commit（設計のレビューの記録、ADR と計画の docs、テストと実装、release）
+  - M4 の設計の独立レビュー（label `m4-design`）: R1 は High 0 / Medium 4 / Low 1、R2 は High 0 / Medium 3 / Low 0（R1 の 5 件は解消 3・部分的に解消 2）。人間の決定で R3 は依頼せず、R2 の 3 件は v0.11.0 の実装レビュー（コードを添付する）で確かめる。記録は `docs/reviews/m4-design/`（原文の収録・findings・対応記録・設計 R3）。8 件とも `open`（`destination` は v0.11.0・v0.12.0。直した先の ADR と回帰テストが入ってから `resolved`）
+  - docs: ADR-0033（新規）、ADR-0006・0007 の注記（CI ではレポートを artifact に上げない。M4 は履歴 DB を持たない）、ADR の一覧、ARCHITECTURE の §7.1、CONFIG_SPEC の §1、下の M4 の節の書き直し、項目 47（R-010 の行き先）
+  - 既存のテストの期待値の変更は、人間が承認した 3 か所だけ（最上位のキーの 2 つのテスト。ADR-0033）
+  - CHANGELOG の v0.10.0 の見出しの SHA と、この版の CI の記録は、次の版で書く
+- 次: **波 2（M3 の前半: 自己 CI と手順書）は v0.5.45 で終えた**（自己 CI・手順書・CODEOWNERS。Branch Protection は、Public 化か有料のプランの判断〈波 4〉の後）。**波 3（M2-2 の本体: 項目 15）は v0.6.0 で `aiqh review-import` v1（取り込みだけ）を入れた**。その独立レビュー R1 は Medium 3（上の記録）で、**v0.6.1 で 3 件を直し、`findings-r1.json` の 3 件を `resolved` にした**。**R2 は指摘なしで、m2-2-review-import のレビューを終えた**（ADR-0026 の決定 18: 検査の前提）。**v0.7.0 で review-import の v2 を `aiqh review-check` として入れ（ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）を書き、項目 37・38 を閉じた**。**その独立レビュー（m2-2-review-check）R1 は指摘なしで、R1 で終えた**（ADR-0027 の追記）。**v0.8.0 で M2-2 の残り（出力パーサ・security-scan の項目・key-value 誤検出の記録の定義）を入れた**（ADR-0028・0029。pytest は項目 39）。**その独立レビュー（m2-2-parsers）R1 は Medium 1（上の記録。VALID）で、v0.8.1 で直して `resolved` にした**。**R2 は指摘なしで、m2-2-parsers のレビューを R2 で終えた**（ADR-0028 の追記）。**v0.8.2 で M2-2 を完了とした**（人間の決定。完了報告 `docs/reports/M2-2_COMPLETION.md`）。**v0.8.3 で公開の準備をした**（人間の決定: 案 1〈履歴を書き換えずにそのまま Public に〉・MIT・プロジェクトの `CLAUDE.md` は追跡外。ADR-0030。M3 の「公開の判断と公開の後の作業」）。**2026-10-16 に Public にし（人間）、v0.8.4 で公開の後の設定（main の ruleset `main-protection`〈削除と force push の禁止。必須チェックは未設定〉・description・topics）を記録した**（M3 の「公開の判断と公開の後の作業」）。**v0.9.0 で波 4 の最初の版（再利用ワークフロー `verify.yml`。案 D。ADR-0031）を入れ、個人のリポジトリ 2 つへの適用（2026-10-17）の後、v0.9.1 で波 4 を締めた**（M3 の「波 4」）。**v0.9.2 で、本体の main を pull request 必須にした**（必須チェック 2 つ・merge commit だけ・Bypass なし。ADR-0032。項目 44 を閉じた）。**記録の PR（`docs/m3-completion`）で M3 を完了とした**（`docs/reports/M3_COMPLETION.md`）。**M4（波 5）を始めた**: 設計の独立レビュー（R1・R2。`docs/reviews/m4-design/`）の後、**v0.10.0 で設定のハッシュ `configSha256` を入れた**（ADR-0033）。次は v0.11.0（`aiqh history`。設計 R3 の ADR-0034 の案。実装レビューで設計 R2 の 3 件も確かめる）。CI は、main への push で続けて 5 回緑に届き、プロジェクトの `CLAUDE.md` のリリースの手順に「タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる」を入れた（ADR-0025 の追記。`CLAUDE.md` は v0.8.3 から追跡外で、その一文は ADR-0025 と手順書の 2-1 にもある）。Ubuntu の時間の見張り（`unit`・`unit-minpath`。項目 42: 上限の 72% で対処の案、80% で対処）も続ける。Windows を対象にするかは後で決める。その後は rest2 の SP1 の計画（5 つの波。人間の判断）のとおり: **波 4**（M3 の後半: 配布・再利用ワークフロー。配布の方式の人間の判断の後。Public 化は v0.8.3 で決めた。v0.9.1 で締めた）→ **波 5**（M4: ADR から。R-010・履歴 DB・ダッシュボード・運用テンプレート・R-006 の候補 2・3）。**未着手のまま残す項目**: 39（pytest の出力パーサ）・40（masker の private-key の形の超線形。Low）・41（負荷に弱いテスト。Low）・42（CI の時間の見張り）・43（`tests/` のコメント「see CLAUDE.md」。Low）・45（`aiqh init` の node:test の検出。Low）・46（timing の API の `billable`。記録だけ）・47（R-010 の行き先。M4 の後）。37・38 は v0.7.0 で、44 は v0.9.2 で閉じた。状態を変えるコマンドと `response-rN.md` の生成は review-import の v3（ADR-0027 の代替案）。**閉じたままの項目**（直すなら各項目の記録の案から）: 13・14・19 の (c)・22・27・29・30・36・R-013。18 の行き先は各波に入る（R-011 後半と Windows の測定は波 2、配布は波 4、R-010 は項目 47〈v0.10.0 の注記: M4 では作らない〉）。終わったレビュー（以後は依頼しない）: m2-2-parsers は R2、m2-2-review-check は R1、m2-2-review-import は R2、バックログ 20 は R2、バックログ 35・N1 と 21 は R1、バックログ 28・5・34 は R2、バックログ 23 は R1、バックログ 16・2・19 は R4、m2-2-builtin は r6、バックログ 9・10 は r2
 
 ### M2-1 以降のバックログ（上から順に扱う）
 順序の変更（v0.3.5、人間の判断）: `aiqh review-packet` を先にする。review-packet は今後のすべての独立レビューの手作業を減らす。R4-001 は見逃しではなく安全側の誤検出で、
@@ -742,7 +747,7 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
    `src/runner/execute.ts`・`src/cli.ts` のコメント〉も書いた）
 17. ~~**review-packet でシンボリックリンク（mode 120000）を kind `symlink` として表示する**~~（**v0.5.37 で解消**。記録は上の M2-2 の節。以下は着手前の記述）（M2-1 R1 対応時の判断事項 #2 でバックログへ）。現在はリンクの blob
    （リンク先のパス文字列）を通常のテキストとして扱い、変更一覧の kind は `text`、全文・差分にリンク先のパスが載る。`symlink` として一覧に記録し、全文は載せない形にする
-18. 従来の行き先のまま: R-010（M4）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）（**v0.5.37 の注記**: 計画のまま。Windows での挙動確認は M3 の節に項目が無かったので、M3 の「内容」に足した〈項目 30 を含む〉。R-013 は、出力の末尾の保持と `truncated` は実装済み〈`src/runner/execute.ts` の `OutputBuffer`〉で、残りは総バイト数の記録とリングバッファ化）
+18. 従来の行き先のまま: R-010（M4。**v0.10.0 の注記**: M4 の設計で、M4 では作らないと決めた。行き先は項目 47）、R-011 後半（M3）、R-013（並列化時）、Windows での挙動確認（M3）、配布（M3）（**v0.5.37 の注記**: 計画のまま。Windows での挙動確認は M3 の節に項目が無かったので、M3 の「内容」に足した〈項目 30 を含む〉。R-013 は、出力の末尾の保持と `truncated` は実装済み〈`src/runner/execute.ts` の `OutputBuffer`〉で、残りは総バイト数の記録とリングバッファ化）
 19. ~~**テストの後始末の残り（低）**~~（**v0.5.37 で (c) を記録で閉じた**: テストの中の signal 0 の確認で、製品の経路ではない。誤る向きはテストの失敗側。(a)(b) は v0.5.33 で解消。以下は着手前の記述）（v0.5.8 の SP1 の洗い出し。`docs/reviews/m2-2/response-r5.md`）: どれも製品の不具合か pid の再利用のときだけ起きる。
    ~~(a) 孫までタイムアウトで止めるテスト（`execute.test.ts`・`regression-r1-runner.test.ts`・`regression-r2-runner.test.ts` の各 1 件）は、製品が孫を止め損なったときだけ、
    孫が自分の寿命（30 秒）まで残る。(b) CLI をすぐ await するテスト（`cli.test.ts`・`cli-init-scan.test.ts`）は、CLI が終わらないときだけ、テストのタイムアウトの後も
@@ -804,6 +809,7 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 44. ~~**必須チェック `verify (ubuntu)` を ruleset `main-protection` に足す**~~（**v0.9.2 で設定して閉じた**: 人間の決定〈2026-10-17〉で、main は pull request を必須にし、必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify` の 2 つ〈strict〉、merge commit だけ、承認 0、Bypass なし。ADR-0032。以下は着手前の記述）（v0.8.4 で項目にした）。条件は ADR-0025 の決定 7 の「main への push で続けて 5 回緑」（数え方は手順書 `docs/ops/ci-and-branch-protection.md` の §2）。**足すときは、改めて人間の承認を得る**。足すと、チェックを通っていない commit を main に直接 push できなくなる（チェックは push の後に走る。手順書の 3-2）ので、pull request の流れ（3-2 の案 A）にするかと一緒に決める。必須チェックの名前は、実際に走ったジョブの名前を一覧から選ぶ（3-3）。記録: 2026-10-16 の時点で、v0.5.45 の release から v0.8.3 の release までの main への push の run 15 回は、すべて success。行き先: 人間の判断の後の指示
 45. **`aiqh init` が node:test（`node --test`）を unit として検出しない**（v0.9.1 で項目にした。波 4 の適用で分かった）。init の unit の検出は vitest と jest だけで、`scripts.test` が `node --test …` の対象では unit を NOT APPLICABLE と提案する（`youhei-dev/trim-manager` では、unit のチェック〈`npm test`〉を設定に手で足した）。node:test を検出の候補（`scripts.test` の `node --test`、テストのファイルの `node:test` の import など）に加えるかを検討する。加えるなら、`docs/CONFIG_SPEC.md` と init のテストもあわせて直す。Low。行き先: 後で（人間の判断）
 46. **`actions/runs/<id>/timing` の `billable` が 0 を返す**（v0.9.1 で記録した。記録だけ）。適用先 2 つ（private）の PR の run で、`billable.UBUNTU.total_ms` と job の `duration_ms` が 0、`run_duration_ms` は 51,000 だった（2026-10-17）。0 の意味は確かめていない。呼び出す側の分数の確かめは、GitHub の請求の画面で行う（`docs/ops/reusable-workflow.md` の §8）。行き先: 作業なし（記録だけ）
+47. **R-010: 並行の verify で、`latest.json` と `latest.md` が別の run のものになりうる**（v0.10.0 で項目にした。M4 の設計で行き先を決めた。独立レビュー R1 の R-010、`docs/reviews/m0/independent-review-r1.md` の 137〜145 行）。**M4 では作らない**: M4 の `aiqh history` は `history/` だけを読み、`history/` の名前は N1 で排他的に取るので、`latest.*` の不整合の影響を受けない（設計 R3 の ADR-0034 の L）。案は 3 つ: (a) `runs/<runId>/` と、単一の pointer / manifest の原子的な更新、(b) latest の更新の全体を lock する、(c) 記録で閉じる（`latest.json` と `latest.md` はどちらも `startedAt` を持つので、読む側が組の食い違いを見分けられる）。(a) を選ぶときに影響する利用側: review-packet の `latest.json` の読み込み（`src/review/packet.ts`）、再利用ワークフローの Job Summary（`.github/workflows/verify.yml`）とそれを呼ぶ適用先、init の `.gitignore` の判定（`src/commands/init.ts` の `GITIGNORE_PROBES`）、書き込み箇所の一覧のテスト（`tests/file-write-sites.test.ts`）、最上位のキーのテスト（ADR-0033）。独立レビュー R2 の「roadmap から落とさないこと」（`docs/reviews/m0/independent-review-r2.md` の 218〜224 行）を守るための項目。行き先: M4 の後（人間の判断）
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
@@ -946,22 +952,29 @@ M2-1 の教訓（R3）:
 
 ---
 
-## M4 — 履歴 DB・ローカルダッシュボード・運用テンプレート
+## M4 — 履歴の集計（`aiqh history`）・ローカルダッシュボード・運用テンプレート — **進行中**（v0.10.0 から）
 
-### 内容
-- `aiqh history`: 複数プロジェクトの `history/*.json` を取り込み、PASS/FAIL 推移、所要時間、失敗しやすいチェックを集計。保存先はユーザーローカル 1 箇所
-- ローカルダッシュボード（静的 HTML。外部送信なし）
-- ロールバック手順・監視項目の設計テンプレート（docs）
-- 独立レビュー R1 からの持ち越し:
-  - **R-010**（並行実行時の `latest.*` 不整合）: 履歴 DB の導入に合わせ、各実行を `runs/<runId>/` に書き、
-    `latest` は単一のポインタ / manifest を atomic に更新する構造にする
-  - **R-006（対策候補 2・3）**: 設定ハッシュの固定（履歴 DB に記録し、変更を検出する）と、
-    品質ポリシー変更時の別承認フローを設計する
+### 内容（2026-10-17 の人間の決定 D1〜D15・Q1〜Q11 と、設計 R1〜R3。設計は `docs/reviews/m4-design/design-r3.md`）
+- **設定のハッシュ**（v0.10.0、ADR-0033）: verify のレポートの最上位に `configSha256`（設定ファイルのバイト列の SHA-256、小文字 16 進 64 桁）を足す。`schemaVersion` は 1 のまま。R-006 の対策候補 2 を「固定」ではなく「記録」として入れる（設定の外の変更は検出しない。期待の値は固定しない）
+- **`aiqh history`**（v0.11.0、ADR-0034 の予定）: `--from <dir>` で指定した 1 つ以上の `history/*.json` を、DB を持たずに読み取りだけで集計する（`node:sqlite`・JSON Lines は使わない。再検討の条件は ADR-0034）。出力は端末の表と `--json`。出すのは数と状態だけ（tail・command・cwd・絶対パス・errorSummary・`parsed.items` の名前などは出さない）。読めない履歴は一覧に出して終了コード 2。履歴は信頼しない入力として、読む量・文字列の長さ・数の範囲・集計と出力の大きさに上限を置く。ディレクトリの差し替えは検出だけ（脅威モデルの制限）。allow のルールごとの回数は出さない（ADR-0029 に注記）
+- **ローカルダッシュボード**（v0.12.0、ADR-0035 の予定）: `aiqh history --html` が、script と外の資源の無い静的 HTML を 1 つ書く（既定 `artifacts/history/`。CSP の meta）
+- **運用テンプレート**（docs の版）: ロールバック手順・監視項目、品質ポリシー（設定）の変更の手順（R-006 の対策候補 3。docs の手順だけ）
+- **作らないもの**: 履歴 DB とユーザーローカルの保存先、R-010 の `runs/<runId>/`（行き先は項目 47）、CI の Job Summary での推移、外部への送信、Windows
+- 独立レビューは 3 回（設計〈R1・R2。R3 は依頼しない〉・v0.11.0・v0.12.0）
+
+### 進み
+- 設計の独立レビュー（label `m4-design`。2026-10-17）: R1 は High 0 / Medium 4 / Low 1、R2 は High 0 / Medium 3 / Low 0。R3 は依頼しない（人間の決定）。R2 の 3 件は v0.11.0 の実装レビューで確かめる。findings の 8 件は `open`（`destination` は v0.11.0・v0.12.0）
+- v0.10.0: 設定のハッシュ `configSha256`（ADR-0033）
 
 ### 完了条件
-- [ ] 2 つ以上のプロジェクトの履歴が 1 画面で見える
-- [ ] 集計が JSON でも取得できる
-- [ ] 本体の自己 verify PASS
+- [ ] 2 つ以上のプロジェクトの履歴が 1 つの HTML で見える
+- [ ] 集計が `aiqh history --json` でも取得でき、HTML の数が対応表のとおりに一致し、HTML に出さない数は許可リストにある（テスト。ADR-0035）
+- [ ] 読めない履歴が黙って落ちない（一覧と終了コード 2。テスト）
+- [ ] HTML に script と外の資源が無く、出さない欄が HTML・JSON・端末に出ない（テスト）
+- [ ] verify のレポートに `configSha256` が入り、`aiqh history` で区切りが見える
+- [ ] 運用テンプレートが `docs/ops/` にある
+- [ ] R-010 と DB の行き先が ADR と ROADMAP に記録されている
+- [ ] 本体の自己 verify PASS（各 commit の worktree）と、PR の必須の 2 つの checks が success
 
 ---
 

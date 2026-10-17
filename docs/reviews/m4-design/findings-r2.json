@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "label": "m4-design",
+  "round": 2,
+  "idPrefix": "M4-D",
+  "source": {
+    "name": "independent-review-m4-design-r2-for-claude.md",
+    "bytes": 12118,
+    "sha256": "b0b589c512a24d3e3cb44a985dcd351247a9018f3207e6a066579057fc01b14e"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 3,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "M4-D-R1-001",
+      "assessment": "解消。1ファイルを上限+1バイトまでの記述子読み取りに制限し、実読み取り量で全体上限を判定し、サイズ変化の分類・試験を具体化した。"
+    },
+    {
+      "id": "M4-D-R1-002",
+      "assessment": "部分的に解消。Node標準fsで記述子相対探索を行わない理由と脅威モデルを明記し、dev・inoによる事後検出を追加した。ただし防止ではなく、入れ替え後に復元する競合を防げないと明示している。設計で定義した対象範囲のもとでは容認可能。"
+    },
+    {
+      "id": "M4-D-R1-003",
+      "assessment": "部分的に解消。名前・版・checks件数の上限は規定したが、最終JSONを safeJson に渡すときの大きさとマスク負荷が未確定。新規指摘で扱う。"
+    },
+    {
+      "id": "M4-D-R1-004",
+      "assessment": "解消。data-k のパス、対応表、例外リスト、SVGの照合範囲と試験が具体化された。座標の数値一致を対象外とする限界も明示した。"
+    },
+    {
+      "id": "M4-D-R1-005",
+      "assessment": "解消。ADR-0029への注記の本文とv0.11.0のdocs commitおよびテストcommitへの割り当てが明確になった。"
+    }
+  ],
+  "importedAt": "2026-10-17T07:48:22.464Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.9.2"
+  },
+  "findings": [
+    {
+      "id": "M4-D-R2-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "ADR-0034 の C の 8・F・G・§5.2 Q10",
+      "content": "個々の自由文字列を256バイト以下に制限しても、--json の最終出力全体を safeJson に渡す経路の入力長は制限されない。既知の masker の超線形処理が、巨大な集計文字列に再び適用される可能性がある。",
+      "evidence": "C の 8 は「maskSecrets に渡す文字列は256バイト以下」と述べる一方、F は --json が safeJson（src/output.ts:166-168）を通ると明記する。Q10 は集計が数百MB以上になりうると認め、200,000個の数値葉を上限案とする。safeJson が構造化値を個別に扱うか、JSON全体の文字列をマスクするかは添付コードから独立に検証できないため、現状の設計だけでは安全な上限を立証できない。",
+      "fix": "safeJson と output.json の実装を確認し、集計 JSON 全体をマスクへ渡さないことを設計上の要件にする。必要な自由文字列を個別にマスク済みにしてから安全にJSON化する、または最終出力の実バイト長に上限を置く。Q10 の境界を含む負荷試験で最終 JSON 出力経路を測定する。",
+      "confidence": "推測",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の方針 2026-10-17）。safeJson は JSON の全体ではなく、文字列とキーを 1 つずつマスクする（src/output.ts:119-168。コードで確かめた）。集計の JSON の全体を maskSecrets に渡さないことを要件にした。端末・--json・HTML の最終の出力の実バイト数に上限 32 MiB を置き、超えたら HISTORY ERROR (output-too-large)・exit 2・何も出さない。数の葉の上限 200,000（Q10）と両方。output.ts に上限つきで JSON を出す口を足す案（設計 R3 の ADR-0034 の F・N・M）",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.11.0（HTML の出力の上限は v0.12.0）",
+      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビュー（コードを添付する）で解消したかを確かめる（人間の決定 2026-10-17: 設計 R3 のレビューは依頼しない）。"
+    },
+    {
+      "id": "M4-D-R2-002",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "ADR-0034 の E の check 集計・G の割合",
+      "content": "maxShareOfTimeout を「最大の所要時間 ÷ 最後の run の timeoutSec」として計算すると、run 間で timeoutSec が変わった場合に、どの run にも存在しない割合になる。監視用の値として誤解を招く。",
+      "evidence": "E は所要時間の最大値と「最後の run の kind・required・timeoutSec」を保持し、別に「最大の所要時間 ÷ timeoutSec × 1000」を定めるが、最大所要時間を記録した run の timeoutSec を保持する規則がない。例えば1回目90秒・上限120秒、2回目20秒・上限30秒なら、実際の最大比率は0.75なのに、最大90秒を最後の上限30秒で割ると3.0になる。",
+      "fix": "各 run について durationMs / (timeoutSec × 1000) を計算し、その最大を maxShareOfTimeout とする。最後の run の timeoutSec は別属性として保持する。上限が変化する2件以上の fixture を加える。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の方針 2026-10-17）。run ごとに durationMs / (timeoutSec × 1000) を計算し、その最大を maxShareOfTimeout にする。最後の run の timeoutSec は別の属性 lastTimeoutSec として持つ。上限が run の間で変わる 2 件以上の fixture のテストを計画に足した（設計 R3 の ADR-0034 の E・G・M、ADR-0035 の決定 6）",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.11.0（HTML の許可リストの欄の名前は v0.12.0）",
+      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビューで解消したかを確かめる。"
+    },
+    {
+      "id": "M4-D-R2-003",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "ADR-0034 の C の 5・E・G、ADR-0035 の決定 4・6",
+      "content": "数値の検証が「0以上の整数」「正の数」中心で、JavaScript の安全な整数範囲と算術結果の有限性を保証しない。極端な JSON 数値で集計値が Infinity や不正確な値となり、JSON の null 化またはHTML側の有限性チェックと衝突しうる。",
+      "evidence": "C の 5 は durationMs・summary・parsed.counts に非負整数、timeoutSec に正の数を要求するだけで、Number.isSafeInteger や比率の有限性を要求していない。G は Math.round(x * 10000) / 10000 と String(n) を用い、HTML 側 h は Number.isFinite を要求する。例えば durationMs=1e100・timeoutSec=1e-100 はJSONの有効な数値で、数学的比率は1e200、さらに大きい組合せでは Infinity になりうる。",
+      "fix": "数量と継続時間は Number.isSafeInteger を満たす範囲に制限し、timeoutSec に有限かつ妥当な下限を設ける。集計加算・除算・丸め後も Number.isFinite を確認し、破綻時の分類を明示する。境界値、極小の timeoutSec、極大の durationMs と counts のテストを追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の方針 2026-10-17）。durationMs・summary・parsed.counts は 0 以上の安全な整数、exitCode は安全な整数、timeoutSec は設定と同じ正の整数（src/config/schema.ts:21, 73）で安全な整数の範囲。範囲の外は bad-shape。計算の後にも Number.isFinite を確かめ、偽なら HISTORY ERROR (non-finite)・exit 2（届かないはずの守り）。境界・極小の timeoutSec・極大の durationMs と counts のテストを計画に足した（設計 R3 の ADR-0034 の C の 5・C の 9・G・H・M）",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.11.0",
+      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビューで解消したかを確かめる。"
+    }
+  ]
+}

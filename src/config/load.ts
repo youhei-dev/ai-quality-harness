@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
@@ -34,9 +35,17 @@ export class ConfigError extends Error {
 
 export function loadConfig(configPath: string): ResolvedConfig {
   const absoluteConfigPath = path.resolve(configPath);
-  const text = readConfigText(absoluteConfigPath);
-  const raw = parseConfigText(text, absoluteConfigPath);
-  return resolveConfig(raw, absoluteConfigPath);
+  const file = readConfigFile(absoluteConfigPath);
+  const raw = parseConfigText(file.text, absoluteConfigPath);
+  const config = resolveConfig(raw, absoluteConfigPath);
+  config.configSha256 = file.sha256;
+  return config;
+}
+
+/** The config file read once (ADR-0033): its text and the SHA-256 (64 lower-case hex digits) of the same bytes. */
+export interface ConfigFile {
+  text: string;
+  sha256: string;
 }
 
 /**
@@ -49,27 +58,31 @@ export function loadConfig(configPath: string): ResolvedConfig {
 export function loadSecurityConfig(cwd: string, configPath: string | undefined): ResolvedSecurity {
   if (configPath !== undefined) return loadConfig(path.resolve(cwd, configPath)).security;
   const file = path.join(cwd, DEFAULT_CONFIG_FILENAME);
-  const text = readConfigTextIfExists(file);
-  if (text === null) return DEFAULT_SECURITY;
-  return resolveConfig(parseConfigText(text, file), file).security;
+  const read = readConfigFileIfExists(file);
+  if (read === null) return DEFAULT_SECURITY;
+  return resolveConfig(parseConfigText(read.text, file), file).security;
 }
 
-function readConfigText(absoluteConfigPath: string): string {
-  const text = readConfigTextIfExists(absoluteConfigPath);
-  if (text === null) {
+/** The config file, or a ConfigError when it does not exist. Exported for tests. */
+export function readConfigFile(absoluteConfigPath: string): ConfigFile {
+  const file = readConfigFileIfExists(absoluteConfigPath);
+  if (file === null) {
     throw new ConfigError(`config file not found: ${absoluteConfigPath}`);
   }
-  return text;
+  return file;
 }
 
 /**
- * The file's text, or null only when it does not exist (ENOENT). Any other failure — a parent that cannot be
+ * The file, or null only when it does not exist (ENOENT). Any other failure — a parent that cannot be
  * traversed (EACCES), a parent that is a file (ENOTDIR), a symbolic link loop (ELOOP), a directory (EISDIR) — is
  * a ConfigError: a config file that is there but cannot be read is never taken as absent.
+ * The bytes are read once (ADR-0033): the text is the same UTF-8 decoding as `readFileSync(path, "utf8")` (a BOM and an
+ * invalid sequence come out the same), and the hash is of these bytes, so it is the content the config was parsed from.
  */
-function readConfigTextIfExists(absoluteConfigPath: string): string | null {
+function readConfigFileIfExists(absoluteConfigPath: string): ConfigFile | null {
   try {
-    return readFileSync(absoluteConfigPath, "utf8");
+    const bytes = readFileSync(absoluteConfigPath);
+    return { text: bytes.toString("utf8"), sha256: createHash("sha256").update(bytes).digest("hex") };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ConfigError(
