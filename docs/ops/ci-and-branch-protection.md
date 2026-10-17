@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-16（v0.9.0。§1 に `reusable (self)`）。その前: 2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）。その前: 2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -54,6 +54,7 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 - 5 回とも success: 1 回目 `35ee9e7`（run 38315238218）、2 回目 `d751427`（38319589345）、3 回目 `c3f454f`（38337593923）、4 回目 `a4bb7ec`（38344644237）、5 回目 `c322eb3`（38381026032。v0.6.1 の release。タグはこれが success になってから付けた）
 - プロジェクトの `CLAUDE.md` のリリースの手順に足した一文: 「注釈付きタグを付ける前に、その release commit の push で始まった `verify (ubuntu)`（`.github/workflows/ci.yml`）が success であることを `gh` で確かめる。success でなければタグを付けない」
 - Branch Protection が使えない（§3）ので、これは**人の手順**として守る。記録の commit の push の後も、結果を読んで報告に書く
+- 注記（v0.9.2）: `verify (ubuntu)` と `reusable (self) / aiqh verify` を必須チェックにした（§3、ADR-0032）。pull request の run で 2 つが緑でないと merge できない。タグの前には、merge の後の main への push の run の 2 つの success も確かめる（§8）
 - 時間の見張り: 5 回目の `unit` 約 5 分 48 秒が一番長い（上限 600 秒の約 58%）
 
 ## 3. Branch Protection（または rulesets）
@@ -68,6 +69,20 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 - Bypass list: Repository admin の役割（`RepositoryRole` の id 5、`bypass_mode: always`。3-3）
 - 入れていないもの: 必須チェック（3-1 の 4。§2 の条件〈main への push で続けて 5 回緑〉を見て、足すときは改めて人間の承認を得る。ROADMAP の項目 44）、pull request の必須（3-1 の 5。いまは 3-2 の案 B の形）、承認の数、Code Owners のレビュー、tag ruleset（3-3 の最後）
 - 確かめ（読み取りだけ）: `gh api repos/youhei-dev/ai-quality-harness/rules/branches/main --jq '[.[].type]'` → `["deletion","non_fast_forward"]`。`gh api repos/youhei-dev/ai-quality-harness/rulesets --jq 'length'` → 1
+
+**実施済み（2026-10-17、v0.9.2。ADR-0032）**: 人間の決定で、同じ ruleset を pull request の必須に切り替えた（3-2 の案 A）。上の v0.8.4 の箇条は、書いた時点の記録として残す。
+
+- 変え方: `gh api --method PUT repos/youhei-dev/ai-quality-harness/rulesets/25218296 --input <JSON のファイル>` を 1 回（JSON の欄は name・target・enforcement・conditions・rules・bypass_actors）
+- 規則（いまの状態）:
+  - `deletion`（削除の禁止）・`non_fast_forward`（force push の禁止）
+  - `pull_request`: 承認の数 0、Code Owners のレビューは必須にしない、merge の方式は **merge commit だけ**（`allowed_merge_methods: ["merge"]`）
+  - `required_status_checks`: **`verify (ubuntu)` と `reusable (self) / aiqh verify`**（どちらも GitHub Actions の check。integration の id 15368）、**strict**（branch が最新であること）
+- Bypass list: **空**（`current_user_can_bypass: never`）。締め出されたときの止め方は 3-3
+- `measure (windows)` は必須にしない（手動の実行だけ。ADR-0025 の決定 4）
+- API が既定の値で足した項目: `require_extra_approval_for_unattributed_changes: true`・`required_reviewers: []`・`do_not_enforce_on_create: false`
+- リポジトリの merge の設定（変えていない）: `allow_merge_commit: true`（squash と rebase もリポジトリでは許されたまま。ruleset が merge commit だけに絞る）、`delete_branch_on_merge: false`、`allow_update_branch: false`
+- 確かめ（読み取りだけ）: `gh api repos/youhei-dev/ai-quality-harness/rules/branches/main --jq '[.[].type]'` → `["deletion","non_fast_forward","pull_request","required_status_checks"]`
+- **main への直接の push はできない**（admin も）。リリースは §8 の流れで入れる
 
 ### 3-1. 設定する内容（rulesets の場合。Settings → Rules → Rulesets → New branch ruleset）
 
@@ -87,10 +102,12 @@ classic の Branch Protection を使う場合も、同じ 4 つ（削除の禁�
 - 案 A: pull request を必須にし、承認の数は 0（自分の pull request は自分で承認できない）。`verify (ubuntu)` を必須チェックにする。マージは CI が緑になってから
 - 案 B: 直接の push を続け、ruleset は削除の禁止と force push の禁止だけにする。CI はタグの前の条件（§2）で使う
 - どちらにするかは人間が決める（波 4 の公開の判断と一緒に）
+- **決定（2026-10-17、v0.9.2。ADR-0032）: 案 A**。必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify` の 2 つ、承認 0、merge commit だけ、Bypass なし。流れは §8
 
 ### 3-3. 自分が締め出されないための注意
 
 - Bypass list に自分（Repository admin）を入れておく。誤った設定でも、管理者は ruleset を無効にできる
+  - 注記（v0.9.2）: ADR-0032 の決定で、Bypass は外した。締め出されたとき（必須チェックが報告されない、など）は、人間が Settings → Rules → Rulesets → `main-protection` で Enforcement を Disabled にする（admin は ruleset を変えられる）
 - 必須チェックの名前は、実際に走ったジョブの名前を一覧から選ぶ（打ち間違えると、チェックが永遠に「報告を待つ」になり、マージできない）
 - 承認の数を 1 以上にしない（1 人では満たせない）。Code Owners のレビューを必須にしない（同じ理由）
 - まず削除の禁止と force push の禁止だけで有効にし、必須チェックは後から足す
@@ -126,3 +143,21 @@ gh run view <run-id> --log-failed                  # 失敗した手順のログ
 - （v0.5.45 で注記: Ubuntu は 2 回とも緑で、この推定の 5 つはどれも失敗として現れなかった。Windows は手動の 1 回で 3 チェックが FAIL〈ROADMAP の M3〉）v0.5.45 の前の推定（rest2 の SP1）: dash でのシェルの構文、回収前のゾンビの扱い（`src/runner/execute.ts` の `groupAlive`）、vCPU が少ないことによる時間の余裕の小さいテスト、初めて走る unzip・python3 のテスト（`tests/zip-interop.test.ts`）、`npm audit` の勧告
 - Actions の分数の上限（API は `user` のスコープが要り、取れなかった）
 - CODEOWNERS がいまのプランで何もしないこと（GitHub の文書による [推定]）
+- （v0.9.2）`require_extra_approval_for_unattributed_changes: true`（API の既定の値）が、承認 0 の設定でどう働くか。strict で main が先に進んだときの branch の更新のしかた（`allow_update_branch` は false）。ruleset を止める手順は試していない
+
+## 8. リリースの手順（v0.9.2 から: pull request で入れる。ADR-0032）
+
+main への直接の push は、ruleset で拒まれる（admin も）。版を出すときも、記録だけのときも、次の流れにする。
+
+1. origin/main から作業の branch を作る（版を出すときは `release/vX.Y.Z`、記録だけなら `docs/<topic>`）
+2. branch に目的ごとの commit を作り、各 commit を SHA 固定の worktree で検証する（typecheck・lint・全テスト・`npm run verify`）
+3. push の前に走査し（範囲は `origin/main..HEAD`）、branch を push する
+4. pull request を作り（base は main）、必須の 2 つの checks（`verify (ubuntu)`・`reusable (self) / aiqh verify`）が緑になるのを待つ
+5. `gh pr merge <番号> --merge --match-head-commit <branch の先頭の SHA> --delete-branch` で merge する（`--admin` は使わない。`--match-head-commit` で、確かめた commit 以外を merge しない）
+6. main への push の run（merge の commit）の、必須の 2 つが success になるのを確かめる
+7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて push する
+8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる
+
+- merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
+- strict なので、main が先に進んだときは、branch を最新にしてから merge する
+- タグの push は、ruleset の対象（branch）の外
