@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.9.2 — main requires pull requests: two required checks (verify (ubuntu), reusable (self) / aiqh verify), merge commits only, no bypass (ADR-0032; docs and version only)
+## v0.9.2 — commit 549ccda597028c58b5912e93e186c7f0fe361a3f / tag object 5cc8c596deecc3b5b8bed18f1fdc7d3a05732e89 — main requires pull requests: two required checks (verify (ubuntu), reusable (self) / aiqh verify), merge commits only, no bypass (ADR-0032; docs and version only)
 
 - **本体の main を pull request 必須にした**（人間の決定。2026-10-17）。この版が、新しい運用の最初の pull request（branch `release/v0.9.2`）。3 commit: `f78d881`・`e256acb`・この release の commit
 - ruleset `main-protection`（id 25218296）を `gh api --method PUT` で 1 回切り替えた:
