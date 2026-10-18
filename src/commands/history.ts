@@ -1,7 +1,11 @@
 /**
  * aiqh history (ADR-0034): the verify history of one or more projects, aggregated without a database and read only. The terminal shows
- * a table, `--json` the aggregate document; nothing is written to a file. Only numbers and states are shown, with the allowlisted strings
- * (ADR-0034 F); a --from is shown as `#<n>`, never as a path.
+ * a table, `--json` the aggregate document. Only numbers and states are shown, with the allowlisted strings (ADR-0034 F); a --from is
+ * shown as `#<n>`, never as a path. With --html (v0.12.0, ADR-0035) one file is written, <out>/dashboard.html (default out:
+ * <cwd>/artifacts/history): never through a symbolic link (--out or dashboard.html), never into a history directory that is read, and
+ * only when its bytes and the bytes of standard output are within the limit; it is written before standard output, so an error leaves
+ * both unwritten. Standard output is the same with or without --html; the line `dashboard: dashboard.html (<n> bytes)` goes to standard
+ * error.
  * Exit codes (ADR-0034 H; 1 is not used — a FAILED run in the history is a value of the aggregate, not a failure of this command):
  *   0  every history file was read — last line `HISTORY COMPLETE — …`
  *   2  a history file could not be read (the aggregate and the list are shown) — `HISTORY INCOMPLETE — …`
@@ -9,17 +13,20 @@
  * The last line goes to standard output, except with --json (standard error) and for HISTORY ERROR (standard error).
  * The output limit is the bytes written to standard output (v0.11.2, M4-H-R1-001): every line of the table with its newline, the last
  * line included, or the --json document with its newline, the same number whatever the writer (src/output.ts `linesWithin`,
- * `jsonWithin`).
+ * `jsonWithin`). The limit of the dashboard is the bytes of the file written (ADR-0034 H).
  */
+import { lstatSync, mkdirSync, realpathSync, statSync, type Stats } from "node:fs";
 import path from "node:path";
 import { aggregate, type AggregateDeps, type HistoryAggregate } from "../run-history/aggregate.ts";
-import { readHistory, type ReadDeps } from "../run-history/read.ts";
+import { DASHBOARD_FILE, renderDashboard } from "../run-history/html.ts";
+import { readHistory, type DirectoryIdentity, type ReadDeps } from "../run-history/read.ts";
 import { createOutput } from "../output.ts";
+import { writeAtomic } from "../report/write.ts";
 import { EXIT_ERROR, EXIT_PASSED } from "../types.ts";
 
 /**
  * Bytes written: to standard output, every line and its newline (the last line included) or the --json document and its newline; the
- * HTML file in v0.12.0. More is output-too-large (ADR-0034 H / N).
+ * bytes of the dashboard file (v0.12.0). More is output-too-large (ADR-0034 H / N).
  */
 export const OUTPUT_MAX_BYTES = 32 * 1024 * 1024;
 
@@ -34,8 +41,94 @@ export interface HistoryOptions {
   logError?: (line: string) => void;
   /** Standard output as the bytes the terminal gets (the tests of the output limit); it takes the place of `log` (src/output.ts). */
   write?: (text: string) => void;
-  /** For tests: the reading, the aggregate and the output limit. Not reachable from the CLI. */
-  deps?: { read?: ReadDeps; aggregate?: AggregateDeps; outputMaxBytes?: number };
+  /** --html: also write the dashboard (ADR-0035). */
+  html?: boolean;
+  /** --out: the directory of dashboard.html, relative to cwd (default: <cwd>/artifacts/history); only with --html. */
+  out?: string;
+  /** For tests: the reading, the aggregate, the limit of standard output and of the dashboard file. Not reachable from the CLI. */
+  deps?: { read?: ReadDeps; aggregate?: AggregateDeps; outputMaxBytes?: number; htmlMaxBytes?: number };
+}
+
+/** Why the dashboard is not written: `HISTORY ERROR (<kind>)` and a message without a path. */
+class DashboardError extends Error {
+  readonly kind: string;
+  constructor(kind: string, message: string) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+/** The errno name of a file-system error (`EACCES`), never its message (which holds the path). */
+function errno(err: unknown): string {
+  const code = (err as NodeJS.ErrnoException).code;
+  return typeof code === "string" && /^E[A-Z0-9]+$/.test(code) ? code : "error";
+}
+
+function lstatOrNull(p: string): Stats | null {
+  try {
+    return lstatSync(p);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+/** Whether `dir` (an existing directory) or a directory above it is one of the history directories that were read. */
+function insideHistory(dir: string, histories: readonly DirectoryIdentity[]): boolean {
+  for (let p = realpathSync(dir); ; p = path.dirname(p)) {
+    const st = statSync(p, { bigint: true });
+    if (histories.includes(`${st.dev}:${st.ino}`)) return true;
+    if (path.dirname(p) === p) return false;
+  }
+}
+
+/** The dashboard, rendered and checked; written only by write() (ADR-0035 decision 5). */
+interface Dashboard {
+  bytes: number;
+  write: () => void;
+}
+
+/**
+ * The checks before anything is written (ADR-0035 decision 1): --out is not a symbolic link and is a directory (or does not exist yet,
+ * below an existing directory), neither it nor a directory above it is a history directory that was read, and an existing
+ * dashboard.html is a regular file, not a symbolic link; the HTML is within its limit. write() creates --out when missing, checks it
+ * again and writes the file through writeAtomic(…, "html").
+ */
+function prepareDashboard(agg: HistoryAggregate, cwd: string, out: string | undefined, histories: readonly DirectoryIdentity[], maxBytes: number): Dashboard {
+  const dir = path.resolve(cwd, out ?? path.join("artifacts", "history"));
+  const target = path.join(dir, DASHBOARD_FILE);
+  try {
+    const here = lstatOrNull(dir);
+    if (here?.isSymbolicLink() === true) throw new DashboardError("output-symlink", "--out is a symbolic link");
+    if (here !== null && !here.isDirectory()) throw new DashboardError("output-not-a-directory", "--out is not a directory");
+    let existing = dir;
+    while (lstatOrNull(existing) === null) existing = path.dirname(existing);
+    if (!statSync(existing).isDirectory()) throw new DashboardError("output-not-a-directory", "--out is below a file");
+    if (insideHistory(existing, histories)) throw new DashboardError("output-in-history", "--out is in a history directory that is read");
+    const file = here === null ? null : lstatOrNull(target);
+    if (file?.isSymbolicLink() === true) throw new DashboardError("output-symlink", `${DASHBOARD_FILE} in --out is a symbolic link`);
+    if (file !== null && !file.isFile()) throw new DashboardError("output-not-a-file", `${DASHBOARD_FILE} in --out is not a regular file`);
+  } catch (err) {
+    if (err instanceof DashboardError) throw err;
+    throw new DashboardError("output-unwritable", `--out cannot be checked (${errno(err)})`);
+  }
+  const html = renderDashboard(agg);
+  const bytes = Buffer.byteLength(html, "utf8");
+  if (bytes > maxBytes) throw new DashboardError("output-too-large", `the dashboard is larger than ${maxBytes} bytes`);
+  return {
+    bytes,
+    write: () => {
+      try {
+        mkdirSync(dir, { recursive: true });
+        const st = lstatSync(dir);
+        if (st.isSymbolicLink() || !st.isDirectory()) throw new DashboardError("output-symlink", "--out changed into a symbolic link or a file");
+        writeAtomic(target, html, "html");
+      } catch (err) {
+        if (err instanceof DashboardError) throw err;
+        throw new DashboardError("output-unwritable", `the dashboard cannot be written (${errno(err)})`);
+      }
+    },
+  };
 }
 
 const SHORT_HASH = 12;
@@ -100,17 +193,30 @@ export async function runHistory(options: HistoryOptions): Promise<number> {
     return EXIT_ERROR;
   };
   if (options.from.length === 0) return fail("usage", "history needs at least one --from <dir> (a project root or a history directory)");
+  if (options.out !== undefined && options.html !== true) return fail("usage", "--out needs --html");
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const read = readHistory(options.from, cwd, options.deps?.read);
   if (!read.ok) return fail(read.kind, `${read.source === null ? "" : `--from #${read.source} `}${read.detail}`);
   const agg = aggregate(read, options.toolVersion, options.deps?.aggregate);
   if (!agg.ok) return fail(agg.kind, agg.kind === "too-many-values" ? "the aggregate has more values than the limit" : "the aggregate has a number that is not finite (a bug of aiqh)");
   const max = options.deps?.outputMaxBytes ?? OUTPUT_MAX_BYTES;
-  if (options.json) {
-    if (!output.jsonWithin(agg.value, max)) return fail("output-too-large", `the JSON document with its newline is larger than ${max} bytes`);
-    output.error(lastLine(agg.value));
-  } else if (!output.linesWithin([...tableLines(agg.value), lastLine(agg.value)], max)) {
-    return fail("output-too-large", `the table with its last line is larger than ${max} bytes`);
+  let dashboard: Dashboard | null = null;
+  try {
+    if (options.html === true) {
+      if (read.directories === undefined) throw new Error("aiqh history: the history directories are not known (a bug of aiqh)");
+      dashboard = prepareDashboard(agg.value, cwd, options.out, read.directories, options.deps?.htmlMaxBytes ?? OUTPUT_MAX_BYTES);
+    }
+    const beforeWrite = dashboard?.write;
+    if (options.json) {
+      if (!output.jsonWithin(agg.value, max, beforeWrite)) return fail("output-too-large", `the JSON document with its newline is larger than ${max} bytes`);
+    } else if (!output.linesWithin([...tableLines(agg.value), lastLine(agg.value)], max, beforeWrite)) {
+      return fail("output-too-large", `the table with its last line is larger than ${max} bytes`);
+    }
+  } catch (err) {
+    if (err instanceof DashboardError) return fail(err.kind, err.message);
+    throw err;
   }
+  if (dashboard !== null) output.error(`dashboard: ${DASHBOARD_FILE} (${dashboard.bytes} bytes)`);
+  if (options.json) output.error(lastLine(agg.value));
   return agg.value.complete ? EXIT_PASSED : EXIT_ERROR;
 }

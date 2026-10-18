@@ -114,8 +114,18 @@ export interface HistoryRun {
   checks: RunCheck[];
 }
 
+/**
+ * A history directory as its identity, `<dev>:<ino>` in decimal (no path; a string, so that the result stays JSON data): the command
+ * checks that it writes no file into one (v0.12.0, ADR-0035).
+ */
+export type DirectoryIdentity = string;
+
+/**
+ * `directories` is the identity of each history directory that was read (in the order of the sources); readHistory always sets it. It is
+ * not shown anywhere and not given to the aggregate. Optional only so that an aggregate's input can be built without it.
+ */
 export type ReadResult =
-  | { ok: true; sources: SourceSummary[]; unread: UnreadFile[]; runs: HistoryRun[] }
+  | { ok: true; sources: SourceSummary[]; unread: UnreadFile[]; runs: HistoryRun[]; directories?: DirectoryIdentity[] }
   | { ok: false; kind: InputErrorKind; source: number | null; detail: string };
 
 /** For tests: the limits, the chunk size and four points of the reading can be replaced. Not reachable from the config or the CLI. */
@@ -415,5 +425,5 @@ export function readHistory(froms: readonly string[], cwd: string, deps: ReadDep
       if (a === undefined || a.kind !== b.kind || a.dev !== b.dev || a.ino !== b.ino) return inputError("directory-changed", s.index, "a directory changed while the history was read");
     }
   }
-  return { ok: true, sources: summaries, unread, runs };
+  return { ok: true, sources: summaries, unread, runs, directories: sources.map((s) => identity(s.base)).map(({ dev, ino }) => `${dev}:${ino}`) };
 }

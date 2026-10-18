@@ -79,7 +79,7 @@ const KNOWN: readonly Known[] = [
   { file: "src/commands/init.ts", owner: "runInit", writer: "writeFileSync", content: "`${current}${sep}${GITIGNORE_LINE}\\n`", kind: "no-gate", note: ".gitignore: the user's own file plus one fixed line (ADR-0020, decision 6)" },
   { file: "src/commands/init.ts", owner: "runInit", writer: "writeFileSync", content: "`${JSON.stringify(pkg, null, indent)}\\n`", kind: "no-gate", note: "package.json: the user's own data written back, not our content (ADR-0020, decision 6)" },
   { file: "src/commands/review-packet.ts", owner: "writeTogether", writer: "writeFileSync", content: "t.data", kind: "no-gate", note: "the packet and its ZIP: a forbidden character stops the packet before it is written (fail closed, ADR-0014)" },
-  { file: "src/report/write.ts", owner: "writeAtomic", writer: "writeFileSync", content: 'format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep")', kind: "gate", note: "latest.json, latest.md, history/<ts>.json: both branches convert at the write (ADR-0020, decision 1)" },
+  { file: "src/report/write.ts", owner: "writeAtomic", writer: "writeFileSync", content: 'format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep")', kind: "gate", note: "latest.json, latest.md, history/<ts>.json, and aiqh history's dashboard.html (format html, the Markdown branch; v0.12.0, ADR-0035): both branches convert at the write (ADR-0020, decision 1)" },
 ];
 
 const FS_DECLARATIONS = /@types[\\/]node[\\/]fs(\.d\.ts|[\\/]promises\.d\.ts)$/;
