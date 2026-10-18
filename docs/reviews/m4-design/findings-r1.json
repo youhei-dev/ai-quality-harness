@@ -101,14 +101,14 @@
       "evidence": "Q1 は推奨 (a) に ADR-0029 への注記を含むが、§4.3 の各 PR の docs 対象に ADR-0029 が記載されていない。",
       "fix": "Q1 の人間の決定後、v0.11.0 の docs commit に ADR-0029 の注記と対応テストを明記する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。ADR-0029 の 26 行目の後ろに足す注記の文を書き、v0.11.0 の docs の commit に注記、集計の commit に allow ルールの名前が出ないことのテストを割り当てた（設計 R2・R3 の ADR-0034 の E、§4.3）",
-      "fixedIn": null,
+      "fixedIn": "11d148ef02b73dae9b008bf643dfc2ba9b9307c1",
       "regressionTest": "tests/history-aggregate.test.ts の「Q1: the security-scan numbers per day (suppressed, allowRulesUsed, expiredAllowRules, unusedAllowRules), in the order of the keys」（ccc6107b3148ce39796b30c727638ce641fd05fa）と、tests/history-cli.test.ts の「terminal, --json and the errors: no path, command, cwd, output, item or allow-rule name, branch, commit, description or reason」（5277052085920d62b214163f305c32ce56eee0c4）。直す前の ffc6f93 で FAIL（それぞれのモジュールが無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "v0.11.0 で直した: ADR-0029 の注記は v0.11.0 の docs の commit、対応するテストは上の 2 つ。fixedIn にする docs の commit の SHA は、その commit の中には書けないので、open のままにし、次の記録の commit で fixedIn を書いて resolved にする。R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。"
+      "note": "v0.11.0 で直した: ADR-0029 の注記は v0.11.0 の docs の commit（fixedIn）、対応するテストは上の 2 つ。fixedIn の SHA はその commit の中には書けないので、v0.11.0 では open のままにし、v0.11.1 の記録の commit で fixedIn を書いて resolved にした。R2 の評価: 解消。"
     }
   ]
 }

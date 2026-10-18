@@ -5,7 +5,18 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.11.0 — aiqh history: the verify history aggregated without a database, read only (the table and --json; ADR-0034)
+## v0.11.1 — the raw bidi control and line separators in two test sources built from code points; a test keeps every tracked file free of raw characters
+
+- **テストのソースの生の文字の直し**（人間の判断。2026-10-18 の案 A）。branch `release/v0.11.1`、3 commit: `3a58d7a`（テストと 2 行の直し）・`ea72dc0`（記録）・この release の commit
+- 見つけた経緯: v0.11.0 の実装レビューのパケットを作るとき、`aiqh review-packet` の生の文字の確かめが、`tests/output-json-within.test.ts` の 22 行目の文字列の中の生の U+202E（v0.11.0 の commit `613ca21`）を見つけて止まった。自己 verify の 8 つのチェックは見つけていなかった（security の check は生の文字を見ない。ROADMAP の項目 48）。`tests/regression-m2-0r2-002-control-chars.test.ts` の 13 行目にも、v0.3.2（commit `b2edd7c`）からの生の U+2028・U+2029 があった
+- 直し: 2 行の生の文字を `String.fromCodePoint(…)` で組み立てる形にした。実行の時の文字列の符号位置の並びは前と同じ（比べて確かめた）。2 つのファイルは、直す前も後も PASS
+- テスト: `tests/no-raw-bidi-in-tracked-files.test.ts`（新規、2 件）。`git ls-files` のすべてのファイル（`tests/` とフィクスチャを含む）が UTF-8 として読め、`src/security/raw-chars.ts` の禁止の文字（双方向の制御文字・行区切り・段落区切り・TAB と LF の外の C0・DEL・C1・U+FEFF）を持たないこと。文字の定義は使い回した。失敗の表示はファイル・行・符号位置だけ。テストを先に書き、変更の前の `730644d` で 1 件 FAIL（当たりは上の 2 行の 3 文字だけ）・1 件 PASS（表示の形）。既存のテストの期待値と `tests/structure/` は変えていない
+- 記録: CHANGELOG の v0.11.0 の見出しの SHA、ROADMAP（v0.11.0 の CI の記録、v0.11.1 の項、新しい項目 48、M4 の進み）、`docs/reviews/m4-design/findings-r1.json` の M4-D-R1-005 を `resolved`（`fixedIn` は ADR-0029 の注記の docs の commit `11d148e`）。`aiqh review-check --label m4-design` は exit 0（open 3、警告 3）
+- 利用者に見える変化: 無い（`src/` は v0.11.0 と同じ。`aiqh --version` が 0.11.1 を出す）
+- `src/`・依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.11.0 と同一
+- `package.json` version 0.11.1（`package-lock.json` の `version` は 0.5.35 のまま）
+
+## v0.11.0 — commit 1029fe7f5990923346f870d4dd21ecd8508da13c / tag object 3e95c49b2b2f788623cbd2e8e14457614c340427 — aiqh history: the verify history aggregated without a database, read only (the table and --json; ADR-0034)
 
 - **`aiqh history`**（M4 の 2 つ目の版。設計 R3 の ADR-0034 の案と、人間の決定 D1〜D15・Q1〜Q11）。branch `release/v0.11.0`、6 commit: `613ca21`（出口の口）・`e274a67`（読み込み）・`ccc6107`（集計）・`5277052`（コマンド）・`11d148e`（docs）・この release の commit
 - `aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]`: `--from` はプロジェクトのルート（`artifacts/verification/history` を持つ）か、history のディレクトリ。`history/<ts>.json` だけを読み、何も書かない。出力は端末の表か `--json`（`{"kind": "aiqh-history", "schemaVersion": 1, …}`。生成の時刻を入れず、同じ入力から同じ出力）

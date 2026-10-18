@@ -10,7 +10,7 @@ const cfg = (reason: string, p = "tests/**") => `{ ${BASE}, "security": { "allow
 
 describe("M2-0-R2-002: control characters and Unicode line separators", () => {
   it("U+2028 / U+2029 / ESC / U+0085 in reason or path are schema errors", () => {
-    for (const bad of ["one two", "one two", "esc\u001b[31mred", "nel\u0085next", "del\u007fx", "c1\u009bx"]) {
+    for (const bad of [`one${String.fromCodePoint(0x2028)}two`, `one${String.fromCodePoint(0x2029)}two`, "esc\u001b[31mred", "nel\u0085next", "del\u007fx", "c1\u009bx"]) {
       expect(() => parseConfigText(cfg(bad)), JSON.stringify(bad)).toThrow(ConfigError);
       expect(() => parseConfigText(cfg("ok", bad)), `path ${JSON.stringify(bad)}`).toThrow(ConfigError);
     }
