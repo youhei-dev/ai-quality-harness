@@ -8,6 +8,8 @@ import { countAndWord, countOf, ItemList, lastIndex, type Lines } from "./text.t
 import { NO_SUMMARY, UNEXPECTED_SUMMARY, type ParserAnswer, type ToolParser } from "./tool.ts";
 
 const SEVERITIES = ["low", "moderate", "high", "critical"] as const;
+/** The count keys this parser writes, in their order (aiqh history reads only these, ADR-0034 E). */
+export const NPM_AUDIT_COUNT_KEYS: readonly string[] = ["vulnerabilities", ...SEVERITIES];
 type Severity = (typeof SEVERITIES)[number];
 
 function isSeverity(word: string): word is Severity {

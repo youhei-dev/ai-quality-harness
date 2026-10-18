@@ -15,6 +15,8 @@ const WORDS: ReadonlyArray<readonly [string, string]> = [
   ["skipped", "Skipped"],
   ["todo", "Todo"],
 ];
+/** The count keys this parser writes, in their order (aiqh history reads only these, ADR-0034 E). */
+export const VITEST_COUNT_KEYS: readonly string[] = [...["testFiles", "tests"].flatMap((prefix) => [prefix, ...WORDS.map(([, suffix]) => `${prefix}${suffix}`)]), "errors"];
 /** Lines after "Tests" in which an "Errors" line is looked for (Type Errors, Errors, Leaks come before "Start at"). */
 const ERRORS_WINDOW = 6;
 /** The section divider character of vitest (U+23AF). */

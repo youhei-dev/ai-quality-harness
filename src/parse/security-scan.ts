@@ -20,6 +20,8 @@ const KINDS: ReadonlyArray<readonly [string, string]> = [
   ["untracked .env not ignored", "untrackedEnv"],
   [".gitignore", "gitignore"],
 ];
+/** The count keys this parser writes, in their order (aiqh history reads only these, ADR-0034 E). */
+export const SECURITY_SCAN_COUNT_KEYS: readonly string[] = ["findings", ...KINDS.map(([, key]) => key), "suppressed", "allowRulesUsed", "expiredAllowRules", "unusedAllowRules"];
 /** The entry lines: their marker (after the two spaces of the indent) and the item kind. */
 const ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ["[secret] ", "secret"],

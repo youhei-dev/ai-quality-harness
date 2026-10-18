@@ -64,6 +64,9 @@ function errorNames(lines: Lines, end: number, items: ItemList, tick: () => void
   }
 }
 
+/** The count keys this parser writes, in their order (aiqh history reads only these, ADR-0034 E). */
+export const ESLINT_COUNT_KEYS: readonly string[] = ["problems", "errors", "warnings"];
+
 export const ESLINT_PARSER: ToolParser = {
   tool: "eslint",
   parse(input, budget): ParserAnswer {

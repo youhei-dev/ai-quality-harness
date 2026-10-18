@@ -5,19 +5,27 @@
  * status, the exit code and every other field of the check are decided before this and do not look at it).
  */
 import type { ExecutionResult, ParsedItem, ParsedOutput, ParseReason, ParserTool, ResolvedCheck } from "../types.ts";
-import { ESLINT_PARSER } from "./eslint.ts";
-import { NPM_AUDIT_PARSER } from "./npm-audit.ts";
-import { SECURITY_SCAN_PARSER } from "./security-scan.ts";
+import { ESLINT_COUNT_KEYS, ESLINT_PARSER } from "./eslint.ts";
+import { NPM_AUDIT_COUNT_KEYS, NPM_AUDIT_PARSER } from "./npm-audit.ts";
+import { SECURITY_SCAN_COUNT_KEYS, SECURITY_SCAN_PARSER } from "./security-scan.ts";
 import { selectParser, type ScriptsRead } from "./select.ts";
 import { Budget, PARSED_ITEMS_MAX, prepareStream, TimeLimitReached } from "./text.ts";
 import type { ToolParser } from "./tool.ts";
-import { VITEST_PARSER } from "./vitest.ts";
+import { VITEST_COUNT_KEYS, VITEST_PARSER } from "./vitest.ts";
 
 export const PARSERS: Readonly<Record<ParserTool, ToolParser>> = {
   vitest: VITEST_PARSER,
   eslint: ESLINT_PARSER,
   "npm-audit": NPM_AUDIT_PARSER,
   "aiqh-security-scan": SECURITY_SCAN_PARSER,
+};
+
+/** The count keys of each parser, in their order (one list, kept by the parsers; aiqh history reads only these, ADR-0034 E). */
+export const COUNT_KEYS: Readonly<Record<ParserTool, readonly string[]>> = {
+  vitest: VITEST_COUNT_KEYS,
+  eslint: ESLINT_COUNT_KEYS,
+  "npm-audit": NPM_AUDIT_COUNT_KEYS,
+  "aiqh-security-scan": SECURITY_SCAN_COUNT_KEYS,
 };
 
 /** For tests: the clock, the parsers and the package.json reader can be replaced. Not reachable from the config or the CLI. */
