@@ -5,6 +5,17 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.11.2 — aiqh history: the output limit counts every byte written to standard output (the last line of the table and the newline of --json; M4-H-R1-001)
+
+- **実装の独立レビュー m4-history R1 の指摘 M4-H-R1-001（Medium）の直し**（人間の判断。2026-10-18 の案 1）。branch `release/v0.11.2`、3 commit: `69f05bb`（テストと直し）・`723393c`（記録）・この release の commit
+- 指摘: `aiqh history` の出力の上限 32 MiB を、表は最後の行（`HISTORY COMPLETE`・`HISTORY INCOMPLETE`）を数えずに、`--json` は書くときに足す改行を数えずに判定していた。上限ちょうどの近くで、上限を超えて書いていた（テストの fixture で、表は 954 バイトと比べて 1,005 バイトを書いた）
+- 直し: 出力の API（`src/output.ts`）が、標準出力に実際に書くバイト（各行と改行、文書と改行）を先に数え、書き手の種類によらない同じ数で判定する。上限以下のときだけすべてを書き、超えたら何も書かない（`HISTORY ERROR (output-too-large)`、exit 2）。表と最後の行は新しい口 `linesWithin`、`--json` の `jsonWithin` は改行を数える。テストの書き手 `write`（標準出力のバイトをそのまま受け取る）を足した。上限の中の出力のバイトは v0.11.1 と同じ
+- テスト: `tests/history-output-bytes.test.ts`（新規、7 件。`write` が受け取ったバイト数で、表と `--json` のそれぞれに、上限ちょうど・1 バイト超過・最後の行や改行だけで超える。`HISTORY INCOMPLETE` の最後の行、書き手 `log` でも同じ答え、CLI の標準出力と同じバイト）。人間の承認で、既存のテストの期待値を 3 か所変えた（`tests/history-cli.test.ts` の表と `--json` の境界、`tests/output-json-within.test.ts` の境界）。テストを先に書き、変更の前の `074ebc4` で 10 件 FAIL・13 件 PASS。`tests/structure/` は変えていない
+- 記録: `docs/reviews/m4-history/`（`aiqh review-import` の findings、原文の収録、対応記録）。M4-H-R1-001 を `resolved`、m4-design の M4-D-R2-001（v0.11 の部分を直した。HTML の部分が残るので `open`）と M4-D-R1-002・003（実装レビューで「解消」）の `note`。ADR-0034 の H（上限は標準出力に実際に書くバイトに当て、書き手の種類によらない。v0.12.0 の HTML のファイルにも同じ決まり）・I・M・N、ADR-0016 の注記。CHANGELOG の v0.11.1 の見出しの SHA、ROADMAP の v0.11.1 の CI の記録と v0.11.2 の項。`aiqh review-check` は `m4-history` が complete、`m4-design` が open 3（どちらも exit 0）
+- 利用者に見える変化: 上限の近くの大きな集計で、これまで書いていた出力が `HISTORY ERROR (output-too-large)` になることがある（上限と、上限の中の出力は同じ）。`aiqh --version` が 0.11.2 を出す
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.11.1 と同一
+- `package.json` version 0.11.2（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.11.1 — commit ec65c24e0eabcff556dfe98295df5aef1b149668 / tag object c4c23e7bca5196b2a2221b2dadf48c054ffa2f88 — the raw bidi control and line separators in two test sources built from code points; a test keeps every tracked file free of raw characters
 
 - **テストのソースの生の文字の直し**（人間の判断。2026-10-18 の案 A）。branch `release/v0.11.1`、3 commit: `3a58d7a`（テストと 2 行の直し）・`ea72dc0`（記録）・この release の commit
