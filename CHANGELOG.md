@@ -5,6 +5,20 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.12.0 — aiqh history --html: a static dashboard without script or external resources (CSP meta, every value escaped, numbers matched to --json by data-k; ADR-0035)
+
+- **静的 HTML のダッシュボード**（M4。設計 R3 の §3 の案を、実装に合わせて ADR-0035 にした）。branch `release/v0.12.0`、3 commit: `192e72f`（実装とテスト）・`eefee27`（記録）・この release の commit
+- `aiqh history --from … --html [--out <dir>]` が `<out>/dashboard.html`（既定は `--cwd` の `artifacts/history/`）を書く。`--out` だけは使い方の誤り。`--json` と一緒に使える。標準出力は `--html` の有無で変わらず、標準エラーに `dashboard: dashboard.html (<n> bytes)` の行が出る。読めない履歴があっても HTML は書き（目立つ節で示す）、終了コードは 2
+- 形: script・外の資源・イベントの属性を置かない。開け閉めは `<details>`、図はインラインの SVG。CSP の meta を `<head>` の最初の子に置き（`default-src 'none'`、`style-src` は固定の CSS の SHA-256、`img-src`・`base-uri`・`form-action` は `'none'`）、`referrer` の meta も置く
+- 値の埋め込み: すべての値（数も、SVG の座標も）を 1 つの関数 `h()` に通す（文字列にする → マスク → 禁止文字と LF・TAB を `\u{HEX}` に → `& < > " '` を参照に）。値を入れるのは要素の本文と二重引用符の属性の値だけ
+- 数の照合（M4-D-R1-004）: HTML に出す数は、すべて `data-k="<JSON のパス>"` を持つ要素の本文。対応表 `HTML_SHOWN` と、照合しない数の許可リスト `HTML_NOT_SHOWN`（`lastTimeoutSec` を含む。M4-D-R2-002）を明文で持つ
+- 書き込み: `writeAtomic(…, "html")`（内容の式は変えない）。上限は実際に書くファイルのバイト（32 MiB。M4-D-R2-001 の HTML の部分）。HTML と標準出力の両方の上限を確かめた後、標準出力より先にファイルを書く（上限つきの口の `beforeWrite`）。`--out` や `dashboard.html` が symlink のとき・読んだ履歴のディレクトリの中のときは書かない（`output-symlink`・`output-not-a-directory`・`output-not-a-file`・`output-in-history`・`output-unwritable`）
+- テスト: `tests/history-html.test.ts`（新規、7 件）・`tests/history-html-cli.test.ts`（新規、14 件）。テストを先に書き、変更の前の `afcf6dd`（v0.11.2 の merge）で、前者は読み込むモジュールが無くて FAIL、後者は 10 件 FAIL・4 件 PASS（前も後も成り立つ守り）。既存のテストの期待値と `tests/structure/` は変えていない（`tests/file-write-sites.test.ts` は注記の文だけ）
+- 手元での確かめ: aiqh 本体と適用先の 2 つの履歴を、1 つの HTML に（プロジェクト 3、`data-k` 2,360 個が `--json` とすべて一致、script・外の参照・イベントの属性 0）
+- 記録: ADR-0035（新規）、ADR-0020・0034・0016 の注記（ADR-0034 の行の参照を v0.12.0 のコードの行に合わせた）、ADR の一覧、ARCHITECTURE、README の使い方、ROADMAP（v0.12.0 の項、M4 の完了条件 3 つ、v0.11.2 の CI の記録）、CHANGELOG の v0.11.2 の見出しの SHA。m4-design の M4-D-R1-004・M4-D-R2-001・M4-D-R2-002 を `resolved`（`aiqh review-check --label m4-design` は complete、警告 2）
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.11.2 と同一
+- `package.json` version 0.12.0（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.11.2 — commit 49ee1eac3c1ed028f92e3f152bc6ae38b9e066fa / tag object 4bcbb0812bb0ae2ce10bf03106b0b11d9702ca8d — aiqh history: the output limit counts every byte written to standard output (the last line of the table and the newline of --json; M4-H-R1-001)
 
 - **実装の独立レビュー m4-history R1 の指摘 M4-H-R1-001（Medium）の直し**（人間の判断。2026-10-18 の案 1）。branch `release/v0.11.2`、3 commit: `69f05bb`（テストと直し）・`723393c`（記録）・この release の commit
