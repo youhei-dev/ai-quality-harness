@@ -50,14 +50,14 @@
       "evidence": "C の 8 は「maskSecrets に渡す文字列は256バイト以下」と述べる一方、F は --json が safeJson（src/output.ts:166-168）を通ると明記する。Q10 は集計が数百MB以上になりうると認め、200,000個の数値葉を上限案とする。safeJson が構造化値を個別に扱うか、JSON全体の文字列をマスクするかは添付コードから独立に検証できないため、現状の設計だけでは安全な上限を立証できない。",
       "fix": "safeJson と output.json の実装を確認し、集計 JSON 全体をマスクへ渡さないことを設計上の要件にする。必要な自由文字列を個別にマスク済みにしてから安全にJSON化する、または最終出力の実バイト長に上限を置く。Q10 の境界を含む負荷試験で最終 JSON 出力経路を測定する。",
       "confidence": "推測",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。safeJson は JSON の全体ではなく、文字列とキーを 1 つずつマスクする（src/output.ts:119-168。コードで確かめた）。集計の JSON の全体を maskSecrets に渡さないことを要件にした。端末・--json・HTML の最終の出力の実バイト数に上限 32 MiB を置き、超えたら HISTORY ERROR (output-too-large)・exit 2・何も出さない。数の葉の上限 200,000（Q10）と両方。output.ts に上限つきで JSON を出す口を足す案（設計 R3 の ADR-0034 の F・N・M）",
-      "fixedIn": "5277052085920d62b214163f305c32ce56eee0c4",
-      "regressionTest": "tests/output-json-within.test.ts の 3 件（json と同じ文書、UTF-8 のバイト数の境界、JSON でないデータ）と、tests/history-cli.test.ts の「ADR-0034 N: the limits of the aggregate and of the output (M4-D-R2-001, Q10)」の 5 件（数の葉、--json と表の出力の上限の境界、上限の近くの負荷）。直す前の ffc6f93 で FAIL（jsonWithin が無い。src/commands/history.ts が無い）",
+      "fixedIn": "192e72fc5b3d88b8500c4e22e9a2119b054ddd18",
+      "regressionTest": "tests/output-json-within.test.ts の 3 件（json と同じ文書、UTF-8 のバイト数の境界、JSON でないデータ）と、tests/history-cli.test.ts の「ADR-0034 N: the limits of the aggregate and of the output (M4-D-R2-001, Q10)」の 5 件（数の葉、--json と表の出力の上限の境界、上限の近くの負荷）。直す前の ffc6f93 で FAIL（jsonWithin が無い。src/commands/history.ts が無い） v0.11.2: tests/history-output-bytes.test.ts の 7 件（標準出力に実際に書くバイトの境界。M4-H-R1-001）。v0.12.0: tests/history-html-cli.test.ts の「ADR-0034 N / ADR-0035 decision 5: the limit of the HTML file is the bytes of the file written」の 2 件（書いたファイルのバイト数で上限ちょうど・1 バイト超過、標準出力が上限を超えるときはファイルも書かない）。直す前の afcf6dd（v0.11.2 の merge）の SHA 固定の worktree で、tests/history-html.test.ts は読み込むモジュールが無くて FAIL、tests/history-html-cli.test.ts は 10 件 FAIL・4 件 PASS（前も後も成り立つ守り）",
       "guard": null,
       "destination": "v0.11.0（HTML の出力の上限は v0.12.0）",
-      "note": "v0.11.0 の部分（--json と端末の出力の実バイト数の上限 32 MiB、Output の口 jsonWithin、数の葉の上限 200,000）を直した（fixedIn は v0.11.0 の部分がそろった commit。口は 613ca219244ea9f6e11575c8adc3766993760200）。HTML の出力の上限（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にし、fixedIn をその commit にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。 v0.11.2: 実装レビュー m4-history R1 の評価は「部分的に解消」（端末の表の最後の行と --json の改行が、出力の上限に数えられていなかった。M4-H-R1-001）。v0.11 の部分（端末・--json）は v0.11.2 で直し、上限を標準出力に実際に書くバイトに当てた（69f05bb2bb9dfc2f4245a35d75a059c6349ce40c）。HTML の部分（v0.12.0）が残るので open のまま。"
+      "note": "v0.11.0 の部分（--json と端末の出力の実バイト数の上限 32 MiB、Output の口 jsonWithin、数の葉の上限 200,000）を直した（fixedIn は v0.11.0 の部分がそろった commit。口は 613ca219244ea9f6e11575c8adc3766993760200）。HTML の出力の上限（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にし、fixedIn をその commit にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。 v0.11.2: 実装レビュー m4-history R1 の評価は「部分的に解消」（端末の表の最後の行と --json の改行が、出力の上限に数えられていなかった。M4-H-R1-001）。v0.11 の部分（端末・--json）は v0.11.2 で直し、上限を標準出力に実際に書くバイトに当てた（69f05bb2bb9dfc2f4245a35d75a059c6349ce40c）。HTML の部分（v0.12.0）が残るので open のまま。 v0.12.0: HTML の部分（書くファイルの全部のバイトに 32 MiB の上限。ADR-0035 の決定 5）を入れたので resolved にした。fixedIn は HTML の部分を入れた commit（v0.11.0 の部分は 5277052、v0.11.2 の部分は 69f05bb）。確かめは実装レビュー m4-dashboard R1 で頼む。"
     },
     {
       "id": "M4-D-R2-002",
@@ -68,14 +68,14 @@
       "evidence": "E は所要時間の最大値と「最後の run の kind・required・timeoutSec」を保持し、別に「最大の所要時間 ÷ timeoutSec × 1000」を定めるが、最大所要時間を記録した run の timeoutSec を保持する規則がない。例えば1回目90秒・上限120秒、2回目20秒・上限30秒なら、実際の最大比率は0.75なのに、最大90秒を最後の上限30秒で割ると3.0になる。",
       "fix": "各 run について durationMs / (timeoutSec × 1000) を計算し、その最大を maxShareOfTimeout とする。最後の run の timeoutSec は別属性として保持する。上限が変化する2件以上の fixture を加える。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。run ごとに durationMs / (timeoutSec × 1000) を計算し、その最大を maxShareOfTimeout にする。最後の run の timeoutSec は別の属性 lastTimeoutSec として持つ。上限が run の間で変わる 2 件以上の fixture のテストを計画に足した（設計 R3 の ADR-0034 の E・G・M、ADR-0035 の決定 6）",
-      "fixedIn": "ccc6107b3148ce39796b30c727638ce641fd05fa",
-      "regressionTest": "tests/history-aggregate.test.ts の「M4-D-R2-002: maxShareOfTimeout is the largest share of each run's own timeout; lastTimeoutSec is a separate value」（上限が run の間で変わる 2 件の両方の順、上限が同じ対照、時間切れで 1 を超える場合）。直す前の ffc6f93 で FAIL（src/run-history/aggregate.ts が無く、テストのファイルが読み込めない）",
+      "fixedIn": "192e72fc5b3d88b8500c4e22e9a2119b054ddd18",
+      "regressionTest": "tests/history-aggregate.test.ts の「M4-D-R2-002: maxShareOfTimeout is the largest share of each run's own timeout; lastTimeoutSec is a separate value」（上限が run の間で変わる 2 件の両方の順、上限が同じ対照、時間切れで 1 を超える場合）。直す前の ffc6f93 で FAIL（src/run-history/aggregate.ts が無く、テストのファイルが読み込めない） v0.12.0: tests/history-html.test.ts の「the mapping table is all in the HTML, once, with the JSON's string (null as -); no allowlisted number is shown」（許可リストに projects.*.checks.*.lastTimeoutSec があり、最後の run の timeoutSec に置いた目印の数 7919 が HTML のどこにも無い）。直す前の afcf6dd（v0.11.2 の merge）の SHA 固定の worktree で、tests/history-html.test.ts は読み込むモジュールが無くて FAIL、tests/history-html-cli.test.ts は 10 件 FAIL・4 件 PASS（前も後も成り立つ守り）",
       "guard": null,
       "destination": "v0.11.0（HTML の許可リストの欄の名前は v0.12.0）",
-      "note": "v0.11.0 の部分（maxShareOfTimeout と lastTimeoutSec）を直した。HTML の許可リストの欄の名前（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。"
+      "note": "v0.11.0 の部分（maxShareOfTimeout と lastTimeoutSec）を直した。HTML の許可リストの欄の名前（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。 v0.12.0: HTML の許可リストにも lastTimeoutSec の名前を使った（ADR-0035 の決定 6）ので resolved にした。fixedIn は HTML の部分を入れた commit（v0.11.0 の部分は ccc6107）。確かめは実装レビュー m4-dashboard R1 で頼む。"
     },
     {
       "id": "M4-D-R2-003",

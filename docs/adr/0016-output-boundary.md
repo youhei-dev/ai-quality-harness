@@ -1,7 +1,7 @@
 # ADR-0016: 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする
 
 - 状態: 採用（ADR-0012 の追記〈M2-0-R2-002〉の「text 出力側でのエスケープは行わない」を置換）。決定 3 と「既知の限界」は ADR-0017 で置換（v0.5.4）
-- 日付: 2026-09-25（M2-2、v0.5.2。M2-2 独立レビュー R2 の M2-2-R2-001）。注記: 2026-10-18（v0.11.0。`Output` の口 `jsonWithin`。決定 1 の注記）、2026-10-18（v0.11.2。口 `linesWithin`・書き手 `write`。同じ注記）
+- 日付: 2026-09-25（M2-2、v0.5.2。M2-2 独立レビュー R2 の M2-2-R2-001）。注記: 2026-10-18（v0.11.0。`Output` の口 `jsonWithin`。決定 1 の注記）、2026-10-18（v0.11.2。口 `linesWithin`・書き手 `write`。同じ注記）、2026-10-18（v0.12.0。上限つきの口の `beforeWrite`）
 
 ## 文脈
 v0.5.1 で読めない既定の設定ファイルを設定の誤り（exit 2）にしたところ、security-scan がそのパスを含むエラー文を標準エラーへ出し、パスの禁止文字
@@ -17,6 +17,7 @@ ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマ�
    `writeError()`、commander は `configureOutput(COMMANDER_OUTPUT)`（サブコマンドを足す前に設定し、各コマンドに引き継がせる）
    - 注記（2026-10-18、v0.11.0）: `createOutput()` の `Output` に、上限つきで JSON を出す口 `jsonWithin(value, maxBytes)` を 1 つ足した（`src/output.ts:217, 233-238`。`aiqh history` の `--json` の出力の上限。ADR-0034 の N、M4-D-R2-001）。`json` と同じ `safeJson` の文書（文字列とキーを 1 つずつ表記にしてからマスクする。JSON の全体はマスクに渡らない）を作り、UTF-8 のバイト数が `maxBytes` 以下のときだけ書いて、書いたかを返す。`Safe` を作るのはこれまでどおり `safeText`・`safeJson` だけで、書くのは `emitOut`・`emitErr` だけ（出力のガード〈`tests/structure/output-guard.ts`〉は変えていない）。この ADR の決定は変えない
    - 注記（2026-10-18、v0.11.2。実装レビュー m4-history R1 の M4-H-R1-001）: 上限つきの口は、標準出力に実際に書くバイト（各行と改行、文書と改行）を数え、書き手の種類によらない同じ数で判定する（ADR-0034 の H）。`jsonWithin` は改行の 1 バイトも数える。口 `linesWithin(lines, maxBytes)`（各行は `log` と同じ処理）と、`OutputSinks` の書き手 `write`（標準出力のバイトをそのまま受け取るテストの書き手。`log` の代わり）を足した（`src/output.ts:196-204, 222-228, 236-259`）。既定の書き手は、上限を確かめた後に 1 行ずつ `emitOut` で書く。`Safe` を作るのは `safeText`・`safeJson` だけ、書くのは `emitOut`・`emitErr` だけのまま（出力のガードは変えていない）。この ADR の決定は変えない
+   - 注記（2026-10-18、v0.12.0。ADR-0035 の決定 5）: 上限つきの口 `jsonWithin`・`linesWithin` に、省略できる 3 つめの引数 `beforeWrite` を足した（`src/output.ts:223, 229, 246-249`）。上限の中のときだけ、何かを書く前に呼ぶ。例外を投げたら何も書かない（`aiqh history --html` が、ここでダッシュボードのファイルを書く）。この ADR の決定は変えない
 2. 処理の順序: 禁止文字（`src/security/raw-chars.ts` の集合）を `\u{HEX}` の表記にする → masker（ADR-0006）。JSON は文字列を再帰的に表記にしてから `maskDeep`（値の文字列。オブジェクトのキーは表記にしない: 既知の限界 2。v0.5.4 からキーも表記 → mask、ADR-0017）
 3. LF と TAB は禁止文字の集合に入っていない。既定では残す（複数行のメッセージ、check の出力の末尾、設定案、help の行と桁）。review-packet は「1 回の書き出し = 1 行」
    なので LF と TAB も表記にする（従来どおり）。**→ ADR-0017 で置換**（v0.5.4: すべてのコマンドで 1 回の書き出し = 1 行、複数行はコマンド自身の書式だけを block で書く）

@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.11.2 — aiqh history: the output limit counts every byte written to standard output (the last line of the table and the newline of --json; M4-H-R1-001)
+## v0.11.2 — commit 49ee1eac3c1ed028f92e3f152bc6ae38b9e066fa / tag object 4bcbb0812bb0ae2ce10bf03106b0b11d9702ca8d — aiqh history: the output limit counts every byte written to standard output (the last line of the table and the newline of --json; M4-H-R1-001)
 
 - **実装の独立レビュー m4-history R1 の指摘 M4-H-R1-001（Medium）の直し**（人間の判断。2026-10-18 の案 1）。branch `release/v0.11.2`、3 commit: `69f05bb`（テストと直し）・`723393c`（記録）・この release の commit
 - 指摘: `aiqh history` の出力の上限 32 MiB を、表は最後の行（`HISTORY COMPLETE`・`HISTORY INCOMPLETE`）を数えずに、`--json` は書くときに足す改行を数えずに判定していた。上限ちょうどの近くで、上限を超えて書いていた（テストの fixture で、表は 954 バイトと比べて 1,005 バイトを書いた）
