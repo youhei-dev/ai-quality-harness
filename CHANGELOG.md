@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.11.0 — aiqh history: the verify history aggregated without a database, read only (the table and --json; ADR-0034)
+## v0.11.0 — commit 1029fe7f5990923346f870d4dd21ecd8508da13c / tag object 3e95c49b2b2f788623cbd2e8e14457614c340427 — aiqh history: the verify history aggregated without a database, read only (the table and --json; ADR-0034)
 
 - **`aiqh history`**（M4 の 2 つ目の版。設計 R3 の ADR-0034 の案と、人間の決定 D1〜D15・Q1〜Q11）。branch `release/v0.11.0`、6 commit: `613ca21`（出口の口）・`e274a67`（読み込み）・`ccc6107`（集計）・`5277052`（コマンド）・`11d148e`（docs）・この release の commit
 - `aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]`: `--from` はプロジェクトのルート（`artifacts/verification/history` を持つ）か、history のディレクトリ。`history/<ts>.json` だけを読み、何も書かない。出力は端末の表か `--json`（`{"kind": "aiqh-history", "schemaVersion": 1, …}`。生成の時刻を入れず、同じ入力から同じ出力）
