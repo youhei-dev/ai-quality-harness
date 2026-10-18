@@ -210,6 +210,11 @@ export interface Output {
   errorBlock: (text: string) => void;
   /** A JSON document to standard output. */
   json: (value: unknown) => void;
+  /**
+   * The same JSON document, written only when its UTF-8 length is at most `maxBytes` (aiqh history, ADR-0034 N). Answers whether it
+   * wrote; over the limit nothing reaches the sink.
+   */
+  jsonWithin: (value: unknown, maxBytes: number) => boolean;
 }
 
 /**
@@ -225,6 +230,12 @@ export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): O
     block: (text) => out(safeText(text, "block")),
     errorBlock: (text) => err(safeText(text, "block")),
     json: (value) => out(safeJson(value, jsonMode)),
+    jsonWithin: (value, maxBytes) => {
+      const text = safeJson(value, jsonMode);
+      if (Buffer.byteLength(text, "utf8") > maxBytes) return false;
+      out(text);
+      return true;
+    },
   };
 }
 
