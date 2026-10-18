@@ -5,7 +5,24 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.10.1 — timeoutSec at most 2,147,483 seconds, the longest wait of a Node.js timer (Q12 of the M4 design R3)
+## v0.11.0 — aiqh history: the verify history aggregated without a database, read only (the table and --json; ADR-0034)
+
+- **`aiqh history`**（M4 の 2 つ目の版。設計 R3 の ADR-0034 の案と、人間の決定 D1〜D15・Q1〜Q11）。branch `release/v0.11.0`、6 commit: `613ca21`（出口の口）・`e274a67`（読み込み）・`ccc6107`（集計）・`5277052`（コマンド）・`11d148e`（docs）・この release の commit
+- `aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]`: `--from` はプロジェクトのルート（`artifacts/verification/history` を持つ）か、history のディレクトリ。`history/<ts>.json` だけを読み、何も書かない。出力は端末の表か `--json`（`{"kind": "aiqh-history", "schemaVersion": 1, …}`。生成の時刻を入れず、同じ入力から同じ出力）
+  - 集計: プロジェクトごとの run の数・verdict・`dirty`・中断・期間・所要時間・日ごとの推移・`aiqh` の版と `configSha256` の区切り、check ごとの PASS / FAIL / SKIPPED・FAIL の率・時間切れ・所要時間・`lastTimeoutSec`・`maxShareOfTimeout`（run ごとの割合の最大）、パーサの数の日ごとの推移（値の無い run は `unknownRuns`）、失敗しやすい check。security-scan の allow の数は推移だけで、ルールごとの回数は出さない
+  - 出すのは数・状態・名前（マスクの後に 200 文字で切る）だけ。check の出力・コマンド・`cwd`・パス・`errorSummary`・`parsed.items` の名前・branch・commit・説明は出さない。`--from` は `#<番号>` で示す
+  - 終了コード: `0` = すべての履歴を読めた（`HISTORY COMPLETE`。履歴に FAILED の run があっても 0）、`2` = 読めない履歴があった（集計と一覧を出す。`HISTORY INCOMPLETE`）、`2` = 使い方・入力の誤り・上限（何も出さない。標準エラーに `HISTORY ERROR (<種類>)`）。`1` は使わない
+- 履歴は信頼しない入力として読む（`src/run-history/read.ts`）: realpath で 1 回だけ解決し、ルートの中の history だけ。lstat・`O_NOFOLLOW`・`fstat`。記述子から上限 + 1 バイトまで。大きさが変われば `unreadable`（`size-changed`）。ディレクトリの差し替えは、読み始めと読み終わりの種類・`dev`・`ino` の比較で検出する（防止ではない）。名前 256 バイト・版 64 バイト・check 256 個・安全な整数・正の `timeoutSec` の外は `bad-shape`（切り詰めず、マスクにも渡さない）。上限は 1 ファイル 8 MiB・10,000 ファイル・読んだ量 256 MiB、集計の数の葉 200,000、出力 32 MiB
+- `src/output.ts` に、上限つきで JSON を出す口 `jsonWithin` を 1 つ足した（`json` と同じ `safeJson`。集計の JSON の全体はマスクに渡らない。ADR-0016 の注記）。各パーサが数のキーの一覧を export し、`src/parse/read.ts` の `COUNT_KEYS` にまとめた
+- 測り（数だけ）: 手元の 3 か所の履歴を合わせて、プロジェクト 3・run 246・数の葉 2,314・`--json` 180,959 バイト、0.2 秒前後。上限の近くの合成の履歴でも 2 秒未満。上限の値はそのまま（ADR-0034 の「上限の値と測り」）
+- テスト（新規 4 ファイル、64 件）: `tests/output-json-within.test.ts`（3）・`tests/history-read.test.ts`（31）・`tests/history-aggregate.test.ts`（17）・`tests/history-cli.test.ts`（13）。変更の前の `ffc6f93` で、出口の口の 3 件は FAIL、ほかの 3 ファイルは読み込むモジュールが無くて FAIL。既存のテストの期待値と `tests/structure/` は変えていない
+- M4 の設計の独立レビュー（`docs/reviews/m4-design/`）: M4-D-R1-001・002・003 と M4-D-R2-003 を `resolved`。M4-D-R2-001・002 は v0.11.0 の部分を直して `open`（HTML の部分は v0.12.0）。M4-D-R1-004 は v0.12.0。M4-D-R1-005 は注記の commit の SHA を次の記録で書く。`aiqh review-check --label m4-design` は exit 0（open 4、警告 4）
+- docs: ADR-0034（新規）、ADR-0016・0029 の注記、ADR の一覧、`docs/CONFIG_SPEC.md` の §4c（Q11: 設定は 256 を超える check と長い名前を許すが、その run の履歴は `bad-shape` になる）と §6、ARCHITECTURE の §4・§5・§6.3、README（使い方、いまの状態と機能の表）、ROADMAP（v0.10.1 の CI の記録、v0.11.0 の項、M4 の節）、CHANGELOG の v0.10.1 の見出しの SHA
+- 利用者に見える変化: 新しいコマンド `aiqh history`。ほかのコマンドの振る舞いは v0.10.1 と同じ
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.10.1 と同一
+- `package.json` version 0.11.0（`package-lock.json` の `version` は 0.5.35 のまま）
+
+## v0.10.1 — commit 28fecc1a3a13400c1932a3be0ce52cd862c48bcc / tag object a627be9ac391a9c52fdb4420a4d04e25a6330324 — timeoutSec at most 2,147,483 seconds, the longest wait of a Node.js timer (Q12 of the M4 design R3)
 
 - **設定の `timeoutSec` の上限**（人間の決定。2026-10-18）。branch `release/v0.10.1`、4 commit: `e4cb40e`（v0.10.0 の記録）・`eaeabaf`（テストと実装）・`4681c2e`（docs）・この release の commit
 - check の `timeoutSec` と `defaults.timeoutSec` は 1 以上 2,147,483 以下（2,147,483,647 ms を 1000 で割って切り捨てた値）。超える値は設定の誤り（exit 2、レポートは書かない）で、文言に上限とタイマーの理由が入る
