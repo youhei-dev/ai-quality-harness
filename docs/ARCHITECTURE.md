@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-17（v0.10.0。§7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-18（v0.11.0。§4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -88,7 +88,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2（v0.6.0 で v1: 取り込みだけ） | レビューAI の指摘（Markdown）。v0.6.0: レビューの中の `aiqh-findings` の JSON のブロック 1 つを正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせる（ADR-0026） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況）（v0.6.0 で注記: **`docs/reviews/<label>/findings-r<N>.json`（git 管理）**に変えた。すべて `open`。ADR-0026） | 0 / 2（v0.6.0 で注記: 0 = 取り込んだ・同じレビューを取り込み済み、2 = 読めない・食い違う・使い方・書込のエラーで何も書かない。`open` の件数は表示だけで終了コードに反映しない） |
 | `aiqh review-check` | M2-2（v0.7.0: review-import の v2。ADR-0027） | `docs/reviews/<label>/findings-r*.json`（読み取りだけ）。`resolved` の `fixedIn` は git で commit を確かめる | 標準出力: 回ごとの重要度・状態の数、`open` の ID、前の回の評価、警告（終了コードに反映しない）、`REVIEW LOOP: complete` / `incomplete (open N)`。何も書かない | 0=検査に通った（`open` の数・警告にかかわらない）, 2=ファイル・形・状態の欄・前の回の評価の誤り、git が答えない、使い方 |
-| `aiqh history` | M4 | 履歴 DB | 表 / JSON、ローカルダッシュボード（静的 HTML） | 0 / 2 |
+| `aiqh history` | M4（v0.11.0: 表と JSON。ADR-0034） | ~~履歴 DB~~（v0.11.0 で注記: DB は持たない。`--from` で渡した 1 つ以上のプロジェクトのルートか history のディレクトリの `history/<ts>.json`。読み取りだけで、信頼しない入力として読む） | 表 / JSON、ローカルダッシュボード（静的 HTML。v0.12.0 の予定、ADR-0035）。パスは `#<番号>` で示し、数・状態・名前だけを出す | 0 = すべて読めた / 2 = 読めないものがあった（集計と一覧を出す）・使い方・入力の誤り・上限（何も出さない）。1 は使わない |
 
 共通オプション（案）: `--config <path>`, `--cwd <dir>`, `--output-dir <dir>`, `--verbose`, `--json`（標準出力に JSON）。
 
@@ -109,7 +109,7 @@ src/
     review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
     review-check.ts       … findings の状態の検査とループ未完了の表示。読み取りだけ（検査は review/check.ts、ファイルの読み取りは review/findings-file.ts）[M2-2 v2、v0.7.0、ADR-0027]
     review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0。v0.6.1: 名前付きの文字参照の拒否、HTML を除いた形でも ID を探す、再取り込みでも既存のファイルと前の回を確かめる。ADR-0026 の追記]
-    history.ts            … 履歴照会・ダッシュボード生成                                   [M4]
+    history.ts            … 履歴の集計の CLI（表・--json、終了コード、出力の上限。読み込みは run-history/read.ts、集計は run-history/aggregate.ts）[M4 v0.11.0、ADR-0034]
   config/
     schema.ts             … 設定スキーマ（zod）。型は zod から導出                          [M0]
     load.ts               … JSONC 読込 → スキーマ検証 → パス正規化（cwd の逸脱検査）        [M0]
@@ -147,7 +147,7 @@ src/
   review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
   security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]
   review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
-  history/                … 履歴 DB（SQLite または JSONL）、集計、静的ダッシュボード          [M4]
+  run-history/            … 履歴の読み込み（信頼しない入力。上限・symlink・差し替えの検出）と集計。DB は持たない（v0.11.0 で注記: 計画の `history/`〈履歴 DB〉を置き換えた。名前は push の前の走査に当たらないように変えた）[M4 v0.11.0、ADR-0034]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
 tests/                    … Vitest（ユニット + CLI 結合）                                  [M0]
 docs/                     … 設計書、ADR、レポート
@@ -327,6 +327,8 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 
 `history/<ts>.json` を複数プロジェクト分取り込み、PASS/FAIL 推移・所要時間・失敗しやすいチェックを集計する。
 保存先は各プロジェクトの `artifacts/` ではなく、ユーザーローカルの 1 箇所（例: `~/.aiqh/history.db`）を想定する。
+
+（v0.11.0 で注記〈ADR-0034〉: DB もユーザーローカルの保存先も持たない。`aiqh history --from <dir> …` が、渡されたプロジェクトのルート〈`artifacts/verification/history`〉か history のディレクトリの `history/<ts>.json` を、その場で読み取りだけで集計する。流れは「`--from` を realpath で解決 → 履歴の名前のファイルを列挙〈全体の上限〉→ 1 ファイルずつ、lstat・`O_NOFOLLOW` で開いて `fstat`・記述子から上限 + 1 バイトまで読む → 厳格な UTF-8・JSON・`schemaVersion` 1・zod〈読む欄だけ。名前の長さ・check の数・数の範囲〉→ 重複を除く → ディレクトリの差し替えの検出 → 集計〈プロジェクト・check・日・パーサの数。名前は 1 回マスクして切る。数の葉の上限・有限の確かめ〉→ 表か `--json`〈出力の上限〉」。読めない履歴は一覧に出して exit 2。消える場所〈SHA 固定の worktree・使い捨ての clone〉の履歴は残らない〈D14〉。再検討の条件は ADR-0034 の K）
 
 ---
 

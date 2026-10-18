@@ -1,6 +1,6 @@
 {
   "name": "ai-quality-harness",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Fail-closed quality gate runner for AI-assisted development (aiqh)",
   "license": "MIT",
   "repository": {

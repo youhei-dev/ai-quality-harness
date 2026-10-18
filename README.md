@@ -47,7 +47,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 
 ## 現在の状態
 
-**v0.10.1 — 設定の `timeoutSec` の上限（2,147,483 秒）**（Node.js のタイマーが待てる最長を秒にした値。超える値は設定の誤り〈exit 2〉。v0.10.0 までは、超える値で check がすぐ時間切れになっていた。ADR-0005 の注記）。v0.10.0 は M4 の最初の版で、設定のハッシュ `configSha256` を入れた（verify のレポート〈`latest.json`・`history/<ts>.json`〉の最上位に、設定ファイルのバイト列の SHA-256 を記録する。固定ではなく記録で、設定の外の変更〈scripts・テスト・依存など〉は表れない。`latest.md` と端末は変えない。ADR-0033。M4 の設計と独立レビュー R1・R2 の記録は `docs/reviews/m4-design/`）。v0.9.2 で本体の main を pull request 必須にした（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし。ADR-0032）。v0.9.1 で波 4 を締めた（個人のリポジトリ 2 つ〈`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`〉の CI に、再利用ワークフロー `verify.yml` を 40 桁の commit SHA で入れた記録）、v0.9.0 で再利用ワークフロー `verify.yml`（他のリポジトリの CI から 40 桁の commit SHA で固定して呼び、aiqh はワークフローと同じ commit のソースを使う〈配布物なし〉。自己適用の job `reusable (self)`。ADR-0031）、v0.8.4 で公開の後の設定（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ）、v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3（本体リポジトリの自己 CI と、ほかのリポジトリから呼ぶ再利用ワークフロー、main の pull request 必須）は 2026-10-17 に完了しました（完了ベースライン `v0.9.2`）。いまは M4（履歴の集計・ローカルダッシュボード・運用テンプレート）を進めています。次は `aiqh history`（v0.11.0 の予定）です。
+**v0.11.0 — `aiqh history`**（verify の履歴を、DB を持たずに読み取りだけで集計する。端末の表と `--json`。出すのは数・状態・名前だけで、パスは `#<番号>`。履歴は信頼しない入力として、読む量・名前の長さ・数の範囲・集計と出力の大きさに上限を置く。読めない履歴は一覧に出して終了コード 2。ADR-0034）。v0.10.1 で、設定の `timeoutSec` の上限（2,147,483 秒。Node.js のタイマーが待てる最長）を足した（ADR-0005 の注記）。v0.10.0 は M4 の最初の版で、設定のハッシュ `configSha256` を入れた（verify のレポート〈`latest.json`・`history/<ts>.json`〉の最上位に、設定ファイルのバイト列の SHA-256 を記録する。固定ではなく記録で、設定の外の変更〈scripts・テスト・依存など〉は表れない。`latest.md` と端末は変えない。ADR-0033。M4 の設計と独立レビュー R1・R2 の記録は `docs/reviews/m4-design/`）。v0.9.2 で本体の main を pull request 必須にした（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし。ADR-0032）。v0.9.1 で波 4 を締めた（個人のリポジトリ 2 つ〈`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`〉の CI に、再利用ワークフロー `verify.yml` を 40 桁の commit SHA で入れた記録）、v0.9.0 で再利用ワークフロー `verify.yml`（他のリポジトリの CI から 40 桁の commit SHA で固定して呼び、aiqh はワークフローと同じ commit のソースを使う〈配布物なし〉。自己適用の job `reusable (self)`。ADR-0031）、v0.8.4 で公開の後の設定（2026-10-16 に Public に切り替えた〈人間〉。main の ruleset〈削除と force push の禁止〉・description・topics。適用先は個人のリポジトリ 2 つ）、v0.8.3 で公開の準備（LICENSE〈MIT〉・`package.json` の `repository` など・README の見直し・プロジェクトの `CLAUDE.md` の追跡外。ADR-0030）。M2-2 は v0.8.2 で完了（完了ベースライン `v0.8.1`）。M0（`aiqh verify` の中核）・M1（チェックアダプタ・`aiqh init`・内蔵の `aiqh security-scan`。Node 系と Python 系の対象リポジトリに適用）・M2（独立レビューのループ: M2-0 スキャナ保守、M2-1 `aiqh review-packet`、M2-2 レビューの取り込みと検査・出力パーサ）を終え、M3（本体リポジトリの自己 CI と、ほかのリポジトリから呼ぶ再利用ワークフロー、main の pull request 必須）は 2026-10-17 に完了しました（完了ベースライン `v0.9.2`）。いまは M4（履歴の集計・ローカルダッシュボード・運用テンプレート）を進めています。次は v0.11.0 の実装の独立レビューと、静的 HTML のダッシュボード（v0.12.0 の予定）です。
 版ごとの内容は [`CHANGELOG.md`](CHANGELOG.md)、マイルストーンの進みと残りの項目は [`docs/ROADMAP.md`](docs/ROADMAP.md)、
 マイルストーンごとの総括は `docs/reports/`（[M0](docs/reports/M0_COMPLETION.md)・[M1](docs/reports/M1_COMPLETION.md)・[M2-0](docs/reports/M2-0_COMPLETION.md)・[M2-1](docs/reports/M2-1_COMPLETION.md)・[M2-2](docs/reports/M2-2_COMPLETION.md)・[M3](docs/reports/M3_COMPLETION.md)）を参照してください。
 **v0.1.3 と v0.2.0 は superseded**（v0.1.3: 確定点の yield が不十分。v0.2.0: 自己 verify の security チェックが FAIL する状態でタグ付けされた）で、
@@ -60,13 +60,14 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
-| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.10.1（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
+| `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.11.0（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。pytest は後。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉） |
 | 本体リポジトリの自己 CI（GitHub Actions。Ubuntu の verify、Windows の手動の測定） | v0.5.45（M3 の前半。v0.6.1 から、タグの前に `verify (ubuntu)` の success を確かめる〈人の手順〉。v0.9.2 から、`verify (ubuntu)` と `reusable (self) / aiqh verify` は main の pull request の必須チェック〈ADR-0032〉。ADR-0025） |
 | GitHub Actions 再利用ワークフロー（`.github/workflows/verify.yml`。他のリポジトリの CI から、40 桁の commit SHA で固定して呼ぶ） | v0.9.0（M3 の後半〈波 4〉。aiqh は自分と同じ commit のソースを使う〈配布物なし〉。ADR-0031。手順は `docs/ops/reusable-workflow.md`） |
 | 設定のハッシュ（レポートの最上位の `configSha256`。設定ファイルのバイト列の SHA-256。記録であって固定ではない） | v0.10.0（M4。ADR-0033） |
-| 履歴の集計（`aiqh history`。DB を持たず `history/*.json` を読み取りだけで集計）・ローカルダッシュボード（静的 HTML） | M4 予定（v0.11.0・v0.12.0。設計は `docs/reviews/m4-design/design-r3.md`） |
+| 履歴の集計（`aiqh history`。DB を持たず `history/*.json` を読み取りだけで集計。端末の表と `--json`） | v0.11.0（M4。ADR-0034） |
+| ローカルダッシュボード（静的 HTML。`aiqh history --html`） | M4 予定（v0.12.0。設計は `docs/reviews/m4-design/design-r3.md` の ADR-0035 の案） |
 
 ## 必要環境
 
@@ -227,6 +228,10 @@ aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> 
 
 aiqh review-check --label <label> [--cwd <dir>]
                              docs/reviews/<label>/findings-r*.json の状態を検査し、ループ未完了（open が残る）を表示する（読み取りだけ）
+
+aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
+                             verify の履歴を、DB 無しで読み取りだけで集計する（端末の表、または --json）。<dir> はプロジェクトのルート
+                             （artifacts/verification/history を持つ）か、history のディレクトリ。複数可（同じ名前のプロジェクトは 1 つに合わせる）
 ```
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
@@ -238,6 +243,7 @@ aiqh review-check --label <label> [--cwd <dir>]
 `aiqh review-import`（v0.6.0、ADR-0026）: レビューの中の `aiqh-findings` の JSON を正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせます。食い違い・読めない入力・前の回の findings のファイルが無い（`--allow-missing-previous` を除く）・読めないときは `2` で何も書きません。取り込んだ指摘はすべて `open` で、`open` の件数は表示するだけで終了コードには反映しません（`0` = 取り込んだ・同じレビューを取り込み済み）。依頼文のひな形は `docs/ops/review-request-template.md` です。
 `<review.md>` を相対パスで書いたときは、`--cwd` のディレクトリ（省略時はカレント）を基準に解決します。v0.6.1: 名前付きの文字参照（`&amp;` `&lt;` `&gt;` `&quot;` `&apos;` 以外。`;` の無い古い形の一部も）があれば `2`（`[entity]`）です。その回の ID は、文字参照を戻し、HTML のコメントとタグを取り除いた形でも探します（タグは止めません）。同じレビューを取り込み直すときも、既存のファイルの label・回・接頭辞と前の回の findings のファイルを確かめます（ADR-0026 の追記）。書いた後に、その label の `REVIEW LOOP:` の行（下の review-check と同じ判定）を出します。
 `aiqh review-check`（ADR-0027）: `docs/reviews/<label>/findings-r*.json` だけを読み、何も書きません。回が 1 から欠けずにそろい、読めて、取り込んだときの形（ID・`summary`）のままで、状態ごとに要る欄（`resolved` は git が知っている commit の `fixedIn` と `regressionTest`、`deferred` は `destination`、`accepted`・`invalid` は `note`）があり、`previous` が前の回の指摘を指していれば `0` です。`open` が残っていれば `REVIEW LOOP: incomplete (open N)` と出しますが、終了コードは `0` のままです（`open` の数とレビューの評価は合否にしない）。前の回の評価と状態の食い違いは警告として出し、終了コードには反映しません。どれかの検査に通らなければ `2`（すべて並べて出す）。依頼から次の回までの手順は `docs/ops/review-loop.md` です。
+`aiqh history`（v0.11.0、ADR-0034）: `history/<ts>.json` だけを読み、何も書きません。プロジェクトごとの run の数・verdict・日ごとの推移・`aiqh` の版と設定のハッシュ（`configSha256`）の区切り、check ごとの PASS / FAIL の数・FAIL の率・所要時間・タイムアウトに対する最大の割合、パーサの数（テストの件数・security-scan の数など）の日ごとの推移、失敗しやすい check を出します。出すのは数と状態と名前だけで、check の出力・コマンド・パス・`parsed.items` の名前・branch・commit は出しません。`--from` はパスではなく指定の順の番号（`#1`・`#2`）で示します（相対パスは `--cwd` が基準）。履歴は信頼しない入力として読み、1 ファイル 8 MiB・合わせて 10,000 ファイル・256 MiB、名前 256 バイト・1 run の check 256 個、集計の数 200,000 個・出力 32 MiB の上限があります。終了コード: `0` = すべての履歴を読めた（`HISTORY COMPLETE`。履歴に FAILED の run があっても `0`）、`2` = 読めない履歴があった（集計と一覧を出す。`HISTORY INCOMPLETE`）か、使い方・入力の誤り・上限（何も出さない。標準エラーに `HISTORY ERROR (<種類>)`）。`1` は使いません。`--json` の最後の行は標準エラーに出ます。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなし）も `2` です（全コマンド共通。`VERIFY` の最終行は出さず、`error: …` の 1 行だけを標準エラーに出す。ADR-0021）。
 

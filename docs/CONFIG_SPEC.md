@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-18（v0.10.1。§3 と §4 の `timeoutSec` の上限 2,147,483 秒。その前: 2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-18（v0.11.0。§4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -158,6 +158,21 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 「JSON Schema では通り、`aiqh` では拒否される」ことをテストで固定している。エディタで valid でも `aiqh verify` /
 `aiqh init --write` が拒否することがある。
 
+### 4c. `aiqh history` が読める範囲（既知の限界。v0.11.0、ADR-0034）
+
+`aiqh history`（ADR-0034）は、verify の履歴（`history/<ts>.json`）を信頼しない入力として読み、読む欄の長さと数に上限を置く。
+設定はこれより大きな値を許すので、**設定として正しくても、その run の履歴を `aiqh history` が読めない**ことがある（M4 の設計の Q11。verify は変えない）。
+
+| 設定の値 | 設定の規則（§3・§4） | `aiqh history` が読める範囲 |
+|---|---|---|
+| `checks` の数 | 1 件以上（上限なし） | 1 run に 256 個まで |
+| `checks[].name` | 一意で、パターン `^[a-z0-9][a-z0-9-]*$`（長さの上限なし） | UTF-8 で 256 バイトまで |
+| `project.name` | 空でない（長さの上限なし） | UTF-8 で 256 バイトまで |
+
+- 範囲の外の run の履歴は、`aiqh history` の読めないもの `bad-shape` になり、一覧に出て終了コード 2（`HISTORY INCOMPLETE`）になる。値は切り詰めず、表示もしない
+- 名前の長さは、レポートに書かれた値（秘密の形のマスクの後）で数える
+- 表示では、名前はマスクの後に 200 文字で切る（ADR-0034 の F）
+
 ---
 
 ## 5. 例
@@ -298,7 +313,7 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 | `checks[].maxOutputBytes` | integer | 実行時の出力保持上限（既定 10MiB）を check ごとに変更。境界揃えのため最大 3 バイト少なくなる |
 | `checks[].dependsOn` | name 配列 | 前段が FAIL のとき SKIPPED にする（例: typecheck 失敗時に build を飛ばす） |
 | `matrix` | Node / Python バージョン | Actions での並列実行（M3） |
-| `history` | 保存先 | M4 |
+| ~~`history`~~ | 作らない（v0.11.0、ADR-0034: `aiqh history` は DB も保存先も持たず、読む場所は `--from` で渡す） | — |
 | ~~JSON Schema~~ | M1 で同梱済み（`schema/aiqh.config.schema.json`） | — |
 | ~~`security.allow`~~ | M2-0 で実装済み（§3b） | — |
 | ~~`security.scanKeyValue`~~ | M2-0 で key-value 走査を既定で有効化（値のヒューリスティック付き、§3b）。無効化フラグは設けていない | — |

@@ -19,7 +19,7 @@
 | [0013](0013-window-scan-completeness.md) | 窓走査の完全性不変条件と有界アンカー | 採用 | 2026-09-23 |
 | [0014](0014-review-packet.md) | review-packet は機械的に得た事実だけで作り、検査に通らなければ出さない | 採用 | 2026-09-23 |
 | [0015](0015-review-packet-exit-priority.md) | review-packet の終了コードは「検査不能 → 検出 → 出力しない判断」の順に決める | 採用 | 2026-09-25 |
-| [0016](0016-output-boundary.md) | 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする | 採用（決定 3 と既知の限界を 0017 で置換） | 2026-09-25 |
+| [0016](0016-output-boundary.md) | 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする | 採用（決定 3 と既知の限界を 0017 で置換。注記〈v0.11.0〉: `Output` の口 `jsonWithin`） | 2026-09-25 |
 | [0017](0017-output-lines-blocks-keys-guard.md) | 端末への 1 回の書き出しは 1 行、複数行はコマンド自身の block。JSON のキーも出口を通し、端末には 2 つの基本関数だけが書く | 採用（決定 3 の JSON のデータについての但し書きと既知の限界の M2-2-R4-001 を 0018 で、既知の限界の構造ガードの項を 0019 で置換） | 2026-09-25 |
 | [0018](0018-safejson-json-data-only.md) | `safeJson()` は JSON のデータだけを受け付け、それ以外は出力の前に拒否する | 採用 | 2026-09-27 |
 | [0019](0019-builtin-allowlist-process-members.md) | `src/` が実行時に読み込むモジュールを一覧で限り、`process` の 6 つのメンバーを使わない（構造ガード） | 採用 | 2026-09-28 |
@@ -32,8 +32,9 @@
 | [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま） | 2026-10-13 |
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない） | 2026-10-13 |
 | [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま） | 2026-10-14 |
-| [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない） | 2026-10-14 |
+| [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない。注記〈v0.11.0〉: M4 はルールごとの回数を数えず、security-scan の数の推移だけ） | 2026-10-14 |
 | [0030](0030-public-as-is-mit-claude-md-untracked.md) | このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外） | 採用（v0.8.3 は準備まで。切り替えは人間。切り替えの後、ADR-0025 の決定 6 の前提が変わる。2026-10-16 に切り替えた〈v0.8.4 の注記〉） | 2026-10-16 |
 | [0031](0031-ci-distribution-reusable-workflow-own-source.md) | CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D。呼び出す側は 40 桁の commit SHA で固定） | 採用（v0.9.0。ADR-0009 の CI の部分。手元の `npm link` は変えない） | 2026-10-16 |
 | [0032](0032-main-requires-pull-requests-two-required-checks.md) | 本体リポジトリの main は pull request を必須にする（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし） | 採用（v0.9.2。ADR-0025 の決定 3 を終え、決定 6・7 の後を決めた。ROADMAP の項目 44） | 2026-10-17 |
 | [0033](0033-config-sha256-recorded-not-pinned.md) | verify のレポートに、設定ファイルのバイト列の SHA-256 を `configSha256` として記録する（固定ではなく記録） | 採用（v0.10.0。R-006 の対策候補 2 を「記録」として入れる。候補 3 は docs の手順） | 2026-10-17 |
+| [0034](0034-history-aggregate-without-database.md) | `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`） | 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を置き換える。ディレクトリの差し替えは検出だけ。HTML は ADR-0035〈v0.12.0 の予定〉） | 2026-10-18 |
