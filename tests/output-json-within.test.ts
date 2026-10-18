@@ -19,7 +19,7 @@ function output(): { out: Output; within: JsonWithin; written: string[] } {
 }
 
 const SECRET = fake("AKIA", "ABCDEFGHIJKLMNOP");
-const VALUE = { name: `a ${SECRET} b`, [`key-${SECRET}`]: 1, nested: [{ text: "あいう", n: 2.5 }, null, true], line: "x‮y" };
+const VALUE = { name: `a ${SECRET} b`, [`key-${SECRET}`]: 1, nested: [{ text: "あいう", n: 2.5 }, null, true], line: `x${String.fromCodePoint(0x202e)}y` };
 
 describe("v0.11.0: jsonWithin", () => {
   it("writes the same text as json when it fits, and says it wrote", () => {
