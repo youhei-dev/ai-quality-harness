@@ -193,10 +193,14 @@ function emitErr(text: Safe, line: boolean): void {
 /**
  * The writers a command is given: the sinks of a test, or the process's standard output and error. A sink receives one
  * line, one block (its lines joined with LF) or one JSON document per call.
+ * `write` is standard output as the bytes the terminal gets (v0.11.2, M4-H-R1-001): each line, block or document with the newline
+ * written after it, and what a door with a limit writes (`linesWithin`, `jsonWithin`) as one text in one call. When it is given, it
+ * takes the place of `log`.
  */
 export interface OutputSinks {
   log?: ((line: string) => void) | undefined;
   logError?: ((line: string) => void) | undefined;
+  write?: ((text: string) => void) | undefined;
 }
 
 export interface Output {
@@ -211,10 +215,17 @@ export interface Output {
   /** A JSON document to standard output. */
   json: (value: unknown) => void;
   /**
-   * The same JSON document, written only when its UTF-8 length is at most `maxBytes` (aiqh history, ADR-0034 N). Answers whether it
-   * wrote; over the limit nothing reaches the sink.
+   * The same JSON document, written only when the bytes standard output gets for it — its UTF-8 length and the newline written after
+   * it — are at most `maxBytes`, whatever the writer (aiqh history, ADR-0034 H / N; v0.11.2, M4-H-R1-001). Answers whether it wrote;
+   * over the limit nothing reaches the sink.
    */
   jsonWithin: (value: unknown, maxBytes: number) => boolean;
+  /**
+   * Lines to standard output, each processed like `log`, written only when the bytes standard output gets for them — every line and
+   * its newline — are at most `maxBytes`, whatever the writer (aiqh history's table and last line, ADR-0034 H / N; v0.11.2). Answers
+   * whether it wrote; over the limit nothing reaches the sink.
+   */
+  linesWithin: (lines: readonly string[], maxBytes: number) => boolean;
 }
 
 /**
@@ -222,20 +233,29 @@ export interface Output {
  * of its JSON document treat LF and TAB ("escape" for review-packet).
  */
 export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): Output {
-  const out = sinks.log ?? ((text: Safe) => emitOut(text, true));
+  const write = sinks.write;
+  const out = write !== undefined ? (text: Safe) => write(`${text}\n`) : (sinks.log ?? ((text: Safe) => emitOut(text, true)));
   const err = sinks.logError ?? ((text: Safe) => emitErr(text, true));
+  /**
+   * A door with a limit (ADR-0034 N): the bytes standard output gets for these lines or this document — each one and the newline
+   * written after it, as the terminal (console.log) and `write` get them — are counted first, the same number whatever the writer.
+   * Within the limit all of them are written (to `write` as one text), over it none.
+   */
+  const within = (units: readonly Safe[], maxBytes: number): boolean => {
+    const bytes = units.reduce((n, u) => n + Buffer.byteLength(u, "utf8") + 1, 0);
+    if (bytes > maxBytes) return false;
+    if (write !== undefined) write(units.map((u) => `${u}\n`).join(""));
+    else for (const u of units) out(u);
+    return true;
+  };
   return {
     log: (line) => out(safeText(line)),
     error: (line) => err(safeText(line)),
     block: (text) => out(safeText(text, "block")),
     errorBlock: (text) => err(safeText(text, "block")),
     json: (value) => out(safeJson(value, jsonMode)),
-    jsonWithin: (value, maxBytes) => {
-      const text = safeJson(value, jsonMode);
-      if (Buffer.byteLength(text, "utf8") > maxBytes) return false;
-      out(text);
-      return true;
-    },
+    jsonWithin: (value, maxBytes) => within([safeJson(value, jsonMode)], maxBytes),
+    linesWithin: (lines, maxBytes) => within(lines.map((l) => safeText(l)), maxBytes),
   };
 }
 

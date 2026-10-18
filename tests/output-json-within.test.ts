@@ -1,7 +1,8 @@
 /**
  * v0.11.0 (ADR-0034 N, M4-D-R2-001, ADR-0016): the output boundary gets one more door, `jsonWithin(value, maxBytes)`: the same JSON
  * document as `json` (safeJson: every string and key escaped and masked one by one, never the whole document), written only when its
- * UTF-8 length is at most maxBytes. It answers whether it wrote; over the limit nothing reaches the sink.
+ * UTF-8 length with the newline written after it is at most maxBytes (v0.11.2, M4-H-R1-001: the bytes standard output gets, whatever
+ * the writer). It answers whether it wrote; over the limit nothing reaches the sink.
  */
 import { describe, expect, it } from "vitest";
 import { createOutput, type Output } from "../src/output.ts";
@@ -33,11 +34,11 @@ describe("v0.11.0: jsonWithin", () => {
     expect(b.written[0]).toContain("\\\\u{202E}");
   });
 
-  it("the limit is the UTF-8 length of the document: exactly the length is written, one byte less is not (nothing reaches the sink)", () => {
+  it("the limit is the UTF-8 length of the document and its newline: exactly that is written, one byte less (the document alone) is not (nothing reaches the sink)", () => {
     const a = output();
     a.out.json(VALUE);
-    const bytes = Buffer.byteLength(a.written[0] ?? "", "utf8");
-    expect(bytes).toBeGreaterThan((a.written[0] ?? "").length); // multi-byte characters: bytes, not UTF-16 units
+    const bytes = Buffer.byteLength(a.written[0] ?? "", "utf8") + 1; // the document and the newline written after it (v0.11.2)
+    expect(bytes).toBeGreaterThan((a.written[0] ?? "").length + 1); // multi-byte characters: bytes, not UTF-16 units
     const exact = output();
     expect(exact.within(VALUE, bytes)).toBe(true);
     expect(exact.written).toHaveLength(1);

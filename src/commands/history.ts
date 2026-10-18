@@ -7,14 +7,20 @@
  *   2  a history file could not be read (the aggregate and the list are shown) — `HISTORY INCOMPLETE — …`
  *   2  a usage or input error, or a limit of the aggregate or of the output (nothing is shown) — `HISTORY ERROR (<kind>)`
  * The last line goes to standard output, except with --json (standard error) and for HISTORY ERROR (standard error).
+ * The output limit is the bytes written to standard output (v0.11.2, M4-H-R1-001): every line of the table with its newline, the last
+ * line included, or the --json document with its newline, the same number whatever the writer (src/output.ts `linesWithin`,
+ * `jsonWithin`).
  */
 import path from "node:path";
 import { aggregate, type AggregateDeps, type HistoryAggregate } from "../run-history/aggregate.ts";
 import { readHistory, type ReadDeps } from "../run-history/read.ts";
-import { createOutput, safeText } from "../output.ts";
+import { createOutput } from "../output.ts";
 import { EXIT_ERROR, EXIT_PASSED } from "../types.ts";
 
-/** Bytes of the output (the terminal lines, the --json document; the HTML in v0.12.0): more is output-too-large (ADR-0034 N). */
+/**
+ * Bytes written: to standard output, every line and its newline (the last line included) or the --json document and its newline; the
+ * HTML file in v0.12.0. More is output-too-large (ADR-0034 H / N).
+ */
 export const OUTPUT_MAX_BYTES = 32 * 1024 * 1024;
 
 export interface HistoryOptions {
@@ -26,6 +32,8 @@ export interface HistoryOptions {
   toolVersion: string;
   log?: (line: string) => void;
   logError?: (line: string) => void;
+  /** Standard output as the bytes the terminal gets (the tests of the output limit); it takes the place of `log` (src/output.ts). */
+  write?: (text: string) => void;
   /** For tests: the reading, the aggregate and the output limit. Not reachable from the CLI. */
   deps?: { read?: ReadDeps; aggregate?: AggregateDeps; outputMaxBytes?: number };
 }
@@ -85,7 +93,7 @@ function lastLine(a: HistoryAggregate): string {
 }
 
 export async function runHistory(options: HistoryOptions): Promise<number> {
-  const output = createOutput({ log: options.log, logError: options.logError });
+  const output = createOutput({ log: options.log, logError: options.logError, write: options.write });
   const fail = (kind: string, message: string | null): number => {
     if (message !== null) output.error(`aiqh: ${message}`);
     output.error(`HISTORY ERROR (${kind})`);
@@ -99,14 +107,10 @@ export async function runHistory(options: HistoryOptions): Promise<number> {
   if (!agg.ok) return fail(agg.kind, agg.kind === "too-many-values" ? "the aggregate has more values than the limit" : "the aggregate has a number that is not finite (a bug of aiqh)");
   const max = options.deps?.outputMaxBytes ?? OUTPUT_MAX_BYTES;
   if (options.json) {
-    if (!output.jsonWithin(agg.value, max)) return fail("output-too-large", `the JSON document is larger than ${max} bytes`);
+    if (!output.jsonWithin(agg.value, max)) return fail("output-too-large", `the JSON document with its newline is larger than ${max} bytes`);
     output.error(lastLine(agg.value));
-  } else {
-    const lines = tableLines(agg.value);
-    const bytes = lines.reduce((n, l) => n + Buffer.byteLength(safeText(l), "utf8") + 1, 0);
-    if (bytes > max) return fail("output-too-large", `the table is larger than ${max} bytes`);
-    for (const l of lines) output.log(l);
-    output.log(lastLine(agg.value));
+  } else if (!output.linesWithin([...tableLines(agg.value), lastLine(agg.value)], max)) {
+    return fail("output-too-large", `the table with its last line is larger than ${max} bytes`);
   }
   return agg.value.complete ? EXIT_PASSED : EXIT_ERROR;
 }

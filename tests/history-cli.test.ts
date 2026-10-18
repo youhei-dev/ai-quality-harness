@@ -3,7 +3,8 @@
  * (COMPLETE 0, INCOMPLETE 2 with the aggregate and the list, ERROR 2 with nothing on standard output, 1 never); --json is one document
  * on standard output, the same for the same input; the fields that are not shown — paths, commands, output, item names (the allow rules
  * of R1-005 too), branch, commit, description — appear nowhere, neither in the table, the JSON nor the errors; the limits of the
- * aggregate and of the output (exactly the limit is shown, one more is an error); the finite guard; the CLI wiring.
+ * aggregate and of the output (v0.11.2: the bytes written to standard output, the last line and the newlines included — exactly the
+ * limit is shown, one more is an error); the finite guard; the CLI wiring.
  */
 import { execFile } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -139,23 +140,23 @@ describe("ADR-0034 N: the limits of the aggregate and of the output (M4-D-R2-001
     }
   });
 
-  it("--json: a document of exactly the limit is written; one byte less is output-too-large with nothing written", async () => {
+  it("--json: a document and its newline of exactly the limit are written; one byte less (the document alone) is output-too-large with nothing written", async () => {
     const a = project(2);
     const full = await history([a.root], { json: true });
-    const bytes = Buffer.byteLength(full.out[0] ?? "", "utf8");
+    const bytes = Buffer.byteLength(full.out[0] ?? "", "utf8") + 1; // the newline written after the document counts (v0.11.2)
     const exact = await history([a.root], { json: true, deps: { outputMaxBytes: bytes } });
     expect(exact.out).toEqual(full.out);
     const less = await history([a.root], { json: true, deps: { outputMaxBytes: bytes - 1 } });
     expect([less.code, less.out, less.err.at(-1)]).toEqual([2, [], "HISTORY ERROR (output-too-large)"]);
   });
 
-  it("the table: exactly the limit is printed; one byte less is output-too-large with nothing printed", async () => {
+  it("the table: a limit of the table without the last line is output-too-large with nothing printed (the last line counts, v0.11.2); one byte less too", async () => {
     const a = project(2);
     const full = await history([a.root]);
     const table = full.out.slice(0, -1); // the last line is not part of the table
     const bytes = table.reduce((n, l) => n + Buffer.byteLength(l, "utf8") + 1, 0);
     const exact = await history([a.root], { deps: { outputMaxBytes: bytes } });
-    expect(exact.out).toEqual(full.out);
+    expect([exact.code, exact.out, exact.err.at(-1)]).toEqual([2, [], "HISTORY ERROR (output-too-large)"]);
     const less = await history([a.root], { deps: { outputMaxBytes: bytes - 1 } });
     expect([less.code, less.out, less.err.at(-1)]).toEqual([2, [], "HISTORY ERROR (output-too-large)"]);
   });
