@@ -6,6 +6,12 @@ import { MIN_LINE_OVERLAP_BYTES } from "./window-limits.ts";
 export const CHECK_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 export const DEFAULT_TIMEOUT_SEC = 600;
+/**
+ * The largest timeoutSec (v0.10.1, Q12 of the M4 design): a check is waited with setTimeout(…, timeoutSec * 1000), and a Node.js
+ * timer cannot wait longer than 2,147,483,647 ms — a longer delay becomes 1 ms, so the check timed out at once.
+ */
+export const MAX_TIMEOUT_SEC = Math.floor(2_147_483_647 / 1000);
+const TIMEOUT_TOO_LONG = `timeoutSec must be at most ${MAX_TIMEOUT_SEC} (seconds): a Node.js timer cannot wait longer than 2147483647 ms`;
 export const DEFAULT_REQUIRED = true;
 export const DEFAULT_OUTPUT_DIR = "artifacts/verification";
 
@@ -18,7 +24,7 @@ const checkSchema = z.strictObject({
   command: z.string().regex(/\S/, "command must not be blank"),
   cwd: z.string().optional(),
   required: z.boolean().optional(),
-  timeoutSec: z.number().int().positive().optional(),
+  timeoutSec: z.number().int().positive().max(MAX_TIMEOUT_SEC, TIMEOUT_TOO_LONG).optional(),
   description: z.string().optional(),
 });
 
@@ -70,7 +76,7 @@ export const configSchema = z
       .optional(),
     defaults: z
       .strictObject({
-        timeoutSec: z.number().int().positive().optional(),
+        timeoutSec: z.number().int().positive().max(MAX_TIMEOUT_SEC, TIMEOUT_TOO_LONG).optional(),
         required: z.boolean().optional(),
       })
       .optional(),

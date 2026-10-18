@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-17（v0.10.0。§1 に、レポートに記録する設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-18（v0.10.1。§3 と §4 の `timeoutSec` の上限 2,147,483 秒。その前: 2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -124,7 +124,7 @@ masker（レポートのマスク）はこの判定を使わず、従来どお�
 | `command` | string | ✔ | — | 実行コマンド。shell 経由で実行（`npm run lint`、`npx tsc --noEmit`、`.venv/bin/pytest -q` 等）。空文字不可 |
 | `cwd` | string | — | `"."` | 作業ディレクトリ。プロジェクトルートからの相対パス。ルート外へ出る指定（`..` や絶対パス）はエラー |
 | `required` | boolean | — | `defaults.required` | true なら失敗で VERIFY FAILED。false なら失敗してもレポートに FAIL として残すだけ |
-| `timeoutSec` | integer | — | `defaults.timeoutSec` | 1 以上。超過時はプロセスグループを終了させ FAIL（timedOut=true）。SIGKILL の後に消えたことを確認できなければ、`errorSummary` にそう書く（終了コードは同じ。ADR-0023） |
+| `timeoutSec` | integer | — | `defaults.timeoutSec` | 1 以上 2,147,483 以下（v0.10.1。`defaults.timeoutSec` も同じ。Node.js のタイマーが待てる最長の 2,147,483,647 ms を秒にして切り捨てた値。超える値は設定の誤り〈exit 2〉。v0.10.0 までは、超える値でタイマーが 1 ms になり、check がすぐ時間切れになった）。超過時はプロセスグループを終了させ FAIL（timedOut=true）。SIGKILL の後に消えたことを確認できなければ、`errorSummary` にそう書く（終了コードは同じ。ADR-0023） |
 | `description` | string | — | — | 人間向けの説明。レポートに表示 |
 
 未知のフィールドはエラー（typo を検出するため）。
@@ -145,7 +145,7 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 5. `checks[].name` が一意であり、パターン `^[a-z0-9][a-z0-9-]*$` に合致すること
 6. `checks[].command` が空白のみでないこと
 7. `checks[].cwd` を解決した結果がプロジェクトルート内であること。字句上の判定に加えて realpath（symlink 解決後）でも判定し、ルート内の symlink がルート外を指す場合もエラー（`output.dir` も同様。未作成のパスは存在する最も近いエントリで判定）。途中に dangling symlink（リンク先が未作成）がある場合は解決先を検証できないため、リンク先がルート内向きでもエラー（「解決先が存在しない。先に作成するか設定を見直す」）。途中のエントリを**調べられない**場合（権限で辿れないディレクトリ〈EACCES〉、通常ファイルの下を通る指定〈ENOTDIR〉、symlink の輪〈ELOOP〉など、lstat の失敗が ENOENT 以外）も、解決先を検証できないためエラー（`<label> cannot be resolved: <path> — <entry> cannot be examined (<code>)`。読込時のエラーなので、check は走らず、レポートも書かない。v0.5.29、ADR-0022）。cwd 自体が存在しない（ENOENT）通常のディレクトリの場合は読込時エラーではなく、その check を FAIL とする。読込の後でパスが変わり、実行の時点で辿れなくなった cwd（権限の変更、通常ファイルへの置き換え、symlink の輪など）も、その check を FAIL とする（verify は exit 1）。メッセージは ENOENT だけ `working directory does not exist: <dir>`、他は `working directory cannot be examined: <dir> (<code>)`（v0.5.31、ADR-0022）
-8. `timeoutSec` が正の整数であること
+8. `timeoutSec`（check と `defaults`）が 1 以上 2,147,483 以下の整数であること（上限は v0.10.1。ADR-0005 の注記）
 9. `required: true` の check が 1 件以上あること（必須チェックが 0 件の設定は「常に PASS」になり fail closed に反するため）
 10. 未知のフィールドがないこと
 
