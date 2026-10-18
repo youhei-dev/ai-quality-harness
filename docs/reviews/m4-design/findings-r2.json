@@ -57,7 +57,7 @@
       "regressionTest": "tests/output-json-within.test.ts の 3 件（json と同じ文書、UTF-8 のバイト数の境界、JSON でないデータ）と、tests/history-cli.test.ts の「ADR-0034 N: the limits of the aggregate and of the output (M4-D-R2-001, Q10)」の 5 件（数の葉、--json と表の出力の上限の境界、上限の近くの負荷）。直す前の ffc6f93 で FAIL（jsonWithin が無い。src/commands/history.ts が無い）",
       "guard": null,
       "destination": "v0.11.0（HTML の出力の上限は v0.12.0）",
-      "note": "v0.11.0 の部分（--json と端末の出力の実バイト数の上限 32 MiB、Output の口 jsonWithin、数の葉の上限 200,000）を直した（fixedIn は v0.11.0 の部分がそろった commit。口は 613ca219244ea9f6e11575c8adc3766993760200）。HTML の出力の上限（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にし、fixedIn をその commit にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。"
+      "note": "v0.11.0 の部分（--json と端末の出力の実バイト数の上限 32 MiB、Output の口 jsonWithin、数の葉の上限 200,000）を直した（fixedIn は v0.11.0 の部分がそろった commit。口は 613ca219244ea9f6e11575c8adc3766993760200）。HTML の出力の上限（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にし、fixedIn をその commit にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。 v0.11.2: 実装レビュー m4-history R1 の評価は「部分的に解消」（端末の表の最後の行と --json の改行が、出力の上限に数えられていなかった。M4-H-R1-001）。v0.11 の部分（端末・--json）は v0.11.2 で直し、上限を標準出力に実際に書くバイトに当てた（69f05bb2bb9dfc2f4245a35d75a059c6349ce40c）。HTML の部分（v0.12.0）が残るので open のまま。"
     },
     {
       "id": "M4-D-R2-002",

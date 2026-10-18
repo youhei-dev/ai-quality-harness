@@ -54,7 +54,7 @@
       "regressionTest": "tests/history-read.test.ts の「M4-D-R1-002: a replaced directory is detected, not prevented」の 4 件（history のディレクトリ・祖先の artifacts・verification の symlink への差し替えと、差し替えない対照）。直す前の ffc6f93（v0.10.1 の merge の後の main）で FAIL（src/run-history/read.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "v0.11.0 で直した（一部受け入れのとおり、検出であって防止ではない。ADR-0034 の脅威モデル・B の 7・既知の限界）。判定は VALID（指摘そのものは正しい。直し方の前半ができないので、対応は一部受け入れ）。R2 の評価: 部分的に解消（設計で定めた対象の範囲のもとでは容認できる、とレビュアー）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない。残りは脅威モデルの制限として ADR-0034 に書いた）。"
+      "note": "v0.11.0 で直した（一部受け入れのとおり、検出であって防止ではない。ADR-0034 の脅威モデル・B の 7・既知の限界）。判定は VALID（指摘そのものは正しい。直し方の前半ができないので、対応は一部受け入れ）。R2 の評価: 部分的に解消（設計で定めた対象の範囲のもとでは容認できる、とレビュアー）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない。残りは脅威モデルの制限として ADR-0034 に書いた）。 実装レビュー m4-history R1（docs/reviews/m4-history/review-r1.md。2026-10-18）で「解消」と評価された。"
     },
     {
       "id": "M4-D-R1-003",
@@ -72,7 +72,7 @@
       "regressionTest": "tests/history-read.test.ts の「M4-D-R1-003 / M4-D-R2-003: lengths and numbers are checked before anything is kept or masked」のうち、名前の 256 バイト・版の 64 バイト・checks の 256 個の境界と、上限を超えた名前がマスクに渡らないことの 3 件。直す前の ffc6f93（v0.10.1 の merge の後の main）で FAIL（src/run-history/read.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "v0.11.0 で直した（ADR-0034 の C の 5）。R2 の評価: 部分的に解消（最終の JSON の経路は新しい指摘 M4-D-R2-001 で扱う、とレビュアー）。その部分は M4-D-R2-001 の v0.11.0 の部分で直した（HTML は v0.12.0）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない）。"
+      "note": "v0.11.0 で直した（ADR-0034 の C の 5）。R2 の評価: 部分的に解消（最終の JSON の経路は新しい指摘 M4-D-R2-001 で扱う、とレビュアー）。その部分は M4-D-R2-001 の v0.11.0 の部分で直した（HTML は v0.12.0）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない）。 実装レビュー m4-history R1（docs/reviews/m4-history/review-r1.md。2026-10-18）で「解消」と評価された。"
     },
     {
       "id": "M4-D-R1-004",

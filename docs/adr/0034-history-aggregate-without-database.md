@@ -1,6 +1,6 @@
 # ADR-0034: `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`）
 
-- 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0 の予定〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉）
+- 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0 の予定〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉。v0.11.2 で H・I・N の出力の上限の数え方を直した〈実装レビュー m4-history R1 の M4-H-R1-001。`docs/reviews/m4-history/`〉）
 - 日付: 2026-10-18（v0.11.0）
 
 ## 文脈
@@ -99,7 +99,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - 値の無い数は `null`（`failRate` の分母 0、その日に値の無い `value`）
 - **すべての数は有限**（M4-D-R2-003）: 集計の後、出力の前に、数の葉のすべてが `Number.isFinite` であることを確かめる（`allFinite`。359 行）。偽なら `HISTORY ERROR (non-finite)`。入力の範囲（C の 5）で防げているはずの、届かないはずの守り（テストは集計の差し替えでだけ確かめる）。範囲の端（`durationMs` 2^53 - 1 と `timeoutSec` 1）でも割合は有限（およそ 9.0 × 10^12。テスト）
 
-### H. 終了コードと最後の行（`src/commands/history.ts:79-111`）
+### H. 終了コードと最後の行（`src/commands/history.ts:95-116`）
 | 終了コード | とき | 最後の行 |
 |---|---|---|
 | 0 | すべての履歴の名前のファイルを読めた（重複・`ignored`・`leftoverTemporary` は情報。履歴の中の FAILED の run も集計の値） | `HISTORY COMPLETE — projects <p>, runs <r>, sources <s>`（標準出力。`--json` のときは標準エラー） |
@@ -111,11 +111,20 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - `HISTORY ERROR` の行を標準エラーに出すのは、設計 R3 の M（テストの計画）の「標準出力は空」に合わせた（設計 R3 の H の表の見出しは「標準出力」と読める書き方だった。実装は M に従い、この表で明記した）
 - 1 を使わない理由: ほかのコマンドの 1 は finding・検査の失敗（ADR-0021）。history は品質ゲートではなく、1 を使うと「過去に FAILED があった」と「読めなかった」が混ざる
 - 中断（SIGINT・SIGTERM）と処理されなかった例外は、CLI の既存の扱い（ADR-0024・`src/cli-signals.ts`）に従う
+- **出力の上限（N）は、標準出力に実際に書くバイト（各行と改行、文書と改行）に当て、書き手の種類によらない**（v0.11.2。M4-H-R1-001）
+  - 表は、すべての行と、最後の行（`HISTORY COMPLETE …`・`HISTORY INCOMPLETE …`）と、それぞれの改行を数える。`--json` は、文書と、書くときに足す改行を数える
+  - 先に数え、上限以下のときだけ書く。超えたら何も書かずに `HISTORY ERROR (output-too-large)`（標準エラー）・exit 2
+  - 数は、書き手が端末（`console.log`）・テストの `log`（1 行ずつ、改行を付けずに受け取る）・テストの `write`（標準出力のバイトをそのまま受け取る）のどれでも同じ。数えるのは出力の API（`src/output.ts` の口 `linesWithin`・`jsonWithin`）で、呼び出す側では数えない
+  - 標準エラー（`--json` のときの最後の行、誤りの行）は上限に数えない（固定の文と数だけ）
+  - v0.11.1 までは、表の最後の行と `--json` の改行を数えていなかった（上限ちょうどの近くで、上限を超えて書いていた）
+- **v0.12.0 の HTML のファイル（ADR-0035）にも、同じ決まりを当てる**: 上限は、実際に書くファイルの全部のバイト
 
 ### I. 出口
 - 端末: `createOutput`（ADR-0016・0017）。表の 1 行は 1 回の `log`。読めないものの一覧は表の後ろ
-- 端末の表は、すべての行を作ってから、`safeText` を通した行の UTF-8 のバイト数と改行の合計を確かめ、上限（N）の中なら 1 行ずつ出す。超えたら 1 行も出さない（`src/commands/history.ts:105-108`）
-- `--json`: `Output` の新しい口 `jsonWithin(value, maxBytes)`（`src/output.ts:217, 233-238`。ADR-0016 の注記）。`json` と同じ `safeJson` の文書を作り、UTF-8 のバイト数が上限以下のときだけ書き、書いたかを返す
+- 端末の表: すべての行と最後の行を作ってから、`Output` の口 `linesWithin(lines, maxBytes)`（v0.11.2。`src/output.ts:228, 244-251, 258`。ADR-0016 の注記）に渡す（`src/commands/history.ts:112-114`）。口は、`safeText` を通した各行の UTF-8 のバイト数と改行の合計を確かめ、上限（N）の中なら書く。超えたら 1 行も書かない
+- `--json`: `Output` の口 `jsonWithin(value, maxBytes)`（`src/output.ts:222, 244-251, 257`。ADR-0016 の注記）。`json` と同じ `safeJson` の文書を作り、そのバイト数と改行の 1 バイトの合計が上限以下のときだけ書き、書いたかを返す（v0.11.2 から改行を数える）
+- 書き手 `write`（v0.11.2。`src/output.ts:203`、`HistoryOptions.write`）: 標準出力に書くバイトを、そのまま受け取るテストの書き手。`log` の代わりになり、上限の口が書くものは 1 つの文字列を 1 回で受け取る。境界のテストは、これが受け取ったバイト数で確かめる
+- 既定の書き手は、上限を確かめた後に、1 行ずつ `console.log` で書く。書くバイトは数えたものと同じ。行ごとに処理した文字列を 1 つにまとめて処理し直さないのは、マスクに行をまたぐ規則（PEM の鍵の区間、`bearer` の後ろの空白など）があり、まとめると中身が変わりうるため。`Safe` を作るのは、これまでどおり `safeText`・`safeJson` だけ（`tests/structure/output-guard.ts`）
 - ファイルは書かない。HTML は ADR-0035（`writeAtomic`。ADR-0020）
 
 ### J. 組み込みのモジュール（ADR-0019）
@@ -135,11 +144,11 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 ### M. テストのための差し替え
 - 読み込みは、上限の値・1 回の読み取りの大きさと、読む途中の 4 か所の呼び出し（lstat の後、記述子からの 1 回の読み取りの後、1 ファイルを読んだ後、すべてを読んだ後）を引数で差し替えられる（`ReadDeps`。`src/run-history/read.ts:122`）。集計は数の葉の上限と、有限の確かめの前の呼び出し（`AggregateDeps`）。コマンドは、それらと出力の上限（`HistoryOptions.deps`）
 - 設定・CLI からは届かない。CLI は既定の値だけを使う（前例: `src/parse/read.ts` の `ReadDeps`）
-- テストは `tests/history-read.test.ts`（31 件）・`tests/history-aggregate.test.ts`（17 件）・`tests/history-cli.test.ts`（13 件）・`tests/output-json-within.test.ts`（3 件）。時間は assert しない（ROADMAP の項目 41）
+- テストは `tests/history-read.test.ts`（31 件）・`tests/history-aggregate.test.ts`（17 件）・`tests/history-cli.test.ts`（13 件）・`tests/output-json-within.test.ts`（3 件）。v0.11.2 で `tests/history-output-bytes.test.ts`（7 件。出力の上限の境界を、書き手 `write` が受け取ったバイト数で確かめる）を足し、`history-cli` の 2 件と `output-json-within` の 1 件の境界を、改行と最後の行を数える形にした（人間の承認）。時間は assert しない（ROADMAP の項目 41）
 
 ### N. 集計と出力の大きさの上限（Q10、M4-D-R2-001）
 - **集計の数の葉: 200,000**（`VALUES_MAX`。`src/run-history/aggregate.ts:21`）。集計を作りながら数え、超えた時点でやめる（`HISTORY ERROR (too-many-values)`）。数の葉は、数と、数の代わりの `null`（`failRate`・`value`）
-- **出力の実バイト数: 32 MiB**（33,554,432 バイト。`OUTPUT_MAX_BYTES`。`src/commands/history.ts:18`）。端末は `safeText` の後の行と改行の合計、`--json` は `safeJson` の文字列の UTF-8 のバイト数。超えたら `HISTORY ERROR (output-too-large)`・何も出さない
+- **出力の実バイト数: 32 MiB**（33,554,432 バイト。`OUTPUT_MAX_BYTES`。`src/commands/history.ts:24`）。端末は `safeText` の後の各行と改行の合計（最後の行を含む）、`--json` は `safeJson` の文字列の UTF-8 のバイト数と改行の 1 バイト。標準出力に実際に書くバイトで、書き手の種類によらない（v0.11.2。H）。超えたら `HISTORY ERROR (output-too-large)`・何も出さない
 - 両方を置く理由: 数の葉は集計を作る仕事の量を抑え、出力のバイト数は名前の長さを含めた出す量そのものを抑える。どちらか 1 つでは、もう片方が大きくなりうる（下の測り: 長い名前の形は、数の葉が上限の中でも 32 MiB を超える）
 - 上限を超えて書かないときも、上限を確かめる前に、出力の文字列は一度メモリに作られる。その大きさは数の葉の上限で抑えられる（下の測りの長い名前の形で 38.5 MB。設計 R3 の測りの、1 系列に 1 日だけの形で約 49 MB）
 
@@ -202,4 +211,5 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - 新しいモジュール（A）、`src/cli-program.ts` にコマンド、`src/output.ts` に口 1 つ（ADR-0016 の注記）、各パーサの数のキーの一覧の export
 - docs: ARCHITECTURE（§4 の表・§5 のモジュール・§6.3）、README、`docs/CONFIG_SPEC.md`（§4c と §6 の `history` の行）、ADR-0016・0029 の注記、ROADMAP
 - 依存・組み込みのモジュールの一覧・書き込みの出口・`tests/structure/`・verify の振る舞いは変えない
+- v0.11.2: `src/output.ts` に口 `linesWithin` と書き手 `write`、`jsonWithin` が改行を数える（ADR-0016 の注記）。上限の中の出力のバイトは v0.11.1 と同じ（CLI の標準出力と `write` が受け取るバイトを比べるテスト）。依存・組み込みのモジュールの一覧・`tests/structure/` は変えない
 - 設計の独立レビューの指摘: M4-D-R1-001・002・003 と M4-D-R2-003 を `resolved`、M4-D-R2-001・002 は v0.11.0 の部分を直して `open` のまま（HTML の部分は v0.12.0）、M4-D-R1-005 は注記を足した commit の SHA を後で書く（`docs/reviews/m4-design/findings-r1.json`・`findings-r2.json` の `note`）

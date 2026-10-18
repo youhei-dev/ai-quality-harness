@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "m4-history",
+  "round": 1,
+  "idPrefix": "M4-H",
+  "source": {
+    "name": "independent-review-m4-history-r1-for-claude.md",
+    "bytes": 6895,
+    "sha256": "7fcb7224ca310b47dc3a89170ba38265044103a554a69221d6f1a54f8fc027b0"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-18T06:51:11.581Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.11.1"
+  },
+  "findings": [
+    {
+      "id": "M4-H-R1-001",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "src/commands/history.ts:102-111、src/output.ts:233-238、tests/history-cli.test.ts の出力上限の境界テスト",
+      "content": "出力の実バイト数の 32 MiB 上限を、最後まで実際に標準出力へ書く全バイトに適用できていない。表は最終の HISTORY COMPLETE / INCOMPLETE 行を数えず、JSON は書き込み時の改行を数えない。境界で上限超過にもかかわらず出力して exit 0 または 2 となる。",
+      "evidence": "runHistory の表分岐は tableLines の各行と LF の合計のみを bytes とし、判定後に output.log(lastLine(agg.value)) を追加する。JSON 分岐の jsonWithin は safeJson の Buffer.byteLength だけを比較するが、既定の emitOut(text, true) は console.log により末尾 LF を追加する。tests/history-cli.test.ts の表テストは full.out.slice(0, -1) で最終行を明示的に除外し、JSON テストは sink が受け取る改行前の文字列で境界を作っている。このため両方とも実際の端末出力を上限内に制限する仕様を検査していない。",
+      "fix": "標準出力に実際に書く全行と改行を含めて先にサイズを計算し、上限以下の場合だけまとめて出力する。JSON も既定 writer が追加する LF を含めて判定するか、改行の扱いを出力 API で明示的に統一する。上限ぴったり、1 バイト超過、最終行だけで超えるケースを、実際の書き込みバイト数でテストする。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-18、案 1）。出力の API（src/output.ts）が、標準出力に実際に書くバイト列（各行と改行、文書と改行）を数え、書き手の種類によらない同じ数で上限を判定する。表は最後の行を含めて口 linesWithin、--json は口 jsonWithin が改行を数える。上限以下のときだけ書き、超えたら何も書かない（HISTORY ERROR (output-too-large)、exit 2）。既存のテストの期待値 3 か所の変更を承認",
+      "fixedIn": "69f05bb2bb9dfc2f4245a35d75a059c6349ce40c",
+      "regressionTest": "tests/history-output-bytes.test.ts の 7 件（書き手 write が受け取ったバイト数で、表と --json のそれぞれに、上限ちょうど・1 バイト超過・最後の行〈表〉や最後の改行〈--json〉だけで超える。HISTORY INCOMPLETE の最後の行も数える。書き手 log でも同じ上限で同じ答え。write が CLI の標準出力と同じバイトを受け取る）と、期待値を変えた tests/history-cli.test.ts の「--json: a document and its newline of exactly the limit are written; …」「the table: a limit of the table without the last line is output-too-large …」、tests/output-json-within.test.ts の「the limit is the UTF-8 length of the document and its newline: …」。直す前の 074ebc4 の SHA 固定の worktree で、10 件 FAIL（新しい 7 件と変えた 3 件）・13 件 PASS",
+      "guard": null,
+      "destination": "v0.11.2",
+      "note": "書き手 write（標準出力のバイトをそのまま受け取る。log の代わり）を足し、境界のテストはそのバイト数で確かめる。既定の書き手は、上限を確かめた後に 1 行ずつ console.log で書く（書くバイトは数えたものと同じ。行をまたぐマスクの規則があるので、行ごとに処理した文字列を 1 つにまとめて処理し直さない）。決まりは ADR-0034 の H・I・N と ADR-0016 の注記に書いた。v0.12.0 の HTML のファイルにも同じ決まり（実際に書くファイルのバイト）を当てる。確かめは v0.11.2〜v0.12.0 の実装レビュー（label m4-dashboard、回 1）で頼む"
+    }
+  ]
+}
