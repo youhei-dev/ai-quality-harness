@@ -29,14 +29,14 @@
       "evidence": "B の 5 は open 後の fstat を指定するが、C の 1 は事前のサイズ確認だけ、D は lstat の大きさで合計するとしている。検査後に通常ファイルが追記・変更されると、読み込み量が 8 MiB や全体 256 MiB の想定を超え得る。",
       "fix": "記述子から最大 8 MiB + 1 バイトだけを読むこと、読み取り中のサイズ変化をどう分類するかを定義する。全体も実読バイト数で上限を再検査し、超過時は部分集計を出さない。追記・切り詰めの競合テストを足す。",
       "confidence": "推測",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。記述子から最大で上限 + 1 バイトまでだけを読み、読んだ量で too-large を決める。読む前・読んだ後の fstat の大きさと読んだ量が違えば unreadable（code は size-changed）。全体の 256 MiB は実際に読んだバイト数の合計で確かめる（設計 R2・R3 の ADR-0034 の C の 1・D・M）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "e274a67bbb8504214b844dc33d831bc93990981e",
+      "regressionTest": "tests/history-read.test.ts の「M4-D-R1-001: the bytes read are bounded by the descriptor reads, not by the size seen before」の 6 件（記述子から上限 + 1 バイトまで、上限の境界、読んだ後の追記と切り詰め、読んでいる間の増大、読んだ量の合計〈too-large の上限 + 1 バイトを含む〉）。直す前の ffc6f93（v0.10.1 の merge の後の main）で FAIL（src/run-history/read.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。"
+      "note": "v0.11.0 で直した（ADR-0034 の C の 1・D）。R2 の評価: 解消。"
     },
     {
       "id": "M4-D-R1-002",
@@ -47,14 +47,14 @@
       "evidence": "B の 2 は事前の realpath による包含を指定するが、B の 5 の O_NOFOLLOW は最終要素の symlink しか拒否しない。artifacts や verification などの祖先要素を検査後に置き換えられる環境では、検査した場所と実際に開く場所が一致しない可能性がある。",
       "fix": "ディレクトリ記述子を基準に列挙と子の open を行い、祖先と対象を同じ探索の中で拘束する。環境制約で不可能なら、競合を脅威モデルの明示的な制限とし、再確認だけで完全対策とは説明しない。ディレクトリ差し替えのテストを追加する。",
       "confidence": "推測",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "一部受け入れ（人間の方針 2026-10-17）。Node の fs に、ディレクトリの記述子を基準に子を開く API が無い（Node v24.13.1 の fs の文書と手元の Node で確かめた）ので、記述子を基準にした探索はしない。脅威モデルの明示的な制限とし、読み始めと読み終わりのディレクトリの種類・dev・ino の比較で検出する（防止ではない。設計 R2・R3 の ADR-0034 の脅威モデル・B の 7・M）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "e274a67bbb8504214b844dc33d831bc93990981e",
+      "regressionTest": "tests/history-read.test.ts の「M4-D-R1-002: a replaced directory is detected, not prevented」の 4 件（history のディレクトリ・祖先の artifacts・verification の symlink への差し替えと、差し替えない対照）。直す前の ffc6f93（v0.10.1 の merge の後の main）で FAIL（src/run-history/read.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 判定は VALID（指摘そのものは正しい。直し方の前半ができないので、対応は一部受け入れ）。R2 の評価: 部分的に解消（設計で定めた対象の範囲のもとでは容認できる、とレビュアー）。"
+      "note": "v0.11.0 で直した（一部受け入れのとおり、検出であって防止ではない。ADR-0034 の脅威モデル・B の 7・既知の限界）。判定は VALID（指摘そのものは正しい。直し方の前半ができないので、対応は一部受け入れ）。R2 の評価: 部分的に解消（設計で定めた対象の範囲のもとでは容認できる、とレビュアー）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない。残りは脅威モデルの制限として ADR-0034 に書いた）。"
     },
     {
       "id": "M4-D-R1-003",
@@ -65,14 +65,14 @@
       "evidence": "C の 5 では project.name・checks[].name・tool.version は長さに上限のない文字列である。F はマスクしてから 200／64 文字に切る。8 MiB の JSON から作られた極端に長い文字列が maskSecrets に入り、§4.4 の項目 40 で認める private-key パターンの超線形処理を誘発し得る。",
       "fix": "入力の段階で自由文字列の最大バイト長・件数を設け、超過時を bad-shape とするか、安全な境界で処理を打ち切る仕様を決める。マスク前切り詰めによる秘密の断片露出を避けるため、単純な先頭切り詰めだけに依存しない。長い名前・版の負荷試験を追加する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。zod の段で、project.name・checks[].name は UTF-8 で 256 バイト、tool.version は 64 バイト、1 run の checks は 256 個まで。超えたら切り詰めずに bad-shape にし、マスクにも渡さない（設計 R2・R3 の ADR-0034 の C の 5・C の 8・M）。最終の JSON の経路は M4-D-R2-001 の対応で扱った",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "e274a67bbb8504214b844dc33d831bc93990981e",
+      "regressionTest": "tests/history-read.test.ts の「M4-D-R1-003 / M4-D-R2-003: lengths and numbers are checked before anything is kept or masked」のうち、名前の 256 バイト・版の 64 バイト・checks の 256 個の境界と、上限を超えた名前がマスクに渡らないことの 3 件。直す前の ffc6f93（v0.10.1 の merge の後の main）で FAIL（src/run-history/read.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 R2 の評価: 部分的に解消（最終の JSON の経路は新しい指摘 M4-D-R2-001 で扱う、とレビュアー）。"
+      "note": "v0.11.0 で直した（ADR-0034 の C の 5）。R2 の評価: 部分的に解消（最終の JSON の経路は新しい指摘 M4-D-R2-001 で扱う、とレビュアー）。その部分は M4-D-R2-001 の v0.11.0 の部分で直した（HTML は v0.12.0）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない）。"
     },
     {
       "id": "M4-D-R1-004",
@@ -105,10 +105,10 @@
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。ADR-0029 の 26 行目の後ろに足す注記の文を書き、v0.11.0 の docs の commit に注記、集計の commit に allow ルールの名前が出ないことのテストを割り当てた（設計 R2・R3 の ADR-0034 の E、§4.3）",
       "fixedIn": null,
-      "regressionTest": null,
+      "regressionTest": "tests/history-aggregate.test.ts の「Q1: the security-scan numbers per day (suppressed, allowRulesUsed, expiredAllowRules, unusedAllowRules), in the order of the keys」（ccc6107b3148ce39796b30c727638ce641fd05fa）と、tests/history-cli.test.ts の「terminal, --json and the errors: no path, command, cwd, output, item or allow-rule name, branch, commit, description or reason」（5277052085920d62b214163f305c32ce56eee0c4）。直す前の ffc6f93 で FAIL（それぞれのモジュールが無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。"
+      "note": "v0.11.0 で直した: ADR-0029 の注記は v0.11.0 の docs の commit、対応するテストは上の 2 つ。fixedIn にする docs の commit の SHA は、その commit の中には書けないので、open のままにし、次の記録の commit で fixedIn を書いて resolved にする。R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。"
     }
   ]
 }

@@ -53,11 +53,11 @@
       "status": "open",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。safeJson は JSON の全体ではなく、文字列とキーを 1 つずつマスクする（src/output.ts:119-168。コードで確かめた）。集計の JSON の全体を maskSecrets に渡さないことを要件にした。端末・--json・HTML の最終の出力の実バイト数に上限 32 MiB を置き、超えたら HISTORY ERROR (output-too-large)・exit 2・何も出さない。数の葉の上限 200,000（Q10）と両方。output.ts に上限つきで JSON を出す口を足す案（設計 R3 の ADR-0034 の F・N・M）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "5277052085920d62b214163f305c32ce56eee0c4",
+      "regressionTest": "tests/output-json-within.test.ts の 3 件（json と同じ文書、UTF-8 のバイト数の境界、JSON でないデータ）と、tests/history-cli.test.ts の「ADR-0034 N: the limits of the aggregate and of the output (M4-D-R2-001, Q10)」の 5 件（数の葉、--json と表の出力の上限の境界、上限の近くの負荷）。直す前の ffc6f93 で FAIL（jsonWithin が無い。src/commands/history.ts が無い）",
       "guard": null,
       "destination": "v0.11.0（HTML の出力の上限は v0.12.0）",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビュー（コードを添付する）で解消したかを確かめる（人間の決定 2026-10-17: 設計 R3 のレビューは依頼しない）。"
+      "note": "v0.11.0 の部分（--json と端末の出力の実バイト数の上限 32 MiB、Output の口 jsonWithin、数の葉の上限 200,000）を直した（fixedIn は v0.11.0 の部分がそろった commit。口は 613ca219244ea9f6e11575c8adc3766993760200）。HTML の出力の上限（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にし、fixedIn をその commit にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。"
     },
     {
       "id": "M4-D-R2-002",
@@ -71,11 +71,11 @@
       "status": "open",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。run ごとに durationMs / (timeoutSec × 1000) を計算し、その最大を maxShareOfTimeout にする。最後の run の timeoutSec は別の属性 lastTimeoutSec として持つ。上限が run の間で変わる 2 件以上の fixture のテストを計画に足した（設計 R3 の ADR-0034 の E・G・M、ADR-0035 の決定 6）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "ccc6107b3148ce39796b30c727638ce641fd05fa",
+      "regressionTest": "tests/history-aggregate.test.ts の「M4-D-R2-002: maxShareOfTimeout is the largest share of each run's own timeout; lastTimeoutSec is a separate value」（上限が run の間で変わる 2 件の両方の順、上限が同じ対照、時間切れで 1 を超える場合）。直す前の ffc6f93 で FAIL（src/run-history/aggregate.ts が無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0（HTML の許可リストの欄の名前は v0.12.0）",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビューで解消したかを確かめる。"
+      "note": "v0.11.0 の部分（maxShareOfTimeout と lastTimeoutSec）を直した。HTML の許可リストの欄の名前（v0.12.0。ADR-0035）が残るので open のまま。HTML を入れた版で resolved にする。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。"
     },
     {
       "id": "M4-D-R2-003",
@@ -86,14 +86,14 @@
       "evidence": "C の 5 は durationMs・summary・parsed.counts に非負整数、timeoutSec に正の数を要求するだけで、Number.isSafeInteger や比率の有限性を要求していない。G は Math.round(x * 10000) / 10000 と String(n) を用い、HTML 側 h は Number.isFinite を要求する。例えば durationMs=1e100・timeoutSec=1e-100 はJSONの有効な数値で、数学的比率は1e200、さらに大きい組合せでは Infinity になりうる。",
       "fix": "数量と継続時間は Number.isSafeInteger を満たす範囲に制限し、timeoutSec に有限かつ妥当な下限を設ける。集計加算・除算・丸め後も Number.isFinite を確認し、破綻時の分類を明示する。境界値、極小の timeoutSec、極大の durationMs と counts のテストを追加する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-17）。durationMs・summary・parsed.counts は 0 以上の安全な整数、exitCode は安全な整数、timeoutSec は設定と同じ正の整数（src/config/schema.ts:21, 73）で安全な整数の範囲。範囲の外は bad-shape。計算の後にも Number.isFinite を確かめ、偽なら HISTORY ERROR (non-finite)・exit 2（届かないはずの守り）。境界・極小の timeoutSec・極大の durationMs と counts のテストを計画に足した（設計 R3 の ADR-0034 の C の 5・C の 9・G・H・M）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "5277052085920d62b214163f305c32ce56eee0c4",
+      "regressionTest": "tests/history-read.test.ts の「M4-D-R1-003 / M4-D-R2-003: lengths and numbers are checked before anything is kept or masked」の数の範囲と timeoutSec の 2 件、tests/history-aggregate.test.ts の「Q10 and M4-D-R2-003: the numeric leaves and the finite guard」の極端な数と non-finite の 2 件、tests/history-cli.test.ts の「non-finite: nothing on standard output (only a replaced aggregate can show it)」。直す前の ffc6f93 で FAIL（それぞれのモジュールが無く、テストのファイルが読み込めない）",
       "guard": null,
       "destination": "v0.11.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 v0.11.0 の実装レビューで解消したかを確かめる。"
+      "note": "v0.11.0 で直した（ADR-0034 の C の 5・G・H）。数の範囲は e274a67bbb8504214b844dc33d831bc93990981e（読み込み）、計算の後の有限の確かめは ccc6107b3148ce39796b30c727638ce641fd05fa（集計）、HISTORY ERROR (non-finite) と exit 2 は 5277052085920d62b214163f305c32ce56eee0c4（コマンド。fixedIn）。設計 R3 は独立レビューを受けていないので、v0.11.0 の実装レビューで確かめる。"
     }
   ]
 }

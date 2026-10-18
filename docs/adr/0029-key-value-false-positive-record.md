@@ -1,7 +1,7 @@
 # ADR-0029: key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない）
 
 - 状態: 採用（定義だけ。M2-2 の残りの「key-value 誤検出の継続記録」〈ROADMAP の項目 15、出典は `docs/reports/M2-0_COMPLETION.md` の 81 行目〉。実装は人間の決定 P7 によりしない。ADR-0010・0012 の key-value の走査の方針は変えない）
-- 日付: 2026-10-14（v0.8.0）
+- 日付: 2026-10-14（v0.8.0）。注記: 2026-10-18（v0.11.0。決定 3 の最後の項。ADR-0034）
 
 ## 文脈
 - key-value の分類（`password=…`・`api_key: "…"` などの値）は誤検出が多いので、M1 では mask 専用だった。M2-0 で走査の対象にしたが、値が秘密らしい（`looksLikeSecretValue`）ときだけ finding にし、残る誤検出は `security.allow` で抑える方針にした（ADR-0010 の §6、ADR-0012）
@@ -24,6 +24,7 @@
    - **`security.allow` の `reason`**（上の書式）: 設定のファイルに残るので、抑えたものと理由が同じ場所にある。`aiqh security-scan` の端末の出力と、verify のレポートの `parsed.items`（`allowed`・`allow-rule-used`。ADR-0028）に毎回出る
    - **記録の表** `docs/ops/key-value-false-positives.md`: **最初の 1 件が起きたときに作る**（いまは作らない）。1 件 1 行で、列は 日付・リポジトリ（このリポジトリか、対象のリポジトリの架空の名前）・パス・分類・値の形（長さと文字の種類だけ。**値そのものは書かない**）・扱い（書き換え／allow／見直しの提案）・根拠（verify のレポートの commit か、レビューの ID）
    - 履歴の DB（M4）では、レポートの `allowed`・`allow-rule-used` の項目から、ルールごとの使われた回数を時系列で数える（M4 の設計の材料）
+   - 注記（v0.11.0）: 決定 3 の最後の項（履歴の DB で、allow のルールごとの使われた回数を時系列で数える）は、そのとおりにはしない。M4 は DB を持たず（ADR-0034）、`aiqh history` は `parsed.items` の名前を出さないので、ルールを見分けられない。M4 では、security-scan の数（`suppressed`・`allowRulesUsed`・`expiredAllowRules`・`unusedAllowRules`）の日ごとの推移だけを出す。決定 4 の「1 つの allow のルールが 1 回の scan で 10 件以上を抑えたとき」は、`aiqh security-scan` の端末の出力か、その run の `latest.md` の Parsed Output で確かめる。決定 1〜5 の定義は変えない。（M4-D-R1-005。テストは `tests/history-aggregate.test.ts` の Q1 の数の推移と、`tests/history-cli.test.ts` の目印のテスト〈ルールの名前が端末・`--json`・エラーの文言に出ない〉）
 4. **見直しの契機**: 同じ分類が 3 件（リポジトリをまたいで）に達したとき、または 1 つの allow のルールが 1 回の scan で 10 件以上を抑えたとき。そのときに、パターン・判定の関数を変える案を ADR で出す（人間の判断）
 5. **秘密の値は記録に書かない**: 表にも `reason` にも、値・その一部・ハッシュを書かない（形だけ）。秘密だった場合は誤検出ではないので、記録せずに鍵を失効させる手順に移る
 

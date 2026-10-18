@@ -227,6 +227,10 @@ aiqh review-import <review.md> --label <label> --round <n> --id-prefix <prefix> 
 
 aiqh review-check --label <label> [--cwd <dir>]
                              docs/reviews/<label>/findings-r*.json の状態を検査し、ループ未完了（open が残る）を表示する（読み取りだけ）
+
+aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
+                             verify の履歴を、DB 無しで読み取りだけで集計する（端末の表、または --json）。<dir> はプロジェクトのルート
+                             （artifacts/verification/history を持つ）か、history のディレクトリ。複数可（同じ名前のプロジェクトは 1 つに合わせる）
 ```
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
@@ -238,6 +242,7 @@ aiqh review-check --label <label> [--cwd <dir>]
 `aiqh review-import`（v0.6.0、ADR-0026）: レビューの中の `aiqh-findings` の JSON を正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせます。食い違い・読めない入力・前の回の findings のファイルが無い（`--allow-missing-previous` を除く）・読めないときは `2` で何も書きません。取り込んだ指摘はすべて `open` で、`open` の件数は表示するだけで終了コードには反映しません（`0` = 取り込んだ・同じレビューを取り込み済み）。依頼文のひな形は `docs/ops/review-request-template.md` です。
 `<review.md>` を相対パスで書いたときは、`--cwd` のディレクトリ（省略時はカレント）を基準に解決します。v0.6.1: 名前付きの文字参照（`&amp;` `&lt;` `&gt;` `&quot;` `&apos;` 以外。`;` の無い古い形の一部も）があれば `2`（`[entity]`）です。その回の ID は、文字参照を戻し、HTML のコメントとタグを取り除いた形でも探します（タグは止めません）。同じレビューを取り込み直すときも、既存のファイルの label・回・接頭辞と前の回の findings のファイルを確かめます（ADR-0026 の追記）。書いた後に、その label の `REVIEW LOOP:` の行（下の review-check と同じ判定）を出します。
 `aiqh review-check`（ADR-0027）: `docs/reviews/<label>/findings-r*.json` だけを読み、何も書きません。回が 1 から欠けずにそろい、読めて、取り込んだときの形（ID・`summary`）のままで、状態ごとに要る欄（`resolved` は git が知っている commit の `fixedIn` と `regressionTest`、`deferred` は `destination`、`accepted`・`invalid` は `note`）があり、`previous` が前の回の指摘を指していれば `0` です。`open` が残っていれば `REVIEW LOOP: incomplete (open N)` と出しますが、終了コードは `0` のままです（`open` の数とレビューの評価は合否にしない）。前の回の評価と状態の食い違いは警告として出し、終了コードには反映しません。どれかの検査に通らなければ `2`（すべて並べて出す）。依頼から次の回までの手順は `docs/ops/review-loop.md` です。
+`aiqh history`（v0.11.0、ADR-0034）: `history/<ts>.json` だけを読み、何も書きません。プロジェクトごとの run の数・verdict・日ごとの推移・`aiqh` の版と設定のハッシュ（`configSha256`）の区切り、check ごとの PASS / FAIL の数・FAIL の率・所要時間・タイムアウトに対する最大の割合、パーサの数（テストの件数・security-scan の数など）の日ごとの推移、失敗しやすい check を出します。出すのは数と状態と名前だけで、check の出力・コマンド・パス・`parsed.items` の名前・branch・commit は出しません。`--from` はパスではなく指定の順の番号（`#1`・`#2`）で示します（相対パスは `--cwd` が基準）。履歴は信頼しない入力として読み、1 ファイル 8 MiB・合わせて 10,000 ファイル・256 MiB、名前 256 バイト・1 run の check 256 個、集計の数 200,000 個・出力 32 MiB の上限があります。終了コード: `0` = すべての履歴を読めた（`HISTORY COMPLETE`。履歴に FAILED の run があっても `0`）、`2` = 読めない履歴があった（集計と一覧を出す。`HISTORY INCOMPLETE`）か、使い方・入力の誤り・上限（何も出さない。標準エラーに `HISTORY ERROR (<種類>)`）。`1` は使いません。`--json` の最後の行は標準エラーに出ます。
 
 終了コード（最終行の文言と 1 対 1）: `0` = `VERIFY PASSED`、`1` = `VERIFY FAILED`、`2` = `VERIFY ERROR`（設定エラー・レポート書込エラー・内部エラー）。使い方エラー（未知のコマンド・オプション、欠落・余分な引数、コマンドなし）も `2` です（全コマンド共通。`VERIFY` の最終行は出さず、`error: …` の 1 行だけを標準エラーに出す。ADR-0021）。
 
