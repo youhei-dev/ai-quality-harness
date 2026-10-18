@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.11.1 — the raw bidi control and line separators in two test sources built from code points; a test keeps every tracked file free of raw characters
+## v0.11.1 — commit ec65c24e0eabcff556dfe98295df5aef1b149668 / tag object c4c23e7bca5196b2a2221b2dadf48c054ffa2f88 — the raw bidi control and line separators in two test sources built from code points; a test keeps every tracked file free of raw characters
 
 - **テストのソースの生の文字の直し**（人間の判断。2026-10-18 の案 A）。branch `release/v0.11.1`、3 commit: `3a58d7a`（テストと 2 行の直し）・`ea72dc0`（記録）・この release の commit
 - 見つけた経緯: v0.11.0 の実装レビューのパケットを作るとき、`aiqh review-packet` の生の文字の確かめが、`tests/output-json-within.test.ts` の 22 行目の文字列の中の生の U+202E（v0.11.0 の commit `613ca21`）を見つけて止まった。自己 verify の 8 つのチェックは見つけていなかった（security の check は生の文字を見ない。ROADMAP の項目 48）。`tests/regression-m2-0r2-002-control-chars.test.ts` の 13 行目にも、v0.3.2（commit `b2edd7c`）からの生の U+2028・U+2029 があった
