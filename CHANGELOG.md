@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.12.1 — the M4 operation templates (roll back a version, what to watch, changing the quality policy); the dashboard's text-column headings left-aligned like their values
+## v0.12.1 — commit 926b29786dc89b4b620b4649de4ae22558e66c57 / tag object 0e2e8b8a8063b87084e804b6624619060253e792 — the M4 operation templates (roll back a version, what to watch, changing the quality policy); the dashboard's text-column headings left-aligned like their values
 
 - **M4 の運用テンプレートと、ダッシュボードの見出しの寄せ**（M4 の完了条件の最後の 1 つ。実装の独立レビュー m4-dashboard R1 の問い 7 への対応）。branch `release/v0.12.1`、4 commit: `d837969`（見出しの寄せのテストと直し）・`c5811b3`（運用テンプレート）・`0d161ab`（記録）・この release の commit
 - 見出しの寄せ（`src/run-history/html.ts`）: ダッシュボードの文字の値の列（Days・Tool versions・Config hashes・Checks・Counts・Failure-prone checks の、日付・版・名前などの列）の見出し `<th>` に `class="name"` を付け、値と同じ左寄せにした。数の列の見出しは右寄せのまま。CSS は変えていない（`th.name,td.name{text-align:left}` は v0.12.0 からある）ので、CSP の `style-src` のハッシュも同じ。利用者のブラウザでの確かめ（2026-10-19）で見つけた
