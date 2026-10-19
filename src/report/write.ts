@@ -96,8 +96,10 @@ const REOPEN_FLAG = REOPEN as unknown as string; // @types/node types `flag` as 
  * it: a symbolic link put at the name in between is ELOOP (not followed), a name removed in between is ENOENT (nothing is created). Before,
  * the name was `<target>.tmp-<pid>` and writeFileSync followed a symbolic link placed there (a file outside could be changed). The write
  * goes through the path, not the descriptor: an fs write to a descriptor is outside what src/ may do (the output guard, ADR-0019).
+ * v0.12.0 (ADR-0035 decision 5): format "html" for aiqh history's dashboard.html takes the Markdown branch (the forbidden characters as
+ * `\u{HEX}`): every value of the HTML went through h() already, so it changes nothing there; it is the last gate.
  */
-export function writeAtomic(target: string, content: string, format: "json" | "md"): void {
+export function writeAtomic(target: string, content: string, format: "json" | "md" | "html"): void {
   const tmp = createTemporary(target);
   try {
     writeFileSync(tmp, format === "json" ? escapeRawCharsAsJson(content) : escapeForDisplay(content, "keep"), { encoding: "utf8", flag: REOPEN_FLAG });

@@ -186,13 +186,17 @@ export function buildProgram(deps: ProgramDeps): Command {
 
   program
     .command("history")
-    .description("Aggregate the verify history of one or more projects without a database (reads only; nothing is written): a table, or the aggregate as JSON. A --from is shown as #<n>, never as a path. 0 = every history file was read, 2 = a history file could not be read (listed), or a usage or input error, or a limit")
+    .description("Aggregate the verify history of one or more projects without a database (the histories are only read): a table, or the aggregate as JSON; with --html, also a static dashboard (no script, nothing loaded from elsewhere). A --from is shown as #<n>, never as a path. 0 = every history file was read, 2 = a history file could not be read (listed), or a usage or input error, or a limit")
     .option("--from <dir>", "a project root (with artifacts/verification/history) or a history directory (repeatable; at least one)", collect, [])
     .option("--cwd <dir>", "the directory relative --from paths are resolved against (default: current directory)")
     .option("--json", "print the aggregate as JSON (the last line goes to standard error)", false)
-    .action(async (opts: { from: string[]; cwd?: string; json: boolean }) => {
+    .option("--html", "also write the dashboard, <out>/dashboard.html (static HTML: no script, nothing loaded from elsewhere)", false)
+    .option("--out <dir>", "the directory of dashboard.html, relative to --cwd (default: artifacts/history); only with --html")
+    .action(async (opts: { from: string[]; cwd?: string; json: boolean; html: boolean; out?: string }) => {
       const args: Parameters<typeof runHistory>[0] = { from: opts.from, json: opts.json, toolVersion: deps.version };
       if (opts.cwd !== undefined) args.cwd = opts.cwd;
+      if (opts.html) args.html = true;
+      if (opts.out !== undefined) args.out = opts.out;
       process.exitCode = await runHistory(args);
     });
 

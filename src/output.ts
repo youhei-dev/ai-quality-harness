@@ -217,15 +217,16 @@ export interface Output {
   /**
    * The same JSON document, written only when the bytes standard output gets for it — its UTF-8 length and the newline written after
    * it — are at most `maxBytes`, whatever the writer (aiqh history, ADR-0034 H / N; v0.11.2, M4-H-R1-001). Answers whether it wrote;
-   * over the limit nothing reaches the sink.
+   * over the limit nothing reaches the sink. `beforeWrite` runs within the limit, before anything is written: when it throws, nothing
+   * is written (v0.12.0: aiqh history writes its dashboard there, so standard output stays empty when the file cannot be written).
    */
-  jsonWithin: (value: unknown, maxBytes: number) => boolean;
+  jsonWithin: (value: unknown, maxBytes: number, beforeWrite?: () => void) => boolean;
   /**
    * Lines to standard output, each processed like `log`, written only when the bytes standard output gets for them — every line and
    * its newline — are at most `maxBytes`, whatever the writer (aiqh history's table and last line, ADR-0034 H / N; v0.11.2). Answers
-   * whether it wrote; over the limit nothing reaches the sink.
+   * whether it wrote; over the limit nothing reaches the sink. `beforeWrite` as for jsonWithin.
    */
-  linesWithin: (lines: readonly string[], maxBytes: number) => boolean;
+  linesWithin: (lines: readonly string[], maxBytes: number, beforeWrite?: () => void) => boolean;
 }
 
 /**
@@ -239,11 +240,13 @@ export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): O
   /**
    * A door with a limit (ADR-0034 N): the bytes standard output gets for these lines or this document — each one and the newline
    * written after it, as the terminal (console.log) and `write` get them — are counted first, the same number whatever the writer.
-   * Within the limit all of them are written (to `write` as one text), over it none.
+   * Within the limit all of them are written (to `write` as one text), over it none. `beforeWrite` runs between the two: when it throws,
+   * nothing is written.
    */
-  const within = (units: readonly Safe[], maxBytes: number): boolean => {
+  const within = (units: readonly Safe[], maxBytes: number, beforeWrite: (() => void) | undefined): boolean => {
     const bytes = units.reduce((n, u) => n + Buffer.byteLength(u, "utf8") + 1, 0);
     if (bytes > maxBytes) return false;
+    beforeWrite?.();
     if (write !== undefined) write(units.map((u) => `${u}\n`).join(""));
     else for (const u of units) out(u);
     return true;
@@ -254,8 +257,8 @@ export function createOutput(sinks: OutputSinks, jsonMode: LineMode = "keep"): O
     block: (text) => out(safeText(text, "block")),
     errorBlock: (text) => err(safeText(text, "block")),
     json: (value) => out(safeJson(value, jsonMode)),
-    jsonWithin: (value, maxBytes) => within([safeJson(value, jsonMode)], maxBytes),
-    linesWithin: (lines, maxBytes) => within(lines.map((l) => safeText(l)), maxBytes),
+    jsonWithin: (value, maxBytes, beforeWrite) => within([safeJson(value, jsonMode)], maxBytes, beforeWrite),
+    linesWithin: (lines, maxBytes, beforeWrite) => within(lines.map((l) => safeText(l)), maxBytes, beforeWrite),
   };
 }
 

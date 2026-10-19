@@ -88,7 +88,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 | `aiqh review-packet` | M2-1（v0.4.0 実装） | commit 範囲 `<from>..<to>`、人間の依頼文・前回レビュー（任意）、`--doc` の文書、`<to>` の verify 結果（`latest.json` が `<to>` かつ clean のときのみ） | `artifacts/ai-review/review-packet-<label>.md`（変更ファイルの全文と差分、実装者の結論なし）、`--zip` でパケットだけを含む ZIP。検査（不正な UTF-8・生文字・秘密の形）に通らなければ何も書かない（ADR-0014） | 0=書いた, 1=検出あり（書かない）, 2=使い方・設定・検査不能・上限・書込エラー（優先順位は ADR-0015） |
 | `aiqh review-import` | M2（v0.6.0 で v1: 取り込みだけ） | レビューAI の指摘（Markdown）。v0.6.0: レビューの中の `aiqh-findings` の JSON のブロック 1 つを正本にし、本文の `### <ID>` の見出し・`## 全体の結論` の件数の行・その回の ID と突き合わせる（ADR-0026） | `artifacts/ai-review/findings-<id>.json`（重要度・対象ファイル・種別・対応状況）（v0.6.0 で注記: **`docs/reviews/<label>/findings-r<N>.json`（git 管理）**に変えた。すべて `open`。ADR-0026） | 0 / 2（v0.6.0 で注記: 0 = 取り込んだ・同じレビューを取り込み済み、2 = 読めない・食い違う・使い方・書込のエラーで何も書かない。`open` の件数は表示だけで終了コードに反映しない） |
 | `aiqh review-check` | M2-2（v0.7.0: review-import の v2。ADR-0027） | `docs/reviews/<label>/findings-r*.json`（読み取りだけ）。`resolved` の `fixedIn` は git で commit を確かめる | 標準出力: 回ごとの重要度・状態の数、`open` の ID、前の回の評価、警告（終了コードに反映しない）、`REVIEW LOOP: complete` / `incomplete (open N)`。何も書かない | 0=検査に通った（`open` の数・警告にかかわらない）, 2=ファイル・形・状態の欄・前の回の評価の誤り、git が答えない、使い方 |
-| `aiqh history` | M4（v0.11.0: 表と JSON。ADR-0034） | ~~履歴 DB~~（v0.11.0 で注記: DB は持たない。`--from` で渡した 1 つ以上のプロジェクトのルートか history のディレクトリの `history/<ts>.json`。読み取りだけで、信頼しない入力として読む） | 表 / JSON、ローカルダッシュボード（静的 HTML。v0.12.0 の予定、ADR-0035）。パスは `#<番号>` で示し、数・状態・名前だけを出す | 0 = すべて読めた / 2 = 読めないものがあった（集計と一覧を出す）・使い方・入力の誤り・上限（何も出さない）。1 は使わない |
+| `aiqh history` | M4（v0.11.0: 表と JSON。ADR-0034） | ~~履歴 DB~~（v0.11.0 で注記: DB は持たない。`--from` で渡した 1 つ以上のプロジェクトのルートか history のディレクトリの `history/<ts>.json`。読み取りだけで、信頼しない入力として読む） | 表 / JSON、ローカルダッシュボード（静的 HTML。v0.12.0、ADR-0035）。パスは `#<番号>` で示し、数・状態・名前だけを出す | 0 = すべて読めた / 2 = 読めないものがあった（集計と一覧を出す）・使い方・入力の誤り・上限（何も出さない）。1 は使わない |
 
 共通オプション（案）: `--config <path>`, `--cwd <dir>`, `--output-dir <dir>`, `--verbose`, `--json`（標準出力に JSON）。
 
@@ -109,7 +109,7 @@ src/
     review-packet.ts      … review-packet の CLI（入力の読込、書込、終了コード、マスク）      [M2-1 実装済み]
     review-check.ts       … findings の状態の検査とループ未完了の表示。読み取りだけ（検査は review/check.ts、ファイルの読み取りは review/findings-file.ts）[M2-2 v2、v0.7.0、ADR-0027]
     review-import.ts      … 指摘の構造化保存（読み取りと検査は review/import.ts）          [M2-2 v1 実装済み、v0.6.0。v0.6.1: 名前付きの文字参照の拒否、HTML を除いた形でも ID を探す、再取り込みでも既存のファイルと前の回を確かめる。ADR-0026 の追記]
-    history.ts            … 履歴の集計の CLI（表・--json、終了コード、出力の上限。読み込みは run-history/read.ts、集計は run-history/aggregate.ts）[M4 v0.11.0、ADR-0034]
+    history.ts            … 履歴の集計の CLI（表・--json・--html、終了コード、出力の上限、ダッシュボードの書き込み先の確かめ。読み込みは run-history/read.ts、集計は run-history/aggregate.ts、HTML は run-history/html.ts）[M4 v0.11.0、ADR-0034。v0.12.0、ADR-0035]
   config/
     schema.ts             … 設定スキーマ（zod）。型は zod から導出                          [M0]
     load.ts               … JSONC 読込 → スキーマ検証 → パス正規化（cwd の逸脱検査）        [M0]
@@ -147,7 +147,7 @@ src/
   review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
   security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]
   review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
-  run-history/            … 履歴の読み込み（信頼しない入力。上限・symlink・差し替えの検出）と集計。DB は持たない（v0.11.0 で注記: 計画の `history/`〈履歴 DB〉を置き換えた。名前は push の前の走査に当たらないように変えた）[M4 v0.11.0、ADR-0034]
+  run-history/            … 履歴の読み込み（信頼しない入力。上限・symlink・差し替えの検出）と集計。DB は持たない（v0.11.0 で注記: 計画の `history/`〈履歴 DB〉を置き換えた。名前は push の前の走査に当たらないように変えた）。html.ts は静的 HTML のダッシュボード（固定のひな形、値はすべて h()、CSP の meta、数は data-k）[M4 v0.11.0、ADR-0034。v0.12.0、ADR-0035]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
 tests/                    … Vitest（ユニット + CLI 結合）                                  [M0]
 docs/                     … 設計書、ADR、レポート

@@ -1,6 +1,6 @@
 # ADR-0034: `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`）
 
-- 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0 の予定〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉。v0.11.2 で H・I・N の出力の上限の数え方を直した〈実装レビュー m4-history R1 の M4-H-R1-001。`docs/reviews/m4-history/`〉）
+- 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉。v0.11.2 で H・I・N の出力の上限の数え方を直した〈実装レビュー m4-history R1 の M4-H-R1-001。`docs/reviews/m4-history/`〉。v0.12.0 で `--html`〈ADR-0035〉の注記を A・H・I に足した）
 - 日付: 2026-10-18（v0.11.0）
 
 ## 文脈
@@ -24,51 +24,52 @@
 ```
 aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 ```
-- `--from` は繰り返せる（`src/cli-program.ts` の `collect`）。1 つ以上が要る。0 個は使い方の誤り（`HISTORY ERROR (usage)`・exit 2。`src/commands/history.ts:94`）
+- `--from` は繰り返せる（`src/cli-program.ts` の `collect`）。1 つ以上が要る。0 個は使い方の誤り（`HISTORY ERROR (usage)`・exit 2。`src/commands/history.ts:195`）
 - `--cwd` は、相対の `--from` を解決する基準（既定は現在のディレクトリ）
 - ファイルを書かない（端末の表と、`--json` の標準出力だけ）。`--html` と `--out` は v0.12.0（ADR-0035）
+- 注記（v0.12.0）: `aiqh history --from … [--json] --html [--out <dir>]` が `<out>/dashboard.html`（既定は `--cwd` の `artifacts/history/`）を書く（ADR-0035）。履歴は読み取りだけのまま。書き込み先は symlink でなく、読んだ履歴のディレクトリの中でもないこと。標準出力は `--html` の有無で変わらない。`--out` だけは使い方の誤り
 - モジュール: `src/run-history/read.ts`（B〜D）、`src/run-history/aggregate.ts`（E〜G）、`src/commands/history.ts`（A・H・端末の表）。設計 R3 は `src/history/` としていたが、push の前の走査（警告の 5 条件の 1: `history/` の下の変更）が、ソースのファイルにも毎回当たるので、ディレクトリの名前を `run-history` にした（v0.11.0 の判断。振る舞いは変えない）
 
 ### B. 入力（`--from`）
-1. **2 つの形**（`resolveSource`。`src/run-history/read.ts:221`）: `<dir>` を `--cwd` から解決し、realpath を取る
+1. **2 つの形**（`resolveSource`。`src/run-history/read.ts:231`）: `<dir>` を `--cwd` から解決し、realpath を取る
    - (a) `<dir>/artifacts/verification/history` が（lstat で）ディレクトリなら、`<dir>` をプロジェクトのルートとみなし、その history を読む
    - (b) そうでなければ、`<dir>` 自身を history のディレクトリとみなす（`output.dir` を変えたプロジェクトは、history のディレクトリを直接渡す）
    - その後の列挙・lstat・open は、すべて**初めに realpath で解決したパス**を基準にする。`--from` の文字列をもう一度解決しない
-2. **(a) の包含**: history のディレクトリの realpath が、ルートの realpath の中にあること。外を指す symlink は入力の誤り（`outside-root`。`src/run-history/read.ts:250`）。(b) は利用者が直接指定したディレクトリなので、包含は問わない
+2. **(a) の包含**: history のディレクトリの realpath が、ルートの realpath の中にあること。外を指す symlink は入力の誤り（`outside-root`。`src/run-history/read.ts:260`）。(b) は利用者が直接指定したディレクトリなので、包含は問わない
 3. **入力の誤り**（exit 2。集計を出さない）: 存在しない（`not-found`）、ディレクトリでない（`not-a-directory`）、調べられない・列挙できない（`unreadable-directory`。ENOENT 以外の errno。ADR-0022）、realpath が同じ `--from` が 2 つ（`duplicate-source`）、履歴の名前のファイルが 1 つも無い（`no-history`）、全体の上限（D）、ディレクトリの差し替え（7 の `directory-changed`）
 4. **読む名前**: `^\d{8}T\d{6}Z(?:-[1-9]\d*)?\.json$`（`HISTORY_NAME`。`src/run-history/read.ts:27`）に合う名前だけ。ディレクトリの中を再帰しない
    - `writeAtomic` が残した一時ファイル（`.<履歴の名前>.tmp-<16 桁>`。`src/run-history/read.ts:29`）は読まずに `leftoverTemporary` に数える。それ以外の名前は `ignored` に数える（どちらも情報。終了コードに影響しない）
-5. **symlink を辿らない**（`readOne`。`src/run-history/read.ts:263`）: lstat で通常のファイルでなければ `not-regular`。開くときは `O_RDONLY | O_NOFOLLOW`（`src/run-history/read.ts:273`。Windows では 0）で開き、記述子の `fstat` で通常のファイルであることを確かめてから（281 行）、その記述子から読む
+5. **symlink を辿らない**（`readOne`。`src/run-history/read.ts:273`）: lstat で通常のファイルでなければ `not-regular`。開くときは `O_RDONLY | O_NOFOLLOW`（`src/run-history/read.ts:283`。Windows では 0）で開き、記述子の `fstat` で通常のファイルであることを確かめてから（291 行）、その記述子から読む
    - lstat の後に symlink に替えられ、open が `ELOOP` で失敗したときは `not-regular`。ディレクトリに替えられたときは、記述子の `fstat` で `not-regular`（どちらもテストで確かめた）
    - `O_NOFOLLOW` が拒むのは、パスの最後の要素の symlink だけ。祖先の差し替えは 7 で扱う
    - 出力のガード（ADR-0019。`tests/structure/output-guard.ts`）は、文字列のパスへの `openSync` と、記述子からの `readSync`・`fstatSync`・`closeSync` を止めない（`tests/structure/` は変えていない）
 6. **パスを表示しない**（Q3）: 端末・`--json`・エラーの文言では、`--from` を指定の順の番号（`#1`・`#2`…）で示す。読めないファイルは `#<番号>/<ファイル名>`（名前は 4 の正規表現に合うものだけなので、時刻と数字だけ）。入力の誤りの文言にもパスを入れない
-7. **ディレクトリの差し替えの検出**（M4-D-R1-002）: 読み始める前に、次のパスを lstat して、種類（ディレクトリ・symlink・その他）・`dev`・`ino` を記録し（`identity`。`src/run-history/read.ts:211`）、すべての `--from` のファイルを読み終わった後に、同じパスを lstat し直して比べる（415 行）。違えば（lstat の失敗を含む）`HISTORY ERROR (directory-changed)`・exit 2・集計を出さない
+7. **ディレクトリの差し替えの検出**（M4-D-R1-002）: 読み始める前に、次のパスを lstat して、種類（ディレクトリ・symlink・その他）・`dev`・`ino` を記録し（`identity`。`src/run-history/read.ts:221`）、すべての `--from` のファイルを読み終わった後に、同じパスを lstat し直して比べる（425 行）。違えば（lstat の失敗を含む）`HISTORY ERROR (directory-changed)`・exit 2・集計を出さない
    - (a) の形: ルート・`artifacts`・`artifacts/verification`・`artifacts/verification/history` と、history の realpath（重なりは 1 つにする）
    - (b) の形: history のディレクトリ 1 つ（祖先は確かめない）
    - **検出であって、防止ではない**（脅威モデル）
 
 ### C. 1 ファイルの読み方（信頼しない入力）
 1. **大きさ: 1 ファイル 8 MiB**（8,388,608 バイト。`READ_LIMITS.fileBytes`。`src/run-history/read.ts:45`）。上限を変えるオプションは作らない（Q5）
-   - 事前の大きさに頼らない（M4-D-R1-001）: 開いた記述子から `readSync` をくり返し、**最大で上限 + 1 バイトまで**読む（282 行）。読む先は、上限 + 1 の大きさの `Buffer` 1 つで、すべてのファイルで使い回す
-   - 読んだ量が上限を超えたら `too-large`（読んでいる間に大きくなった場合も）。上限以下なら、読む前の `fstat` の大きさ・読んだ量・読んだ後の `fstat` の大きさを比べ、1 つでも違えば `unreadable`（`code` は固定の語 `size-changed`。293 行）
+   - 事前の大きさに頼らない（M4-D-R1-001）: 開いた記述子から `readSync` をくり返し、**最大で上限 + 1 バイトまで**読む（292〜297 行）。読む先は、上限 + 1 の大きさの `Buffer` 1 つで、すべてのファイルで使い回す
+   - 読んだ量が上限を超えたら `too-large`（読んでいる間に大きくなった場合も）。上限以下なら、読む前の `fstat` の大きさ・読んだ量・読んだ後の `fstat` の大きさを比べ、1 つでも違えば `unreadable`（`code` は固定の語 `size-changed`。303 行）
    - 大きさの変化を新しい分類にしない理由: verify は history を一時ファイル → rename で書く（`src/report/write.ts`）ので、aiqh 自身はその場で追記も切り詰めもしない。変わるのは aiqh の外の何かが書いたときだけで、利用者がすることは `unreadable` と同じ（確かめて読み直す）
 2. **UTF-8**: 既存の `decodeUtf8Strict`（`src/security/raw-chars.ts`。`TextDecoder` の `fatal`）。不正なら `not-utf8`
 3. **JSON**: `JSON.parse`。失敗したら `not-json`。深さの上限は別に設けない（V8 の `JSON.parse` は深い入れ子でもスタックを使い切らない。zod は知らないキーの値をたどらずに捨てる。大きさの上限が時間とメモリを抑える）。読む欄の中の 10,000 段の入れ子は `bad-shape`、読まない欄の中の同じ入れ子は捨てられて読める（テスト）
 4. **版**: 最上位がオブジェクトで、自分の持つ `schemaVersion` が数の 1。それ以外は `unknown-version`
-5. **形（zod。`REPORT`。`src/run-history/read.ts:164`）**: 集計に使う欄だけを読み、知らないキーは捨てる。合わなければ `bad-shape`
+5. **形（zod。`REPORT`。`src/run-history/read.ts:174`）**: 集計に使う欄だけを読み、知らないキーは捨てる。合わなければ `bad-shape`
    - 必須: `tool.version`（UTF-8 で 64 バイト以下）、`project.name`（空でない。UTF-8 で 256 バイト以下）、`startedAt`（`toISOString()` の形で、読み戻して同じ文字列）、`durationMs`、`verdict`、`exitCode`、`git`（`null` か `dirty` を持つオブジェクト）、`summary` の 5 つ、`checks`（256 個まで。各要素の `name`〈256 バイト以下〉・`kind`・`required`・`status`・`durationMs`・`timedOut`・`timeoutSec`）
    - 任意: `interruptedBy`（無い → 中断ではない）、`configSha256`（無い → 不明。あれば 64 桁の小文字 16 進）、`checks[].parsed`（無い → 不明。あれば `tool`・`status`・`truncated`・`counts`）
-   - **長さと数の上限**（M4-D-R1-003）: `NAME_MAX_BYTES` 256・`VERSION_MAX_BYTES` 64・`CHECKS_MAX` 256（47〜51 行）。超えたら**切り詰めずに `bad-shape`**。その値は `maskSecrets` にも渡らない（マスクの前に切ると、秘密の形の断片が残るおそれがある）。バイトの長さは UTF-8 のバイト数（多バイトの文字で上限を広げられない）。`checks` の数は zod の前に数える（314 行）
-   - **数の範囲**（M4-D-R2-003）: `durationMs`・`summary`・`parsed.counts` の値は 0 以上の安全な整数（`COUNT`。135 行）、`exitCode` は安全な整数、`timeoutSec` は設定の規則と同じ正の整数で安全な整数（160 行）。外は `bad-shape`。JSON の `-0` は 0 として読む
+   - **長さと数の上限**（M4-D-R1-003）: `NAME_MAX_BYTES` 256・`VERSION_MAX_BYTES` 64・`CHECKS_MAX` 256（47〜51 行）。超えたら**切り詰めずに `bad-shape`**。その値は `maskSecrets` にも渡らない（マスクの前に切ると、秘密の形の断片が残るおそれがある）。バイトの長さは UTF-8 のバイト数（多バイトの文字で上限を広げられない）。`checks` の数は zod の前に数える（324 行）
+   - **数の範囲**（M4-D-R2-003）: `durationMs`・`summary`・`parsed.counts` の値は 0 以上の安全な整数（`COUNT`。145 行）、`exitCode` は安全な整数、`timeoutSec` は設定の規則と同じ正の整数で安全な整数（170 行）。外は `bad-shape`。JSON の `-0` は 0 として読む
    - **読まない欄**（形を確かめない・保持しない）: `project.root`・`configPath`・`finishedAt`・`git.commit`・`git.branch`・`categories`・`checks[].command`・`cwd`・`description`・`exitCode`・`signal`・`startedAt`・`errorSummary`・`stdoutTail`・`stderrTail`・`outputTruncated`・`parsed.reason`・`parsed.items`・`parsed.itemsOmitted`。`JSON.parse` の間は一時的にメモリにあるが、残るのは zod が返した読む欄だけで、集計と出力に混ざりようがない
-   - `parsed.counts` のキーは、パーサごとの一覧（`COUNT_KEYS`。`src/parse/read.ts:24`。各パーサが export する: `src/parse/vitest.ts:19`・`src/parse/eslint.ts:68`・`src/parse/npm-audit.ts:12`・`src/parse/security-scan.ts:24`）だけを、自分の持つキーとして読む（337 行）。`__proto__` などのキーは一覧に無いので使わない。一覧がパーサの書くキーをすべて含むことは、パーサの fixture でテストする
+   - `parsed.counts` のキーは、パーサごとの一覧（`COUNT_KEYS`。`src/parse/read.ts:24`。各パーサが export する: `src/parse/vitest.ts:19`・`src/parse/eslint.ts:68`・`src/parse/npm-audit.ts:12`・`src/parse/security-scan.ts:24`）だけを、自分の持つキーとして読む（347 行）。`__proto__` などのキーは一覧に無いので使わない。一覧がパーサの書くキーをすべて含むことは、パーサの fixture でテストする
 6. **重複**（Q7）: バイト列の SHA-256 が同じファイルは 1 回だけ数え、`duplicates` に数を出す（情報。exit 0）
 7. **読めないものの分類**（8 つの固定の語。`UNREAD_REASONS`。54 行。決める順もこの順。1 つのファイルは最初に当たった 1 つになる）: `not-regular` → `unreadable`（`code` は errno の名前〈`/^E[A-Z0-9]+$/`〉か `size-changed`）→ `too-large` → `empty`（0 バイト。中断された verify が残しうる。Q6: exit 2）→ `not-utf8` → `not-json` → `unknown-version` → `bad-shape`（どの欄かは出さない）
 
 ### D. 全体の上限（超えたら入力の誤り。exit 2、集計を出さない。Q4）
-- 履歴の名前のファイルの数: すべての `--from` を合わせて 10,000（列挙の段で数え、超えたら 1 つも読まない。`too-many-files`。369 行）
-- **実際に読んだバイト数**の合計: 256 MiB（268,435,456 バイト）。`too-large` のファイルの上限 + 1 バイト、`unreadable` になったファイルの途中までを含む。1 ファイルを読むたびに足し、超えた時点でやめる（`too-many-bytes`。394 行）
+- 履歴の名前のファイルの数: すべての `--from` を合わせて 10,000（列挙の段で数え、超えたら 1 つも読まない。`too-many-files`。379 行）
+- **実際に読んだバイト数**の合計: 256 MiB（268,435,456 バイト）。`too-large` のファイルの上限 + 1 バイト、`unreadable` になったファイルの途中までを含む。1 ファイルを読むたびに足し、超えた時点でやめる（`too-many-bytes`。404 行）
 - 一部だけを集計すると、どれが抜けたかで推移が変わる。超えたら、利用者が入力を減らす（古い履歴を別の場所へ移す、`--from` を分ける）
 
 ### E. 集計（`startedAt` の UTC の順。日は UTC の日付。`src/run-history/aggregate.ts`）
@@ -99,7 +100,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - 値の無い数は `null`（`failRate` の分母 0、その日に値の無い `value`）
 - **すべての数は有限**（M4-D-R2-003）: 集計の後、出力の前に、数の葉のすべてが `Number.isFinite` であることを確かめる（`allFinite`。359 行）。偽なら `HISTORY ERROR (non-finite)`。入力の範囲（C の 5）で防げているはずの、届かないはずの守り（テストは集計の差し替えでだけ確かめる）。範囲の端（`durationMs` 2^53 - 1 と `timeoutSec` 1）でも割合は有限（およそ 9.0 × 10^12。テスト）
 
-### H. 終了コードと最後の行（`src/commands/history.ts:95-116`）
+### H. 終了コードと最後の行（`src/commands/history.ts:188-222`）
 | 終了コード | とき | 最後の行 |
 |---|---|---|
 | 0 | すべての履歴の名前のファイルを読めた（重複・`ignored`・`leftoverTemporary` は情報。履歴の中の FAILED の run も集計の値） | `HISTORY COMPLETE — projects <p>, runs <r>, sources <s>`（標準出力。`--json` のときは標準エラー） |
@@ -107,7 +108,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 | 2 | 使い方・入力の誤り（B・D）、集計と出力の上限（N）、`non-finite`。集計も一覧も出さない | `aiqh: <理由>` の行と `HISTORY ERROR (<種類>)`（**標準エラー**。標準出力は空） |
 | 1 | **使わない** | — |
 
-- `<種類>` は固定の語: `usage`・`not-found`・`not-a-directory`・`unreadable-directory`・`outside-root`・`duplicate-source`・`no-history`・`too-many-files`・`too-many-bytes`・`directory-changed`・`too-many-values`・`output-too-large`・`non-finite`
+- `<種類>` は固定の語: `usage`・`not-found`・`not-a-directory`・`unreadable-directory`・`outside-root`・`duplicate-source`・`no-history`・`too-many-files`・`too-many-bytes`・`directory-changed`・`too-many-values`・`output-too-large`・`non-finite`（v0.12.0 の `--html` で `output-symlink`・`output-not-a-directory`・`output-not-a-file`・`output-in-history`・`output-unwritable` を足した。ADR-0035 の決定 1）
 - `HISTORY ERROR` の行を標準エラーに出すのは、設計 R3 の M（テストの計画）の「標準出力は空」に合わせた（設計 R3 の H の表の見出しは「標準出力」と読める書き方だった。実装は M に従い、この表で明記した）
 - 1 を使わない理由: ほかのコマンドの 1 は finding・検査の失敗（ADR-0021）。history は品質ゲートではなく、1 を使うと「過去に FAILED があった」と「読めなかった」が混ざる
 - 中断（SIGINT・SIGTERM）と処理されなかった例外は、CLI の既存の扱い（ADR-0024・`src/cli-signals.ts`）に従う
@@ -121,11 +122,12 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 
 ### I. 出口
 - 端末: `createOutput`（ADR-0016・0017）。表の 1 行は 1 回の `log`。読めないものの一覧は表の後ろ
-- 端末の表: すべての行と最後の行を作ってから、`Output` の口 `linesWithin(lines, maxBytes)`（v0.11.2。`src/output.ts:228, 244-251, 258`。ADR-0016 の注記）に渡す（`src/commands/history.ts:112-114`）。口は、`safeText` を通した各行の UTF-8 のバイト数と改行の合計を確かめ、上限（N）の中なら書く。超えたら 1 行も書かない
-- `--json`: `Output` の口 `jsonWithin(value, maxBytes)`（`src/output.ts:222, 244-251, 257`。ADR-0016 の注記）。`json` と同じ `safeJson` の文書を作り、そのバイト数と改行の 1 バイトの合計が上限以下のときだけ書き、書いたかを返す（v0.11.2 から改行を数える）
+- 端末の表: すべての行と最後の行を作ってから、`Output` の口 `linesWithin(lines, maxBytes)`（v0.11.2。`src/output.ts:229, 246-253, 261`。ADR-0016 の注記）に渡す（`src/commands/history.ts:212-214`）。口は、`safeText` を通した各行の UTF-8 のバイト数と改行の合計を確かめ、上限（N）の中なら書く。超えたら 1 行も書かない
+- `--json`: `Output` の口 `jsonWithin(value, maxBytes)`（`src/output.ts:223, 246-253, 260`。ADR-0016 の注記）。`json` と同じ `safeJson` の文書を作り、そのバイト数と改行の 1 バイトの合計が上限以下のときだけ書き、書いたかを返す（v0.11.2 から改行を数える）
 - 書き手 `write`（v0.11.2。`src/output.ts:203`、`HistoryOptions.write`）: 標準出力に書くバイトを、そのまま受け取るテストの書き手。`log` の代わりになり、上限の口が書くものは 1 つの文字列を 1 回で受け取る。境界のテストは、これが受け取ったバイト数で確かめる
 - 既定の書き手は、上限を確かめた後に、1 行ずつ `console.log` で書く。書くバイトは数えたものと同じ。行ごとに処理した文字列を 1 つにまとめて処理し直さないのは、マスクに行をまたぐ規則（PEM の鍵の区間、`bearer` の後ろの空白など）があり、まとめると中身が変わりうるため。`Safe` を作るのは、これまでどおり `safeText`・`safeJson` だけ（`tests/structure/output-guard.ts`）
 - ファイルは書かない。HTML は ADR-0035（`writeAtomic`。ADR-0020）
+- 注記（v0.12.0）: `--html` のとき、HTML のファイルは、HTML と標準出力の両方の上限を確かめた後、標準出力より先に書く（上限つきの口の `beforeWrite`。ADR-0035 の決定 5）。ファイルが書けないときは標準出力も空のまま。上限は実際に書くファイルのバイト（H）
 
 ### J. 組み込みのモジュール（ADR-0019）
 - 使うのは `node:fs`・`node:path`・`node:crypto`（重複の判定）だけで、どれも一覧にある。**一覧に足したものは無く、`tests/structure/` も変えていない**
@@ -142,13 +144,13 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - ROADMAP の**項目 47** に残した（v0.10.0。案は (a) `runs/<runId>/` と単一の pointer / manifest の原子的な更新、(b) latest の更新の全体を lock、(c) 記録で閉じる。行き先は M4 の後。人間の判断）。独立レビュー R2 の「roadmap から落とさないこと」（`docs/reviews/m0/independent-review-r2.md` の 218〜224 行）を守る
 
 ### M. テストのための差し替え
-- 読み込みは、上限の値・1 回の読み取りの大きさと、読む途中の 4 か所の呼び出し（lstat の後、記述子からの 1 回の読み取りの後、1 ファイルを読んだ後、すべてを読んだ後）を引数で差し替えられる（`ReadDeps`。`src/run-history/read.ts:122`）。集計は数の葉の上限と、有限の確かめの前の呼び出し（`AggregateDeps`）。コマンドは、それらと出力の上限（`HistoryOptions.deps`）
+- 読み込みは、上限の値・1 回の読み取りの大きさと、読む途中の 4 か所の呼び出し（lstat の後、記述子からの 1 回の読み取りの後、1 ファイルを読んだ後、すべてを読んだ後）を引数で差し替えられる（`ReadDeps`。`src/run-history/read.ts:132`）。集計は数の葉の上限と、有限の確かめの前の呼び出し（`AggregateDeps`）。コマンドは、それらと出力の上限（`HistoryOptions.deps`）
 - 設定・CLI からは届かない。CLI は既定の値だけを使う（前例: `src/parse/read.ts` の `ReadDeps`）
 - テストは `tests/history-read.test.ts`（31 件）・`tests/history-aggregate.test.ts`（17 件）・`tests/history-cli.test.ts`（13 件）・`tests/output-json-within.test.ts`（3 件）。v0.11.2 で `tests/history-output-bytes.test.ts`（7 件。出力の上限の境界を、書き手 `write` が受け取ったバイト数で確かめる）を足し、`history-cli` の 2 件と `output-json-within` の 1 件の境界を、改行と最後の行を数える形にした（人間の承認）。時間は assert しない（ROADMAP の項目 41）
 
 ### N. 集計と出力の大きさの上限（Q10、M4-D-R2-001）
 - **集計の数の葉: 200,000**（`VALUES_MAX`。`src/run-history/aggregate.ts:21`）。集計を作りながら数え、超えた時点でやめる（`HISTORY ERROR (too-many-values)`）。数の葉は、数と、数の代わりの `null`（`failRate`・`value`）
-- **出力の実バイト数: 32 MiB**（33,554,432 バイト。`OUTPUT_MAX_BYTES`。`src/commands/history.ts:24`）。端末は `safeText` の後の各行と改行の合計（最後の行を含む）、`--json` は `safeJson` の文字列の UTF-8 のバイト数と改行の 1 バイト。標準出力に実際に書くバイトで、書き手の種類によらない（v0.11.2。H）。超えたら `HISTORY ERROR (output-too-large)`・何も出さない
+- **出力の実バイト数: 32 MiB**（33,554,432 バイト。`OUTPUT_MAX_BYTES`。`src/commands/history.ts:31`）。端末は `safeText` の後の各行と改行の合計（最後の行を含む）、`--json` は `safeJson` の文字列の UTF-8 のバイト数と改行の 1 バイト。標準出力に実際に書くバイトで、書き手の種類によらない（v0.11.2。H）。超えたら `HISTORY ERROR (output-too-large)`・何も出さない
 - 両方を置く理由: 数の葉は集計を作る仕事の量を抑え、出力のバイト数は名前の長さを含めた出す量そのものを抑える。どちらか 1 つでは、もう片方が大きくなりうる（下の測り: 長い名前の形は、数の葉が上限の中でも 32 MiB を超える）
 - 上限を超えて書かないときも、上限を確かめる前に、出力の文字列は一度メモリに作られる。その大きさは数の葉の上限で抑えられる（下の測りの長い名前の形で 38.5 MB。設計 R3 の測りの、1 系列に 1 日だけの形で約 49 MB）
 
