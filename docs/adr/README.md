@@ -38,4 +38,4 @@
 | [0032](0032-main-requires-pull-requests-two-required-checks.md) | 本体リポジトリの main は pull request を必須にする（必須チェックは `verify (ubuntu)` と `reusable (self) / aiqh verify`、merge commit だけ、Bypass なし） | 採用（v0.9.2。ADR-0025 の決定 3 を終え、決定 6・7 の後を決めた。ROADMAP の項目 44） | 2026-10-17 |
 | [0033](0033-config-sha256-recorded-not-pinned.md) | verify のレポートに、設定ファイルのバイト列の SHA-256 を `configSha256` として記録する（固定ではなく記録） | 採用（v0.10.0。R-006 の対策候補 2 を「記録」として入れる。候補 3 は docs の手順） | 2026-10-17 |
 | [0034](0034-history-aggregate-without-database.md) | `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`） | 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を置き換える。ディレクトリの差し替えは検出だけ。v0.11.2 で出力の上限を実際に書くバイトに。HTML は ADR-0035） | 2026-10-18 |
-| [0035](0035-history-dashboard-static-html.md) | 静的 HTML のダッシュボード（`aiqh history --html`） | 採用（v0.12.0。script・外の資源・イベントの属性なし。CSP の meta。値はすべて `h()`。数は `data-k` で `--json` と照合） | 2026-10-18 |
+| [0035](0035-history-dashboard-static-html.md) | 静的 HTML のダッシュボード（`aiqh history --html`） | 採用（v0.12.0。script・外の資源・イベントの属性なし。CSP の meta。値はすべて `h()`。数は `data-k` で `--json` と照合。v0.12.1 で文字の値の列の見出しを左寄せに） | 2026-10-18 |
