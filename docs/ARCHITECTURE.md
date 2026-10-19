@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-19（v0.12.1。§8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-19（v0.13.0。§6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -214,6 +214,8 @@ aiqh init
 aiqh security-scan
   git ls-files -z（追跡）+ git ls-files -z --others --exclude-standard（未追跡・非 ignore）
    ▼
+  各パスの名前: 生の文字（下記）があれば raw-char（行なし）。中身を読むかどうかより先に、2 つの一覧のすべてのパスで見る（v0.13.0）
+   ▼
   未追跡の .env* は読まずに finding（untracked-env。Git が「ignore されていない」と確定済み。example 系は情報のみ）
   lstat: ENOENT（作業ツリーから削除済み）だけスキップ、他の失敗（EACCES / EPERM / ELOOP …）は ScanError → exit 2
    ▼
@@ -224,10 +226,14 @@ aiqh security-scan
         key-value は一致した値が looksLikeSecretValue を通るときだけ finding（M2-0 §6）
         private-key は BEGIN 行 → END 行の状態機械（開始行と終了行を記録。END が無ければファイル末尾までを検出 = fail closed。
         ブロック finding も block:<category>:<begin>:<end> のキーで重複統合、M1-R3-005）
+        生の文字（v0.13.0）: 同じ行を RawCharSink にも渡す（秘密の形の FileScanSink とは別。scanString は使わない）。
+        同じ行・同じ符号位置は 1 件（長い行の窓は重なる）
    ▼
-  findings: secret / oversized-candidate（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、untracked-env、gitignore（下記）
+  findings: secret / oversized-candidate（分類 / パス / 行番号のみ）、tracked-env（example 系は情報のみ）、untracked-env、gitignore（下記）、
+            raw-char（v0.13.0、ADR-0036。下記）
    ▼
-  security.allow（M2-0 §7）: secret / oversized-candidate だけを抑制。抑制した finding・使った規則・未使用 / 期限切れの規則を必ず出力
+  security.allow（M2-0 §7）: secret / oversized-candidate を抑制。raw-char は分類（bidi-control / line-separator）を明示した規則だけが抑制する。
+  抑制した finding・使った規則・未使用 / 期限切れの規則を必ず出力
    ▼
   exit 0（残る finding なし）/ 1（あり）/ 2（非 git / stat・読取エラー / 設定エラー）。未走査分類（bearer / basic）と理由を必ず表示
 ```
@@ -307,6 +313,17 @@ Python アダプタは venv を「`<venv>/bin/python` が実行可能」なと�
 （dependencies / devDependencies、または `node_modules/.bin/<tool>`）がある場合だけ available とし、直接実行は
 `npx --no-install <tool>` の形で提案してネットワーク取得を起こさない（M1-R1-007）。Detection の `reason` に
 package.json のスクリプト本文を入れない（M1-R1-003）。verify の実行経路は M0 のまま。
+
+**生の文字（v0.13.0、ROADMAP の項目 48、ADR-0036）**: 秘密の形とは別に、双方向の制御文字 U+202A–U+202E・U+2066–U+2069（分類 `bidi-control`）と、
+行区切り・段落区切り U+2028・U+2029（分類 `line-separator`）を `raw-char` の finding にする（禁止文字の集合 `FORBIDDEN_RANGES`〈75〉の部分集合
+`SCANNED_RAW_RANGES`〈11〉。`src/security/raw-chars.ts`）。中身は、読むファイルの行ごとに `RawCharSink` が見る（`scanFile` の中。`FileScanSink` と
+`scanString` には入れない: review-packet は `scanString` の finding を秘密の形として allow に掛けるので、入れると同じ文字がパケットに 2 回出て片方が
+抑えられてしまう。パケットは 75 の集合を別に確かめる〈ADR-0014〉）。パス名は、`scanRepository` の 2 つのループでパスごとに最初に見る（`.env*` の扱い・
+`lstat`・バイナリの判定より前。中身を読まないバイナリ・未追跡の `.env*`・symlink・submodule・作業ツリーから消えたパスの名前も見る）。
+1 件は（ファイル・行・符号位置）。パス名の finding は行を持たない。`security.allow` は、その分類を明示した規則だけが抑える（`findAllowRule` の
+候補の条件。分類の無い規則は秘密の形だけ）。出力は情報の行 `raw characters checked: …`、件数の行の最後の `raw characters: N`、`[raw-char]` の行。
+verify のパーサ（ADR-0028）は 6 つの内訳の形だけを読む。検出の範囲は、実際に起動する `aiqh security-scan`（子）の版で決まる（新しい verify と
+古い子では効かない。ADR-0036 の決定 10）。
 
 ### 6.2 レビューループ（M2）
 

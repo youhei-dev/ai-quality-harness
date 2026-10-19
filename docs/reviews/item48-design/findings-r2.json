@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "label": "item48-design",
+  "round": 2,
+  "idPrefix": "I48-D",
+  "source": {
+    "name": "independent-review-item48-design-r2-for-claude.md",
+    "bytes": 26604,
+    "sha256": "61501400980724c8c7e0fe62743ae28b7065ff267a365c443ef26f47b3bced19"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "previous": [
+    {
+      "id": "I48-D-R1-001",
+      "assessment": "解消。設計 §6-4・§9、ADR の決定10・代替案・影響、応答で、パース失敗が判定を変えない P1 と、検出範囲が実際の子 scanner の版で決まることを分離しています。新しい verify と古い子では検出が効かないと表にも明記し、実際に呼ぶ版・commit をそろえる案内を追加しています。H8 と P1 は維持されています。新たに加えた版表示での確認方法の誤りは、今回の文書指摘として扱います。"
+    },
+    {
+      "id": "I48-D-R1-002",
+      "assessment": "解消。設計 §5-2 と ADR の決定8は、分類の明示を候補規則ごとの条件に置き、先頭の分類なし規則を採ってから棄却する実装を除外しています。T8a〜T8f と §5-4 は、規則の順序・パス不一致・期限切れ・秘密との混在・直接呼出し・使用回数を区別して固定する計画です。"
+    },
+    {
+      "id": "I48-D-R1-003",
+      "assessment": "解消。設計 §3-4 と ADR の決定5は、追跡・未追跡両ループの各パスで、内容を読むかどうかの分岐より先に名前を検査すると指定しています。T7a〜T7g は、内容を読まない五種類、未追跡通常ファイル、ignore 除外をそれぞれ確かめます。"
+    },
+    {
+      "id": "I48-D-R1-004",
+      "assessment": "解消。T5 の ignore 例を未追跡と明示し、三ケースを別の it に分けています。今回の検出・除外に対する旧版の見込みを FAIL / PASS / PASS とした修正は、基準コードの列挙と未追跡 .env の処理に合っています。"
+    },
+    {
+      "id": "I48-D-R1-005",
+      "assessment": "解消。設計 §11 と ADR の既知の限界は、閉じた並びを無害とせず、始まりと終わりの対応だけでは安全と判断できないことを明記しています。出現を検出し、意図した利用を明示的な allow で扱う方針も維持されています。"
+    }
+  ],
+  "importedAt": "2026-10-19T10:31:21.834Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.12.1"
+  },
+  "findings": [
+    {
+      "id": "I48-D-R2-001",
+      "severity": "Low",
+      "kind": "文書",
+      "target": "設計 §6-4「手元」「版を上げるときの案内」・§9 の CHANGELOG 下書き、応答の I48-D-R1-001 の対応",
+      "content": "旧 `dist/` の判別を `aiqh --version` に頼る説明が、実コードと合いません。設計は、親も子も旧 `dist/` で動く場合を「`aiqh --version` でしか分からない」とし、応答も版表示での確認を案内しています。しかし、ソースと `package.json` を更新した後に旧 `dist/` が残っていれば、新しい版の番号を表示しながら旧 scanner で動く場合があります。",
+      "evidence": "[src/cli.ts:19–27](https://github.com/youhei-dev/ai-quality-harness/blob/8870afbf1bf65282f12bba39086d661c88d70851/src/cli.ts#L19-L27) は、実行時に隣接する `package.json` の `version` を読みます。その値は同ファイル147行目で渡され、[src/cli-program.ts:51–54](https://github.com/youhei-dev/ai-quality-harness/blob/8870afbf1bf65282f12bba39086d661c88d70851/src/cli-program.ts#L51-L54) で版表示に使われます。[package.json:19–28](https://github.com/youhei-dev/ai-quality-harness/blob/8870afbf1bf65282f12bba39086d661c88d70851/package.json#L19-L28) の `bin` は `dist/cli.js` で、build は TypeScript のコンパイルです。[tsconfig.build.json](https://github.com/youhei-dev/ai-quality-harness/blob/8870afbf1bf65282f12bba39086d661c88d70851/tsconfig.build.json) も `src` から `dist` へ出力する構成です。したがって、版表示は読み込まれたビルドの新しさを証明しません。親子とも旧コードなら、旧パーサと旧出力が一致して `unexpected-summary` も出ないという設計の説明と組み合わさり、両方の確認を通過し得ます。これは固定コードから導ける反例で、旧ビルドを使った実行再現はしていません。再ビルドの必要性は既に明記されているため、検出設計を妨げない文書上の問題として扱います。",
+      "fix": "`--version` は package の版を確認する情報であり、`dist/` の更新を証明するものではないと訂正してください。更新後の `npm run build` の案内は維持し、実際の security check と同じ起動経路で、`raw characters checked:` の情報行と `raw characters` を含む6内訳の件数行が出ることも確認する案内にしてください。設計 §6-4・§9 と応答の説明をそろえてください。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-19）。`aiqh --version` を古い dist/ の判別に使う説明をやめ、「--version は package の版を示すだけで、dist/ が新しくなったことの証明にはならない。版を上げた後は npm run build をし、実際の security の check と同じ起動の経路（aiqh verify の中の security、または aiqh security-scan）で、raw characters checked: の情報の行と、raw characters を含む 6 つの内訳の件数の行が出ることを確かめる」とした",
+      "fixedIn": "7633da4f25c42748b6ee66fcb13cbb6c2a7289e3",
+      "regressionTest": "tests/regression-item48-raw-chars-scan.test.ts の T9（情報の行と、6 つの内訳の件数の行の文）と、tests/parse-security.test.ts の T14（本体の自己 verify の security の出力の fixture に、2 つの行がある）。8870afb で FAIL",
+      "guard": null,
+      "destination": "v0.13.0",
+      "note": "文書の指摘。直した先は v0.13.0 の文書（設計 R2 の記録 design-r2.md の §6-4・§9、R1 への応答 response-r1.md、ADR-0036 の決定 10、CONFIG_SPEC の §5.3b、README、CHANGELOG）。fixedIn は、案内が確かめさせる 2 つの行を出す commit。案内の文そのものは同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）"
+    }
+  ]
+}

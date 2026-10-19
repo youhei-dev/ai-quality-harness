@@ -60,6 +60,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh init`（対象リポジトリの監査と設定生成） | M1 実装済み |
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
+| Security Scan の生の文字（双方向の制御文字 U+202A–U+202E・U+2066–U+2069、行区切り U+2028・U+2029。中身とパス名。既定で FAIL、分類を明示した `security.allow` でだけ外せる） | v0.13.0（**判定が厳しくなる変更**。ROADMAP の項目 48。ADR-0036） |
 | `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.12.1（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。pytest は後。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉） |
@@ -190,11 +191,21 @@ jobs:
   超えるファイルは窓走査でメモリを抑えます）。未追跡で ignore されていない `.env*` は中身を読まずに finding にします。複数行の
   PEM 秘密鍵は開始行–終了行で報告し、`.gitignore` の判定は `git check-ignore` に委ねます（否定ルールを考慮）。
   検出結果に値は含めません（分類・パス・行番号のみ）
+- v0.13.0 から、Security Scan は生の双方向の制御文字（U+202A–U+202E、U+2066–U+2069）と行区切り・段落区切り（U+2028、U+2029）も
+  finding にします（`[raw-char] <path>:<line> U+202E bidi-control`。ファイルの中身と、走査の一覧に出るすべてのパス名。行の中身は出しません）。
+  **判定が厳しくなる変更**で、これまで PASS だったリポジトリが FAIL になりえます。文字列の中なら言語のエスケープで書き、意図しない文字なら消します。
+  意図した文字を残すときは、`category` を `bidi-control` か `line-separator` と明示した `security.allow` の規則で外します（分類の無い規則は生の文字を抑えません）。
+  方向の印（U+200E・U+200F・U+061C）・ゼロ幅の文字・UTF-16 のファイルは見ません（ADR-0036 の既知の限界。ROADMAP の項目 49）
+- **版を上げるとき（v0.13.0 から）**: 生の文字の検出が効くのは、実際に起動する `aiqh security-scan` が v0.13.0 以降のときだけです（verify の security の check は、
+  check の `command` を PATH で探して起動します。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず、check は PASS のままです）。
+  verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえてください。
+  `--version` は package の版を示すだけで、`dist/` が新しくなったことの証明にはならない。版を上げた後は `npm run build` をし、実際の security の check と同じ起動の経路（`aiqh verify` の中の security、または `aiqh security-scan`）で、`raw characters checked:` の情報の行と、`raw characters` を含む 6 つの内訳の件数の行が出ることを確かめる。security の check の `parsed` が `unexpected-summary` なら、親と子の版の食い違いを疑ってください
 - `aiqh init` の `artifacts/` 提案も `git check-ignore` で判定します。git リポジトリでない場合は常に追加を提案し、
   `--write-gitignore` は同じ行を二度追記しません
 - 同梱の JSON Schema は構造の検証・補完用です。チェック名の一意性や必須チェック 1 件以上といった横断規則は `aiqh` が
   実行時に検証します（エディタで valid でも `aiqh` が拒否することがあります）
 - `security.allow`（M2-0）で秘密の形の finding を理由つきで許容できます（`path` glob、`category`、`line`、必須の `reason`、任意の `expires`）。
+  v0.13.0 から、生の文字の finding も、その分類（`bidi-control`・`line-separator`）を明示した規則だけで許容できます。
   抑制した finding は件数と一覧が必ず出力され、未使用・期限切れの規則は警告されます。`.env` や `.gitignore` の衛生 finding は抑制できません。
   key-value 分類（`password=…` 等）も走査しますが、値が秘密らしい場合だけ finding になります（英字のみのパスフレーズは検出できません）
 
