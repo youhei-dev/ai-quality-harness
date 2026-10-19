@@ -7,7 +7,8 @@
  * numeric leaf of the JSON is in the mapping table or in the allowlist (exactly one of them), and no allowlisted number is shown
  * (lastTimeoutSec: a marker value appears nowhere). An SVG chart has one bar group per day and one point per value, its attributes
  * are a fixed list and its numbers are coordinates of one decimal inside the viewBox; its text holds no number. The fields that are
- * not shown (the same fixture as the terminal and --json) appear nowhere.
+ * not shown (the same fixture as the terminal and --json) appear nowhere. v0.12.1: in every table, a heading is aligned like the cells
+ * under it (a text column's heading has the class name, left-aligned like its values; a number column's stays right-aligned).
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -76,6 +77,17 @@ const NULLABLE_STRINGS = ["unread.*.code", "projects.*.configs.*.sha256"].map(pa
 /** data-k → text, in document order. */
 function dataK(html: string): Array<[string, string]> {
   return [...html.matchAll(/\sdata-k="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1] ?? "", m[2] ?? ""]);
+}
+
+/** Each <table> of the document: the class of each heading (with its text) and of each body cell ("" when it has none), in order. */
+function tables(html: string): Array<{ head: Array<{ text: string; cls: string }>; rows: string[][] }> {
+  const cls = (attributes: string): string => /\sclass="([^"]*)"/.exec(attributes)?.[1] ?? "";
+  return [...html.matchAll(/<table>([\s\S]*?)<\/table>/g)].map((t) => {
+    const [, thead = "", tbody = ""] = /^<thead>([\s\S]*?)<\/thead><tbody>([\s\S]*?)<\/tbody>$/.exec(t[1] ?? "") ?? [];
+    const head = [...thead.matchAll(/<th([^>]*)>([^<]*)<\/th>/g)].map((m) => ({ text: m[2] ?? "", cls: cls(m[1] ?? "") }));
+    const rows = [...tbody.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((r) => [...(r[1] ?? "").matchAll(/<(?:th|td)([^>]*)>/g)].map((c) => cls(c[1] ?? "")));
+    return { head, rows };
+  });
 }
 
 function get(doc: unknown, p: string): unknown {
@@ -163,6 +175,37 @@ describe("ADR-0035 decision 3: the CSP meta", () => {
     expect(r.html).toContain('<meta name="referrer" content="no-referrer">');
     expect(r.html.startsWith("<!doctype html>\n")).toBe(true);
     expect(style.length).toBeGreaterThan(100);
+  });
+});
+
+describe("ADR-0035 decision 2 (v0.12.1): a heading is aligned like the cells under it", () => {
+  it("in every table, a heading has the class name exactly when the cells of its column do: text left, numbers right", async () => {
+    const r = await both(rich());
+    const all = tables(r.html);
+    const projects = r.doc.projects as Array<{ counts: unknown[] }>;
+    // sources and failure-prone checks; per project the summary, days, tool versions, config hashes, checks and one table per count
+    expect(all).toHaveLength(2 + projects.reduce((n, p) => n + 5 + p.counts.length, 0));
+    for (const t of all) {
+      const names = t.head.map((c) => c.text).join(", ");
+      expect(t.head.length, names).toBeGreaterThan(0);
+      expect(t.rows.length, names).toBeGreaterThan(0);
+      for (const row of t.rows) expect(row, names).toEqual(t.head.map((c) => c.cls));
+    }
+    const prone = all.find((t) => t.head[0]?.text === "project");
+    expect(prone?.head).toEqual([
+      { text: "project", cls: "name" },
+      { text: "check", cls: "name" },
+      { text: "PASS", cls: "" },
+      { text: "FAIL", cls: "" },
+      { text: "fail rate", cls: "" },
+    ]);
+  });
+
+  it("the one style sheet aligns th and td right, and the class name left for both", async () => {
+    const r = await both(rich());
+    const style = /<style>([\s\S]*?)<\/style>/.exec(r.html)?.[1] ?? "";
+    expect(style).toMatch(/(?:^|[}\n])th,td\{[^}]*text-align:right[;}]/);
+    expect(style).toMatch(/(?:^|[}\n])th\.name,td\.name\{text-align:left\}/);
   });
 });
 

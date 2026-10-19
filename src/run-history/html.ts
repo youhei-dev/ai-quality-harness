@@ -131,8 +131,9 @@ function text(value: string): HtmlText {
   return html`<td class="name">${h(value)}</td>`;
 }
 
-function headRow(names: readonly string[]): HtmlText {
-  return html`<thead><tr>${join(names.map((n) => html`<th>${h(n)}</th>`))}</tr></thead>`;
+/** The headings of a table: a column of text() cells (named in textColumns) is left-aligned like them (v0.12.1); a number column right. */
+function headRow(names: readonly string[], textColumns: readonly string[] = []): HtmlText {
+  return html`<thead><tr>${join(names.map((n) => (textColumns.includes(n) ? html`<th class="name">${h(n)}</th>` : html`<th>${h(n)}</th>`)))}</tr></thead>`;
 }
 
 function largest(values: readonly number[]): number {
@@ -190,7 +191,7 @@ function project(i: number, p: ProjectAggregate): HtmlText {
       const rows = join(s.days.map((d, k) => html`<tr>${text(d.day)}${cell(`${at}.counts.${j}.days.${k}.value`, d.value)}${cell(`${at}.counts.${j}.days.${k}.unknownRuns`, d.unknownRuns)}${text(d.truncated ? "truncated" : "")}</tr>`));
       return html`<details><summary>${h(`${s.check} ${s.tool} ${s.key}`)}</summary>
 ${seriesChart(i, j, s)}
-<table>${headRow(["day", "value", "unknown runs", "truncated"])}<tbody>${rows}</tbody></table></details>`;
+<table>${headRow(["day", "value", "unknown runs", "truncated"], ["day", "truncated"])}<tbody>${rows}</tbody></table></details>`;
     }),
     "\n",
   );
@@ -200,10 +201,10 @@ ${seriesChart(i, j, s)}
 ${summary}
 <details><summary>Days</summary>
 ${daysChart(i, p)}
-<table>${headRow(["day", "runs", "PASSED", "FAILED", "ERROR"])}<tbody>${days}</tbody></table></details>
-<details><summary>Tool versions</summary><table>${headRow(["aiqh", "first", "last", "runs"])}<tbody>${versions}</tbody></table></details>
-<details><summary>Config hashes</summary><table>${headRow(["config (prefix)", "first", "last", "runs"])}<tbody>${configs}</tbody></table></details>
-<details><summary>Checks</summary><table>${headRow(["check", "kind", "required", "runs", "PASS", "FAIL", "SKIPPED", "fail rate", "timed out", "duration median (ms)", "duration max (ms)", "max share of timeout"])}<tbody>${checks}</tbody></table></details>
+<table>${headRow(["day", "runs", "PASSED", "FAILED", "ERROR"], ["day"])}<tbody>${days}</tbody></table></details>
+<details><summary>Tool versions</summary><table>${headRow(["aiqh", "first", "last", "runs"], ["aiqh", "first", "last"])}<tbody>${versions}</tbody></table></details>
+<details><summary>Config hashes</summary><table>${headRow(["config (prefix)", "first", "last", "runs"], ["config (prefix)", "first", "last"])}<tbody>${configs}</tbody></table></details>
+<details><summary>Checks</summary><table>${headRow(["check", "kind", "required", "runs", "PASS", "FAIL", "SKIPPED", "fail rate", "timed out", "duration median (ms)", "duration max (ms)", "max share of timeout"], ["check", "kind", "required"])}<tbody>${checks}</tbody></table></details>
 <details><summary>Counts</summary>
 ${counts}
 </details>
@@ -247,7 +248,7 @@ ${unread}<h2>Sources</h2>
 <h2>Projects</h2>
 ${projects}
 <h2>Failure-prone checks</h2>
-<table>${headRow(["project", "check", "PASS", "FAIL", "fail rate"])}<tbody>${prone}</tbody></table>
+<table>${headRow(["project", "check", "PASS", "FAIL", "fail rate"], ["project", "check"])}<tbody>${prone}</tbody></table>
 <p>${h(`aiqh ${a.tool.version}. This file loads nothing from elsewhere and has no script.`)}</p>
 </body>
 </html>
