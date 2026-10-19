@@ -5,6 +5,16 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.12.1 — the M4 operation templates (roll back a version, what to watch, changing the quality policy); the dashboard's text-column headings left-aligned like their values
+
+- **M4 の運用テンプレートと、ダッシュボードの見出しの寄せ**（M4 の完了条件の最後の 1 つ。実装の独立レビュー m4-dashboard R1 の問い 7 への対応）。branch `release/v0.12.1`、4 commit: `d837969`（見出しの寄せのテストと直し）・`c5811b3`（運用テンプレート）・`0d161ab`（記録）・この release の commit
+- 見出しの寄せ（`src/run-history/html.ts`）: ダッシュボードの文字の値の列（Days・Tool versions・Config hashes・Checks・Counts・Failure-prone checks の、日付・版・名前などの列）の見出し `<th>` に `class="name"` を付け、値と同じ左寄せにした。数の列の見出しは右寄せのまま。CSS は変えていない（`th.name,td.name{text-align:left}` は v0.12.0 からある）ので、CSP の `style-src` のハッシュも同じ。利用者のブラウザでの確かめ（2026-10-19）で見つけた
+- テスト: `tests/history-html.test.ts` に 2 件（すべての表で、見出しの `class` がその列の本文のセルと同じこと。CSS の寄せ）。テストを先に書き、変更の前の `8ccd994`（v0.12.0 の merge）で 1 件 FAIL・8 件 PASS。既存のテストの期待値と `tests/structure/` は変えていない
+- 運用テンプレート（`docs/ops/`、新規 3 つ）: `rollback.md`（適用先で、呼び出す側の 40 桁の SHA を前の版に戻す pull request。戻した後の確かめ。aiqh 本体はタグを消さない・動かさない）・`monitoring.md`（必須の check の結果、上限に対する時間の割合〈72%・80%〉、FAIL の率と失敗しやすい check、`configSha256` の変わり目、`HISTORY INCOMPLETE`。何を見たら何をするかの表）・`policy-change.md`（品質ポリシー〈設定と、check が呼ぶもの〉を変える pull request の手順。R-006 の候補 3、ADR-0033 の決定 6。守れないこと）。`reusable-workflow.md`・`ci-and-branch-protection.md`・README・ARCHITECTURE から参照を足した
+- 記録: 実装の独立レビュー m4-dashboard R1（v0.11.2〜v0.12.0）は High 0 / Medium 0 / Low 0、前の 4 件（M4-H-R1-001・M4-D-R1-004・M4-D-R2-001・M4-D-R2-002）はすべて「解消」で、R1 で終えた（`docs/reviews/m4-dashboard/`）。`aiqh review-check` は m4-dashboard・m4-history・m4-design の 3 つとも `REVIEW LOOP: complete`。ADR-0035 の追記、ADR の一覧、ROADMAP（v0.12.0 の CI の記録、v0.12.1 の項、M4 の完了条件をすべてチェック）、CHANGELOG の v0.12.0 の見出しの SHA
+- 依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.12.0 と同一
+- `package.json` version 0.12.1（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.12.0 — commit 337c082d88c9952f00da263c7adb8c47e6ddaa44 / tag object 26bf26bd2ff750d797e184f4081abec0823f86d1 — aiqh history --html: a static dashboard without script or external resources (CSP meta, every value escaped, numbers matched to --json by data-k; ADR-0035)
 
 - **静的 HTML のダッシュボード**（M4。設計 R3 の §3 の案を、実装に合わせて ADR-0035 にした）。branch `release/v0.12.0`、3 commit: `192e72f`（実装とテスト）・`eefee27`（記録）・この release の commit
