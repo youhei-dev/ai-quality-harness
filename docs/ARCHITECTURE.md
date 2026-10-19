@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-18（v0.11.0。§4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-19（v0.12.1。§8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -395,7 +395,7 @@ v0.8.1（M2-2-PS-R1-001）: ツールの出力から来る文字列は Markdown 
 | `artifacts/verification/` | git 管理外 | verify の出力（latest / history） |
 | `artifacts/ai-review/` | git 管理外 | レビューパケット、取り込んだ指摘 |
 | `docs/reports/` | git 管理 | 人間向けのマイルストーン報告（M0_REPORT.md 等） |
-| `docs/ops/` | git 管理 | 運用の手順書（CI と Branch Protection。v0.5.45） |
+| `docs/ops/` | git 管理 | 運用の手順書（CI と Branch Protection。v0.5.45。v0.12.1 から、M4 の運用テンプレート: 前の版に戻す `rollback.md`・見張る項目 `monitoring.md`・設定の変更 `policy-change.md`） |
 | `docs/reviews/<label>/` | git 管理 | 独立レビューの原文の収録（`review-r<N>.md` など）・対応記録（`response-r<N>.md`）・取り込んだ指摘（`findings-r<N>.json`。v0.6.0、ADR-0026） |
 | `.github/` | git 管理 | 自己 CI のワークフローと CODEOWNERS（v0.5.45。ADR-0025） |
 | `tmp/` | git 管理外 | 作業用一時ファイル |

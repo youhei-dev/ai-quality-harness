@@ -1,6 +1,6 @@
 # 再利用ワークフロー（verify.yml）の手順書
 
-最終更新: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
+最終更新: 2026-10-19（v0.12.1。§6 と §7 に、運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉への参照）。その前: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
 
 ほかのリポジトリの CI から `aiqh verify` を走らせるための再利用ワークフロー `.github/workflows/verify.yml` の使い方。決定の根拠は ADR-0031（CI での配布は案 D）。aiqh は、tarball や npm のパッケージとしては配らない。ワークフローが、自分と同じ commit の aiqh のソースを使う。
 
@@ -110,6 +110,7 @@ CHANGELOG の各版の見出しにも、`commit <SHA> / tag object <SHA>` の形
 - 文書では、タグが指す commit の SHA（`git rev-list -n1 <tag>`）を主に書き、注釈付きタグのオブジェクトの SHA は `/ tag object <SHA>` と添える
 - **呼び出す側は、タグではなく、タグが指す commit の 40 桁の SHA で固定し、行末に版のコメント（`# vX.Y.Z`）を付ける**。タグは動かせるが、commit の SHA は中身を決める
 - 上げるときは、新しい版の SHA に書き換え、コメントの版も直す。CHANGELOG で、その版の変化（とくに inputs と既定値）を確かめる
+- 上げた後に aiqh の側の原因で困ったら、前の版の SHA に戻す（`docs/ops/rollback.md`）。タグを消したり動かしたりして戻さない
 
 ## 7. 失敗したときの手がかり
 
@@ -119,6 +120,8 @@ CHANGELOG の各版の見出しにも、`commit <SHA> / tag object <SHA>` の形
 | `aiqh needs Node.js 24 or later` | `node-version` が 24 未満 |
 | `the aiqh checkout is not the commit of this workflow (job.workflow_sha)` | aiqh の checkout が、ワークフローの commit と違う（`job.workflow_sha` が空のときも）。fail closed で止めた |
 | `VERIFY FAILED` | 対象のチェックが失敗した（aiqh の判定どおり） |
+
+何を見たら何をするかの表は `docs/ops/monitoring.md` の §3、`with:` の `config` などを変えるときの手順は `docs/ops/policy-change.md`。
 
 ## 8. 適用で分かった注意（v0.9.1）
 

@@ -68,6 +68,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | 設定のハッシュ（レポートの最上位の `configSha256`。設定ファイルのバイト列の SHA-256。記録であって固定ではない） | v0.10.0（M4。ADR-0033） |
 | 履歴の集計（`aiqh history`。DB を持たず `history/*.json` を読み取りだけで集計。端末の表と `--json`） | v0.11.0（M4。ADR-0034） |
 | ローカルダッシュボード（静的 HTML。`aiqh history --html`） | v0.12.0（M4。ADR-0035） |
+| 運用テンプレート（適用先で前の版に戻す・見張る項目・品質ポリシー〈設定〉の変更の手順） | v0.12.1（M4。docs だけ。`docs/ops/rollback.md`・`docs/ops/monitoring.md`・`docs/ops/policy-change.md`） |
 
 ## 必要環境
 
@@ -147,7 +148,7 @@ aiqh security-scan
 
 ### 対象リポジトリの CI で使う（v0.9.0: 再利用ワークフロー）
 
-対象リポジトリのワークフローから、`verify.yml` を **40 桁の commit SHA** で固定して呼びます（タグでは固定しません）。aiqh は、そのワークフローと同じ commit のソースが使われます（ADR-0031）。inputs・SHA の見つけ方・呼び出す側の Actions の設定の注意・タグの運用は `docs/ops/reusable-workflow.md` にあります。
+対象リポジトリのワークフローから、`verify.yml` を **40 桁の commit SHA** で固定して呼びます（タグでは固定しません）。aiqh は、そのワークフローと同じ commit のソースが使われます（ADR-0031）。inputs・SHA の見つけ方・呼び出す側の Actions の設定の注意・タグの運用は `docs/ops/reusable-workflow.md` にあります。前の版に戻す手順は `docs/ops/rollback.md`、見張る項目は `docs/ops/monitoring.md`、品質ポリシー（設定）を変える pull request の手順は `docs/ops/policy-change.md` にあります（v0.12.1）。
 
 ```yaml
 jobs:
