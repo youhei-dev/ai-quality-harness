@@ -5,6 +5,22 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.13.0 — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
+
+- **判定が厳しくなる変更**: `aiqh security-scan`（verify の security の check）が、追跡しているファイルと、未追跡で ignore されないファイルの中身とパス名にある、生の双方向の制御文字（U+202A–U+202E、U+2066–U+2069）と行区切り・段落区切り（U+2028、U+2029）を finding にする（`raw-char`。1 つでもあれば exit 1、check は FAIL）。これまで PASS だったリポジトリが FAIL になりうる（ROADMAP の項目 48。ADR-0036）。branch `release/v0.13.0`、3 commit: `7633da4`（テストと実装）・`5fe75f4`（文書と、設計の独立レビューの記録）・この release の commit
+  - 見つけ方: `aiqh security-scan` の `[raw-char] <path>:<line> U+XXXX <分類>` の行（パス名は `[raw-char] <path> U+XXXX <分類> (in the path)`。行の中身は出さない）
+  - 直し方: 文字列の中なら、言語のエスケープで書く（テストでは数から組み立てる）。意図しない文字なら消す
+  - 意図した文字を残すとき: `security.allow` に `category` を `bidi-control` か `line-separator` と**明示した**規則（`path`・`reason` は必須、`line`・`expires` は任意）。分類の無い既存の規則は、生の文字を抑えない（先頭に分類の無い規則があっても、後ろの分類を明示した規則が抑え、回数もその規則に付く）
+  - 見ないもの（既知の限界）: 方向の印 U+200E・U+200F・U+061C、ゼロ幅の文字、UTF-16 のファイル、不正な UTF-8 のバイト（ROADMAP の項目 49）
+- **検出が効くのは、実際に起動する `aiqh security-scan` が v0.13.0 以降のときだけ**: verify の security の check は、check の `command`（`aiqh security-scan`）を PATH で探して起動する。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず、check は PASS のまま
+  - 版を上げるとき: verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえる。`--version` は package の版を示すだけで、`dist/` が新しくなったことの証明にはならない。版を上げた後は `npm run build` をし、実際の security の check と同じ起動の経路（`aiqh verify` の中の security、または `aiqh security-scan`）で、`raw characters checked:` の情報の行と、`raw characters` を含む 6 つの内訳の件数の行が出ることを確かめる。手元は、どの `aiqh` が呼ばれるかを `command -v aiqh` で確かめる（I48-D-R2-001）
+- 出力: `scanned categories:` の行の後ろに `raw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029)`（`--json` は `scannedRawChars`）。件数の行の最後に `raw characters: N`。verify のレポートの `parsed.counts` に `rawChars`、項目の種類 `raw-char`、端末の `parsed:` に `raw characters N`。古い aiqh の verify と新しい `aiqh security-scan` の組み合わせ（とその逆）では、`parsed` が `unexpected-summary` になる。パースの失敗そのものは判定を変えない（ADR-0028）が、新しい verify と古い `aiqh security-scan` の組み合わせでは、上のとおり検出が効いていない。`unexpected-summary` は、親と子の版の食い違いの印として扱う。`aiqh history` の `findings` の系列は v0.13.0 から生の文字の件数を含み、`rawChars` の系列が増える（前の run は `unknownRuns`）
+- `aiqh init` が出す security の check の説明文と、`aiqh security-scan` のヘルプの文に、生の文字を足した（既存の適用先の設定の文は変わらない）
+- テスト: `tests/regression-item48-raw-chars-scan.test.ts`（新規、34 件）と `tests/parse-security.test.ts` の 2 件（T10・T14）。テストを先に書き、変更の前の `8870afb`（v0.12.1 の後の main）に写して走らせ、ケースごとの FAIL / PASS が設計の見込みと一致した（FAIL 26・PASS 10）。既存のテストの期待値は、設計どおり `tests/parse-security.test.ts`（`rawChars: 0`、5 つの内訳の例の文、`parsed:` の行）と fixture `tests/fixtures/parse/security-self.stdout.txt`（`npm run security` の出力で取り直した）だけを変えた。`tests/structure/` は変えていない。テストは 173 ファイル・2,308 件から 174 ファイル・2,344 件
+- 記録: ADR-0036（新規）、ADR-0012・0014・0020・0028 の注記、ADR-0034 の行の参照（C の 5 の `src/parse/security-scan.ts:25`）、ADR の一覧、CONFIG_SPEC、ARCHITECTURE、README、ROADMAP（項目 48 を閉じ、項目 49 を足した）。設計の独立レビュー item48-design（R1: High 0 / Medium 3 / Low 2、R2: High 0 / Medium 0 / Low 1。R2 で閉じた）を `aiqh review-import` で取り込み、原文・対応記録・設計 R2 を `docs/reviews/item48-design/` に入れ、6 件を `resolved` にした（`aiqh review-check`: `REVIEW LOOP: complete`）
+- review-packet は変えていない。依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧は v0.12.1 と同一。禁止文字の集合（`FORBIDDEN_RANGES`、75 の符号位置）も同一
+- `package.json` version 0.13.0（`package-lock.json` の `version` は 0.5.35 のまま）
+
 ## v0.12.1 — commit 926b29786dc89b4b620b4649de4ae22558e66c57 / tag object 0e2e8b8a8063b87084e804b6624619060253e792 — the M4 operation templates (roll back a version, what to watch, changing the quality policy); the dashboard's text-column headings left-aligned like their values
 
 - **M4 の運用テンプレートと、ダッシュボードの見出しの寄せ**（M4 の完了条件の最後の 1 つ。実装の独立レビュー m4-dashboard R1 の問い 7 への対応）。branch `release/v0.12.1`、4 commit: `d837969`（見出しの寄せのテストと直し）・`c5811b3`（運用テンプレート）・`0d161ab`（記録）・この release の commit
