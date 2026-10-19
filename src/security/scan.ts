@@ -7,8 +7,11 @@
  * overlap, earliest unresolved anchor, `partial` resolution; M2-0-R3-001: every body is anchor + rest —
  * ADR-0013) so memory stays bounded. Reports
  * tracked .env files, untracked .env files git does not ignore and missing .gitignore coverage
- * (decided by git itself, counting only tracked .gitignore rules). `security.allow` rules suppress
- * secret-shaped findings only, and every suppression is recorded (M2-0 §7). Findings carry
+ * (decided by git itself, counting only tracked .gitignore rules). Raw bidi controls and line
+ * separators (raw-chars.ts SCANNED_RAW_RANGES) are findings in the lines of the files it reads and
+ * in the names of every listed path (ADR-0036); they are checked beside the secret patterns, never
+ * through scanString. `security.allow` rules suppress secret-shaped findings, and raw characters
+ * only by a rule that names their category; every suppression is recorded (M2-0 §7). Findings carry
  * category, path and line numbers only — never the matched value. Files that cannot be stat'ed or
  * read are ScanErrors (exit 2, fail closed); only ENOENT is skipped.
  */
@@ -19,23 +22,26 @@ import { StringDecoder } from "node:string_decoder";
 import type { AllowRule, ResolvedSecurity } from "../types.ts";
 import { windowLimitsProblem } from "../config/window-limits.ts";
 import { SCANNED_CATEGORIES, SECRET_PATTERNS, UNSCANNED_CATEGORIES, stripCanonicalMarkers, type SecretPattern } from "./patterns.ts";
+import { formatCodePoint, RAW_CHAR_CATEGORIES, SCANNED_RAW_RANGES, scannedRawCategory } from "./raw-chars.ts";
 
 export class ScanError extends Error {
   override readonly name = "ScanError";
 }
 
-export type FindingKind = "secret" | "oversized-candidate" | "tracked-env" | "untracked-env" | "gitignore";
+export type FindingKind = "secret" | "oversized-candidate" | "tracked-env" | "untracked-env" | "gitignore" | "raw-char";
 
 export interface ScanFinding {
   kind: FindingKind;
-  /** Secret category (secret / oversized-candidate findings only). */
+  /** Secret category (secret / oversized-candidate findings), or raw-character category (raw-char findings: bidi-control / line-separator). */
   category?: string;
   /** Repository-relative path (".gitignore" for gitignore findings). */
   file: string;
-  /** 1-based line (secret findings only; the BEGIN line for a PEM block). */
+  /** 1-based line (secret findings and raw characters in the content; the BEGIN line for a PEM block). A raw character in the path has none. */
   line?: number;
   /** Last line of a multi-line block (PEM); equals `line` for single-line findings. */
   endLine?: number;
+  /** The code point of a raw-char finding, as "U+202E". */
+  codePoint?: string;
   message: string;
 }
 
@@ -64,6 +70,8 @@ export interface ScanResult {
   /** Tracked or untracked .env-style files that are example / template files (informational). */
   exampleEnvFiles: string[];
   scannedCategories: string[];
+  /** The raw characters this version finds, by category (ADR-0036). */
+  scannedRawChars: Array<{ category: string; codePoints: string[] }>;
   unscannedCategories: Array<{ category: string; reason: string }>;
 }
 
@@ -133,16 +141,20 @@ export function scanRepository(root: string, security: ResolvedSecurity = DEFAUL
     expiredAllows: [],
     exampleEnvFiles: [],
     scannedCategories: [...SCANNED_CATEGORIES],
+    scannedRawChars: RAW_CHAR_CATEGORIES.map((category) => ({ category, codePoints: scannedCodePoints(category).map(formatCodePoint) })),
     unscannedCategories: UNSCANNED_CATEGORIES.map((u) => ({ ...u })),
   };
   const { lineScanners, blockScanners } = buildScanners();
   const ctx: FileScanContext = { lineScanners, blockScanners, security, result };
 
+  // The name of every listed path is checked first, whether its content is then read or not (binary, .env, link, submodule, gone).
   for (const rel of tracked) {
+    checkPathName(rel, result);
     classifyEnvFile(rel, result, security.exampleEnvSuffixes);
     scanFile(absRoot, rel, ctx);
   }
   for (const rel of untracked) {
+    checkPathName(rel, result);
     // An untracked environment file is never read. Git itself has established that it is not
     // ignored (it is listed by --others --exclude-standard), so its existence is the finding
     // (M1-R2-001); example / sample / template / dist files stay informational.
@@ -373,6 +385,55 @@ class FileScanSink {
   }
 }
 
+/** The span of the scanned raw characters: a quick test per UTF-16 unit before the lookup (each of them is one unit). */
+const RAW_LOWEST = Math.min(...SCANNED_RAW_RANGES.map(([lo]) => lo));
+const RAW_HIGHEST = Math.max(...SCANNED_RAW_RANGES.map(([, hi]) => hi));
+
+/** The code points of a raw-character category, in the order of SCANNED_RAW_RANGES. */
+function scannedCodePoints(category: string): number[] {
+  const out: number[] = [];
+  for (const [lo, hi, c] of SCANNED_RAW_RANGES) if (c === category) for (let cp = lo; cp <= hi; cp += 1) out.push(cp);
+  return out;
+}
+
+/**
+ * Raw characters in the lines of one file (ADR-0036): one finding per line and code point (windows of a long line overlap, so
+ * a character can be seen twice). Kept apart from FileScanSink, which scanString (and so review-packet) uses: the packet checks
+ * the whole forbidden set itself and must not get these as secret findings.
+ */
+class RawCharSink {
+  readonly findings: ScanFinding[] = [];
+  private readonly seen = new Set<string>();
+  private readonly rel: string;
+  constructor(rel: string) {
+    this.rel = rel;
+  }
+  onLine(line: string, no: number): void {
+    for (let i = 0; i < line.length; i += 1) {
+      const cp = line.charCodeAt(i);
+      if (cp < RAW_LOWEST || cp > RAW_HIGHEST) continue;
+      const category = scannedRawCategory(cp);
+      if (category === null || this.seen.has(`${no}:${cp}`)) continue;
+      this.seen.add(`${no}:${cp}`);
+      const codePoint = formatCodePoint(cp);
+      this.findings.push({ kind: "raw-char", category, file: this.rel, line: no, endLine: no, codePoint, message: `raw ${category} character ${codePoint}` });
+    }
+  }
+}
+
+/** Raw characters in a repository-relative path (ADR-0036 decision 5): one finding per code point, without a line. */
+function checkPathName(rel: string, result: ScanResult): void {
+  const seen = new Set<number>();
+  for (const c of rel) {
+    const cp = c.codePointAt(0) ?? 0;
+    const category = scannedRawCategory(cp);
+    if (category === null || seen.has(cp)) continue;
+    seen.add(cp);
+    const codePoint = formatCodePoint(cp);
+    result.findings.push({ kind: "raw-char", category, file: rel, codePoint, message: `raw ${category} character ${codePoint} in the path` });
+  }
+}
+
 function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
   const { lineScanners, blockScanners, security, result } = ctx;
   const abs = path.join(absRoot, rel);
@@ -385,14 +446,19 @@ function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
   }
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
   const sink = new FileScanSink(rel, lineScanners, blockScanners);
-  const binary = readLines(abs, rel, (line, no) => sink.onLine(line, no), assemblerOptions(security, { lineScanners, blockScanners }, sink));
+  const raw = new RawCharSink(rel);
+  const onLine = (line: string, no: number): void => {
+    sink.onLine(line, no);
+    raw.onLine(line, no);
+  };
+  const binary = readLines(abs, rel, onLine, assemblerOptions(security, { lineScanners, blockScanners }, sink));
   if (binary) {
     result.skippedBinary += 1;
     return;
   }
   result.filesScanned += 1;
   sink.finish();
-  result.findings.push(...sink.findings);
+  result.findings.push(...sink.findings, ...raw.findings);
 }
 
 export interface LineAssemblerOptions {
@@ -612,9 +678,10 @@ function todayIso(): string {
 }
 
 /**
- * Apply `security.allow` (M2-0 §7): only secret-shaped findings ("secret", "oversized-candidate")
- * can be suppressed; env / gitignore hygiene findings never are. The first active matching rule
- * wins; suppressed findings, rule usage, unused and expired rules are all recorded.
+ * Apply `security.allow` (M2-0 §7): secret-shaped findings ("secret", "oversized-candidate") and raw
+ * characters ("raw-char", only by a rule that names their category, ADR-0036) can be suppressed;
+ * env / gitignore hygiene findings never are. The first active matching rule wins; suppressed
+ * findings, rule usage, unused and expired rules are all recorded.
  */
 function applyAllow(result: ScanResult, rules: readonly AllowRule[]): void {
   const today = todayIso();
@@ -638,12 +705,15 @@ function applyAllow(result: ScanResult, rules: readonly AllowRule[]): void {
 
 /**
  * Index of the first active (not expired on `today`, YYYY-MM-DD) allow rule that suppresses `f`, or -1.
- * Only secret-shaped findings can be suppressed. Shared with `aiqh review-packet` (M2-1, ADR-0014),
- * which applies the rules to the repository path and line a packet line came from.
+ * Secret-shaped findings can be suppressed by any matching rule; a raw character only by a rule that
+ * names its category (ADR-0036 decision 8). That condition is part of the search, so a rule without
+ * a category earlier in the list is passed over, not taken and then refused. Shared with
+ * `aiqh review-packet` (M2-1, ADR-0014), which applies the rules to the repository path and line a
+ * packet line came from (it passes secret-shaped findings only).
  */
 export function findAllowRule(rules: readonly AllowRule[], f: ScanFinding, today: string = todayIso()): number {
-  if (f.kind !== "secret" && f.kind !== "oversized-candidate") return -1;
-  return rules.findIndex((r) => !(r.expires !== undefined && r.expires < today) && allowMatches(r, f));
+  if (f.kind !== "secret" && f.kind !== "oversized-candidate" && f.kind !== "raw-char") return -1;
+  return rules.findIndex((r) => !(r.expires !== undefined && r.expires < today) && (f.kind !== "raw-char" || r.category !== undefined) && allowMatches(r, f));
 }
 
 function allowMatches(rule: AllowRule, f: ScanFinding): boolean {

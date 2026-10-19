@@ -38,7 +38,7 @@ export function summaryText(p: ParsedOutput): string {
     case "aiqh-security-scan":
       return (
         `findings ${n(c, "findings")} (secret-shaped ${n(c, "secretShaped")}, oversized candidates ${n(c, "oversizedCandidates")}, tracked .env ${n(c, "trackedEnv")}, ` +
-        `untracked .env not ignored ${n(c, "untrackedEnv")}, .gitignore ${n(c, "gitignore")}); suppressed by security.allow ${n(c, "suppressed")}; ` +
+        `untracked .env not ignored ${n(c, "untrackedEnv")}, .gitignore ${n(c, "gitignore")}, raw characters ${n(c, "rawChars")}); suppressed by security.allow ${n(c, "suppressed")}; ` +
         `allow rules used ${n(c, "allowRulesUsed")}, expired ${n(c, "expiredAllowRules")}, unused ${n(c, "unusedAllowRules")}`
       );
     default:

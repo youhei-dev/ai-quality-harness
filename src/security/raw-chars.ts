@@ -5,6 +5,8 @@
  * U+2029, the bidirectional controls U+202A–U+202E and U+2066–U+2069, and U+FEFF (a BOM, also at the
  * start of a file). Bytes that are not valid UTF-8 are rejected before decoding. Results carry
  * positions and code points only, never the surrounding text.
+ * The security scan (ADR-0036) looks for a subset of the set only — the bidi controls and the line
+ * separators (SCANNED_RAW_RANGES) — because CR, FF, ESC and a leading BOM are in ordinary sources.
  */
 
 /** A forbidden character: 1-based line (split on LF) and 1-based column in code points. */
@@ -27,6 +29,26 @@ export const FORBIDDEN_RANGES: ReadonlyArray<readonly [number, number]> = [
 
 export function isForbiddenCodePoint(cp: number): boolean {
   return FORBIDDEN_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
+}
+
+/** The categories of the raw characters the security scan finds; also `security.allow` categories (ADR-0036). */
+export const RAW_CHAR_CATEGORIES = ["bidi-control", "line-separator"] as const;
+export type RawCharCategory = (typeof RAW_CHAR_CATEGORIES)[number];
+
+/**
+ * What the security scan finds (ADR-0036, item 48): a subset of FORBIDDEN_RANGES, as inclusive ranges with their category —
+ * the bidi controls U+202A–U+202E and U+2066–U+2069, and the line separators U+2028 and U+2029. Each is one UTF-16 unit.
+ */
+export const SCANNED_RAW_RANGES: ReadonlyArray<readonly [number, number, RawCharCategory]> = [
+  [0x202a, 0x202e, "bidi-control"],
+  [0x2066, 0x2069, "bidi-control"],
+  [0x2028, 0x2029, "line-separator"],
+];
+
+/** The category of a code point the security scan finds, or null. */
+export function scannedRawCategory(cp: number): RawCharCategory | null {
+  for (const [lo, hi, category] of SCANNED_RAW_RANGES) if (cp >= lo && cp <= hi) return category;
+  return null;
 }
 
 /** Every forbidden character in `text`, in order. */

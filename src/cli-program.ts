@@ -100,7 +100,7 @@ export function buildProgram(deps: ProgramDeps): Command {
 
   program
     .command("security-scan")
-    .description("Scan tracked and untracked files for secret-shaped strings, .env files and .gitignore gaps (values are never printed)")
+    .description("Scan tracked and untracked files for secret-shaped strings, raw bidi controls and line separators, .env files and .gitignore gaps (values are never printed)")
     .option("--cwd <dir>", "repository directory (default: current directory)")
     .option("-c, --config <path>", "config file for the security section (default: ./aiqh.config.jsonc if present)")
     .option("--json", "print the result as JSON", false)

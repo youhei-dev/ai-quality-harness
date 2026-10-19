@@ -12,13 +12,14 @@ const FINDINGS = "findings: ";
 const SUPPRESSED = "suppressed by security.allow: ";
 const NO_FINDINGS = "SECURITY SCAN: no findings";
 const FINDINGS_PRESENT = "SECURITY SCAN: findings present (see above)";
-/** The kinds of the findings line, in its order, and their count keys. */
+/** The kinds of the findings line, in its order, and their count keys (v0.13.0 added raw characters, ADR-0036: the five kinds of an older aiqh are an unexpected summary). */
 const KINDS: ReadonlyArray<readonly [string, string]> = [
   ["secret-shaped", "secretShaped"],
   ["oversized candidates", "oversizedCandidates"],
   ["tracked .env", "trackedEnv"],
   ["untracked .env not ignored", "untrackedEnv"],
   [".gitignore", "gitignore"],
+  ["raw characters", "rawChars"],
 ];
 /** The count keys this parser writes, in their order (aiqh history reads only these, ADR-0034 E). */
 export const SECURITY_SCAN_COUNT_KEYS: readonly string[] = ["findings", ...KINDS.map(([, key]) => key), "suppressed", "allowRulesUsed", "expiredAllowRules", "unusedAllowRules"];
@@ -29,6 +30,7 @@ const ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ["[tracked-env] ", "tracked-env"],
   ["[untracked-env] ", "untracked-env"],
   ["[gitignore] ", "gitignore"],
+  ["[raw-char] ", "raw-char"],
   ["[allowed] ", "allowed"],
   ["rule used ", "allow-rule-used"],
   ["warning: expired allow rule ", "expired-allow-rule"],

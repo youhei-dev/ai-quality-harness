@@ -43,11 +43,11 @@ export interface ResolvedCheck {
   description?: string;
 }
 
-/** One `security.allow` rule (M2-0 §7). Suppresses secret-shaped findings only. */
+/** One `security.allow` rule (M2-0 §7). Suppresses secret-shaped findings, and raw characters when it names their category (ADR-0036). */
 export interface AllowRule {
   /** Glob (path.matchesGlob) over the repository-relative path. */
   path: string;
-  /** Secret category; every category when omitted. */
+  /** Secret or raw-character category; every secret category when omitted (a raw character only by a rule that names its category). */
   category?: string;
   /** 1-based line; every line when omitted. */
   line?: number;

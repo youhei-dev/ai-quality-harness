@@ -3,7 +3,7 @@ import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, loadSecurityConfig } from "../config/load.ts";
 import { createOutput } from "../output.ts";
-import { ScanError, scanRepository, type ScanResult } from "../security/scan.ts";
+import { ScanError, scanRepository, type ScanFinding, type ScanResult } from "../security/scan.ts";
 
 export interface SecurityScanOptions {
   cwd?: string;
@@ -60,14 +60,33 @@ export async function runSecurityScan(options: SecurityScanOptions): Promise<num
   return result.findings.length === 0 ? EXIT_PASSED : EXIT_FAILED;
 }
 
+/** `<path>:<line>`, or the path alone for a finding without a line (a raw character in the path). */
+function atLine(f: ScanFinding): string {
+  return f.line === undefined ? f.file : `${f.file}:${f.line}`;
+}
+
 function describeRule(u: ScanResult["allowUsage"][number]): string {
   return `#${u.rule + 1} path=${u.path}${u.category ? ` category=${u.category}` : ""}${u.line !== null ? ` line=${u.line}` : ""}${u.expires ? ` expires=${u.expires}` : ""} — ${u.reason}`;
+}
+
+/** "U+202A-U+202E, U+2066-U+2069": three or more consecutive code points as a range, the others one by one. */
+function codePointsText(codePoints: readonly string[]): string {
+  const value = (i: number): number => Number.parseInt((codePoints[i] ?? "").slice(2), 16);
+  const parts: string[] = [];
+  for (let i = 0; i < codePoints.length; ) {
+    let j = i;
+    while (j + 1 < codePoints.length && value(j + 1) === value(j) + 1) j += 1;
+    parts.push(j - i >= 2 ? `${codePoints[i]}-${codePoints[j]}` : codePoints.slice(i, j + 1).join(", "));
+    i = j + 1;
+  }
+  return parts.join(", ");
 }
 
 function renderText(r: ScanResult, log: (line: string) => void): void {
   log(`aiqh security-scan — ${r.root}`);
   log(`tracked files: ${r.filesTracked}, untracked (not ignored): ${r.filesUntracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}`);
   log(`scanned categories: ${r.scannedCategories.join(", ")} (key-value: only values that look like secrets)`);
+  log(`raw characters checked: ${r.scannedRawChars.map((s) => `${s.category} (${codePointsText(s.codePoints)})`).join(", ")}`);
   log("not scanned (mask-only categories; values in reports are still redacted):");
   for (const u of r.unscannedCategories) log(`  - ${u.category}: ${u.reason}`);
   if (r.exampleEnvFiles.length > 0) log(`example env files (allowed): ${r.exampleEnvFiles.join(", ")}`);
@@ -77,15 +96,17 @@ function renderText(r: ScanResult, log: (line: string) => void): void {
   const envs = r.findings.filter((f) => f.kind === "tracked-env");
   const untrackedEnvs = r.findings.filter((f) => f.kind === "untracked-env");
   const gi = r.findings.filter((f) => f.kind === "gitignore");
-  log(`findings: ${r.findings.length} (secret-shaped: ${secrets.length}, oversized candidates: ${oversized.length}, tracked .env: ${envs.length}, untracked .env not ignored: ${untrackedEnvs.length}, .gitignore: ${gi.length})`);
+  const raws = r.findings.filter((f) => f.kind === "raw-char");
+  log(`findings: ${r.findings.length} (secret-shaped: ${secrets.length}, oversized candidates: ${oversized.length}, tracked .env: ${envs.length}, untracked .env not ignored: ${untrackedEnvs.length}, .gitignore: ${gi.length}, raw characters: ${raws.length})`);
   for (const f of secrets) log(`  [secret] ${f.file}:${f.line}${f.endLine !== undefined && f.endLine !== f.line ? `-${f.endLine}` : ""} ${f.category} (value not shown)`);
   for (const f of oversized) log(`  [oversized-candidate] ${f.file}:${f.line} ${f.category} — ${f.message}`);
   for (const f of envs) log(`  [tracked-env] ${f.file} — ${f.message}`);
   for (const f of untrackedEnvs) log(`  [untracked-env] ${f.file} — ${f.message} (not read)`);
   for (const f of gi) log(`  [gitignore] ${f.message}`);
+  for (const f of raws) log(`  [raw-char] ${atLine(f)} ${f.codePoint} ${f.category}${f.line === undefined ? " (in the path)" : ""}`);
   if (r.allowUsage.length > 0) {
     log(`suppressed by security.allow: ${r.suppressed.length}`);
-    for (const s of r.suppressed) log(`  [allowed] ${s.file}:${s.line} ${s.category} by rule #${s.rule + 1}`);
+    for (const s of r.suppressed) log(`  [allowed] ${atLine(s)} ${s.category} by rule #${s.rule + 1}`);
     for (const u of r.allowUsage.filter((x) => x.count > 0)) log(`  rule used ${u.count}×: ${describeRule(u)}`);
     for (const i of r.expiredAllows) {
       const u = r.allowUsage[i];
