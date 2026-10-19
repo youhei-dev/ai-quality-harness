@@ -36,7 +36,7 @@
       "regressionTest": "tests/history-output-bytes.test.ts の 7 件（書き手 write が受け取ったバイト数で、表と --json のそれぞれに、上限ちょうど・1 バイト超過・最後の行〈表〉や最後の改行〈--json〉だけで超える。HISTORY INCOMPLETE の最後の行も数える。書き手 log でも同じ上限で同じ答え。write が CLI の標準出力と同じバイトを受け取る）と、期待値を変えた tests/history-cli.test.ts の「--json: a document and its newline of exactly the limit are written; …」「the table: a limit of the table without the last line is output-too-large …」、tests/output-json-within.test.ts の「the limit is the UTF-8 length of the document and its newline: …」。直す前の 074ebc4 の SHA 固定の worktree で、10 件 FAIL（新しい 7 件と変えた 3 件）・13 件 PASS",
       "guard": null,
       "destination": "v0.11.2",
-      "note": "書き手 write（標準出力のバイトをそのまま受け取る。log の代わり）を足し、境界のテストはそのバイト数で確かめる。既定の書き手は、上限を確かめた後に 1 行ずつ console.log で書く（書くバイトは数えたものと同じ。行をまたぐマスクの規則があるので、行ごとに処理した文字列を 1 つにまとめて処理し直さない）。決まりは ADR-0034 の H・I・N と ADR-0016 の注記に書いた。v0.12.0 の HTML のファイルにも同じ決まり（実際に書くファイルのバイト）を当てる。確かめは v0.11.2〜v0.12.0 の実装レビュー（label m4-dashboard、回 1）で頼む"
+      "note": "書き手 write（標準出力のバイトをそのまま受け取る。log の代わり）を足し、境界のテストはそのバイト数で確かめる。既定の書き手は、上限を確かめた後に 1 行ずつ console.log で書く（書くバイトは数えたものと同じ。行をまたぐマスクの規則があるので、行ごとに処理した文字列を 1 つにまとめて処理し直さない）。決まりは ADR-0034 の H・I・N と ADR-0016 の注記に書いた。v0.12.0 の HTML のファイルにも同じ決まり（実際に書くファイルのバイト）を当てる。確かめは v0.11.2〜v0.12.0 の実装レビュー（label m4-dashboard、回 1）で頼む 実装レビュー m4-dashboard R1（docs/reviews/m4-dashboard/review-r1.md。2026-10-19）で「解消」と評価された。"
     }
   ]
 }

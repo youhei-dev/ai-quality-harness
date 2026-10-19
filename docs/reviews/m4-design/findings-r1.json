@@ -90,7 +90,7 @@
       "regressionTest": "tests/history-html.test.ts の「ADR-0035 decision 6 (M4-D-R1-004): the mapping table and the allowlist」の 3 件（JSON の数の葉のすべてが対応表か許可リストのどちらか 1 つだけ、対応表のすべてが HTML に 1 回・同じ文字列・data-k の重複なし・許可リストの数なし・lastTimeoutSec の目印の数なし、札の並び）と「ADR-0035 decisions 4 and 6: SVG」（棒と点の数が配列の長さ）。直す前の afcf6dd（v0.11.2 の merge）の SHA 固定の worktree で、tests/history-html.test.ts は読み込むモジュールが無くて FAIL、tests/history-html-cli.test.ts は 10 件 FAIL・4 件 PASS（前も後も成り立つ守り）",
       "guard": null,
       "destination": "v0.12.0",
-      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。 v0.12.0 で直した（ADR-0035 の決定 6。対応表 HTML_SHOWN と許可リスト HTML_NOT_SHOWN は src/run-history/html.ts に明文で持つ）。確かめは v0.11.2〜v0.12.0 の実装レビュー（label m4-dashboard、回 1）で頼む。"
+      "note": "設計の指摘。設計 R3（docs/reviews/m4-design/design-r3.md）で直した。直した先の ADR と回帰テストが入る版（destination）で resolved にする。それまでは fixedIn と regressionTest が無いので open のまま。 R2 の評価: 解消（review-check はこの食い違いを警告として出す。誤りではない）。 v0.12.0 で直した（ADR-0035 の決定 6。対応表 HTML_SHOWN と許可リスト HTML_NOT_SHOWN は src/run-history/html.ts に明文で持つ）。確かめは v0.11.2〜v0.12.0 の実装レビュー（label m4-dashboard、回 1）で頼む。 実装レビュー m4-dashboard R1（docs/reviews/m4-dashboard/review-r1.md。2026-10-19）で「解消」と評価された。"
     },
     {
       "id": "M4-D-R1-005",

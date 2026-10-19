@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.12.0 — aiqh history --html: a static dashboard without script or external resources (CSP meta, every value escaped, numbers matched to --json by data-k; ADR-0035)
+## v0.12.0 — commit 337c082d88c9952f00da263c7adb8c47e6ddaa44 / tag object 26bf26bd2ff750d797e184f4081abec0823f86d1 — aiqh history --html: a static dashboard without script or external resources (CSP meta, every value escaped, numbers matched to --json by data-k; ADR-0035)
 
 - **静的 HTML のダッシュボード**（M4。設計 R3 の §3 の案を、実装に合わせて ADR-0035 にした）。branch `release/v0.12.0`、3 commit: `192e72f`（実装とテスト）・`eefee27`（記録）・この release の commit
 - `aiqh history --from … --html [--out <dir>]` が `<out>/dashboard.html`（既定は `--cwd` の `artifacts/history/`）を書く。`--out` だけは使い方の誤り。`--json` と一緒に使える。標準出力は `--html` の有無で変わらず、標準エラーに `dashboard: dashboard.html (<n> bytes)` の行が出る。読めない履歴があっても HTML は書き（目立つ節で示す）、終了コードは 2

@@ -1,7 +1,7 @@
 # ADR-0035: 静的 HTML のダッシュボード（`aiqh history --html`）
 
 - 状態: 採用（v0.12.0。ADR-0034 の集計を、1 つの HTML ファイルにする。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §3 がこの ADR の案。決定の番号は設計 R3 の §3 と同じで、コードの注釈とテストの名前もこの番号を使う。設計 R3 に無かった書き込み先の決まりは、決定 1 に入れた〉。出力の上限の数え方は ADR-0034 の H〈v0.11.2〉）
-- 日付: 2026-10-18（v0.12.0）
+- 日付: 2026-10-18（v0.12.0）。追記: 2026-10-19（v0.12.1。表の見出しの寄せ。下の「追記（v0.12.1）」）
 
 ## 文脈
 
@@ -100,3 +100,10 @@
 - docs: ADR-0020・0034・0016 の注記、ADR の一覧、ARCHITECTURE、README、ROADMAP
 - 組み込みのモジュール: `node:crypto`（CSP のハッシュ）・`node:fs`・`node:path` は一覧にある。足すものは無い。`tests/structure/` は変えていない
 - 依存関係は変えない
+
+## 追記（v0.12.1）
+
+- 決定 2 の形に、表の見出しの寄せを足した: 文字の値の列（本文のセルが `<td class="name">` の列）の見出し `<th>` に `class="name"` を付け、値と同じ左寄せにした。数の列の見出しは右寄せのまま。固定の CSS の `th.name,td.name{text-align:left}` は v0.12.0 からあり、変えていないので、決定 3 のハッシュも同じ
+  - 直した表: Days、Tool versions、Config hashes、Checks、Counts（各表）、Failure-prone checks。Sources（行の見出しの `#<n>` は、見出しと同じ右寄せ）とプロジェクトの要約（数だけ）は変えていない
+  - きっかけは、利用者がダッシュボードをブラウザで開いた確かめ（2026-10-19。表・`<details>` の開け閉め・SVG の図が表示され、CSS が効いていた）で見つけた、「Failure-prone checks」の `project`・`check` の見出しの右寄せ
+- 決定 8 のテストに 2 件を足した（`tests/history-html.test.ts` は 9 件）: すべての表で、見出しの `class` が、その列の本文のセルと同じこと（Failure-prone checks の見出しは名前を書いて確かめる）。固定の CSS が `th`・`td` を右に、`class` の `name` を左に寄せること
