@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-19
+最終更新: 2026-10-20
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1064,6 +1064,10 @@ M2-1 の教訓（R3）:
 ## M4 の後の版（マイルストーン未割当）
 
 - v0.13.0（2026-10-19）: security の check が、生の双方向の制御文字 U+202A–U+202E・U+2066–U+2069 と行区切り・段落区切り U+2028・U+2029 を、中身とパス名で finding にする（**判定が厳しくなる変更**。項目 48 を閉じた。ADR-0036）。設計の独立レビュー（label `item48-design`）は R1 が High 0 / Medium 3 / Low 2、R2 が High 0 / Medium 0 / Low 1 で、R2 で閉じた（R3 は依頼しない。人間の決定）。6 件は `resolved`。実装の独立レビュー（label `item48-impl`）は v0.13.0 の後。適用先の呼び出しの SHA を上げるのは、その実装レビューを閉じた後（人間の決定 H11）
+  - CI（pull request の run）: PR #11 の run 39386515807（event pull_request、head `8bd9456`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 6 分 10 秒（verify の duration 5m55s、VERIFY PASSED 8/8）。`unit` 2m56s（176 秒、上限 600 秒の 29.3%）・`unit-minpath` 2m44s（164 秒、27.3%）。`reusable (self) / aiqh verify` はジョブ 6 分 17 秒（VERIFY PASSED 8/8、6m00s。`aiqh --version` は 0.13.0。`unit` 2m55s〈175 秒、29.2%〉・`unit-minpath` 2m48s〈168 秒、28.0%〉）
+  - CI（merge の後の main の run）: merge の commit `60d65f9` の push の run 39387374519 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 6 分 07 秒（verify の duration 5m55s、VERIFY PASSED 8/8）。`unit` 2m52s（172 秒、28.7%）・`unit-minpath` 2m47s（167 秒、27.8%）。`reusable (self) / aiqh verify` はジョブ 3 分 55 秒（VERIFY PASSED 8/8、3m43s。aiqh のソースは `60d65f9`、0.13.0。`unit` 1m47s〈107 秒、17.8%〉・`unit-minpath` 1m46s〈106 秒、17.7%〉）。タグは、この success を確かめてから付けた（最後に終わったジョブ `verify (ubuntu)` の終わり 07:40:23Z、run の更新 07:40:25Z、タグ 07:41:07Z）。時間は項目 42 の線（72%、432 秒）にも 80% にも届いていない（記録だけ）
+  - PR #11: `gh pr merge 11 --merge --match-head-commit 8bd9456… --delete-branch` で merge した（`--admin` は使っていない）。merge の commit `60d65f9219b82ae0a4bce1f0955a398d2b30efc1`（親は `8870afb` と `8bd9456`）。branch は手元とリモートの両方で消えた
+  - タグ v0.13.0 = commit 8bd945666f5774ca9a4b4030bcd77f60794b764a / tag object 041bd54610280d66519426a00f8351441f74b45b。CHANGELOG の v0.13.0 の見出しの SHA と、上の CI の記録は、v0.13.1 の記録の commit で記入した
 
 ---
 

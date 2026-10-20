@@ -17,6 +17,7 @@
 | I48-D-R2-001 | Low | VALID | 受け入れ | 設計 R2 の記録（`design-r2.md`）の §6-4・§9 の CHANGELOG の下書き、`response-r1.md` の I48-D-R1-001、ADR-0036 の決定 10、CONFIG_SPEC の §5.3b、README、CHANGELOG | `aiqh --version` で古い `dist/` を見分ける、という説明をやめた |
 
 - **状態**: `resolved`。`destination` は v0.13.0、`fixedIn` は v0.13.0 のテストと実装の commit `7633da4f25c42748b6ee66fcb13cbb6c2a7289e3`（案内が確かめさせる 2 つの行を出す commit）、`regressionTest` は T9（情報の行と、6 つの内訳の件数の行の文）と T14（本体の自己 verify の security の出力の fixture）。案内の文そのものは、同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）
+  - **v0.13.1 で `fixedIn` を訂正（I48-I-R1-002）**: `fixedIn` を release の commit `8bd945666f5774ca9a4b4030bcd77f60794b764a` に直した（主な文書の直しは docs の commit `5fe75f4c5f47933bea5f66232e2e454c418fb3d5`、CHANGELOG への反映の完了は release の commit）。元の `7633da4f25c42748b6ee66fcb13cbb6c2a7289e3` は、案内が確かめさせる 2 つの行の動きと回帰テスト（T9・T14）の根拠として `note` に残した。上の行は v0.13.0 の記録のまま変えていない
 
 ## 指摘ごとの対応
 

@@ -26,6 +26,7 @@
 
 - **状態**: 5 件とも `resolved`（`docs/ops/review-loop.md` の段取り 8）。`destination` は v0.13.0。`fixedIn` は v0.13.0 のテストと実装の commit `7633da4f25c42748b6ee66fcb13cbb6c2a7289e3`、`regressionTest` は設計 §8-1 のテスト（下の「v0.13.0 での実装と回帰テスト」）
   - 001・005 は文書の言い回しの指摘で、直した文は設計 R2 と v0.13.0 の docs の commit・release の commit にある。`fixedIn` には、その文が説明する動き（001: 6 つの内訳の件数の行と、古い形の `unexpected-summary`。005: 出現ごとの finding）を入れた commit を書いた。docs の commit と release の commit の SHA は、記録の PR で書く
+  - **v0.13.1 で `fixedIn` を訂正（I48-I-R1-002）**: 実装の独立レビュー item48-impl R1 の指摘（文書の指摘の `fixedIn` が、文書を直していない実装の commit を指している）を受けて、001 の `fixedIn` を release の commit `8bd945666f5774ca9a4b4030bcd77f60794b764a`（主な文書の直しは docs の commit `5fe75f4c5f47933bea5f66232e2e454c418fb3d5`、CHANGELOG への反映の完了は release の commit）に、005 の `fixedIn` を docs の commit `5fe75f4c5f47933bea5f66232e2e454c418fb3d5` に直した。元の `7633da4f25c42748b6ee66fcb13cbb6c2a7289e3` は、動きと回帰テストの根拠として各件の `note` に残した。002〜004 は `7633da4…` のまま。上の 2 行は v0.13.0 の記録のまま変えていない
 - 設計 R2 の独立レビュー（R2）の `previous` で、レビュアーは 5 件すべてを「解消」と評価した（下の「R2 の評価」）
 
 ## 人間の決定（2026-10-19）

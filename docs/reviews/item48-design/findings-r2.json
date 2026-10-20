@@ -53,11 +53,11 @@
       "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の決定 2026-10-19）。`aiqh --version` を古い dist/ の判別に使う説明をやめ、「--version は package の版を示すだけで、dist/ が新しくなったことの証明にはならない。版を上げた後は npm run build をし、実際の security の check と同じ起動の経路（aiqh verify の中の security、または aiqh security-scan）で、raw characters checked: の情報の行と、raw characters を含む 6 つの内訳の件数の行が出ることを確かめる」とした",
-      "fixedIn": "7633da4f25c42748b6ee66fcb13cbb6c2a7289e3",
+      "fixedIn": "8bd945666f5774ca9a4b4030bcd77f60794b764a",
       "regressionTest": "tests/regression-item48-raw-chars-scan.test.ts の T9（情報の行と、6 つの内訳の件数の行の文）と、tests/parse-security.test.ts の T14（本体の自己 verify の security の出力の fixture に、2 つの行がある）。8870afb で FAIL",
       "guard": null,
       "destination": "v0.13.0",
-      "note": "文書の指摘。直した先は v0.13.0 の文書（設計 R2 の記録 design-r2.md の §6-4・§9、R1 への応答 response-r1.md、ADR-0036 の決定 10、CONFIG_SPEC の §5.3b、README、CHANGELOG）。fixedIn は、案内が確かめさせる 2 つの行を出す commit。案内の文そのものは同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）"
+      "note": "文書の指摘。直した先は v0.13.0 の文書（設計 R2 の記録 design-r2.md の §6-4・§9、R1 への応答 response-r1.md、ADR-0036 の決定 10、CONFIG_SPEC の §5.3b、README、CHANGELOG）。fixedIn は、案内が確かめさせる 2 つの行を出す commit。案内の文そのものは同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）。v0.13.1 で fixedIn を訂正（I48-I-R1-002）: fixedIn を、テストと実装の commit 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 から、文書の直しを終えた release の commit 8bd945666f5774ca9a4b4030bcd77f60794b764a に直した。主な文書の直し（設計 R2 の記録 design-r2.md の §6-4・§9、response-r1.md、ADR-0036 の決定 10、CONFIG_SPEC の §5.3b、README）は docs の commit 5fe75f4c5f47933bea5f66232e2e454c418fb3d5、CHANGELOG への反映の完了は release の commit。元の 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 は、案内が確かめさせる 2 つの行の動きと回帰テスト（T9・T14）の根拠として残す。この注記より前の文は v0.13.0 の記録のまま"
     }
   ]
 }

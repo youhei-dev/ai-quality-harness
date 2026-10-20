@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.13.0 — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
+## v0.13.0 — commit 8bd945666f5774ca9a4b4030bcd77f60794b764a / tag object 041bd54610280d66519426a00f8351441f74b45b — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
 
 - **判定が厳しくなる変更**: `aiqh security-scan`（verify の security の check）が、追跡しているファイルと、未追跡で ignore されないファイルの中身とパス名にある、生の双方向の制御文字（U+202A–U+202E、U+2066–U+2069）と行区切り・段落区切り（U+2028、U+2029）を finding にする（`raw-char`。1 つでもあれば exit 1、check は FAIL）。これまで PASS だったリポジトリが FAIL になりうる（ROADMAP の項目 48。ADR-0036）。branch `release/v0.13.0`、3 commit: `7633da4`（テストと実装）・`5fe75f4`（文書と、設計の独立レビューの記録）・この release の commit
   - 見つけ方: `aiqh security-scan` の `[raw-char] <path>:<line> U+XXXX <分類>` の行（パス名は `[raw-char] <path> U+XXXX <分類> (in the path)`。行の中身は出さない）

@@ -32,11 +32,11 @@
       "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の方針 2026-10-19: 5 件すべてを設計に反映する）。設計 R2 の §6-4・§9 で、パースの失敗は判定を変えない（ADR-0028 の P1）ことと、検出の範囲は実際に起動する `aiqh security-scan`（子）の版で決まる（新しい verify と古い security-scan では検出が効かない）ことを分けて書き、版を上げるときの案内（verify が実際に呼ぶ `aiqh` の版・commit をそろえる）を足した。H8 と P1 は変えない",
-      "fixedIn": "7633da4f25c42748b6ee66fcb13cbb6c2a7289e3",
+      "fixedIn": "8bd945666f5774ca9a4b4030bcd77f60794b764a",
       "regressionTest": "tests/parse-security.test.ts の T10（5 つの内訳の件数の行は unexpected-summary: 親と子の版の食い違いの印）と T14。8870afb の worktree では 2 件とも FAIL（設計 §8-1 の見込みどおり）",
       "guard": null,
       "destination": "v0.13.0",
-      "note": "設計の指摘。直した先は設計 R2（`docs/reviews/item48-design/design-r2.md` の §6-4・§9）と、v0.13.0 の文書（ADR-0036 の決定 10・代替案・影響、ADR-0028 の注記、CONFIG_SPEC の §5.3b、README、CHANGELOG）。fixedIn は、案内が確かめさせる印（6 つの内訳の件数の行と、古い形の unexpected-summary）を入れた commit。案内の文そのものは同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）。R2 の評価: 解消（版の表示での確かめ方の誤りは I48-D-R2-001）"
+      "note": "設計の指摘。直した先は設計 R2（`docs/reviews/item48-design/design-r2.md` の §6-4・§9）と、v0.13.0 の文書（ADR-0036 の決定 10・代替案・影響、ADR-0028 の注記、CONFIG_SPEC の §5.3b、README、CHANGELOG）。fixedIn は、案内が確かめさせる印（6 つの内訳の件数の行と、古い形の unexpected-summary）を入れた commit。案内の文そのものは同じ PR の docs の commit と release の commit にある（その SHA は記録の PR で書く）。R2 の評価: 解消（版の表示での確かめ方の誤りは I48-D-R2-001）。v0.13.1 で fixedIn を訂正（I48-I-R1-002）: fixedIn を、テストと実装の commit 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 から、文書の直しを終えた release の commit 8bd945666f5774ca9a4b4030bcd77f60794b764a に直した。主な文書の直し（設計 R2 の §6-4・§9、ADR-0036 の決定 10・代替案・影響、ADR-0028 の注記、CONFIG_SPEC の §5.3b、README）は docs の commit 5fe75f4c5f47933bea5f66232e2e454c418fb3d5、CHANGELOG への反映の完了は release の commit。元の 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 は、案内が確かめさせる印（6 つの内訳の件数の行と、古い形の unexpected-summary）の動きと回帰テストの根拠として残す。この注記より前の文は v0.13.0 の記録のまま"
     },
     {
       "id": "I48-D-R1-002",
@@ -104,11 +104,11 @@
       "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ。設計 R2 の §11 と ADR の既知の限界の「閉じた（害の無い）並び」を、「閉じた並びや正当な使い方も finding にする。始まりと終わりの対応だけでは安全とは判断しない。正当な使い方は allow で扱う」に直した（UTS #55 §4.1.1・§5.1.6）",
-      "fixedIn": "7633da4f25c42748b6ee66fcb13cbb6c2a7289e3",
+      "fixedIn": "5fe75f4c5f47933bea5f66232e2e454c418fb3d5",
       "regressionTest": "tests/regression-item48-raw-chars-scan.test.ts の T2（閉じる側の U+202C・U+2069 を含む 11 の符号位置が、それぞれ単独で finding になる）と T3（同じ行の出現ごと）。8870afb で FAIL",
       "guard": null,
       "destination": "v0.13.0",
-      "note": "言い回しの指摘。直した先は設計 R2 の §11 と ADR-0036 の既知の限界（v0.13.0 の docs の commit）。fixedIn は、出現ごとに finding にする動き（対応が取れているかを見ない）を入れた commit。R2 の評価: 解消"
+      "note": "言い回しの指摘。直した先は設計 R2 の §11 と ADR-0036 の既知の限界（v0.13.0 の docs の commit）。fixedIn は、出現ごとに finding にする動き（対応が取れているかを見ない）を入れた commit。R2 の評価: 解消。v0.13.1 で fixedIn を訂正（I48-I-R1-002）: fixedIn を、テストと実装の commit 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 から、言い回しを直した docs の commit 5fe75f4c5f47933bea5f66232e2e454c418fb3d5 に直した（設計 R2 の §11 と ADR-0036 の既知の限界は、どちらも docs の commit で入った）。元の 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 は、出現ごとに finding にする動き（T2・T3）と回帰テストの根拠として残す。この注記より前の文は v0.13.0 の記録のまま"
     }
   ]
 }
