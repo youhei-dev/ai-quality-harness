@@ -170,6 +170,10 @@ export function scanRepository(root: string, security: ResolvedSecurity = DEFAUL
   return result;
 }
 
+/**
+ * The paths `git ls-files -z` lists, each once, in git's order. An unmerged path is listed once per stage (1, 2, 3) but is one file
+ * in the work tree, so its name and content are checked once (I48-I-R1-001; without --deduplicate, so no newer git is needed).
+ */
 function listFiles(root: string, extra: string[]): string[] {
   let out: string;
   try {
@@ -179,7 +183,7 @@ function listFiles(root: string, extra: string[]): string[] {
     // init's root check (backlog 24; backlog 8, O9). Only a healthy root leaves the failure to git.
     throw new ScanError(rootProblem(root) ?? `not a git repository (or git failed): ${root} (${(err as Error).message.split("\n")[0]})`);
   }
-  return out.split("\0").filter((f) => f.length > 0);
+  return [...new Set(out.split("\0").filter((f) => f.length > 0))];
 }
 
 /** Why `root` cannot be scanned, or null when it is a directory. Only ENOENT is "not found" (ADR-0022). */
