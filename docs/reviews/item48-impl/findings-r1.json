@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "label": "item48-impl",
+  "round": 1,
+  "idPrefix": "I48-I",
+  "source": {
+    "name": "independent-review-item48-impl-r1-for-claude.md",
+    "bytes": 38961,
+    "sha256": "cbb1f2674a097d4b6f8702c9108e4033d5a1587e4be6618cad8c56decce20956"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 2
+  },
+  "previous": [],
+  "importedAt": "2026-10-20T09:11:29.253Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.13.0"
+  },
+  "findings": [
+    {
+      "id": "I48-I-R1-001",
+      "severity": "Low",
+      "kind": "バグ",
+      "target": "[src/security/scan.ts:151–154](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/src/security/scan.ts#L151-L154)。関連箇所: 同ファイル 173–183、404–433、449–461、686–703 行。",
+      "content": "未マージの index に同じパスの stage 1・2・3 があると、同じ作業ツリーのファイルを 3 回走査し、同じファイル・行・符号位置の raw finding が 3 件になります。パス名の finding も同様です。この状態では未抑制の rawChars、または抑制に使った allow 規則の使用回数が重複分だけ増え、設計の「1 件」の契約を満たしません。",
+      "evidence": "[docs/reviews/item48-design/design-r2.md:113–123](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/docs/reviews/item48-design/design-r2.md#L113-L123) は、本文をファイル・行・符号位置ごと、名前をパス・符号位置ごとに 1 件としています。[src/security/scan.ts:173–183](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/src/security/scan.ts#L173-L183) は git ls-files -z の結果を一意化せずに返します。[Git の公式仕様](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---deduplicate) は、未マージの複数 stage による名前の重複を説明しています。独立した一時リポジトリでも Git 2.51.1 で、実ファイル a.txt は 1 個、通常の列挙は同名 3 件、--deduplicate 付きは 1 件となることを確認しました。head の RawCharSink の seen は scanFile ごとに、checkPathName の seen は呼び出しごとに作られます。そのため、本文 1 行目に U+202E が 1 個あれば同じ finding が 3 件になり、applyAllow もそれぞれを数えます。aiqh を実行した再現ではなく、Git の実測と固定コードの照合による確認です。列挙処理自体は既存ですが、今回加わった raw の件数契約に影響します。検出漏れや FAIL から PASS への変化は生じないため Low とします。",
+      "fix": "listFiles の NUL 区切りの結果を、順序を保持する Set などで一意化し、各パスを 1 回処理してください。Git の新しいオプションへの依存を増やさずに直せます。同じパスに未マージの複数 stage を置く回帰テストで、本文の同じ行・符号位置と名前の符号位置がそれぞれ 1 件であり、対応する allow の使用回数も重複しないことを確認してください。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-20: 2 件とも v0.13.1 で直す。実装レビューの R2 は出さない）。src/security/scan.ts の listFiles が、git ls-files -z の NUL 区切りの結果を、順序を保って一意化する（Set。--deduplicate は使わない）。未マージの index で同じパスが stage 1・2・3 として出ても、名前の確かめと中身の走査は 1 回",
+      "fixedIn": "20259643dea3a6d41aab199ac8902d2ccf414d1f",
+      "regressionTest": "tests/regression-item48-impl-r1-001-unmerged-index.test.ts の (1)〜(4)（同じパスの stage 1・2・3 を git update-index --index-info で index に置き、git が 3 回出すことを先に確かめる。(1) 本文 1 行目の U+202E が 1 件、(2) 名前の U+2066 が 1 件、(3) bidi-control を明示した allow の回数が 1、(4) 秘密の形の finding が 1 件で filesTracked・filesScanned が 1）。v0.13.0 の release の commit 8bd945666f5774ca9a4b4030bcd77f60794b764a の SHA 固定の worktree では 4 件とも FAIL（見込みどおり）",
+      "guard": null,
+      "destination": "v0.13.1",
+      "note": "判定は変わらない（検出漏れは無く、同じ finding を重ねて数えていた）。秘密の形の finding・filesTracked・filesScanned の重複も同じ直しで消える（今までの動きの直し。テストの (4)）。追跡している .env の finding も同じループなので重ならない（コードの読み取り。テストは無い）。scan.ts の中のほかの git ls-files の使い道 trackedPaths は、.gitignore の出所が追跡されているかを Set で引くだけなので、重複があっても結果は同じ（変えていない）。未追跡の一覧（--others --exclude-standard）は index に無いパスだけなので、stage による重複は出ない（テストの前提で確かめた）。review-packet などほかのファイルは変えていない"
+    },
+    {
+      "id": "I48-I-R1-002",
+      "severity": "Low",
+      "kind": "文書",
+      "target": "[docs/reviews/item48-design/findings-r1.json:35–39](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/docs/reviews/item48-design/findings-r1.json#L35-L39)、同ファイル 107–111 行、[docs/reviews/item48-design/findings-r2.json:56–60](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/docs/reviews/item48-design/findings-r2.json#L56-L60)。対応する説明は response-r1.md:27–28 と response-r2.md:19。",
+      "content": "文書の指摘 I48-D-R1-001・I48-D-R1-005・I48-D-R2-001 の fixedIn が、文書を修正していない実装コミットを指しています。note は「文章が説明する動きを入れたコミット」と説明していますが、fixedIn の既存の意味である「その指摘を直したコミット」とは異なります。本文の訂正は head にそろっており、残っているのは修正の追跡情報の不一致です。",
+      "evidence": "[docs/ops/review-loop.md:23](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/docs/ops/review-loop.md#L23) は fixedIn を、直したコミットの 40 桁の SHA としています。3 件が指す [7633da4f25c42748b6ee66fcb13cbb6c2a7289e3](https://github.com/youhei-dev/ai-quality-harness/commit/7633da4f25c42748b6ee66fcb13cbb6c2a7289e3) は、公開コミット情報でも親がレビューの base で、差分の 13 ファイルに文書がありません。固定 docs コミット [5fe75f4c5f47933bea5f66232e2e454c418fb3d5](https://github.com/youhei-dev/ai-quality-harness/commit/5fe75f4c5f47933bea5f66232e2e454c418fb3d5) と head も照合し、設計・ADR 等の訂正は docs コミット、実際の CHANGELOG への反映は release コミットであることを確認しました。[src/review/check.ts:98–112](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/src/review/check.ts#L98-L112) が検査するのは SHA の形、regressionTest の非空、コミットの存在です。[docs/adr/0027-review-check-state-and-loop.md:42–44](https://github.com/youhei-dev/ai-quality-harness/blob/8bd945666f5774ca9a4b4030bcd77f60794b764a/docs/adr/0027-review-check-state-and-loop.md#L42-L44) も修正内容の意味までは検査しないと明記しています。従って、REVIEW LOOP: complete と警告 0 は、この対応の妥当性を証明しません。依頼文と note に経緯・後続の記録予定が明示され、本文自体は訂正済みなので Low とします。",
+      "fix": "次の記録 PR で、fixedIn と note・応答記録を実際の文書修正に合わせてください。今回宣言した実文書一式への反映完了を基準にすると、I48-D-R1-001 と I48-D-R2-001 は 8bd945666f5774ca9a4b4030bcd77f60794b764a、I48-D-R1-005 は 5fe75f4c5f47933bea5f66232e2e454c418fb3d5 が対応します。前の 2 件の note に、主な文書修正は docs コミット、CHANGELOG への反映完了は release コミットと補足すれば追跡できます。元の実装コミットは、関連する動作・回帰テストの根拠として残せます。文書の追跡情報の訂正のために新しい実行テストを設ける必要はありません。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-20: v0.13.1 で直す）。レビュアーの修正案のとおり、I48-D-R1-001・I48-D-R2-001 の fixedIn を release の commit 8bd945666f5774ca9a4b4030bcd77f60794b764a に、I48-D-R1-005 の fixedIn を docs の commit 5fe75f4c5f47933bea5f66232e2e454c418fb3d5 に直した。各件の note は v0.13.0 の文を残して訂正の注記を足し、元の実装の commit 7633da4f25c42748b6ee66fcb13cbb6c2a7289e3 を動きと回帰テストの根拠として残した。response-r1.md・response-r2.md にも注記を 1 つずつ足した（前の行は変えていない）",
+      "fixedIn": "c67069654bc25fd2717496d3112571df4e62dfb3",
+      "regressionTest": "新しい実行のテストは無い（文書の追跡情報の訂正。レビュアーの修正案のとおり）。訂正の後の aiqh review-check --label item48-design が REVIEW LOOP: complete・REVIEW CHECK: passed・warnings 0。review-check が確かめるのは fixedIn の形と commit の存在で、中身の意味は確かめない（ADR-0027）",
+      "guard": null,
+      "destination": "v0.13.1",
+      "note": "訂正した 3 件: I48-D-R1-001 と I48-D-R2-001 は 7633da4 から 8bd9456、I48-D-R1-005 は 7633da4 から 5fe75f4。テストの追加に対応する I48-D-R1-002〜004 は 7633da4 のまま（レビュアーも不適切とは評価していない）"
+    }
+  ]
+}

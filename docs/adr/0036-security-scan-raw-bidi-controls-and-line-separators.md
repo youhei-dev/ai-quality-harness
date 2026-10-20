@@ -1,7 +1,7 @@
 # ADR-0036: security の check は、生の双方向の制御文字と行区切りを、出現ごとに finding にする（既定で FAIL、分類を明示した allow でだけ外せる）
 
 - 状態: 採用（v0.13.0。ROADMAP の項目 48。設計と独立レビューの記録は `docs/reviews/item48-design/`〈設計 R2 の記録 `design-r2.md`。レビューは R1: High 0 / Medium 3 / Low 2、R2: High 0 / Medium 0 / Low 1 で閉じた。R2 の Low〈I48-D-R2-001〉は、決定 10 の版を上げるときの案内に入れた〉）
-- 日付: 2026-10-19（v0.13.0）
+- 日付: 2026-10-19（v0.13.0）。追記: 2026-10-20（v0.13.1。未マージの index で同じパスを 1 回だけ扱う。下の「追記（v0.13.1）」）
 
 ## 文脈
 
@@ -105,3 +105,9 @@
 - 版の組み合わせ: 検出が効くのは、実際に起動する `aiqh security-scan` が v0.13.0 以降のときだけ。verify の版だけを上げても効かない（決定 10）
 - `aiqh history`: 数のキー `rawChars` の系列が増え、古い run は `unknownRuns`。`findings` の系列は v0.13.0 から生の文字の件数を含む
 - 変えないもの: review-packet、`FORBIDDEN_RANGES`、本体の再発を防ぐテストと docs のテスト、依存関係、`package-lock.json`、`tests/structure/`、組み込みのモジュールの一覧
+
+## 追記（v0.13.1）
+
+- 決定 2（同じファイルの同じ行の同じ符号位置は 1 件）と、決定 5 のパス名の finding（設計 R2 の記録 `design-r2.md` の §3-4 では、1 つのパスで符号位置ごとに 1 件）を、index に未マージのパスがあるときにも守るようにした（実装の独立レビュー item48-impl R1 の I48-I-R1-001。Low。`docs/reviews/item48-impl/`）。未マージのパスは `git ls-files -z` に stage（1・2・3）ごとに出るが、作業ツリーのファイルは 1 つなので、`src/security/scan.ts` の `listFiles` が結果を順序を保って一意化し、名前の確かめと中身の走査を 1 回にした（`--deduplicate` は使わない）
+  - 判定は変わらない（検出漏れは無く、同じ finding を重ねて数えていた）。秘密の形の finding・`filesTracked`・`filesScanned` の重複も同じ直しで消えた（今までの動きの直し）
+  - テスト: `tests/regression-item48-impl-r1-001-unmerged-index.test.ts`（4 件）。v0.13.0 の release の commit `8bd9456` で 4 件とも FAIL

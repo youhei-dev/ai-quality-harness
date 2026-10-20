@@ -5,7 +5,19 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.13.0 — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
+## v0.13.1 — security-scan treats an unmerged path once (the verdict does not change); the item48-impl R1 record
+
+- **実装の独立レビュー item48-impl R1 の Low 2 件の直し**（人間の決定 2026-10-20: 2 件とも v0.13.1 で直す。実装レビューの R2 は出さない）。branch `release/v0.13.1`、4 commit: `2025964`（テストと直し）・`c670696`（文書の指摘の `fixedIn` の訂正と、v0.13.0 の記録）・`715ffbf`（R1 の取り込みと対応記録）・この release の commit
+- I48-I-R1-001（未マージの index での重複）: index に未マージのパス（同じパスの stage 1・2・3）があると、`git ls-files` がそのパスを stage ごとに出し、`aiqh security-scan` が名前の確かめと中身の走査を 3 回していた。生の文字の finding と、それを抑えた allow の規則の回数が 3 倍になっていた。`src/security/scan.ts` の `listFiles` が一覧を順序を保って一意化し、各パスを 1 回だけ扱う（`--deduplicate` は使わない）
+  - **判定は変わらない**: 検出漏れは無く、同じ finding を重ねて数えていただけ（FAIL は FAIL のまま、PASS は PASS のまま）
+  - 今までの動きの直しも含む: 秘密の形の finding と、件数の行の `tracked files`・`scanned` の重複も消える（v0.13.0 より前からあった重複。未マージの index のときだけ）
+- テスト: `tests/regression-item48-impl-r1-001-unmerged-index.test.ts`（新規、4 件）。テストを先に書き、v0.13.0 の release の commit `8bd9456` の SHA 固定の worktree に写して走らせ、4 件とも FAIL（見込みどおり）。既存のテストの期待値と `tests/structure/` は変えていない。テストは 174 ファイル・2,344 件から 175 ファイル・2,348 件
+- I48-I-R1-002（文書の指摘の `fixedIn`）: item48-design の I48-D-R1-001・I48-D-R2-001 の `fixedIn` を release の commit `8bd9456`、I48-D-R1-005 を docs の commit `5fe75f4` に訂正した（前は文書を直していない実装の commit `7633da4`。`note` と応答記録は前の文を残し、訂正の注記を足した）
+- 記録: `docs/reviews/item48-impl/`（R1: High 0 / Medium 0 / Low 2。2 件とも `resolved`。R1 で閉じた）、I48-D-R1-003 の `note` の訂正の注記（v0.13.0 の依頼文と同じ `note` の「名前に 11 文字を置いたテスト」は誤りで、T7 群が名前に置くのは 3 種類。11 種類は使い捨ての確かめで確かめた）、ADR-0036 の追記、ADR の一覧、ARCHITECTURE、ROADMAP（v0.13.0 の CI の記録、v0.13.1 の項）、CHANGELOG の v0.13.0 の見出しの SHA。`aiqh review-check` は item48-impl・item48-design とも `REVIEW LOOP: complete`
+- review-packet と `scanString` の経路は変えていない。依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧・禁止文字の集合（`FORBIDDEN_RANGES`）は v0.13.0 と同一
+- `package.json` version 0.13.1（`package-lock.json` の `version` は 0.5.35 のまま）
+
+## v0.13.0 — commit 8bd945666f5774ca9a4b4030bcd77f60794b764a / tag object 041bd54610280d66519426a00f8351441f74b45b — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
 
 - **判定が厳しくなる変更**: `aiqh security-scan`（verify の security の check）が、追跡しているファイルと、未追跡で ignore されないファイルの中身とパス名にある、生の双方向の制御文字（U+202A–U+202E、U+2066–U+2069）と行区切り・段落区切り（U+2028、U+2029）を finding にする（`raw-char`。1 つでもあれば exit 1、check は FAIL）。これまで PASS だったリポジトリが FAIL になりうる（ROADMAP の項目 48。ADR-0036）。branch `release/v0.13.0`、3 commit: `7633da4`（テストと実装）・`5fe75f4`（文書と、設計の独立レビューの記録）・この release の commit
   - 見つけ方: `aiqh security-scan` の `[raw-char] <path>:<line> U+XXXX <分類>` の行（パス名は `[raw-char] <path> U+XXXX <分類> (in the path)`。行の中身は出さない）
