@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
 - 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
-- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -198,3 +198,9 @@
 
 ### 影響
 - 文書だけ（この ADR、`docs/reviews/m2-2-parsers/` の R2 の 3 ファイル、CHANGELOG の v0.8.1 の見出しの SHA、ROADMAP）。`src/`・`tests/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えない
+
+## 注記（v0.13.0、ADR-0036）
+
+- security-scan の件数の行の内訳の最後に `raw characters: N` を足した（6 つの内訳）。数のキー `rawChars`（`gitignore` の後ろ、`suppressed` の前）、項目の種類 `raw-char`（`[raw-char] ` の行）、端末の `parsed:` の表示の `raw characters N`。パーサは新しい形（6 つの内訳）だけを受け付ける
+- 古い aiqh と新しい aiqh が、verify（親。パーサ）とその子の `aiqh security-scan`（出力）で食い違うと、`parsed` は `unparsed`（`unexpected-summary`）になる。**パースの失敗は判定を変えない**（P1 のまま。check の PASS / FAIL と終了コードは変わらない）
+- ただし、**検出の範囲は、実際に起動する `aiqh security-scan`（子）の版で決まる**。新しい verify と古い security-scan の組み合わせでは、生の文字の検出は効かない（古い子は生の文字を見ないので、ほかの finding が無ければ PASS のまま）。パースの失敗が判定を変えないことは、この組み合わせを安全にするものではない。`unexpected-summary` は、親と子の版の食い違いの印として扱う（ADR-0036 の決定 10）

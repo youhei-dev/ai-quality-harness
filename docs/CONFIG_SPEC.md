@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-18（v0.11.0。§4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-19（v0.13.0。§3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -81,10 +81,10 @@
 
 | キー | 型 | 既定 | 意味 |
 |---|---|---|---|
-| `allow[]` | 配列 | `[]` | 秘密の形の finding（`secret` / `oversized-candidate`）の例外指定。**`tracked-env` / `untracked-env` / `gitignore` は抑制できない** |
+| `allow[]` | 配列 | `[]` | 秘密の形の finding（`secret` / `oversized-candidate`）と、生の文字の finding（`raw-char`。v0.13.0、ADR-0036。**分類を明示した規則だけ**）の例外指定。**`tracked-env` / `untracked-env` / `gitignore` は抑制できない** |
 | `allow[].path` | string（必須） | — | リポジトリ相対パスの glob（`path.matchesGlob`。`tests/**`、`src/*.py`、`**` 等） |
-| `allow[].category` | string | 全分類 | 抑制する分類（`anthropic` / `aws` / `key-value` …。既知の分類名のみ） |
-| `allow[].line` | 正の整数 | 全行 | その行だけを抑制 |
+| `allow[].category` | string | 秘密の形の全分類 | 抑制する分類（`anthropic` / `aws` / `key-value` …、v0.13.0 から生の文字の `bidi-control` / `line-separator`。既知の分類名のみ）。省略すると秘密の形のすべての分類に効き、**生の文字は抑えない** |
+| `allow[].line` | 正の整数 | 全行 | その行だけを抑制（パス名の生の文字には行が無いので効かない） |
 | `allow[].reason` | string（必須、空白のみ不可） | — | 理由。scan の出力とレポートにそのまま表示される |
 | `allow[].expires` | `YYYY-MM-DD` | 無期限 | この日を過ぎた規則は無効（該当 finding は残り、警告を出す） |
 | `envProbePaths` | string[] | `.env`, `.env.local`, `.env.production`, `.env.development` | `.gitignore` のカバレッジ確認に使う代表パス（先頭が `.env` 本体扱い） |
@@ -104,7 +104,7 @@ DEL（U+007F）、C1 制御文字（U+0080〜U+009F）、U+2028 / U+2029 を含�
 入力の出所（変更ファイルの全文と差分の行、`--doc`）のリポジトリパスと行に適用し、抑制した件数と一覧はパケットの Integrity 節に載せる。依頼文・レビュー原文・
 commit メッセージ・verify 結果にはパスが無いので適用されない。review-packet 用の新しいキーは無い（オプションは CLI のみ）。
 
-抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
+抑制した finding の件数と一覧（`[allowed] file:line category by rule #n`。パス名の生の文字は `[allowed] file category by rule #n`）、使った規則、未使用の規則（警告）、期限切れの規則（警告）は
 scan の出力（text / `--json`）に必ず出る。verify のレポートには security チェックの出力として残る（実行経路は M0 のまま）。
 
 **key-value 走査（M2-0 §6）の既知の制限**: 候補になるのは引用符付きのリテラルと、dotenv / shell 形式の裸の値（`()[]{}` や `.` / `->` / `::` の
@@ -210,7 +210,7 @@ check の出力は端末ではなくレポートに入るので、色を強制�
     // build: node-build — package.json scripts.build = "tsc -b && vite build" (Vite)
     { "name": "build", "kind": "build", "command": "npm run build", "timeoutSec": 900, "description": "Production build via the existing build script (Vite)" },
     // security: builtin-security — git repository; built-in scanner (no external tool)
-    { "name": "security", "kind": "security", "command": "aiqh security-scan", "timeoutSec": 300, "description": "Secret-shaped strings in tracked files, tracked .env files, .gitignore coverage (values are never printed)" },
+    { "name": "security", "kind": "security", "command": "aiqh security-scan", "timeoutSec": 300, "description": "Secret-shaped strings, raw bidi controls and line separators in tracked files, tracked .env files, .gitignore coverage (values are never printed)" },
     // dependency: node-npm-audit — npm lockfile found
     { "name": "dependency", "kind": "dependency", "command": "npm audit --audit-level=high", "timeoutSec": 300, "description": "Known-vulnerability audit of installed dependencies (needs registry access)" }
     // lint: NOT APPLICABLE — no ESLint config, no eslint dependency, no lint script
@@ -264,6 +264,14 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 - `security.allow` による抑制は必ず出力に残る（§3b）
 - `lstat` / open / read の失敗は exit 2（fail closed）。例外は ENOENT（index にあるが作業ツリーに無い）だけで、これはスキップ
 - 値は出力しない（分類・パス・行番号のみ）
+- **生の文字（v0.13.0、ADR-0036。判定が厳しくなる変更）**: 双方向の制御文字 U+202A–U+202E・U+2066–U+2069（分類 `bidi-control`）と、行区切り・段落区切り U+2028・U+2029（分類 `line-separator`）を `raw-char` の finding にする（1 つでもあれば exit 1）。禁止文字の集合（75 の符号位置）のうち、この 11 だけを見る
+  - 中身: 読むファイル（上の対象。バイナリ・未追跡の `.env*`・symlink・submodule は読まない）の行。同じ行の同じ符号位置は 1 件。行は LF で数える（U+2028・U+2029 では分けない）。不正な UTF-8 のバイトがあっても、正しく符号化された文字は見つける
+  - パス名: 2 つの一覧に出たすべてのパス（中身を読まないものも含む）の、リポジトリからの相対のパス。符号位置ごとに 1 件で、行は無い。作業ディレクトリ（ルート）のパスは見ない。未追跡で ignore されたパスは一覧に出ないので見ない
+  - 出力: `raw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029)` の情報の行（`--json` は `scannedRawChars`）、件数の行の最後の `raw characters: N`、`[raw-char] <path>:<line> U+202E bidi-control`（パス名は `[raw-char] <path> U+202E bidi-control (in the path)`）。行の中身は出さない。パスは出口で表記にしてから出す
+  - 抑えるのは、その分類を明示した `security.allow` の規則だけ（§3b）
+  - 見ないもの（既知の限界）: 方向の印 U+200E・U+200F・U+061C、ゼロ幅の文字、異体字セレクタ、タグ文字（ROADMAP の項目 49）、UTF-16・UTF-32 のファイル（NUL を含むのでバイナリとして読まない）、不正な UTF-8 のバイトそのもの、symlink の先・submodule の中
+  - **検出の範囲は、実際に起動する `aiqh security-scan` の版で決まる**: verify の security の check は、check の `command`（`aiqh security-scan`）を PATH で探して起動する。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず check は PASS のまま（verify のパーサは、古い 5 つの内訳の件数の行を `unexpected-summary` にする。判定は変えない。ADR-0028）
+  - 版を上げるとき: verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえる。`--version` は package の版を示すだけで、`dist/` が新しくなったことの証明にはならない。版を上げた後は `npm run build` をし、実際の security の check と同じ起動の経路（`aiqh verify` の中の security、または `aiqh security-scan`）で、`raw characters checked:` の情報の行と、`raw characters` を含む 6 つの内訳の件数の行が出ることを確かめる。手元は、どの `aiqh` が呼ばれるかを `command -v aiqh` で確かめる
 
 ### 5.3c `aiqh init` の書込フラグと部分更新（M1-R1-010）
 

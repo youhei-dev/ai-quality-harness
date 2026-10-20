@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CHECK_KINDS } from "../types.ts";
 import { SECRET_CATEGORIES } from "../security/patterns.ts";
+import { RAW_CHAR_CATEGORIES } from "../security/raw-chars.ts";
 import { MIN_LINE_OVERLAP_BYTES } from "./window-limits.ts";
 
 export const CHECK_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -34,7 +35,10 @@ function isRealDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-/** `security.allow[]` entry (M2-0 §7): path glob, optional category / line, mandatory reason, optional expiry. */
+/**
+ * `security.allow[]` entry (M2-0 §7): path glob, optional category / line, mandatory reason, optional expiry. The categories are the
+ * secret categories and the raw-character ones (`bidi-control`, `line-separator`; a raw character needs its category named, ADR-0036).
+ */
 /**
  * Free text of an allow rule must stay on one printable line (M2-0-R1-002 / R2-002): no C0 control
  * characters (U+0000–U+001F, which includes CR / LF / TAB / ESC), no DEL (U+007F), no C1 controls
@@ -43,9 +47,10 @@ function isRealDate(s: string): boolean {
  */
 // eslint-disable-next-line no-control-regex -- the control ranges are the point of this rule (M2-0-R2-002)
 const ONE_PRINTABLE_LINE = /^[^\u0000-\u001F\u007F-\u009F\u2028\u2029]*$/;
+const ALLOW_CATEGORIES: readonly string[] = [...SECRET_CATEGORIES, ...RAW_CHAR_CATEGORIES];
 const allowRuleSchema = z.strictObject({
   path: z.string().regex(/\S/, "allow.path must not be blank").regex(ONE_PRINTABLE_LINE, "allow.path must not contain control characters or line separators"),
-  category: z.enum(SECRET_CATEGORIES as [string, ...string[]]).optional(),
+  category: z.enum(ALLOW_CATEGORIES as [string, ...string[]]).optional(),
   line: z.number().int().positive().optional(),
   reason: z.string().regex(/\S/, "allow.reason is mandatory and must not be blank").regex(ONE_PRINTABLE_LINE, "allow.reason must not contain control characters or line separators"),
   expires: z.string().regex(ISO_DATE, "allow.expires must be YYYY-MM-DD").refine(isRealDate, "allow.expires must be a real date").optional(),

@@ -11,6 +11,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runSecurityScan } from "../src/commands/security-scan.ts";
 import { runVerify } from "../src/commands/verify.ts";
+import { summaryText } from "../src/parse/describe.ts";
 import { parseOutputAs } from "../src/parse/read.ts";
 import { LineAssembler } from "../src/security/scan.ts";
 import type { VerificationReport } from "../src/types.ts";
@@ -70,7 +71,7 @@ async function scanText(cwd: string): Promise<{ code: number; text: string }> {
   return { code, text: `${lines.join("\n")}\n` };
 }
 
-const SECURITY_ZERO = { findings: 0, secretShaped: 0, oversizedCandidates: 0, trackedEnv: 0, untrackedEnv: 0, gitignore: 0, suppressed: 0, allowRulesUsed: 0, expiredAllowRules: 0, unusedAllowRules: 0 };
+const SECURITY_ZERO = { findings: 0, secretShaped: 0, oversizedCandidates: 0, trackedEnv: 0, untrackedEnv: 0, gitignore: 0, rawChars: 0, suppressed: 0, allowRulesUsed: 0, expiredAllowRules: 0, unusedAllowRules: 0 };
 
 describe("the security-scan output as verify reads it", () => {
   it("the oversized candidate, the suppressed finding and the allow rules (used, expired, unused) become counts and entries", async () => {
@@ -93,11 +94,11 @@ describe("the security-scan output as verify reads it", () => {
     expect(parseOutputAs("aiqh-security-scan", { stdout, stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false })).toEqual({ tool: "aiqh-security-scan", status: "parsed", reason: null, truncated: false, counts: SECURITY_ZERO, items: [], itemsOmitted: 0 });
   });
   it.each([
-    ["no header (another tool, or an error before the scan)", "findings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)\n\nSECURITY SCAN: no findings\n", "no-summary"],
+    ["no header (another tool, or an error before the scan)", "findings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0, raw characters: 0)\n\nSECURITY SCAN: no findings\n", "no-summary"],
     ["the JSON output (--json)", '{ "root": "/w", "findings": [] }\n', "no-summary"],
-    ["kinds that do not add up", "aiqh security-scan — /w\nfindings: 2 (secret-shaped: 1, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)\n\nSECURITY SCAN: findings present (see above)\n", "unexpected-summary"],
-    ["a last line that does not match the findings", "aiqh security-scan — /w\nfindings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)\n\nSECURITY SCAN: findings present (see above)\n", "unexpected-summary"],
-    ["no last line", "aiqh security-scan — /w\nfindings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)\n", "no-summary"],
+    ["kinds that do not add up", "aiqh security-scan — /w\nfindings: 2 (secret-shaped: 1, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0, raw characters: 0)\n\nSECURITY SCAN: findings present (see above)\n", "unexpected-summary"],
+    ["a last line that does not match the findings", "aiqh security-scan — /w\nfindings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0, raw characters: 0)\n\nSECURITY SCAN: findings present (see above)\n", "unexpected-summary"],
+    ["no last line", "aiqh security-scan — /w\nfindings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0, raw characters: 0)\n", "no-summary"],
   ])("%s: unparsed (%s)", (_name, stdout, reason) => {
     expect(parseOutputAs("aiqh-security-scan", { stdout, stderr: "", exitCode: 1, stdoutTruncated: false, stderrTruncated: false })).toMatchObject({ status: "unparsed", reason });
   });
@@ -117,9 +118,38 @@ describe("verify with a security check: the entries in the report, the result un
     expect(check?.parsed?.tool).toBe("aiqh-security-scan");
     expect(check?.parsed?.counts).toMatchObject({ findings: 1, oversizedCandidates: 1, suppressed: 1 });
     expect(check?.parsed?.items.map((i) => i.kind)).toEqual(["oversized-candidate", "allowed", "allow-rule-used", "expired-allow-rule", "unused-allow-rule"]);
-    expect(lines).toContain("      parsed: aiqh-security-scan — findings 1 (secret-shaped 0, oversized candidates 1, tracked .env 0, untracked .env not ignored 0, .gitignore 0); suppressed by security.allow 1; allow rules used 1, expired 1, unused 1");
+    expect(lines).toContain("      parsed: aiqh-security-scan — findings 1 (secret-shaped 0, oversized candidates 1, tracked .env 0, untracked .env not ignored 0, .gitignore 0, raw characters 0); suppressed by security.allow 1; allow rules used 1, expired 1, unused 1");
     const md = readFileSync(path.join(dir, "artifacts", "verification", "latest.md"), "utf8");
     expect(md).toContain("- oversized-candidate: cand.txt:1 url-credential");
     expect(`${lines.join("\n")}${md}${JSON.stringify(report)}`).not.toContain(ANT);
+  });
+});
+
+describe("item 48 (v0.13.0, ADR-0036): raw characters in the security-scan output", () => {
+  it("T10: six kinds on the findings line (rawChars) and the raw-char entries are read, the parsed line says raw characters N; five kinds are an unexpected summary", async () => {
+    const t = makeTempDir("aiqh-parse-raw-");
+    cleanups.push(t.cleanup);
+    writeFileSync(path.join(t.dir, ".gitignore"), ".env\n.env.*\n");
+    writeFileSync(path.join(t.dir, "a.ts"), `const a = "x${String.fromCodePoint(0x202e)}y";\n`);
+    execFileSync("git", ["init", "-q"], { cwd: t.dir });
+    execFileSync("git", ["add", "--", ".gitignore", "a.ts"], { cwd: t.dir });
+    const { code, text } = await scanText(t.dir);
+    expect(code).toBe(1);
+    const r = parseOutputAs("aiqh-security-scan", { stdout: text, stderr: "", exitCode: code, stdoutTruncated: false, stderrTruncated: false });
+    expect(r.status).toBe("parsed");
+    expect(r.counts).toEqual({ ...SECURITY_ZERO, findings: 1, rawChars: 1 });
+    expect(r.items).toEqual([{ kind: "raw-char", name: "a.ts:1 U+202E bidi-control" }]);
+    expect(summaryText(r)).toBe(
+      "findings 1 (secret-shaped 0, oversized candidates 0, tracked .env 0, untracked .env not ignored 0, .gitignore 0, raw characters 1); suppressed by security.allow 0; allow rules used 0, expired 0, unused 0",
+    );
+    const five = "aiqh security-scan — /w\nfindings: 0 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0)\n\nSECURITY SCAN: no findings\n";
+    expect(parseOutputAs("aiqh-security-scan", { stdout: five, stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false })).toMatchObject({ status: "unparsed", reason: "unexpected-summary" });
+  });
+
+  it("T14: the self verify's security output (the fixture, taken again with v0.13.0) says raw characters: 0 and is parsed", () => {
+    const stdout = readFileSync(path.join(ROOT, "tests", "fixtures", "parse", "security-self.stdout.txt"), "utf8");
+    expect(stdout).toContain(", .gitignore: 0, raw characters: 0)");
+    expect(stdout).toContain("\nraw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029)\n");
+    expect(parseOutputAs("aiqh-security-scan", { stdout, stderr: "", exitCode: 0, stdoutTruncated: false, stderrTruncated: false })).toMatchObject({ status: "parsed", counts: { rawChars: 0 } });
   });
 });

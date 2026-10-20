@@ -1,7 +1,7 @@
 # ADR-0034: `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`）
 
 - 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉。v0.11.2 で H・I・N の出力の上限の数え方を直した〈実装レビュー m4-history R1 の M4-H-R1-001。`docs/reviews/m4-history/`〉。v0.12.0 で `--html`〈ADR-0035〉の注記を A・H・I に足した）
-- 日付: 2026-10-18（v0.11.0）
+- 日付: 2026-10-18（v0.11.0）。注記: 2026-10-19（v0.13.0。C の 5 の `src/parse/security-scan.ts` の行の参照を、実装で動いた行に合わせた〈ADR-0036。security-scan のキーに `rawChars`〉）
 
 ## 文脈
 - 計画では、複数プロジェクトの `history/*.json` を、ユーザーローカルの 1 か所（例: `~/.aiqh/history.db`）に取り込む想定だった（ARCHITECTURE の §6.3。v0.11.0 で書き直した）
@@ -63,7 +63,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
    - **長さと数の上限**（M4-D-R1-003）: `NAME_MAX_BYTES` 256・`VERSION_MAX_BYTES` 64・`CHECKS_MAX` 256（47〜51 行）。超えたら**切り詰めずに `bad-shape`**。その値は `maskSecrets` にも渡らない（マスクの前に切ると、秘密の形の断片が残るおそれがある）。バイトの長さは UTF-8 のバイト数（多バイトの文字で上限を広げられない）。`checks` の数は zod の前に数える（324 行）
    - **数の範囲**（M4-D-R2-003）: `durationMs`・`summary`・`parsed.counts` の値は 0 以上の安全な整数（`COUNT`。145 行）、`exitCode` は安全な整数、`timeoutSec` は設定の規則と同じ正の整数で安全な整数（170 行）。外は `bad-shape`。JSON の `-0` は 0 として読む
    - **読まない欄**（形を確かめない・保持しない）: `project.root`・`configPath`・`finishedAt`・`git.commit`・`git.branch`・`categories`・`checks[].command`・`cwd`・`description`・`exitCode`・`signal`・`startedAt`・`errorSummary`・`stdoutTail`・`stderrTail`・`outputTruncated`・`parsed.reason`・`parsed.items`・`parsed.itemsOmitted`。`JSON.parse` の間は一時的にメモリにあるが、残るのは zod が返した読む欄だけで、集計と出力に混ざりようがない
-   - `parsed.counts` のキーは、パーサごとの一覧（`COUNT_KEYS`。`src/parse/read.ts:24`。各パーサが export する: `src/parse/vitest.ts:19`・`src/parse/eslint.ts:68`・`src/parse/npm-audit.ts:12`・`src/parse/security-scan.ts:24`）だけを、自分の持つキーとして読む（347 行）。`__proto__` などのキーは一覧に無いので使わない。一覧がパーサの書くキーをすべて含むことは、パーサの fixture でテストする
+   - `parsed.counts` のキーは、パーサごとの一覧（`COUNT_KEYS`。`src/parse/read.ts:24`。各パーサが export する: `src/parse/vitest.ts:19`・`src/parse/eslint.ts:68`・`src/parse/npm-audit.ts:12`・`src/parse/security-scan.ts:25`）だけを、自分の持つキーとして読む（347 行）。`__proto__` などのキーは一覧に無いので使わない。一覧がパーサの書くキーをすべて含むことは、パーサの fixture でテストする
 6. **重複**（Q7）: バイト列の SHA-256 が同じファイルは 1 回だけ数え、`duplicates` に数を出す（情報。exit 0）
 7. **読めないものの分類**（8 つの固定の語。`UNREAD_REASONS`。54 行。決める順もこの順。1 つのファイルは最初に当たった 1 つになる）: `not-regular` → `unreadable`（`code` は errno の名前〈`/^E[A-Z0-9]+$/`〉か `size-changed`）→ `too-large` → `empty`（0 バイト。中断された verify が残しうる。Q6: exit 2）→ `not-utf8` → `not-json` → `unknown-version` → `bad-shape`（どの欄かは出さない）
 
