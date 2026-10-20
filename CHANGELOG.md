@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.13.1 — security-scan treats an unmerged path once (the verdict does not change); the item48-impl R1 record
+## v0.13.1 — commit 8651e4be0a2790c6f35a66c1a2a448469abe1890 / tag object f3b5ba7a6bd42aa79b622651caf45d88e0813182 — security-scan treats an unmerged path once (the verdict does not change); the item48-impl R1 record
 
 - **実装の独立レビュー item48-impl R1 の Low 2 件の直し**（人間の決定 2026-10-20: 2 件とも v0.13.1 で直す。実装レビューの R2 は出さない）。branch `release/v0.13.1`、4 commit: `2025964`（テストと直し）・`c670696`（文書の指摘の `fixedIn` の訂正と、v0.13.0 の記録）・`715ffbf`（R1 の取り込みと対応記録）・この release の commit
 - I48-I-R1-001（未マージの index での重複）: index に未マージのパス（同じパスの stage 1・2・3）があると、`git ls-files` がそのパスを stage ごとに出し、`aiqh security-scan` が名前の確かめと中身の走査を 3 回していた。生の文字の finding と、それを抑えた allow の規則の回数が 3 倍になっていた。`src/security/scan.ts` の `listFiles` が一覧を順序を保って一意化し、各パスを 1 回だけ扱う（`--deduplicate` は使わない）
@@ -16,6 +16,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 記録: `docs/reviews/item48-impl/`（R1: High 0 / Medium 0 / Low 2。2 件とも `resolved`。R1 で閉じた）、I48-D-R1-003 の `note` の訂正の注記（v0.13.0 の依頼文と同じ `note` の「名前に 11 文字を置いたテスト」は誤りで、T7 群が名前に置くのは 3 種類。11 種類は使い捨ての確かめで確かめた）、ADR-0036 の追記、ADR の一覧、ARCHITECTURE、ROADMAP（v0.13.0 の CI の記録、v0.13.1 の項）、CHANGELOG の v0.13.0 の見出しの SHA。`aiqh review-check` は item48-impl・item48-design とも `REVIEW LOOP: complete`
 - review-packet と `scanString` の経路は変えていない。依存関係・`package-lock.json`・`.github/`・`tests/structure/`・組み込みのモジュールの一覧・禁止文字の集合（`FORBIDDEN_RANGES`）は v0.13.0 と同一
 - `package.json` version 0.13.1（`package-lock.json` の `version` は 0.5.35 のまま）
+- 記録（この版の後の記録の PR で記入）: PR #12（merge の commit `450f15af3a59bfdb0cdca426fc44e9f083619e3b`）。PR の run `39414459608`・main の run `39415301493` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.13.1 の項）
 
 ## v0.13.0 — commit 8bd945666f5774ca9a4b4030bcd77f60794b764a / tag object 041bd54610280d66519426a00f8351441f74b45b — security-scan finds raw bidirectional controls and line separators (a stricter verdict)
 
