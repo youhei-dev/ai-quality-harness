@@ -72,7 +72,7 @@
       "regressionTest": "tests/regression-item48-raw-chars-scan.test.ts の T7a〜T7f（8870afb で FAIL）と T7g（8870afb でも PASS する守り）",
       "guard": null,
       "destination": "v0.13.0",
-      "note": "v0.13.0 で直した（scanRepository の 2 つのループの先頭の checkPathName。ADR-0036 の決定 5）。名前に 11 文字を置いたテストは、手元（macOS、git 2.50.1）の全テストで通った。R2 の評価: 解消"
+      "note": "v0.13.0 で直した（scanRepository の 2 つのループの先頭の checkPathName。ADR-0036 の決定 5）。名前に 11 文字を置いたテストは、手元（macOS、git 2.50.1）の全テストで通った。R2 の評価: 解消。v0.13.1 の注記（実装の独立レビュー item48-impl R1 の問い 2 の限定を受けて）: 上の「名前に 11 文字を置いたテスト」は誤り。T7 群が名前に置くのは U+202E・U+2066・U+2029 の 3 種類で、11 種類すべてを名前に置くテストは無い。11 種類は、2026-10-20 に使い捨てのリポジトリ（macOS、git 2.50.1。commit したテストではない）で名前に置いて確かめた（ディスクの上と git ls-files -z の名前が 11 とも同じで、名前の finding が 1 件ずつ）。この注記より前の文は v0.13.0 の記録のまま"
     },
     {
       "id": "I48-D-R1-004",
