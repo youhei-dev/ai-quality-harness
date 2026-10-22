@@ -175,3 +175,5 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 | T2 並列数 | 1 台の機械で同時に走らせる全テストは 1 本。vitest の worker の数は変えない（vitest 5 の既定は、watch でないとき CPU の数 − 1） | 2 本を同時に走らせると worker が倍になる。verify は check を 1 つずつ走らせる（`src/runner/run-checks.ts`）ので、unit と unit-minpath は重ならない |
 | T3 各テストの上限 | 負荷で伸びるテスト（負荷のもとで静かなときの 2 倍以上になったもの）の上限は、max(30 秒, 静かなときの時間 × 12 を 10 秒単位に切り上げ)。式が 200 秒を超えるテストは分ける。上限はテストの中に書き、その行に式の値の注記を付ける。ループや `it.each` の中のテストは、ケースの中で最も大きい値を 1 つ付ける | 12 = 観測した最大の倍率 10.33 に約 16% の余裕。200 秒は T4 の 1/3。待つ時間で決まるテスト（倍率がほぼ 1）は対象外 |
 | T4 suite の予算 | unit・unit-minpath の check の `timeoutSec` 600（`aiqh.config.jsonc`） | CI の時間は ROADMAP の項目 42 で見張る。50%（300 秒）を超えたら、ROADMAP の「型を読むガードのテストの並列の抑制」と「TypeScript の program の再利用」を早める |
+
+- 上限に近い遅さの記録（v0.13.2）: 全テストの終わりに、vitest の reporter（`tests/support/near-limit-reporter.ts`）が、上限の 50% を超えたテストを割合の大きい順に最大 20 行と、件数の行を 1 行、stderr に出す。判定は変えない。PASS の check の出力は端末に出ないが、`latest.json` の `checks[].stderrTail` に残る（上限は各テストの timeout、時間は vitest の時間で `beforeEach`・`afterEach` を含む。上限の分からないテストは件数の行の `unknown-limit` に数える）
