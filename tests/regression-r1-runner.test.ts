@@ -2,7 +2,7 @@
  * Regression tests for independent review R1 — R-004
  * (docs/reviews/m0/independent-review-r1.md). Process-group kill on timeout.
  * Test names carry the review ID so the "FAIL before fix / PASS after fix" record can be traced.
- * Dummy secrets are assembled at runtime with fake() (see CLAUDE.md).
+ * Dummy secrets are assembled at runtime with fake() (see fake() in tests/helpers.ts).
  */
 import { existsSync } from "node:fs";
 import path from "node:path";

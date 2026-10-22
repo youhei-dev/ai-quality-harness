@@ -2,7 +2,7 @@
  * Regression tests for independent review R1 — R-001 / R-002 / R-003
  * (docs/reviews/m0/independent-review-r1.md). Secret masking rules.
  * Test names carry the review ID so the "FAIL before fix / PASS after fix" record can be traced.
- * Dummy secrets are assembled at runtime with fake() (see CLAUDE.md).
+ * Dummy secrets are assembled at runtime with fake() (see fake() in tests/helpers.ts).
  */
 import { describe, expect, it } from "vitest";
 import { maskSecrets } from "../src/security/mask.ts";

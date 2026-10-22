@@ -2,7 +2,7 @@
  * Regression tests for independent review R3 — R3-001
  * (docs/reviews/m0/independent-review-r3.md). A value starting with "[REDACTED:" must not bypass
  * the key-value rule; only aiqh's own canonical marker "[REDACTED:<category>]" as the whole value
- * is left alone. Dummy secrets are assembled at runtime with fake() (see CLAUDE.md).
+ * is left alone. Dummy secrets are assembled at runtime with fake() (see fake() in tests/helpers.ts).
  */
 import { describe, expect, it } from "vitest";
 import { MASK_CATEGORIES, maskSecrets } from "../src/security/mask.ts";
