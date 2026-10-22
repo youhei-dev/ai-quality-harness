@@ -65,6 +65,8 @@ const CASES = [
 
 describe("M2-1-R1-002: forbidden characters in output paths", () => {
   for (const [name, cp] of CASES) {
+    // Item 41 (v0.13.2), time budget T3 (docs/ops/ci-and-branch-protection.md): one limit for the three cases, the largest of their T3 = 40 s
+    // (U+2028: 12 × the quiet 2.84 s; U+202E: 2.63 s; CR: 2.47 s, whose own T3 is 30 s)
     it(`-o and --zip-output with ${name} in a parent directory: exit 2, no raw character in stdout / stderr / JSON, existing files unchanged`, () => {
       const r = repo();
       const bad = path.join(r.dir, `out${ch(cp)}dir`);
@@ -94,7 +96,7 @@ describe("M2-1-R1-002: forbidden characters in output paths", () => {
       expect(readFileSync(path.join(bad, "packet.md"), "utf8")).toBe("OLD PACKET\n");
       expect(readFileSync(path.join(bad, "p.zip"), "utf8")).toBe("OLD ZIP\n");
       expect(readFileSync(path.join(good, "packet.md"), "utf8")).toBe("OLD GOOD PACKET\n");
-    });
+    }, 40_000);
   }
 
   it("--cwd whose path contains U+2028: exit 2, no raw character printed", () => {

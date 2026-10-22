@@ -153,7 +153,7 @@ gh run view <run-id> --log-failed                  # 失敗した手順のログ
 main への直接の push は、ruleset で拒まれる（admin も）。版を出すときも、記録だけのときも、次の流れにする。
 
 1. origin/main から作業の branch を作る（版を出すときは `release/vX.Y.Z`、記録だけなら `docs/<topic>`）
-2. branch に目的ごとの commit を作り、各 commit を SHA 固定の worktree で検証する（typecheck・lint・全テスト・`npm run verify`）
+2. branch に目的ごとの commit を作り、各 commit を SHA 固定の worktree で検証する（typecheck・lint・全テスト・`npm run verify`。テストと verify は、下の 8-1 の T1 の負荷のゲートを通してから始める）
 3. push の前に走査し（範囲は `origin/main..HEAD`）、branch を push する
 4. pull request を作り（base は main）、必須の 2 つの checks（`verify (ubuntu)`・`reusable (self) / aiqh verify`）が緑になるのを待つ
 5. `gh pr merge <番号> --merge --match-head-commit <branch の先頭の SHA> --delete-branch` で merge する（`--admin` は使わない。`--match-head-commit` で、確かめた commit 以外を merge しない）
@@ -164,3 +164,14 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する
 - タグの push は、ruleset の対象（branch）の外
+
+### 8-1. テストの時間の予算（T1〜T4。v0.13.2、ROADMAP の項目 41）
+
+負荷のもとで時間切れになるテストがあった（ROADMAP の項目 41。全テストを 2 本同時に走らせた再現で、型を読むガードのテスト 3 件が時間切れ）。次の 4 つを分けて決める。判定（verify の合否）には関わらない、テストの作りと手元の運用の決まり。
+
+| 予算 | 決まり | 根拠 |
+|---|---|---|
+| T1 負荷のゲート（手元） | テストと verify（各 commit の worktree の検証を含む）を始める前に、1 分平均 8 以下かつ 5 分平均 12 以下が 20 秒おきに 3 回続くのを待つ（最長 90 分）。リリースの検証で 15 分平均が高いときは、1 分平均 6 以下かつ 5 分平均 8 以下。始めたときの値を記録に書く。CI には置かない（job ごとに別の runner） | 8 CPU の機械で全テストを 2 本同時に走らせると、1 分平均が 300 を超え、型を読むガードのテストが時間切れになった（batch1 の再現） |
+| T2 並列数 | 1 台の機械で同時に走らせる全テストは 1 本。vitest の worker の数は変えない（vitest 5 の既定は、watch でないとき CPU の数 − 1） | 2 本を同時に走らせると worker が倍になる。verify は check を 1 つずつ走らせる（`src/runner/run-checks.ts`）ので、unit と unit-minpath は重ならない |
+| T3 各テストの上限 | 負荷で伸びるテスト（負荷のもとで静かなときの 2 倍以上になったもの）の上限は、max(30 秒, 静かなときの時間 × 12 を 10 秒単位に切り上げ)。式が 200 秒を超えるテストは分ける。上限はテストの中に書き、その行に式の値の注記を付ける。ループや `it.each` の中のテストは、ケースの中で最も大きい値を 1 つ付ける | 12 = 観測した最大の倍率 10.33 に約 16% の余裕。200 秒は T4 の 1/3。待つ時間で決まるテスト（倍率がほぼ 1）は対象外 |
+| T4 suite の予算 | unit・unit-minpath の check の `timeoutSec` 600（`aiqh.config.jsonc`） | CI の時間は ROADMAP の項目 42 で見張る。50%（300 秒）を超えたら、ROADMAP の「型を読むガードのテストの並列の抑制」と「TypeScript の program の再利用」を早める |

@@ -32,13 +32,21 @@ function daemonJs(up: string): string {
   return `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(up)}, String(process.pid)); ${exitWhenRemoved(up)} setTimeout(() => process.exit(0), 8000)`;
 }
 
-/** The command of a leader that spawns the daemon, records its parent (the shell = the group id) and then runs `body`. */
-function leaderWithDaemon(dir: string, ready: string, body: string): string {
+/**
+ * The command of a leader that spawns the daemon, runs `beforeReady`, records its parent (the shell = the group id) and then runs
+ * `body`. Item 41 (v0.13.2): a SIGTERM handler goes in `beforeReady`, so it is in place before the test sees the marker and aborts
+ * (it used to come after the marker: a SIGTERM in between ended the leader and no SIGKILL was needed). `afterReady` runs right
+ * after the marker; only the test of that order uses it.
+ */
+function leaderWithDaemon(dir: string, ready: string, beforeReady: string, body: string, afterReady = ""): string {
   const up = path.join(dir, "daemon.up");
   return `${nodeEval(
-    `const { spawn } = require("child_process"); spawn(process.execPath, ["-e", ${JSON.stringify(daemonJs(up))}], { detached: true, stdio: "inherit" }).unref(); require("fs").writeFileSync(${JSON.stringify(ready)}, String(process.ppid)); ${exitWhenRemoved(ready)} ${body}`,
+    `const { spawn } = require("child_process"); spawn(process.execPath, ["-e", ${JSON.stringify(daemonJs(up))}], { detached: true, stdio: "inherit" }).unref(); ${beforeReady} require("fs").writeFileSync(${JSON.stringify(ready)}, String(process.ppid)); ${afterReady} ${exitWhenRemoved(ready)} ${body}`,
   )}; true`;
 }
+
+/** A loaded machine in the leader: the thread stops for 400 ms right after the ready marker (the abort comes in that time). */
+const PAUSE_AFTER_READY = "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);";
 
 describe("B16-R2-002: the bounded wait for `close` counts from the SIGKILL when the SIGKILL came first", () => {
   it("close pending, SIGKILL sent, the group seen gone later: the run settles CONFIRM_MS after the SIGKILL", async () => {
@@ -46,7 +54,7 @@ describe("B16-R2-002: the bounded wait for `close` counts from the SIGKILL when 
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
     // The leader ignores SIGTERM, so the group is alive when the SIGKILL timer fires; the daemon (another group) holds the pipes.
-    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => {}); setTimeout(() => {}, 30000)`);
+    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => {});`, `setTimeout(() => {}, 30000)`);
     const controller = new AbortController();
     const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, killGraceMs: KILL_GRACE_MS, confirmMs: CONFIRM_MS, signal: controller.signal });
     cleanups.push(stopper(pending, () => controller.abort("clean-up"), KILL_GRACE_MS + CONFIRM_MS + SETTLE_MARGIN_MS, "the run"));
@@ -75,5 +83,30 @@ describe("B16-R2-002: the bounded wait for `close` counts from the SIGKILL when 
     expect(afterSigkill, "it waited for `close` (which does not come) for the whole bound").toBeGreaterThanOrEqual(CONFIRM_MS - 100);
     expect(afterSigkill, `counted from the SIGKILL, not from the group's disappearance (that would be about ${FAKE_ALIVE_MS + CONFIRM_MS} ms)`).toBeLessThan(CONFIRM_MS + 500);
     expect(exec.terminationUnconfirmed, "the group was gone when the wait ended").toBeUndefined();
+  }, 30_000);
+
+  it("item 41: the SIGTERM handler is in place before the ready marker, so a pause right after the marker does not end the leader", async () => {
+    // Before v0.13.2 the handler came after the marker; with this pause the SIGTERM arrived first and ended the leader (no SIGKILL).
+    const t = makeTempDir("aiqh-b16r2-order-");
+    cleanups.push(t.cleanup);
+    const ready = path.join(t.dir, "ready.pid");
+    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => {});`, `setTimeout(() => {}, 30000)`, PAUSE_AFTER_READY);
+    const controller = new AbortController();
+    const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, killGraceMs: KILL_GRACE_MS, confirmMs: CONFIRM_MS, signal: controller.signal });
+    cleanups.push(stopper(pending, () => controller.abort("clean-up"), KILL_GRACE_MS + CONFIRM_MS + SETTLE_MARGIN_MS, "the run"));
+    const pgid = await waitReady(ready, 8000, "the leader was not ready within 8000 ms (overloaded machine?)");
+
+    const realKill = process.kill.bind(process);
+    let sigkillAt: number | null = null;
+    const spy = vi.spyOn(process, "kill").mockImplementation((pid: number, signal?: string | number) => {
+      if (pid === -pgid && signal === "SIGKILL" && sigkillAt === null) sigkillAt = performance.now();
+      return realKill(pid, signal);
+    });
+    cleanups.push(() => spy.mockRestore());
+
+    controller.abort("SIGINT");
+    const exec = await pending;
+    expect(exec.interruptedBy).toBe("SIGINT");
+    expect(sigkillAt, "the group ignored SIGTERM (its handler came before the marker) and got the SIGKILL").not.toBeNull();
   }, 30_000);
 });

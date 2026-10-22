@@ -165,10 +165,12 @@ describe("M2-2-BUILTIN-R5: the fixtures", () => {
     expect(failing).toEqual([]);
   });
   for (const [id, src] of Object.entries(TYPE_ERRORS)) {
+    // Item 41 (v0.13.2), time budget T3 (docs/ops/ci-and-branch-protection.md): one limit for the two forms, the largest of their T3 = 40 s
+    // (s09: 12 × the quiet 2.55 s; s07: 2.49 s, whose own T3 is 30 s)
     it(`${id}: TypeScript rejects it (a form that cannot be compiled)`, () => {
       const own = createProgram({ [`${P}/${id}.ts`]: src });
       expect(typeErrors(own, filesUnder(own, `${P}/${id}.ts`)).length).toBeGreaterThan(0);
-    });
+    }, 40_000);
   }
 });
 
@@ -235,12 +237,13 @@ describe("M2-2-BUILTIN-R5-002: the list of fs APIs with an `fd` option is the on
 });
 
 describe("M2-2-BUILTIN-R5: src/", () => {
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 12.32 s, up to a multiple of 10 s) = 150 s (docs/ops/ci-and-branch-protection.md)
   it("has no violation of the output guard or the brand guard", () => {
     const real = createProgram();
     const files = filesUnder(real, "src/");
     expect(files.length).toBeGreaterThan(30);
     expect(guard.outputViolations(real, files)).toEqual([]);
     expect(brandGuard(real, files)).toEqual([]);
-  });
+  }, 150_000);
 });
 

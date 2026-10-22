@@ -188,12 +188,13 @@ describe("M2-2-BUILTIN-R6-001: the forms that span files (a module that exports 
 });
 
 describe("M2-2-BUILTIN-R6: src/", () => {
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 8.32 s, up to a multiple of 10 s) = 100 s (docs/ops/ci-and-branch-protection.md)
   it("has no violation of the output guard or the brand guard", () => {
     const real = createProgram();
     const files = filesUnder(real, "src/");
     expect(files.length).toBeGreaterThan(30);
     expect(guard.outputViolations(real, files)).toEqual([]);
     expect(brandGuard(real, files)).toEqual([]);
-  });
+  }, 100_000);
 });
 

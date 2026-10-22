@@ -69,9 +69,10 @@ describe("B21-R1-001: a walk cut at the visit limit gives each side's fail-close
       expect(rules.filter((r) => !r.startsWith("widened-container "))).toEqual([]);
     });
   }
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 3.52 s, up to a multiple of 10 s) = 50 s (docs/ops/ci-and-branch-protection.md)
   it("the same file asked again with the same checker gives the same answers (a cut is cut again, not answered from the memo)", () => {
     for (const id of ["memo_source_then_target", "memo_target_then_source", "source_cut", "target_cut"]) {
       expect(rulesOf(id).filter((r) => r.startsWith("widened-container ")).length).toBe(CASES[id]?.reports);
     }
-  });
+  }, 50_000);
 });

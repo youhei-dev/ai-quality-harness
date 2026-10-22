@@ -191,9 +191,10 @@ for (const [g, cases] of Object.entries(GROUPS)) {
 }
 
 describe("M2-2-BUILTIN-R4: src/", () => {
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 12.83 s, up to a multiple of 10 s) = 160 s (docs/ops/ci-and-branch-protection.md)
   it("src/ has no violation (output guard and brand guard)", () => {
     const real = createProgram();
     expect(guard.outputViolations(real, filesUnder(real, "src/"))).toEqual([]);
     expect(brandGuard(real, filesUnder(real, "src/"))).toEqual([]);
-  });
+  }, 160_000);
 });
