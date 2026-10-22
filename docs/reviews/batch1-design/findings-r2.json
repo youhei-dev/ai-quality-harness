@@ -59,13 +59,13 @@
       "fix": "窓の時点で消える位置について、両端が確定しないなら即 finding に確定するか、未確定候補の位置と分類を保持して後から必ず flush する不変条件を追加する。持越し長の上限、EOF、改行時、重なり中の重複排除を L16 の追加ケースで検証する。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22）。窓から消える位置にある候補で、run の両端が確定しないものは、その窓で finding に確定する。未決の候補を持ち越さない（設計 §4.5 の I5・I6、L16 の (a)〜(g)）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.15.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R2-002",
@@ -77,13 +77,13 @@
       "fix": "Node のオプションをオプション名と値に正規化し、`--watch-path=src` を含め監視系オプションを発見したら必ず拒否する。`--test --watch-path=src`、`--watch-path=src --test`、値なし、等号形をテストする。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22）。Node のオプションを名前と値に正規化して読み、名前に watch を含むオプション・NODE_OPTIONS の前置き・別のファイルを読むオプションがあれば認めない（設計 §2.4 の規則 4・5・7）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.14.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 部分的に解消（正規化で未知の値つきオプションを肯定する偽陽性）。その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R2-003",
@@ -95,13 +95,13 @@
       "fix": "位置別の分類・除外判断と、最終 finding の重複排除キーを別の仕様として記す。除外数は出現位置数、finding は既存の行＋符号位置の集約を維持するのかを明記し、同一行・同一符号位置の混在を検査する。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22）。位置の判断と finding の鍵を分ける（除いた数は位置の数、finding は行番号と符号位置で 1 件。設計 §4.5 の I9、L24）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.15.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R2-004",
@@ -112,14 +112,14 @@
       "evidence": "基準コードは report.startedAt を ISO のミリ秒表記で保存する一方、history の名前は秒に丸めて衝突時に連番とする（src/report/write.ts:36-49）。run の一意 ID はない。同じミリ秒に始めた別 run は同じ startedAt を持てるため、latest の組が別 run でも文字列比較だけでは見分けられない。既知の競合を受け入れる方針でも、識別できるとの主張は過大。",
       "fix": "読み手の約束を「異なれば確実に別 run、一致しても同一 run の保証はない」に訂正し、必要なら同じミリ秒の2件を使う 47-c-2 の変種を加える。確実な識別を必要とするなら runId または history の一意キーを新設する別設計が必要と明記する。",
       "confidence": "確認済み",
-      "status": "open",
-      "verdict": null,
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22）。読み手の約束を「startedAt が違えば確実に別の run、同じでも同じ run の保証はない」に直し、同じミリ秒の 2 本のテスト 47-c-3 を足した。runId・history の一意の鍵は ROADMAP の項目 52",
+      "fixedIn": "9d3f583f0de3ee55c7364f7ce7f26eed6123b82a",
+      "regressionTest": "tests/regression-item47-latest-pair-race.test.ts の 47-c-3（同じミリ秒の startedAt の 2 本。buildReport に同じ時刻を渡して固定。差し込みで組は別の run になるが、約束の照らしは見分けられないと判定し、同じ値の history が 2 つ残る）。振る舞いを変えないので直す前の FAIL は無く、a7e4d53 の SHA 固定の worktree でも PASS（限界を固定するテスト）",
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.13.2",
+      "note": "R3 の評価: 解消"
     },
     {
       "id": "B1-D-R2-005",
@@ -130,14 +130,14 @@
       "evidence": "run-checks.ts は stderrTail を最大200行・64KiBに制限する。reporter が run の終わりに多数の警告を出せば先の警告が末尾から落ちる。vitest 5 reporter の各テストの有効 timeout 取得は設計自身が未確認とする。判定不変という選択は妥当だが、記録の完全性を断定できない。",
       "fix": "実装前に reporter API と per-test timeout の取得を調べ、取得不可・出力が tail を超える場合の振る舞いを明記する。上限超過件数と省略件数を最後に記録し、判定は変えない。",
       "confidence": "確認済み",
-      "status": "open",
-      "verdict": null,
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22。B1-Q25 は A）。実装の最初に reporter の API を実行で確かめ（上限は 3 つの形とも取れ、テストの時計の値と同じ。時間は beforeEach・afterEach を含む。設計〈最終〉の §5.5）、reporter を入れた: 上限の 50% を超えたテストを最大 20 行、最後の 1 行はいつも件数（stderr。判定は変えない）",
+      "fixedIn": "9efd8ef7b146b62d0200f76554f24c69d7cafd14",
+      "regressionTest": "tests/near-limit-reporter.test.ts の 8 件（25 件で 20 行と省いた 5、0 件で件数の行だけ、ちょうど 50% は出さない、上限の分からないテストは unknown-limit、1 行 300 バイトで文字の途中で切らない、件数の行がいつも最後、run-checks の tail を通しても件数の行が残る、diagnostic の無いテストは数えず最後に 1 回だけ書く）。a7e4d53 の SHA 固定の worktree ではモジュールが無く FAIL",
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.13.2",
+      "note": "R3 の評価: 解消。reporter の後に vitest や npm が 200 行・64 KiB に近い量を stderr に書けば件数の行も落ちうること、check が時間切れ・中断で止まったときは何も出ないことは、既知の限界として設計に書いた"
     }
   ]
 }

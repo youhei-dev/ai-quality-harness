@@ -51,13 +51,13 @@
       "fix": "N2c の未知オプションの肯定ケースを削り、未知のオプション名については原則検出しない。認める名前は、対象 Node の既知のブール旗と、値つき旗の明示的一覧に限定する。既知の `--import=tsx --test` と `--test-reporter=spec --test` は肯定テストとして残す。未知の `--unknown-option=value --test` は否定テストにし、実装の対象Nodeの起動結果と照らす。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-22）。認める Node のオプションの名前は、値を取る旗の固定の一覧（18）と既知のブールの旗の固定の一覧（24）だけ。未知の名前は検出しない。node --unknown-option=value --test は否定のテスト（手元の Node v24.13.1 は bad option で exit 9）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.14.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R4 は出さず、v0.14.0 の実装レビューで確かめる（人間の決定 2026-10-22。M4 の設計レビューと同じ前例）。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     }
   ]
 }

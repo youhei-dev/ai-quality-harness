@@ -1083,6 +1083,15 @@ M2-1 の教訓（R3）:
   - PR #12: `gh pr merge 12 --merge --match-head-commit 8651e4b… --delete-branch` で merge した（`--admin` は使っていない）。merge の commit `450f15af3a59bfdb0cdca426fc44e9f083619e3b`（親は `60d65f9` と `8651e4b`）。branch は手元とリモートの両方で消えた
   - タグ v0.13.1 = commit 8651e4be0a2790c6f35a66c1a2a448469abe1890 / tag object f3b5ba7a6bd42aa79b622651caf45d88e0813182。CHANGELOG の v0.13.1 の見出しの SHA と、上の CI の記録は、v0.13.1 の後の記録の PR（branch `docs/v0131-record`）で記入した
   - 次: 適用先の呼び出しの SHA を上げる（人間の決定 H11）
+- v0.13.2（2026-10-22）: batch1 の 1 版目（項目 43・41・47-c と B1-Q25）。判定と出力の形は変えない（tests と docs の版。vitest の reporter を足した）。branch `release/v0.13.2`、8 commit（依存の更新、41、43、47-c、B1-Q25 の reporter、設計レビューの記録、findings の実装者の欄、release）
+  - 依存の更新（devDependency だけ。判定と出力は変わらない）: 作業の途中で、自己 verify の dependency の check（`npm audit --audit-level=high`）が、v0.13.1 の後に公開された勧告で FAIL するようになった（vite 8.2.0〜8.2.3 の GHSA-587h-7wmj-h5pm〈high〉ほか 5 件、`@vitest/mocker` 5.0.3 より前の GHSA-qxg6-89mg-rqv8・GHSA-xp26-3454-mjgp）。人間の決定（2026-10-22）で、vitest を 5.0.3・vite を 8.2.4（直接の devDependency に足した）に上げる commit を branch の最初に置き、ほかの commit をその上に作り直した。ロックファイルの版の変化は devDependency の 8 項目（`why-is-node-running` 2.3.0 → 3.2.1 の semver-major を含む。vitest 5.0.3 が固定している）。ほかに、版の変わらない変化が 2 種類ある（vite の依存の木の 36 項目から `"peer": true` の印が消えた〈vite を直接の devDependency にした結果〉・ルートの項に `"license": "MIT"`〈`package.json` に合わせたもの〉。人間が受け入れた）。実行時の依存は変わらない。教訓として、`docs/ops/ci-and-branch-protection.md` の §8 の手順 8 に、着手前の `npm audit --audit-level=high` を足した
+  - batch1 の設計の独立レビュー（label `batch1-design`、`docs/reviews/batch1-design/`）: R1 が High 0 / Medium 5 / Low 2、R2 が High 0 / Medium 4 / Low 1、R3 が High 0 / Medium 1 / Low 0。R3 の 1 件（B1-D-R3-001）は設計を直し、R4 は出さず v0.14.0 の実装レビューで確かめる（人間の決定 2026-10-22。M4 の設計レビューと同じ前例）。決めること B1-Q1〜B1-Q25 はすべて確定。設計（最終）は `design-final.md`
+  - 状態: v0.13.2 で直した 5 件（B1-D-R1-004・005・007、B1-D-R2-004・005）は `resolved`。後の版で確かめる 8 件（v0.14.0: B1-D-R1-001・002、B1-D-R2-002、B1-D-R3-001。v0.15.0: B1-D-R1-003・006、B1-D-R2-001・003）は `open`。`aiqh review-check --label batch1-design` は `REVIEW LOOP: incomplete (open 8)`・`REVIEW CHECK: passed`（open はその 8 件だけ。警告 5 件は、設計で直して実装が後の版の 4 件と、`resolved` で R2 の評価が「部分的に解消」の B1-D-R1-004。どれも `note` に理由）
+  - 41: leader の準備の順序（SIGTERM を無視する設定 → 印）を 2 つの `leaderWithDaemon` で直した（同じ形の 7 ファイルのうち、誤った順序は 2 つだけ）。印の直後に 400 ms 止まる leader のテストは、直す前の順序で 5 回とも FAIL、直した後は PASS。型を読むガードのテストの上限を T3 で決め直し、builtin-r3 の「every edit」を編集ごとの 19 のテストに分けた。T1〜T4 は `docs/ops/ci-and-branch-protection.md` の 8-1
+  - B1-Q25: 実装の最初に、vitest 5.0.0 の reporter で各テストの上限が取れることを実行で確かめ（テストの時計と同じ値。時間は `beforeEach`・`afterEach` を含む）、reporter（`tests/support/near-limit-reporter.ts`）を入れた
+  - 負荷のもとの確かめ（設計〈最終〉§5.7。release の commit の tree で、全テスト 2 本を同時に走らせ、その間に項目 41 の対象のファイルを繰り返した。2 回）: 設計の基準は満たした（項目 41 の順序のテストは 31 回と 34 回のすべてで PASS、型を読むガードのテストの時間切れは 0 件）。2 回目（1 分平均の最大 213）で、2 本とも `tests/parse-output.test.ts` の P3「only newlines」の壁時計の上限の 1 件だけが FAIL（前からある負荷への弱さ。この版では変えない。項目 53）
+  - 版の分け方（B1-Q22 の V1）: v0.14.0 = 項目 45・39、v0.15.0 = 項目 49 の層 (c)。実装の独立レビュー（B1-Q23）: v0.13.2 もテストの差分に絞って 1 回（label `batch1-v0132-impl`）。依頼文とパケットは、この版のリリースの後に作る
+  - CI の記録とタグの SHA は、次の記録の PR で書く
 
 ---
 

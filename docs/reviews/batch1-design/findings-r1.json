@@ -30,13 +30,13 @@
       "fix": "B1-Q5 の A を無条件採用せず、単純コマンドの実行位置が node で、Node が解釈する --test オプションであることを検証する。node のオプション終端、スクリプト名後の引数、引用符・echo、環境変数前置きをテストへ追加する。",
       "confidence": "推測",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21）。node:test は、実行位置が node で、--test が Node 自身のオプションのときだけ認める（設計 §2.4 の 45-A の規則）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.14.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消（監視のオプションの等号形）。残りは B1-D-R2-002、その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R1-002",
@@ -48,13 +48,13 @@
       "fix": "B1-Q7 は B の「実行位置または -m の直後」を基本とし、uv run、python -m、venv 実行と既知の wrapper だけを構文上認める。選択の誤検出と、判定は変えないが件数が誤るケースを回帰テストにする。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q7 は B の B-1 に確定）。pytest のパーサは、実行位置が pytest・python -m pytest・列挙した wrapper の直後で、前後にほかの単純コマンドが無いときだけ選ぶ（設計 §3.5）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.14.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R1-003",
@@ -66,13 +66,13 @@
       "fix": "C4 自体は条件付きで支持するが、Unicode データで完全な RGI シーケンスの両端を確定し、候補が完全一致区間の内部にある場合だけ除外する仕様にする。窓端で文脈が不足したら除外しない。タグ列、隣接した余分な制御文字、連続した絵文字、長い行とパス名で漏れ・過剰除外を試験する。",
       "confidence": "推測",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。条件つきの C4）。RGI の完全一致の区間の内側だけを除く不変条件 I1〜I9（設計 §4.5、ADR-0037 の案の決定 3）",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.15.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消。残りは B1-D-R2-001・B1-D-R2-003 で直した（R3 の評価: どちらも解消）。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R1-004",
@@ -83,14 +83,14 @@
       "evidence": "指定コミットの src/report/write.ts:21-27 は latest.json と latest.md を別々に rename する。A と B が交互に書けば、両者は各々完全でも別の run になる。startedAt の比較は消費側に明示の検査がある場合だけ有効で、47-c のテストは 1 回の verify の一致しか確認しない。",
       "fix": "B1-Q20 の c は「リスク受容・未解決」と明示して残すか、同じ作業ツリーの並行実行をサポートするなら b または互換性を含め再設計した a を選ぶ。c を選ぶなら競合を意図的に再現し、不一致検知と安全な再取得の手順・消費側契約を記録する。",
       "confidence": "確認済み",
-      "status": "open",
-      "verdict": null,
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q20 の c'）。項目 47 は解決済みにせず「受け入れ（未解決）」にした。読み手の約束（startedAt が違えば確実に別の run、同じでも同じ run の保証はない）と食い違ったときの手順を README・ADR-0003・ADR-0034 の L に書き、競合を決定的に再現するテストで固定した",
+      "fixedIn": "9d3f583f0de3ee55c7364f7ce7f26eed6123b82a",
+      "regressionTest": "tests/regression-item47-latest-pair-race.test.ts の 47-c-2（startedAt が違う組: 差し込みで latest.json が run B、latest.md が run A になり、約束の照らしが別の run と判定する）・47-c-3（同じミリ秒の組: 照らしでは見分けられず、同じ値の history が 2 つ）・対照、tests/regression-item47-latest-pair-started-at.test.ts の 47-c-1（1 回の verify が 3 つのファイルに同じ startedAt を書く）。振る舞いを変えないので直す前の FAIL は無く、a7e4d53 の SHA 固定の worktree でも 4 件とも PASS（限界を固定するテスト）",
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.13.2",
+      "note": "R2 の評価: 部分的に解消（startedAt の一致を同じ run の証明とする記述が誤り）。その残りは B1-D-R2-004 で直した（R3 の評価: 解消）。resolved と「部分的に解消」の食い違いを review-check は警告として出す（誤りではない）"
     },
     {
       "id": "B1-D-R1-005",
@@ -101,14 +101,14 @@
       "evidence": "設計 §5.3 は同時全テスト 2 本が上限超過で失敗したことと、処理が静かなときの最大 10.3 倍に伸びたことを報告する。推奨の 8 倍は観測倍率より小さく、300 秒上限は 600 秒の unit 制限の半分を占め得る。CI の実行時間が変わらないという説明は、停止しない遅延時には成立しない。",
       "fix": "B1-Q19 の A は暫定措置とし、負荷ゲート・プロセス並列数・各テストと suite 全体の時間予算を別々に定義する。観測済み倍率を覆う根拠のある上限を使い、閾値に近い遅延の診断を残す。並列化の抑制や program の再利用を別課題として記録する。",
       "confidence": "確認済み",
-      "status": "open",
-      "verdict": null,
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q19 の A'）。時間の予算を T1〜T4 に分けて定義し（docs/ops/ci-and-branch-protection.md の 8-1）、負荷で伸びる 12 のテストの上限を T3 の式 max(30 秒, 静かなとき × 12) で決め直し、式が 200 秒を超える builtin-r3 の「every edit」を編集ごとの 19 のテストに分けた。並列の抑制・program の再利用は ROADMAP の項目 50",
+      "fixedIn": "b1c467e1e6141ec5238121374239f442b21d6f3c",
+      "regressionTest": "tests/regression-m2-2-builtin-r3-allow-branches.test.ts の「the edits of repository files are these 19, one test each below」（分けた 19 の編集の一覧を固定）と「every edit of a repository file type-checks: <id>」の 19 件。上限を付けた 12 のテストには、式の値の注記がある。上限の変更は、直す前の commit で FAIL するテストではない（負荷の再現で確かめる。設計〈最終〉の §5.7）。上限に近い遅さの記録は B1-Q25 の commit 9efd8ef（tests/near-limit-reporter.test.ts）",
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.13.2",
+      "note": "R2 の評価: 解消（reporter の記録の完全性は別に Low の B1-D-R2-005）"
     },
     {
       "id": "B1-D-R1-006",
@@ -120,13 +120,13 @@
       "fix": "固定集合と Unicode 属性との差分をテスト用に出し、意図的に対象外とする符号位置を明示する。先頭 8 KiB とそれ以降の NUL、行内 CR、先頭 BOM の境界を回帰テストに加える。",
       "confidence": "確認済み",
       "status": "open",
-      "verdict": null,
-      "action": null,
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q17 は A' に確定）。Unicode の属性との差分の表と、NUL・CR・BOM の境界のテスト（設計 §4.4・§4.8 の L20〜L23）、「全分類 FAIL」の対象範囲の注記",
       "fixedIn": null,
       "regressionTest": null,
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.15.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
     },
     {
       "id": "B1-D-R1-007",
@@ -137,14 +137,14 @@
       "evidence": "この版は製品コードを変えないが、SIGTERM・SIGKILL と型ガードのテスト、再現条件、時間制限を修正する。機械検証が PASS することだけでは、意図した負荷試験を弱くしていないことまで評価できない。",
       "fix": "B1-Q23 は B または v0.13.2 のテスト差分限定レビューを推奨する。少なくとも時間切れの上限、負荷再現、テストの検出力を人間が確認する。",
       "confidence": "推測",
-      "status": "open",
-      "verdict": null,
-      "action": null,
-      "fixedIn": null,
-      "regressionTest": null,
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q23 の A'）。v0.13.2 も、テストの差分に絞った実装の独立レビューを 1 回入れる（設計〈最終〉の §7）",
+      "fixedIn": "1d152060dec7d8198fe299b5514e2dbba9619edc",
+      "regressionTest": "該当なし（手順の指摘で、テストは無い）。実装の独立レビュー（label batch1-v0132-impl、範囲はこの版のテストの差分）の依頼文とパケットは、この版のリリースの後に作る",
       "guard": null,
-      "destination": null,
-      "note": null
+      "destination": "v0.13.2",
+      "note": "R2 の評価: 解消。fixedIn は、設計（最終）の §7 と B1-Q23 の確定を入れた docs の commit"
     }
   ]
 }
