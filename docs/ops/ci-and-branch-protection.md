@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -159,7 +159,7 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 5. `gh pr merge <番号> --merge --match-head-commit <branch の先頭の SHA> --delete-branch` で merge する（`--admin` は使わない。`--match-head-commit` で、確かめた commit 以外を merge しない）
 6. main への push の run（merge の commit）の、必須の 2 つが success になるのを確かめる
 7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて push する
-8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる
+8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる。あわせて `npm audit --audit-level=high` が通ること（自己 verify の dependency の check と同じ）を確かめ、通らなければ、実装の前に依存の更新を決める（v0.13.2 の教訓: 勧告は外で増えるので、前の版の CI が PASS でも、実装の後の検証で初めて分かると、全部の commit を作り直すことになる）
 
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する
@@ -174,6 +174,6 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 | T1 負荷のゲート（手元） | テストと verify（各 commit の worktree の検証を含む）を始める前に、1 分平均 8 以下かつ 5 分平均 12 以下が 20 秒おきに 3 回続くのを待つ（最長 90 分）。リリースの検証で 15 分平均が高いときは、1 分平均 6 以下かつ 5 分平均 8 以下。始めたときの値を記録に書く。CI には置かない（job ごとに別の runner） | 8 CPU の機械で全テストを 2 本同時に走らせると、1 分平均が 300 を超え、型を読むガードのテストが時間切れになった（batch1 の再現） |
 | T2 並列数 | 1 台の機械で同時に走らせる全テストは 1 本。vitest の worker の数は変えない（vitest 5 の既定は、watch でないとき CPU の数 − 1） | 2 本を同時に走らせると worker が倍になる。verify は check を 1 つずつ走らせる（`src/runner/run-checks.ts`）ので、unit と unit-minpath は重ならない |
 | T3 各テストの上限 | 負荷で伸びるテスト（負荷のもとで静かなときの 2 倍以上になったもの）の上限は、max(30 秒, 静かなときの時間 × 12 を 10 秒単位に切り上げ)。式が 200 秒を超えるテストは分ける。上限はテストの中に書き、その行に式の値の注記を付ける。ループや `it.each` の中のテストは、ケースの中で最も大きい値を 1 つ付ける | 12 = 観測した最大の倍率 10.33 に約 16% の余裕。200 秒は T4 の 1/3。待つ時間で決まるテスト（倍率がほぼ 1）は対象外 |
-| T4 suite の予算 | unit・unit-minpath の check の `timeoutSec` 600（`aiqh.config.jsonc`） | CI の時間は ROADMAP の項目 42 で見張る。50%（300 秒）を超えたら、ROADMAP の「型を読むガードのテストの並列の抑制」と「TypeScript の program の再利用」を早める |
+| T4 suite の予算 | unit・unit-minpath の check の `timeoutSec` 600（`aiqh.config.jsonc`） | CI の時間は ROADMAP の項目 42 で見張る。50%（300 秒）を超えたら、ROADMAP の項目 50（型を読むガードのテストの並列の抑制と、TypeScript の program の再利用）を早める |
 
 - 上限に近い遅さの記録（v0.13.2）: 全テストの終わりに、vitest の reporter（`tests/support/near-limit-reporter.ts`）が、上限の 50% を超えたテストを割合の大きい順に最大 20 行と、件数の行を 1 行、stderr に出す。判定は変えない。PASS の check の出力は端末に出ないが、`latest.json` の `checks[].stderrTail` に残る（上限は各テストの timeout、時間は vitest の時間で `beforeEach`・`afterEach` を含む。上限の分からないテストは件数の行の `unknown-limit` に数える）
