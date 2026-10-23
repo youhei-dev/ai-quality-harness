@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "label": "batch1-v0132-impl",
+  "round": 1,
+  "idPrefix": "B1-I132",
+  "source": {
+    "name": "independent-review-batch1-v0132-impl-r1-for-claude.md",
+    "bytes": 8410,
+    "sha256": "d1aa7b1bd912e810602ca4d4e8193469beb4809066717f4b70c69471dbfc6f4d"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-23T02:24:59.522Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.13.2"
+  },
+  "findings": []
+}
