@@ -1096,6 +1096,14 @@ M2-1 の教訓（R3）:
   - PR #14: `gh pr merge 14 --merge --match-head-commit d156834… --delete-branch` で merge した（`--admin` は使っていない）。merge の commit `a0d0a087f84ee63b00c3edaa54101bb4318b2bbd`（親は `a7e4d53` と `d156834`）。リモートの branch は merge で消えた。merge のコマンドに `-R`（リポジトリの指定）を付けたため gh が手元の branch を消さず、main の run の success とタグの push の後に、`-R` なしの同じコマンドで消した
   - タグ v0.13.2 = commit d1568347c2aafae697e300e0eee6f8d8a2b54951 / tag object 401c79729de17faae2ebaddbdd5bf3ef8c9c75c4。CHANGELOG の v0.13.2 の見出しの SHA と、上の CI の記録は、v0.13.2 の後の記録の PR（branch `docs/v0.13.2-record`）で記入した
   - 実装の独立レビュー batch1-v0132-impl R1（範囲 `a7e4d53..d156834`、8 commit・49 ファイル。`docs/reviews/batch1-v0132-impl/`）: **High 0 / Medium 0 / Low 0**。依頼文に先に書いた基準（High・Medium が 0 なら終える）に達したので R1 で終えた（`aiqh review-check --label batch1-v0132-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）。レビュアーが独立に確かめていない範囲（負荷の試験・`npm audit`・CI のログ・ロックの全項目の機械的な比較）は、新しい指摘ではなく既知の残余として受け入れた（`response-r1.md`）。項目 53 の扱いは変えない
+- v0.14.0（2026-10-23）: batch1 の 2 版目（項目 45・39）。判定は変えない（init の unit の提案と、表示用の `parsed` が増える）。branch `release/v0.14.0`、4 commit（45、39、findings と記録、release）
+  - 45（node:test の検出。ADR-0011 の改訂）: アダプタ `node-test` が、`scripts.test`〈次に `scripts.test:unit`〉の単純コマンドのどれかが実行位置の `node` と Node 自身の `--test` を持つときだけ `npm run <script>` を提案する。Node のオプションは名前と値に正規化し、`--test` の隣は値を取る 18 と既知のブールの旗 24 だけ。監視系・`NODE_OPTIONS` の前置き・別のファイルを読むオプションがあれば提案しない。一覧は使う Node v24.13.1 の `node --help` で照らし直した（18 個は値を取る形、24 個は値の無い形、監視系は help の 377〜381 行。未知のオプションの 4 形は `bad option` の exit 9、`--no-warnings=1` は exit 0 で起動するが検出しない）
+  - 39（pytest のパーサ。ADR-0028 の決定 12）: 要約の最後の行と `short test summary info` の後ろの名前。選び方は語の位置で見る（B-1）。語の分け方 `src/command-words.ts` は 45 と共有。B1-Q10（v0.13.x の `aiqh history` は pytest の入ったレポートを `bad-shape`・exit 2 にする）は、設計では推定だったので、実装の段で 0.13.2 の aiqh で確かめて記録した
+  - 既存のテストの期待値の変更は `tests/parse-select.test.ts` の `pytest -q` の 1 行だけ（設計 §3.7 が明示。人間の承認 2026-10-23）。ほかは守りの追加（`tests/history-read.test.ts` の fixture の表、`tests/parse-output.test.ts` の P2・P3、`tests/parse-verify.test.ts`）。P3 の「only newlines」は、v0.14.0 の作業の静かな全テストで、道具 4 つのとき 1,073〜2,357 ms（2 回）、5 つのとき 1,284〜1,824 ms（4 回）。ばらつきの方が大きく、どれも T3 の式で 30 秒なので、上限 40 秒は変えない
+  - テストを先に書き、直す前の `659cae1` の SHA 固定の worktree で 116 件 FAIL・234 件 PASS（FAIL は検出する・選ぶ・読む側。PASS は検出しない・選ばない側の守りと既存のテスト）。テストの検出力の確かめ: src をわざと壊す 26 通り（監視の判定を外す、一覧の外を認める、B-1 を外す、知らない語を飛ばす など）で、どれも 1〜18 件 FAIL（最初の 3 通りが 0 件だったので、それを捕まえる入力を足した）
+  - 設計の独立レビュー batch1-design の、この版で確かめる 4 件（B1-D-R1-001・B1-D-R1-002・B1-D-R2-002・B1-D-R3-001）は `resolved`（`fixedIn` は 45 と 39 の commit）。`aiqh review-check --label batch1-design` は `REVIEW LOOP: incomplete (open 4)`・`REVIEW CHECK: passed`（open は v0.15.0 の B1-D-R1-003・006、B1-D-R2-001・003。警告 6 件はどれも `note` に理由）
+  - 実装の独立レビュー（label `batch1-v0140-impl`）: 依頼文とパケットは、この版のリリースの後に作る。上の 4 件が本当に解消したかも、そこで確かめる
+  - CI の記録とタグの SHA は、次の記録の PR で書く
 
 ---
 

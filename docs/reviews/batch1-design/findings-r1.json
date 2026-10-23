@@ -29,14 +29,14 @@
       "evidence": "指定コミットの src/adapters/node.ts:15-17 は script 本文への正規表現検査を既に持つ。設計の「同じ単純コマンド内に node と --test」がプログラム位置を検証しないなら、echo node --test、node -e \"console.log('--test')\"、node script.js --test などでも available となり得る。node script.js --test は Node 自体のテストモードとも限らない。N5 はこれらを含まない。",
       "fix": "B1-Q5 の A を無条件採用せず、単純コマンドの実行位置が node で、Node が解釈する --test オプションであることを検証する。node のオプション終端、スクリプト名後の引数、引用符・echo、環境変数前置きをテストへ追加する。",
       "confidence": "推測",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-21）。node:test は、実行位置が node で、--test が Node 自身のオプションのときだけ認める（設計 §2.4 の 45-A の規則）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-21）。node:test は、実行位置が node で、--test が Node 自身のオプションのときだけ認める（設計 §2.4 の 45-A の規則）。v0.14.0 で、アダプタ node-test（src/adapters/node.ts。語の分け方は src/command-words.ts）として実装した",
+      "fixedIn": "5685274c43e306038ea1f757115116b872b0df70",
+      "regressionTest": "tests/regression-item45-node-test-detection.test.ts の「not detected」の N5a（echo node --test）・N5b（-e・--eval・-p・--print の本文）・N5c（node script.js --test）・N5d（引用ありの --test）・N5e（-- の後ろ）・N5f（printf）・N5g（パスつきの node・npx・env・cross-env・nodejs・引用ありの node）・N5k（照らさない形 8 つ）・N6c（2 つめの単純コマンドの echo）と、「detected」の N1〜N6b（環境変数の前置きを含む）。tests/command-words.test.ts（設計の付録 A の分け方）。直す前の 659cae1 の SHA 固定の worktree では、検出する側 56 件が FAIL、検出しない側 65 件が PASS、command-words はモジュールが無く FAIL",
       "guard": null,
       "destination": "v0.14.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消（監視のオプションの等号形）。残りは B1-D-R2-002、その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消（監視のオプションの等号形）。残りは B1-D-R2-002、その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.14.0 で実装した（commit 5685274）。人間の指示（2026-10-23）で、この版の記録の commit で resolved にした。実装の独立レビュー batch1-v0140-impl（v0.14.0 の後）で確かめる。resolved と後の回の「部分的に解消」の食い違いを review-check は警告として出す（残りは後の回の指摘で直したもの。誤りではない。B1-D-R1-004 と同じ）"
     },
     {
       "id": "B1-D-R1-002",
@@ -47,14 +47,14 @@
       "evidence": "指定コミットの src/parse/select.ts:40-63,78-88 は引用符を捨てた単純な語分割で、実行位置を問わず単語を探す。例えば echo \"1 passed in 0.10s\" pytest や printf で同様の行を出すコマンドでも、pytest が選択されると要約が成立する。設計は pip install pytest を no-summary とするが、出力に要約と同形の行がある場合を検討していない。",
       "fix": "B1-Q7 は B の「実行位置または -m の直後」を基本とし、uv run、python -m、venv 実行と既知の wrapper だけを構文上認める。選択の誤検出と、判定は変えないが件数が誤るケースを回帰テストにする。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-21。B1-Q7 は B の B-1 に確定）。pytest のパーサは、実行位置が pytest・python -m pytest・列挙した wrapper の直後で、前後にほかの単純コマンドが無いときだけ選ぶ（設計 §3.5）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q7 は B の B-1 に確定）。pytest のパーサは、実行位置が pytest・python -m pytest・列挙した wrapper の直後で、前後にほかの単純コマンドが無いときだけ選ぶ（設計 §3.5）。v0.14.0 で、src/parse/select.ts の pytest の選び方（語の位置。src/command-words.ts）として実装した",
+      "fixedIn": "3f53ee9938f5b85de016901c24717b0a1d4a730a",
+      "regressionTest": "tests/parse-pytest.test.ts の「which commands choose pytest」の Y11（選ぶ 20 形と npm run・npm test）・Y12（選ばない 24 形: echo・printf・pip install・引用ありの pytest・-m・run、python -c・-mpytest・値を取る旗・一覧に無い旗〈-x・-R〉、wrapper の一覧に無い旗〈--with・--isolated〉、uv pip、coverage・env・tox・nox・make、$(…)、閉じない引用符）・Y13（前後にほかの単純コマンドがある 8 形と npm の script。件数が誤る形）、tests/parse-verify.test.ts の Y14（echo … pytest の check は no-parser）。直す前の 659cae1 の SHA 固定の worktree では、選ぶ側 22 件（several-tools の 1 件を含む）が FAIL、選ばない側 34 件が PASS",
       "guard": null,
       "destination": "v0.14.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.14.0 で実装した（commit 3f53ee9）。人間の指示（2026-10-23）で、この版の記録の commit で resolved にした。実装の独立レビュー batch1-v0140-impl（v0.14.0 の後）で確かめる"
     },
     {
       "id": "B1-D-R1-003",
