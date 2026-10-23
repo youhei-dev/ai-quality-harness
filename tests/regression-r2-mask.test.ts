@@ -1,7 +1,7 @@
 /**
  * Regression tests for independent review R2 — R2-001 / R2-004
  * (docs/reviews/m0/independent-review-r2.md). Secret masking rules.
- * Dummy secrets are assembled at runtime with fake() (see CLAUDE.md).
+ * Dummy secrets are assembled at runtime with fake() (see fake() in tests/helpers.ts).
  */
 import { describe, expect, it } from "vitest";
 import { maskSecrets } from "../src/security/mask.ts";

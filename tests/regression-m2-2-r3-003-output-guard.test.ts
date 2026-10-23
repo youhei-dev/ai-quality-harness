@@ -137,6 +137,7 @@ describe("M2-2-R3-003: inside src/output.ts only the two writers reach the termi
     expect(Object.keys(FORGED).filter((m) => !violations.some((v) => v.where === lineOf(m)))).toEqual([]);
   });
 
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 2.75 s, up to a multiple of 10 s) = 40 s (docs/ops/ci-and-branch-protection.md)
   it("src/ has no violation, and every terminal reference of src/ is inside emitOut / emitErr", () => {
     expect(outputViolations(real, filesUnder(real, "src/"))).toEqual([]);
     const sf = real.program.getSourceFiles().find((f) => real.rel(f) === "src/output.ts");
@@ -152,5 +153,5 @@ describe("M2-2-R3-003: inside src/output.ts only the two writers reach the termi
     const refs = outputReferences(real, filesUnder(real, "src/"));
     expect(refs.map((r) => r.what).sort()).toEqual(["console", "console", "process.stderr", "process.stdout"]);
     expect(refs.filter((r) => !(r.where.startsWith("src/output.ts:") && writerLines.has(Number(r.where.split(":")[1]))))).toEqual([]);
-  });
+  }, 40_000);
 });

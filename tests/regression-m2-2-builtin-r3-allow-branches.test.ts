@@ -257,15 +257,39 @@ describe("M2-2-BUILTIN-R3: the fixtures", () => {
     const failing = all.filter((x) => !isEdit(x.c) && typeErrors(plainProgram, filesUnder(plainProgram, `${P}/${x.id}.ts`)).length > 0).map((x) => x.id);
     expect(failing).toEqual(["r4b_literal_spread_after"]);
   });
-  it("every edit of a repository file type-checks", () => {
-    const failing = all.filter((x) => isEdit(x.c)).filter((x) => {
+  // Item 41 (v0.13.2): one test per edit of a repository file (each builds a program of its own), each under its own limit (time
+  // budget T3, docs/ops/ci-and-branch-protection.md), instead of one test of 120 s for all of them (133 s under load in batch1).
+  const repositoryEdits = all.filter((x) => isEdit(x.c));
+  it("the edits of repository files are these 19, one test each below", () => {
+    expect(repositoryEdits.map((x) => x.id)).toEqual([
+      "r1a_union_safe_error",
+      "r1g_union_safe_string",
+      "r1h_control_plain_string",
+      "r1b_console_trace",
+      "r1c_console_trace_no_arg",
+      "r1d_console_warn",
+      "r1e_stdout_end",
+      "r1f_control_real",
+      "r2a_local_safetext",
+      "r2b_method_safetext",
+      "r2c_nested_emitout",
+      "r2d_local_safejson",
+      "r2h_control_outside_creator",
+      "r2i_control_outside_creator_checked",
+      "r2e_local_issue_checked",
+      "r2f_local_issuemd",
+      "r2g_local_rejected",
+      "r2j_local_md_caller",
+      "r2k_local_checkvalue_caller",
+    ]);
+  });
+  for (const x of repositoryEdits) {
+    it(`every edit of a repository file type-checks: ${x.id}`, () => {
       const file = x.c.file ?? "";
       const program = createProgram({ [file]: edited(x.c) });
-      return typeErrors(program, filesUnder(program, file) as ts.SourceFile[]).length > 0;
+      expect(typeErrors(program, filesUnder(program, file) as ts.SourceFile[]).length, x.id).toBe(0);
     });
-    expect(failing.map((x) => x.id)).toEqual([]);
-    // one program per edit: about 9 s alone and 22 s in a parallel run, over the 30 s of vitest.config.ts under a heavier load (the cause is probably the load; not verified)
-  }, 120_000);
+  }
 });
 
 for (const [g, cases] of Object.entries(GROUPS)) {

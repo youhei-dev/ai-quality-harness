@@ -121,8 +121,9 @@ describe("M2-2-BUILTIN-R1-001: controls are not reported", () => {
 });
 
 describe("M2-2-BUILTIN-R1-001: src/", () => {
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 4.04 s, up to a multiple of 10 s) = 50 s (docs/ops/ci-and-branch-protection.md)
   it("src/ has no violation", () => {
     const real = createProgram();
     expect(guard.outputViolations(real, filesUnder(real, "src/"))).toEqual([]);
-  });
+  }, 50_000);
 });

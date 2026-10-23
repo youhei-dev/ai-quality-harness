@@ -58,11 +58,14 @@ function daemonJs(up: string): string {
   return `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(up)}, String(process.pid)); ${exitWhenRemoved(up)} setTimeout(() => process.exit(0), 8000)`;
 }
 
-/** The command of a leader that spawns the daemon, records its parent (the shell = the group id) and then runs `body`. */
-function leaderWithDaemon(dir: string, ready: string, body: string): string {
+/**
+ * The command of a leader that spawns the daemon, runs `beforeReady`, records its parent (the shell = the group id) and then runs
+ * `body`. Item 41 (v0.13.2): a SIGTERM handler goes in `beforeReady`, so it is in place before the test sees the marker and aborts.
+ */
+function leaderWithDaemon(dir: string, ready: string, beforeReady: string, body: string): string {
   const up = path.join(dir, "daemon.up");
   return `${nodeEval(
-    `const { spawn } = require("child_process"); spawn(process.execPath, ["-e", ${JSON.stringify(daemonJs(up))}], { detached: true, stdio: "inherit" }).unref(); require("fs").writeFileSync(${JSON.stringify(ready)}, String(process.ppid)); ${exitWhenRemoved(ready)} ${body}`,
+    `const { spawn } = require("child_process"); spawn(process.execPath, ["-e", ${JSON.stringify(daemonJs(up))}], { detached: true, stdio: "inherit" }).unref(); ${beforeReady} require("fs").writeFileSync(${JSON.stringify(ready)}, String(process.ppid)); ${exitWhenRemoved(ready)} ${body}`,
   )}; true`;
 }
 
@@ -73,7 +76,7 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     const ready = path.join(t.dir, "ready.pid");
     // The leader leaves 400 ms after SIGTERM (the shell leaves at once), so the group is gone long before the 1.5 s SIGKILL timer;
     // the daemon holds the pipes, so `close` does not come. confirmMs = killGraceMs: whatever the timing, the old code's SIGKILL timer fires first.
-    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 400)); setTimeout(() => {}, 30000)`);
+    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 400));`, `setTimeout(() => {}, 30000)`);
     const controller = new AbortController();
     const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, killGraceMs: 1500, confirmMs: 1500, signal: controller.signal });
     cleanups.push(stopper(pending, () => controller.abort("clean-up"), 1500 + 1500 + SETTLE_MARGIN_MS, "the run"));
@@ -93,7 +96,7 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
     // The leader leaves 100 ms after SIGTERM (S-4, v0.5.36: was 400 ms; the margin below the bound grows, the old code's 3.0 s is unchanged).
-    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100)); setTimeout(() => {}, 30000)`);
+    const command = leaderWithDaemon(t.dir, ready, `process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100));`, `setTimeout(() => {}, 30000)`);
     const controller = new AbortController();
     const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 20_000, killGraceMs: 1500, confirmMs: 1500, signal: controller.signal });
     cleanups.push(stopper(pending, () => controller.abort("clean-up"), 1500 + 1500 + SETTLE_MARGIN_MS, "the run"));
@@ -112,7 +115,7 @@ describe("B16-R1-001: a group seen gone is not probed or signalled again", () =>
     const t = makeTempDir("aiqh-b16r1-c-");
     cleanups.push(t.cleanup);
     const ready = path.join(t.dir, "ready.pid");
-    const command = leaderWithDaemon(t.dir, ready, `setTimeout(() => process.exit(0), 200)`);
+    const command = leaderWithDaemon(t.dir, ready, "", `setTimeout(() => process.exit(0), 200)`);
     // The timeout counts from the spawn and the spy goes in after the ready marker: 3 s leaves room for a slow start (S-4, v0.5.36: was 1.2 s).
     const controller = new AbortController();
     const pending = executeCommand({ command, cwd: t.dir, timeoutMs: 3000, killGraceMs: 1500, confirmMs: 1500, signal: controller.signal });

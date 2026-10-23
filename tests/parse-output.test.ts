@@ -243,6 +243,8 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     let looks = 0;
     return () => (looks++ * PARSE_TIME_LIMIT_MS) / looksAllowed;
   };
+  // Item 41 (v0.13.2), time budget T3 (docs/ops/ci-and-branch-protection.md): one limit for every shape, the largest of their T3 = 40 s
+  // (only newlines: 12 × the quiet 3.14 s, up to a multiple of 10 s; every other shape was under 0.4 s quietly)
   it.each(Object.keys(shapes))("%s", (shape) => {
     const make = shapes[shape];
     if (make === undefined) throw new Error(shape);
@@ -259,7 +261,7 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
         expect(ms, `${tool} ${shape} ${size / KIB} KiB took ${ms.toFixed(0)} ms`).toBeLessThan(size <= 256 * KIB ? 1500 : 3000);
       }
     }
-  });
+  }, 40_000);
   it("an input of 4 MiB is cut to PARSE_INPUT_MAX before anything is read", () => {
     const t0 = performance.now();
     const r = parse("vitest", { stdout: "x".repeat(4 * PARSE_INPUT_MAX) });

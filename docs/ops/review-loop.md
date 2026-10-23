@@ -1,8 +1,8 @@
 # 独立レビューの再修正ループの手順書
 
-最終更新: 2026-10-16（v0.8.3。下の注記）。その前: 2026-10-13（v0.7.0。いま実際に回している流れを手順にした。ROADMAP の M2-2「再修正 → 再 verify → 再パケットのループ手順を docs に明文化」）
+最終更新: 2026-10-22（v0.13.2。手順 10 の参照先を、追跡している `docs/ops/ci-and-branch-protection.md` の §8 に直した〈ROADMAP の項目 43〉）。その前: 2026-10-16（v0.8.3。下の注記）。その前: 2026-10-13（v0.7.0。いま実際に回している流れを手順にした。ROADMAP の M2-2「再修正 → 再 verify → 再パケットのループ手順を docs に明文化」）
 
-注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。手順 10 のタグの前の確かめは、`docs/ops/ci-and-branch-protection.md` の 2-1 にも同じ文がある。
+注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。手順 10 のタグの前の確かめは、`docs/ops/ci-and-branch-protection.md` の 2-1 にも同じ文がある。v0.13.2 で、手順 10 の参照先を、追跡している `docs/ops/ci-and-branch-protection.md` の §8 に直した。
 
 独立レビュー（ChatGPT などのレビュアー）を、依頼 → 取り込み → 直す → 確かめる → 次の回、と回す手順。決定の根拠は ADR-0014（review-packet）・ADR-0026（review-import）・ADR-0027（review-check）。依頼文のひな形は `docs/ops/review-request-template.md`。
 
@@ -22,7 +22,7 @@
 | 7 | **直す（テストを先に）** | 回帰テストを先に書き、直す前の SHA で FAIL を記録してから直す。commit は目的ごと | 既存テストの期待値・`tests/structure/`・依存関係などを変える必要が出たら止めて確かめる（プロジェクトの規則） |
 | 8 | **`resolved` にする** | 直した後の docs の commit で、`status: "resolved"`、`fixedIn`（直した commit の 40 桁の SHA。タグの object の SHA ではない）、`regressionTest`（テストのファイルと名前、直す前の FAIL の記録）、必要なら `guard`・`note`。直さないものは `deferred`（`destination`）・`accepted`（`note`: 受け入れた理由と書いた場所）・`invalid`（`note`: 理由。`verdict` は INVALID） | 状態を変えるのは人間の承認の下で |
 | 9 | **review-check** | `aiqh review-check --label <label>` | exit 0 であること（2 なら欄の不足などを直す）。`REVIEW LOOP: complete` か `incomplete (open N)`。前の回の評価との食い違い・評価の無い指摘の警告を読み、人が状態を決め直すか判断する |
-| 10 | **次の回へ** | release（タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる。プロジェクトの `CLAUDE.md`）→ 1 に戻る（回 `<N+1>`。依頼文で、前の回の指摘の評価を JSON の `previous` に必ず書くよう頼む） | 終える基準に達していれば、次の回は依頼しない |
+| 10 | **次の回へ** | release（タグの前に、その release commit の `verify (ubuntu)` が success であることを `gh` で確かめる。`docs/ops/ci-and-branch-protection.md` の「8. リリースの手順」）→ 1 に戻る（回 `<N+1>`。依頼文で、前の回の指摘の評価を JSON の `previous` に必ず書くよう頼む） | 終える基準に達していれば、次の回は依頼しない |
 
 ## 終える基準
 

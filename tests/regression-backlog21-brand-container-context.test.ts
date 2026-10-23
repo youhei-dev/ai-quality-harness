@@ -75,8 +75,9 @@ describe("backlog 21: a branded container widened anywhere, at any depth, is rep
 });
 
 describe("backlog 21: src/ stays clean", () => {
+  // Item 41 (v0.13.2), time budget T3: max(30 s, 12 × the quiet 2.76 s, up to a multiple of 10 s) = 40 s (docs/ops/ci-and-branch-protection.md)
   it("the brand guard reports nothing in src/", () => {
     const real = createProgram();
     expect(brandGuard(real, filesUnder(real, "src/"))).toEqual([]);
-  });
+  }, 40_000);
 });
