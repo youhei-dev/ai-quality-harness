@@ -1,7 +1,7 @@
 # ADR-0011: アダプタは「検出＋推奨＋任意パーサ」に限定し、`init` の書込は別フラグに分ける
 
 - 状態: 採用（「出力パーサは `OutputParser` の型だけ定義」は ADR-0028〈v0.8.0〉で置換: パーサは `src/parse/` に置き、verify が check の出力を表示のためだけに読む。アダプタは検出と推奨のまま。M1 の下書きの型は消した）
-- 日付: 2026-09-18。追記: 2026-10-14（v0.8.0。状態の行だけ）
+- 日付: 2026-09-18。追記: 2026-10-14（v0.8.0。状態の行だけ）、2026-10-23（v0.14.0。下の「改訂（v0.14.0、ROADMAP の項目 45）」）
 
 ## 文脈
 M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実行経路 1 本、fail closed、判定と文言の 1 対 1）を壊さない
@@ -45,3 +45,12 @@ M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実�
 - **`artifacts/` 提案の判定を Git に委ねる**（M1-R2-005）: 行一致では `artifacts/` + `!artifacts/` の否定を見ない。Security Scan の
   `gitIgnoredByRepoRules()` を共用し、代表パス `artifacts/.aiqh-ignore-probe` が ignore されるかで決める。git リポジトリでない・git が失敗した場合は
   安全側に「追加を提案」し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）
+
+## 改訂（v0.14.0、ROADMAP の項目 45）
+- **node:test のローカルの証拠は script の本文**: Node の組み込みのテストランナー（node:test）は依存として入らないので、`hasLocalTool` の代わりに、`scripts.test`（次に `scripts.test:unit`）の単純コマンドのどれかが、実行位置の `node` と、Node 自身のオプションの `--test` を持つときだけ、アダプタ `node-test`（kind unit、`NODE_ADAPTERS` の jest の後）が `npm run <script>`（600 秒）を提案する。理由は `package.json scripts.<script> found (runs node --test)` で、本文は出さない（上の M1-R1-003 のまま）。script が無ければ `null`（unavailable の行を足さない。node:test を使わないプロジェクトの出力は変わらない）
+- 規則は batch1 の設計（最終。`docs/reviews/batch1-design/design-final.md` の §2.4 と付録 A）。語の分け方は `src/command-words.ts`（引用符と `\` は語に印を付け、印の付いた語は実行位置・`--test` として照らさない。閉じていない引用符・`$(`・バッククォート・括弧・波括弧・`<<` を含む形は照らさない）
+  - 環境変数の前置き（`名前=値`）は飛ばす。ただし `NODE_OPTIONS` の前置きは中を読まずに拒む
+  - Node のオプションは名前と値に正規化して読む（`--name=value` と `--name value` は同じ）。`--test` の隣に置けるのは、値を取るオプションの固定の一覧（18）と、既知のブールの旗の固定の一覧（24）だけ。一覧に無い名前（`=` の形でも 2 語の形でも）、ブールの旗に付けた値、値のある `--test`、引用ありの `--test` があれば提案しない（B1-D-R3-001。未知のオプションでは Node が `bad option` の exit 9 で起動しない。手元の Node v24.13.1 で確かめた）。`-e`・`--eval`・`-p`・`--print`・`--`・`-` で始まらない語（スクリプトの位置）で読むのをやめる
+  - 実行位置より後ろのすべての `-` で始まる語（引用ありの語、スクリプトの位置と `--` の後ろも）のうち、名前に `watch` を含むもの（監視のモードの check は verify の中で終わらない。B1-D-R2-002）と、別のファイルから Node のオプションや環境を読むもの（`--experimental-config-file`・`--experimental-default-config-file`・`--env-file`・`--env-file-if-exists`。init はそれらのファイルを読まない）があれば提案しない。別のファイルを読むオプションを見る範囲は、設計の規則 7c が範囲を書いていないので、7a の監視系と同じ「すべての語」にした（提案しない向き）
+- 既知の限界（どれも「提案しない」向きで、unit は今までどおり NOT APPLICABLE。手で足す）: パスつきの `node`、`npx`・`env`・`cross-env` を挟んだ形、2 つの一覧に無いオプション（Node が知っているものでも。一覧は Node の版で変わりうる）、`--test=…`、監視系と別のファイルを読むオプションつき、照らさない形。vitest がローカルにあれば、`scripts.test` が `node --test` でも vitest の直接の実行が先に選ばれる（アダプタの順序。node-test は代替）。init から見えない `NODE_OPTIONS`（verify を走らせる環境）・npm の設定が足す Node のオプションは分からない（監視のモードで動いた check は `timeoutSec` で止まって FAIL）。引用符の中の展開（`"$(…)"`・`$VAR`）は照らさない形に入れていない（設計の付録 A のとおり）
+- テスト: `tests/regression-item45-node-test-detection.test.ts`（設計 §2.6 の N1〜N8 と、2 つの一覧の各項目）、`tests/command-words.test.ts`（付録 A の分け方）。node:test の出力のパーサは範囲の外（`npm run test` は `no-parser`）

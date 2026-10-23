@@ -1,10 +1,12 @@
 /**
- * Node adapters: ESLint, tsc, Vitest / Jest, build script, npm / pnpm / yarn audit, Playwright.
+ * Node adapters: ESLint, tsc, Vitest / Jest, node:test, build script, npm / pnpm / yarn audit, Playwright.
  * Existing package.json scripts are preferred over direct invocations. A tool is available only with
  * local evidence (dependency or node_modules/.bin); direct invocations use `npx --no-install` so
- * nothing is fetched from the network (M1-R1-007). Detections never quote script bodies: a script
+ * nothing is fetched from the network (M1-R1-007). node:test is part of Node: its evidence is a script
+ * that runs `node --test` (item 45). Detections never quote script bodies: a script
  * may contain secrets and the reason is printed and copied into the generated config (M1-R1-003).
  */
+import { simpleCommands, withoutAssignments, type SimpleCommand } from "../command-words.ts";
 import type { Adapter, Detection, RepoContext, Suggestion } from "./types.ts";
 
 const ESLINT_CONFIGS = ["eslint.config.js", "eslint.config.mjs", "eslint.config.cjs", "eslint.config.ts", "eslint.config.mts", "eslint.config.cts", ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.yml", ".eslintrc.yaml"];
@@ -95,6 +97,76 @@ function testRunner(ctx: RepoContext, id: string, tool: string, configs: string[
 export const nodeVitest: Adapter = { id: "node-vitest", kind: "unit", detect: (ctx) => testRunner(ctx, "node-vitest", "vitest", VITEST_CONFIGS, /\bvitest\b/, "npx --no-install vitest run") };
 export const nodeJest: Adapter = { id: "node-jest", kind: "unit", detect: (ctx) => testRunner(ctx, "node-jest", "jest", JEST_CONFIGS, /\bjest\b/, "npx --no-install jest") };
 
+// node:test (item 45, v0.14.0; the rules of the batch1 design, final, §2.4). Node's options that take a value (the next word, or after
+// `=`) and the flags known to go with tests (Node v24 `node --help`): no other option may stand next to `--test` (B1-D-R3-001).
+const NODE_VALUE_OPTIONS = new Set(["--import", "--require", "-r", "--loader", "--experimental-loader", "--conditions", "-C", "--env-file", "--input-type", "--test-reporter", "--test-reporter-destination", "--test-name-pattern", "--test-skip-pattern", "--test-concurrency", "--test-timeout", "--test-shard", "--watch-path", "--title"]);
+const NODE_KNOWN_FLAGS = new Set([
+  "--experimental-strip-types", "--no-strip-types", "--experimental-transform-types", "--experimental-test-coverage", "--experimental-test-module-mocks", "--test-only",
+  "--test-force-exit", "--test-update-snapshots", "--enable-source-maps", "--no-warnings", "--no-deprecation", "--trace-warnings", "--trace-deprecation",
+  "--trace-uncaught", "--pending-deprecation", "--throw-deprecation", "--experimental-vm-modules", "--experimental-require-module", "--no-experimental-require-module",
+  "--no-experimental-detect-module", "--expose-gc", "--preserve-symlinks", "--preserve-symlinks-main", "--frozen-intrinsics",
+]);
+/** Options whose value is a script body: the words after them are not Node's options. */
+const NODE_BODY_OPTIONS = new Set(["-e", "--eval", "-p", "--print"]);
+/** Options that read Node's options or the environment from a file aiqh does not read (a watch mode could come in through it). */
+const NODE_FILE_OPTIONS = new Set(["--experimental-config-file", "--experimental-default-config-file", "--env-file", "--env-file-if-exists"]);
+
+/** The name of an option word: up to its first `=` (`--name=value`), else the whole word. */
+function optionName(text: string): string {
+  const eq = text.indexOf("=");
+  return eq === -1 ? text : text.slice(0, eq);
+}
+
+/** One simple command runs `node` with Node's own `--test` and nothing that could make it watch or read options from elsewhere. */
+function runsNodeTest(command: SimpleCommand): boolean {
+  if (!command.examinable) return false;
+  const { names, rest } = withoutAssignments(command.words);
+  // NODE_OPTIONS can add any option, a watch mode too: not read, refused
+  if (names.includes("NODE_OPTIONS")) return false;
+  const [position, ...after] = rest;
+  if (position === undefined || position.marked || position.text !== "node") return false;
+  // Every option-like word after node (also quoted ones, after the script and after `--`: the shell passes "--watch" as --watch)
+  for (const w of after) {
+    if (!w.text.startsWith("-")) continue;
+    const name = optionName(w.text);
+    if (name.includes("watch") || NODE_FILE_OPTIONS.has(name)) return false;
+  }
+  let test = false;
+  for (let i = 0; i < after.length; i += 1) {
+    const w = after[i];
+    if (w === undefined || w.text === "--" || !w.text.startsWith("-")) break;
+    const name = optionName(w.text);
+    if (NODE_BODY_OPTIONS.has(name)) break;
+    const inlineValue = name !== w.text;
+    if (NODE_VALUE_OPTIONS.has(name)) {
+      if (!inlineValue) i += 1;
+    } else if (name === "--test" && !inlineValue && !w.marked) {
+      test = true;
+    } else if (!NODE_KNOWN_FLAGS.has(name) || inlineValue) {
+      // an option outside the two lists (Node may not start: "bad option"), a value on a flag, a quoted or valued --test
+      return false;
+    }
+  }
+  return test;
+}
+
+export const nodeTest: Adapter = {
+  id: "node-test",
+  kind: "unit",
+  detect(ctx) {
+    if (!ctx.node) return null;
+    for (const script of ["test", "test:unit"]) {
+      const body = ctx.node.scripts[script];
+      if (body === undefined) continue;
+      const commands = simpleCommands(body);
+      if (commands !== null && commands.some(runsNodeTest)) {
+        return { kind: "unit", adapter: this.id, status: "available", reason: `package.json scripts.${script} found (runs node --test)`, suggestion: suggestion("unit", "unit", `npm run ${script}`, 600, `Unit tests via the existing ${script} script (node --test)`) };
+      }
+    }
+    return null;
+  },
+};
+
 export const nodeBuild: Adapter = {
   id: "node-build",
   kind: "build",
@@ -147,4 +219,4 @@ export const nodePlaywright: Adapter = {
   },
 };
 
-export const NODE_ADAPTERS: readonly Adapter[] = [nodeEslint, nodeTsc, nodeVitest, nodeJest, nodeBuild, nodeAudit, nodePlaywright];
+export const NODE_ADAPTERS: readonly Adapter[] = [nodeEslint, nodeTsc, nodeVitest, nodeJest, nodeTest, nodeBuild, nodeAudit, nodePlaywright];

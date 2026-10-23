@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -100,6 +100,7 @@ npm レジストリへの公開は行わない（`private: true`）。
 src/
   cli.ts                  … エントリ（bin: aiqh）。版の読込・シグナル処理・引数の解析と終了コード設定 [M0]
   cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
+  command-words.ts        … コマンドの単純コマンドと語（引用符・`\` の印、照らさない形）。init の node:test の検出が使う [v0.14.0]
   node-options.ts         … 起動を拒否する Node のオプション（`--unhandled-rejections=warn`・`--abort-on-uncaught-exception`。`process.execArgv` と NODE_OPTIONS。ADR-0024 決定 6） [v0.5.44]
   output.ts               … 端末への出力の出口（禁止文字を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
   commands/
@@ -135,7 +136,7 @@ src/
   adapters/               … 検出器 + 推奨コマンド（実行経路は持たない。出力パーサは parse/）    [M1 実装済み]
     types.ts              … Adapter / Detection / Suggestion / RepoContext（M1 の `OutputParser` の下書きは v0.8.0 で消した。パーサは parse/。ADR-0028）
     context.ts            … 読み取り専用の RepoContext（.env* は読まない。ENOENT 以外の失敗は ExaminationError。ADR-0022 決定 9）
-    node.ts / python.ts / builtin.ts / index.ts … Node 7 / Python 7 / 内蔵 security 1、分類ごとの解決
+    node.ts / python.ts / builtin.ts / index.ts … Node 8（v0.14.0 で node:test を足した。ADR-0011 の改訂）/ Python 7 / 内蔵 security 1、分類ごとの解決
   config/generate.ts      … 解決結果 → コメント付き JSONC                                   [M1]
   config/json-schema.ts   … zod → JSON Schema（schema/ に同梱）                              [M1]
   security/patterns.ts    … 秘密情報パターンの単一定義（masker / scanner で共有、R-012）      [M1]
