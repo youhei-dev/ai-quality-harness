@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.13.2 — a dev-dependency update for npm advisories (vitest 5.0.3, vite 8.2.4); batch1 (1): load-sensitive tests (the leader ignores SIGTERM before its ready marker; time budgets), no reference to the untracked instructions file, the latest.json / latest.md pair as an accepted limit, a near-limit test reporter (the verdict does not change)
+## v0.13.2 — commit d1568347c2aafae697e300e0eee6f8d8a2b54951 / tag object 401c79729de17faae2ebaddbdd5bf3ef8c9c75c4 — a dev-dependency update for npm advisories (vitest 5.0.3, vite 8.2.4); batch1 (1): load-sensitive tests (the leader ignores SIGTERM before its ready marker; time budgets), no reference to the untracked instructions file, the latest.json / latest.md pair as an accepted limit, a near-limit test reporter (the verdict does not change)
 
 - **batch1 の 1 版目**（人間の決定 2026-10-22。版の分け方は B1-Q22 の V1: v0.13.2 = ROADMAP の項目 43・41・47-c と B1-Q25、v0.14.0 = 項目 45・39、v0.15.0 = 項目 49 の層 (c)）。判定・出力の形・設定・実行時の依存は変えない（tests と docs の版と、devDependency の更新。`src/` は変えていない）。branch `release/v0.13.2`、8 commit: `4163ad2`（依存の更新）・`b1c467e`（41）・`202b073`（43）・`9d3f583`（47-c）・`9efd8ef`（B1-Q25）・`1d15206`（設計レビューの記録）・`d416dda`（findings の実装者の欄）・この release の commit
 - **依存の更新（devDependency だけ。判定と出力は変わらない）**: 作業の途中で、自己 verify の dependency の check（`npm audit --audit-level=high`）が、v0.13.1 の後に公開された npm の勧告で FAIL するようになった（`package-lock.json` は変えていなかった）。vite 8.2.0〜8.2.3 の GHSA-587h-7wmj-h5pm（high）・GHSA-698v-4r3x-3vcv・GHSA-r825-w8mm-5pxw・GHSA-rq7h-c2jc-7f22・GHSA-vfpm-58rq-9qcg（moderate）・GHSA-9jrq-w75r-8gcw（low）、`@vitest/mocker` 5.0.3 より前の GHSA-qxg6-89mg-rqv8・GHSA-xp26-3454-mjgp（moderate）
@@ -24,7 +24,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - **既知の限界**: 負荷のもとの確かめの 2 回目（1 分平均の最大 213）で、全テスト 2 本とも、`tests/parse-output.test.ts` の P3「only newlines」の壁時計の上限（1 MiB の読みが 3,000 ms 未満）の 1 件だけが FAIL した（4,763 ms・3,409 ms）。この assert とパーサは v0.13.2 で変えていない（前からある負荷への弱さ。負荷のゲートの下の検証では PASS）ので、この版では変えない（人間の決定）。ROADMAP の項目 53
 - テスト: 175 ファイル・2,348 件から 179 ファイル・2,381 件。既存のテストの期待値と `tests/structure/` は変えていない（変えたのは、設計が明示した時間の上限と、builtin-r3 の「every edit」の分割だけ）
 - `package.json` version 0.13.2（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存・`.github/`・`src/`・`tests/structure/`・禁止文字の集合（`FORBIDDEN_RANGES`）は v0.13.1 と同一（devDependency は上の依存の更新のとおり）
-- 記録（この版の後の記録の PR で記入）: release の commit とタグの object の SHA、PR の番号と merge の commit、PR と main の run の id
+- 記録（この版の後の記録の PR で記入）: PR #14（merge の commit `a0d0a087f84ee63b00c3edaa54101bb4318b2bbd`）。PR の run `39884786883`・main の run `39885422340` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.13.2 の項）
+- 実装の独立レビュー batch1-v0132-impl R1（この版の後の記録の PR で取り込んだ。`docs/reviews/batch1-v0132-impl/`）: High 0 / Medium 0 / Low 0。R1 で終えた（`aiqh review-check --label batch1-v0132-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）
 
 ## v0.13.1 — commit 8651e4be0a2790c6f35a66c1a2a448469abe1890 / tag object f3b5ba7a6bd42aa79b622651caf45d88e0813182 — security-scan treats an unmerged path once (the verdict does not change); the item48-impl R1 record
 
