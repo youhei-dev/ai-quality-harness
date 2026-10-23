@@ -107,8 +107,8 @@ export interface ExecutionResult {
   durationMs: number;
 }
 
-/** The tools whose output aiqh reads (ADR-0028). pytest is not one of them yet (ROADMAP). */
-export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit", "aiqh-security-scan"] as const;
+/** The tools whose output aiqh reads (ADR-0028; pytest since v0.14.0, decision 12). */
+export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest"] as const;
 
 export type ParserTool = (typeof PARSER_TOOLS)[number];
 

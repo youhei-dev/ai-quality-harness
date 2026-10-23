@@ -41,6 +41,11 @@ export function summaryText(p: ParsedOutput): string {
         `untracked .env not ignored ${n(c, "untrackedEnv")}, .gitignore ${n(c, "gitignore")}, raw characters ${n(c, "rawChars")}); suppressed by security.allow ${n(c, "suppressed")}; ` +
         `allow rules used ${n(c, "allowRulesUsed")}, expired ${n(c, "expiredAllowRules")}, unused ${n(c, "unusedAllowRules")}`
       );
+    case "pytest": {
+      const words: Array<[string, string, string]> = [["passed", "passed", "passed"], ["failed", "failed", "failed"], ["skipped", "skipped", "skipped"], ["deselected", "deselected", "deselected"], ["xfailed", "xfailed", "xfailed"], ["xpassed", "xpassed", "xpassed"], ["errors", "error", "errors"], ["warnings", "warning", "warnings"]];
+      const shown = words.filter(([key]) => n(c, key) > 0).map(([key, one, many]) => plural(n(c, key), one, many));
+      return shown.length > 0 ? shown.join(", ") : "no tests ran";
+    }
     default:
       return "-";
   }

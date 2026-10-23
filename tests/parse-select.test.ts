@@ -41,13 +41,13 @@ describe("the command names the tool", () => {
     ["node src/cli.ts security-scan", "aiqh-security-scan"],
     ["node dist/cli.js security-scan", "aiqh-security-scan"],
     ['"vitest" run', "vitest"],
+    ["pytest -q", "pytest"],
   ])("%s -> %s", (command, tool) => {
     expect(selectParser(command, dir())).toEqual({ kind: "tool", tool });
   });
   it.each([
     ["tsc --noEmit", "no-parser"],
     ["true", "no-parser"],
-    ["pytest -q", "no-parser"],
     ["pnpm audit", "no-parser"],
     ["yarn audit", "no-parser"],
     ["security-scan", "no-parser"],
