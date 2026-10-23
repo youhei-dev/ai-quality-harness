@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-19（v0.13.0。§3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -220,6 +220,23 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 }
 ```
 
+### 5.2b node:test の対象（v0.14.0、ROADMAP の項目 45、ADR-0011 の改訂）
+
+`scripts.test`（次に `scripts.test:unit`）が Node の組み込みのテストランナーを動かす対象では、`aiqh init` が unit に `npm run <script>` を提案する（アダプタ `node-test`。node:test は依存として入らないので、script の本文をローカルの証拠にする）。
+
+```jsonc
+    // unit: node-test — package.json scripts.test found (runs node --test)
+    { "name": "unit", "kind": "unit", "command": "npm run test", "timeoutSec": 600, "description": "Unit tests via the existing test script (node --test)" },
+```
+
+提案するのは、script の単純コマンドのどれかが次をすべて満たすときだけ（規則の全体は batch1 の設計〈最終〉の §2.4）:
+- 実行位置（`名前=値` の前置きを飛ばした最初の語）が、引用符も `\` も無い `node`。`NODE_OPTIONS=…` の前置きがあれば提案しない
+- Node 自身のオプションとして、値の無い `--test` がある（スクリプトの名前・`-e` などの本文・`--` より前）
+- `--test` の隣に置けるのは、値を取るオプション 18（`--import`・`--require`・`-r`・`--loader`・`--experimental-loader`・`--conditions`・`-C`・`--env-file`・`--input-type`・`--test-reporter`・`--test-reporter-destination`・`--test-name-pattern`・`--test-skip-pattern`・`--test-concurrency`・`--test-timeout`・`--test-shard`・`--watch-path`・`--title`。`--name value` と `--name=value` は同じ）と、既知のブールの旗 24（`--experimental-strip-types`・`--no-warnings`・`--enable-source-maps` など）だけ
+- 実行位置より後ろに、名前に `watch` を含むオプション（`--no-watch` も）と、`--experimental-config-file`・`--experimental-default-config-file`・`--env-file`・`--env-file-if-exists` が無い
+
+提案しない形（unit は今までどおり NOT APPLICABLE。設定に手で足す）: `npx node --test`・`env node --test`・`cross-env … node --test`・パスつきの `node`、一覧に無いオプションつき（例 `node --unknown-option=value --test`）、監視のオプションつき、`node "--test"`、`node script.js --test`、`echo node --test`、`$(…)` などで組み立てた形。vitest がローカルにあれば、vitest の直接の実行が先に選ばれる（node-test は代替として監査の表に出る）。
+
 ### 5.3 Python 系の対象リポジトリ（`aiqh init` の生成例。FastAPI + venv、pytest のみ導入）
 
 ```jsonc
@@ -239,6 +256,17 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 }
 ```
 venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は Python では該当しない（NOT_APPLICABLE）。
+
+### 5.3a pytest のパーサが選ばれるコマンドの形（v0.14.0、ROADMAP の項目 39、ADR-0028 の決定 12）
+
+verify は check の出力を表示のためだけに読む（判定と終了コードは変えない）。pytest の出力（要約の行と `short test summary info` の `FAILED`・`ERROR` の行）を読むのは、`command`（`npm run <script>`・`npm test` なら作業ディレクトリの package.json の script）が、次の形の単純コマンド 1 つ（前に `cd <1 語>` を置いてよい）のときだけ。設定の欄は無い。
+
+- `pytest …`・`.venv/bin/pytest …`・`py.test …`（実行位置の語の最後の部分）
+- `python -m pytest …`・`.venv/bin/python -m pytest -q tests/`（§5.3 の init の形）・`python3 -B -m pytest`（`python`・`python3`・`python3.<数字>` と、値を取らない旗 `-B`・`-E`・`-I`・`-O`・`-OO`・`-P`・`-s`・`-S`・`-u`・`-q`・`-b`・`-bb`・`-d`・`-v`）
+- `uv run …`・`poetry run …`・`pipenv run …`・`pdm run …`・`hatch run …`・`rye run …` の後ろが上の形（間に置けるのは `=` を含む旗と `--frozen`・`--locked`・`--no-sync`・`--offline`・`--quiet`・`-q`）
+- 前に `名前=値`（例 `PYTHONPATH=.`）を置いてよい
+
+選ばれない形（件数が出ないだけ。`not-applicable`）: `pytest -q && echo …`・`python gen.py && pytest -q`・`pytest -q | tee out.txt` のように前後にほかのコマンドがある形、`coverage run -m pytest`・`tox`・`nox`・`make test`・`env pytest`、`python -X dev -m pytest` のような値を取る旗、`"pytest"` のように引用符で囲んだ語。推奨: pytest は既定のテキストの出力のまま使う（`-q` でも既定の形でもよい）。
 
 ### 5.3b `kind: "security"` の標準コマンド
 
@@ -316,7 +344,7 @@ venv は有効化せず `.venv/bin/python -m …` で直接呼ぶ。`build` は 
 |---|---|---|
 | `checks[].enabled` | boolean | 一時的に無効化。無効化された check はレポートに SKIPPED と理由を残す |
 | `checks[].env` | `{ NAME: "value" }`（値に秘密は不可。`$VAR` 参照のみ許容する方式を検討） | CI 向けのフラグ（`CI=1` 等） |
-| `checks[].parser` | `"eslint-json"` / `"pytest"` 等 | 件数・失敗テスト名をレポートに構造化 |
+| `checks[].parser` | `"eslint-json"` / `"pytest"` 等 | 件数・失敗テスト名をレポートに構造化。**採らない**（ADR-0028 の P5: パーサはコマンドから aiqh が選び、設定の欄は作らない。pytest は v0.14.0 から §5.3a のコマンドの形で読む） |
 | `checks[].artifacts` | glob 配列 | Playwright のトレース等を verify 出力にコピー |
 | `checks[].maxOutputBytes` | integer | 実行時の出力保持上限（既定 10MiB）を check ごとに変更。境界揃えのため最大 3 バイト少なくなる |
 | `checks[].dependsOn` | name 配列 | 前段が FAIL のとき SKIPPED にする（例: typecheck 失敗時に build を飛ばす） |

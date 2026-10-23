@@ -1,0 +1,47 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: /srv/example
+collected 11 items
+
+tests/test_alpha.py ..F.                                                 [ 36%]
+tests/test_beta.py .sF                                                   [ 63%]
+tests/test_gamma.py ..                                                   [ 81%]
+tests/test_widget.py .E                                                  [100%]
+
+==================================== ERRORS ====================================
+____________________ ERROR at setup of test_widget_assembles ___________________
+
+    @pytest.fixture
+    def widget():
+>       raise RuntimeError("fixture failed")
+E       RuntimeError: fixture failed
+
+tests/test_widget.py:6: RuntimeError
+=================================== FAILURES ===================================
+________________________________ test_alpha_sum ________________________________
+
+    def test_alpha_sum():
+>       assert 1 + 2 == 4
+E       assert (1 + 2) == 4
+
+tests/test_alpha.py:3: AssertionError
+_____________________________ test_beta_name[case-1] ___________________________
+
+value = 'case-1'
+
+    @pytest.mark.parametrize("value", ["case-1"])
+    def test_beta_name(value):
+>       assert value == "case-2"
+E       AssertionError: assert 'case-1' == 'case-2'
+
+tests/test_beta.py:8: AssertionError
+=============================== warnings summary ===============================
+tests/test_gamma.py::test_gamma_warns
+  tests/test_gamma.py:4: UserWarning: the gamma value is rounded
+    warnings.warn("the gamma value is rounded")
+
+=========================== short test summary info ============================
+FAILED tests/test_alpha.py::test_alpha_sum - assert (1 + 2) == 4
+FAILED tests/test_beta.py::test_beta_name[case-1] - AssertionError: assert 'case-1' == 'case-2'
+ERROR tests/test_widget.py::test_widget_assembles - RuntimeError: fixture failed
+============ 2 failed, 7 passed, 1 skipped, 1 warning, 1 error in 0.42s ============

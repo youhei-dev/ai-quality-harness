@@ -6,7 +6,7 @@
  * parsed check renders the same Markdown as before, and review-packet still renders the Verification section of such a report.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runReviewPacket } from "../src/commands/review-packet.ts";
@@ -179,5 +179,60 @@ describe("P9: the report's shape for the readers that exist", () => {
     const md = readFileSync(path.join(t.dir, "artifacts", "ai-review", "review-packet-p9.md"), "utf8");
     expect(md).toContain("- Verdict: `PASSED`; exit code `0`; tool `ai-quality-harness 9.9.9`");
     expect(md).toContain("| `unit` | `unit` | `true` | `PASS` | `0` | `12` |");
+  });
+});
+
+describe("item 39 (v0.14.0): pytest through verify, for display only", () => {
+  /** An executable named `pytest` that prints out.txt next to it and exits with argv[2] (CommonJS: its directory says so). */
+  const PYTEST_PRINTER = ["#!/usr/bin/env node", 'const { readFileSync } = require("node:fs");', 'process.stdout.write(readFileSync(require("node:path").join(__dirname, "out.txt"), "utf8"));', "process.exitCode = Number(process.argv[2] ?? 0);", ""].join("\n");
+  function pytestProject(command: string, out: string): string {
+    const t = makeTempDir("aiqh-parse-pytest-");
+    cleanups.push(t.cleanup);
+    mkdirSync(path.join(t.dir, "unit"));
+    writeFileSync(path.join(t.dir, "unit", "package.json"), '{ "type": "commonjs" }\n');
+    writeFileSync(path.join(t.dir, "unit", "out.txt"), out);
+    for (const name of ["pytest", "printer"]) {
+      writeFileSync(path.join(t.dir, "unit", name), PYTEST_PRINTER);
+      chmodSync(path.join(t.dir, "unit", name), 0o755);
+    }
+    writeFileSync(path.join(t.dir, "aiqh.config.jsonc"), JSON.stringify({ version: 1, project: { name: "p" }, checks: [{ name: "unit", kind: "unit", command }] }));
+    return t.dir;
+  }
+  it("a PASS check run by pytest: parsed in latest.json, a parsed: line after its PASS line, a Parsed Output row; P1 holds", async () => {
+    const read = await verify(pytestProject("unit/pytest 0", fx("pytest-q-passed.stdout.txt")));
+    const unread = await verify(pytestProject("unit/printer 0", fx("pytest-q-passed.stdout.txt")));
+    expect(read.code).toBe(0);
+    expect(unread.code).toBe(read.code);
+    for (const key of ["verdict", "exitCode", "summary", "categories"] as const) expect(read.report[key]).toEqual(unread.report[key]);
+    expect(read.report.checks[0]?.status).toBe("PASS");
+    expect(read.report.checks[0]?.parsed).toEqual({ tool: "pytest", status: "parsed", reason: null, truncated: false, counts: { passed: 100, failed: 0, skipped: 0, deselected: 0, xfailed: 0, xpassed: 0, errors: 0, warnings: 0 }, items: [], itemsOmitted: 0 });
+    expect(unread.report.checks[0]?.parsed?.reason).toBe("no-parser");
+    const status = read.lines.findIndex((l) => /^ {6}PASS {2}/.test(l));
+    expect(read.lines[status + 1]).toBe("      parsed: pytest — 100 passed");
+    expect(read.md).toContain("## Parsed Output");
+    expect(read.md).toContain("| 1 | unit | pytest | parsed | 100 passed |");
+    expect(unread.lines.some((l) => l.includes("parsed:"))).toBe(false);
+  });
+  it("a FAIL check: the counts and the FAILED / ERROR names; the exit code and the verdict as without the parser", async () => {
+    const read = await verify(pytestProject("unit/pytest 1", fx("pytest-q-failures.stdout.txt")));
+    const unread = await verify(pytestProject("unit/printer 1", fx("pytest-q-failures.stdout.txt")));
+    expect(read.code).toBe(1);
+    expect(unread.code).toBe(1);
+    expect(read.report.verdict).toBe(unread.report.verdict);
+    expect(read.report.checks[0]?.parsed?.counts).toEqual({ passed: 7, failed: 2, skipped: 1, deselected: 0, xfailed: 0, xpassed: 0, errors: 1, warnings: 1 });
+    const status = read.lines.findIndex((l) => /^ {6}FAIL {2}/.test(l));
+    expect(read.lines.slice(status + 1, status + 5)).toEqual([
+      "      parsed: pytest — 7 passed, 2 failed, 1 skipped, 1 error, 1 warning",
+      "        failed-test: tests/test_alpha.py::test_alpha_sum",
+      "        failed-test: tests/test_beta.py::test_beta_name[case-1]",
+      "        error: tests/test_widget.py::test_widget_assembles",
+    ]);
+  });
+  it("Y14: a command that only names pytest (echo … pytest) is not read: not-applicable, no parsed: line, the check passes", async () => {
+    const r = await verify(pytestProject('echo "1 passed in 0.10s" pytest', ""));
+    expect(r.code).toBe(0);
+    expect(r.report.checks[0]?.status).toBe("PASS");
+    expect(r.report.checks[0]?.parsed).toEqual({ tool: null, status: "not-applicable", reason: "no-parser", truncated: false, counts: {}, items: [], itemsOmitted: 0 });
+    expect(r.lines.some((l) => l.includes("parsed:"))).toBe(false);
   });
 });

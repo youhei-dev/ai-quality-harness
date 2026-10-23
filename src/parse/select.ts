@@ -6,9 +6,15 @@
  * / `npm test` (`t`, `tst`), the script of package.json in the check's directory is read instead (one level; npm's lookup of a parent
  * package.json is not followed). The kind and the name of a check are not used: they do not tell which tool runs. No tool, or more
  * than one: not-applicable. A package.json that exists but cannot be read is unparsed (ADR-0022: unreadable is not absent).
+ * pytest (v0.14.0, ADR-0028 decision 12) is chosen by the position of its words instead (src/command-words.ts; batch1 design, final,
+ * §3.5, B1-Q7 B-1): one simple command runs it at its command position — `pytest` / `py.test`, a `python` / `python3` / `python3.<n>`
+ * with flags that take no value and then `-m pytest`, or one of the wrappers (uv, poetry, pipenv, pdm, hatch, rye) `run` before those —
+ * and no other simple command stands before or after it, but a leading `cd <one word>`. Otherwise a line that looks like pytest's
+ * summary (echo, a later command) could be shown as its counts.
  */
 import { lstatSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { lastPathSegment, simpleCommands, withoutAssignments, type CommandWord, type SimpleCommand } from "../command-words.ts";
 import type { ParserTool } from "../types.ts";
 
 /** A package.json larger than this is not read (bytes). */
@@ -28,16 +34,19 @@ const UNREADABLE: Selection = { kind: "none", status: "unparsed", reason: "scrip
 const OPERATORS = ";|&()";
 
 export function selectParser(command: string, cwdAbsolute: string, readScripts: (dir: string) => ScriptsRead = readPackageScripts): Selection {
+  let text = command;
   let segments = segmentsOf(command);
   const script = npmScriptName(segments);
   if (script !== null) {
     const read = readScripts(cwdAbsolute);
     if (read.kind === "unreadable") return UNREADABLE;
-    const text = read.kind === "read" && read.scripts !== null && Object.hasOwn(read.scripts, script) ? read.scripts[script] : undefined;
-    if (typeof text !== "string") return NO_PARSER;
+    const body = read.kind === "read" && read.scripts !== null && Object.hasOwn(read.scripts, script) ? read.scripts[script] : undefined;
+    if (typeof body !== "string") return NO_PARSER;
+    text = body;
     segments = segmentsOf(text);
   }
   const tools = toolsIn(segments);
+  if (choosesPytest(text)) tools.add("pytest");
   const [only] = tools;
   if (only === undefined) return NO_PARSER;
   return tools.size === 1 ? { kind: "tool", tool: only } : SEVERAL;
@@ -95,6 +104,52 @@ function toolsIn(segments: string[][]): Set<ParserTool> {
     if (names.includes("security-scan") && (names.includes("aiqh") || names.includes("cli.ts") || names.includes("cli.js"))) tools.add("aiqh-security-scan");
   }
   return tools;
+}
+
+const PYTHON_FLAGS = new Set(["-B", "-E", "-I", "-O", "-OO", "-P", "-s", "-S", "-u", "-q", "-b", "-bb", "-d", "-v"]);
+const WRAPPERS = new Set(["uv", "poetry", "pipenv", "pdm", "hatch", "rye"]);
+const WRAPPER_FLAGS = new Set(["--frozen", "--locked", "--no-sync", "--offline", "--quiet", "-q"]);
+
+const plain = (w: CommandWord | undefined, text: string): boolean => w !== undefined && !w.marked && w.text === text;
+
+/** P1 / P2 at `words[0]`: pytest itself, or python with flags that take no value and then `-m pytest`. */
+function startsPytest(words: readonly CommandWord[]): boolean {
+  const [first, ...rest] = words;
+  if (first === undefined || first.marked) return false;
+  const name = lastPathSegment(first.text);
+  if (name === "pytest" || name === "py.test") return true;
+  if (name !== "python" && name !== "python3" && !/^python3\.[0-9]+$/.test(name)) return false;
+  let i = 0;
+  while (i < rest.length && PYTHON_FLAGS.has(rest[i]?.text ?? "")) i += 1;
+  return plain(rest[i], "-m") && plain(rest[i + 1], "pytest");
+}
+
+/** A simple command that runs pytest at its command position (P1 / P2, or P3: a wrapper's `run` before them). */
+function runsPytest(command: SimpleCommand): boolean {
+  if (!command.examinable) return false;
+  const { rest } = withoutAssignments(command.words);
+  const [first, second] = rest;
+  if (first !== undefined && !first.marked && WRAPPERS.has(lastPathSegment(first.text)) && plain(second, "run")) {
+    let i = 2;
+    while (i < rest.length && (rest[i]?.text ?? "").startsWith("-")) {
+      const flag = rest[i]?.text ?? "";
+      if (!flag.includes("=") && !WRAPPER_FLAGS.has(flag)) return false;
+      i += 1;
+    }
+    return startsPytest(rest.slice(i));
+  }
+  return startsPytest(rest);
+}
+
+/** B-1: the command (or the npm script) is one simple command that runs pytest, after at most a `cd <one word>`. */
+function choosesPytest(text: string): boolean {
+  const commands = simpleCommands(text);
+  if (commands === null) return false;
+  const [first, second, ...more] = commands;
+  if (first === undefined || more.length > 0) return false;
+  if (second === undefined) return runsPytest(first);
+  const cd = first.examinable && first.words.length === 2 && plain(first.words[0], "cd");
+  return cd && runsPytest(second);
 }
 
 /** The scripts of `<dir>/package.json`. A symbolic link, a directory or a FIFO is not read (a FIFO would block), nor a file over PACKAGE_JSON_MAX. */

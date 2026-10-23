@@ -76,14 +76,14 @@
       "evidence": "規則 7 の拒否は `--watch` と `--watch-path` の語だけだが、N5i は `node --watch-path=src --test` を拒否する期待である。規則 4 は値を取る `--watch-path` を列挙するが、等号形を同じオプションと正規化する契約がない。監視つき check を available と提案すると verify が終了しない恐れがある。",
       "fix": "Node のオプションをオプション名と値に正規化し、`--watch-path=src` を含め監視系オプションを発見したら必ず拒否する。`--test --watch-path=src`、`--watch-path=src --test`、値なし、等号形をテストする。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-22）。Node のオプションを名前と値に正規化して読み、名前に watch を含むオプション・NODE_OPTIONS の前置き・別のファイルを読むオプションがあれば認めない（設計 §2.4 の規則 4・5・7）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-22）。Node のオプションを名前と値に正規化して読み、名前に watch を含むオプション・NODE_OPTIONS の前置き・別のファイルを読むオプションがあれば認めない（設計 §2.4 の規則 4・5・7）。v0.14.0 で、Node のオプションを名前と値に正規化して読み、名前に watch を含むオプション・NODE_OPTIONS の前置き・別のファイルを読むオプションを、実行位置より後ろのすべての語で拒む形に実装した（別のファイルを読むオプションを見る範囲は、設計の規則 7c が範囲を書いていないので、7a と同じすべての語にした。ADR-0011 の改訂）",
+      "fixedIn": "5685274c43e306038ea1f757115116b872b0df70",
+      "regressionTest": "tests/regression-item45-node-test-detection.test.ts の N2c（--name=value と --name value が同じに読まれる 4 形）、N5i（監視の名前と綴り 9 形）、N5l（監視のほかの名前と位置 8 形: --watch-preserve-output・--watch-kill-signal の 2 形・--no-watch・引用ありの語 2 形・スクリプトの位置の後ろ・-- の後ろ）、N5m（NODE_OPTIONS の前置き 3 形と、別のファイルを読むオプション 6 形）、N5n（値のある --test 2 形）。直す前の 659cae1 の SHA 固定の worktree では N2c の 4 件が FAIL、ほかは PASS（検出しない向きの守り）。src をわざと壊す確かめで、監視の判定・別のファイルを読むオプションの判定・NODE_OPTIONS の判定を外すと、それぞれ 9・3・3 件が FAIL",
       "guard": null,
       "destination": "v0.14.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 部分的に解消（正規化で未知の値つきオプションを肯定する偽陽性）。その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 部分的に解消（正規化で未知の値つきオプションを肯定する偽陽性）。その残りは B1-D-R3-001 で直した。振る舞いと回帰テストは v0.14.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.14.0 で実装した（commit 5685274）。人間の指示（2026-10-23）で、この版の記録の commit で resolved にした。実装の独立レビュー batch1-v0140-impl（v0.14.0 の後）で確かめる。resolved と後の回の「部分的に解消」の食い違いを review-check は警告として出す（残りは後の回の指摘で直したもの。誤りではない。B1-D-R1-004 と同じ）"
     },
     {
       "id": "B1-D-R2-003",

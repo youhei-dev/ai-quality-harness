@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
 - 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
-- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -94,7 +94,7 @@
 - **runner の全出力（最大 10 MiB）を読む**: 時間と記憶が増える。要約は末尾にあるので末尾 1 MiB で足りる
 
 ## 既知の限界
-- **pytest は読まない**（P6。ROADMAP の項目 39）
+- **pytest は読まない**（P6。ROADMAP の項目 39）。**v0.14.0 で解いた**（末尾の決定 12）
 - 要約の行を出さない reporter・formatter（vitest の `--reporter=json`、eslint の `-f json` など）と JSON の出力（`npm audit --json`・`security-scan --json`）は `unparsed`（`no-summary`）。vitest で確かめたのは default・agent・github-actions の 3 つの reporter だけ
 - npm の script は 1 段だけ・check の作業ディレクトリの package.json だけ。`npm run a && npm run b`・`pnpm`・`yarn` は選ばない。`unit-minpath` のように script の中で別のスクリプトが vitest を起こすものは `not-applicable`
 - ツールの判断は語の名前による: `eslint.js` という名前の別のプログラムは eslint として読まれる（件数は誤りうるが、表示だけで判定は変わらない）
@@ -204,3 +204,34 @@
 - security-scan の件数の行の内訳の最後に `raw characters: N` を足した（6 つの内訳）。数のキー `rawChars`（`gitignore` の後ろ、`suppressed` の前）、項目の種類 `raw-char`（`[raw-char] ` の行）、端末の `parsed:` の表示の `raw characters N`。パーサは新しい形（6 つの内訳）だけを受け付ける
 - 古い aiqh と新しい aiqh が、verify（親。パーサ）とその子の `aiqh security-scan`（出力）で食い違うと、`parsed` は `unparsed`（`unexpected-summary`）になる。**パースの失敗は判定を変えない**（P1 のまま。check の PASS / FAIL と終了コードは変わらない）
 - ただし、**検出の範囲は、実際に起動する `aiqh security-scan`（子）の版で決まる**。新しい verify と古い security-scan の組み合わせでは、生の文字の検出は効かない（古い子は生の文字を見ないので、ほかの finding が無ければ PASS のまま）。パースの失敗が判定を変えないことは、この組み合わせを安全にするものではない。`unexpected-summary` は、親と子の版の食い違いの印として扱う（ADR-0036 の決定 10）
+
+## 追記（v0.14.0: 決定 12 pytest のパーサ。ROADMAP の項目 39。2026-10-23）
+
+### 文脈
+- P6（最初の版は vitest・eslint・npm audit、pytest は後）を、人間の決定（batch1、2026-10-21〜22。B1-Q7〜Q11）で解いた。設計は batch1 の設計（最終）`docs/reviews/batch1-design/design-final.md` の §3 と付録 A（設計の独立レビュー R1〜R3。`docs/reviews/batch1-design/`）
+- 適用先の CI で、pytest の件数がログに出なかった（PASS の check の出力は表示しない。v0.9.1 の注記）
+
+### 決定 12: pytest のパーサ（`src/parse/pytest.ts`）
+- **選び方は語の位置で見る**（ほかの 4 つの道具と違う。B1-Q7 の B-1、B1-D-R1-002）: コマンド（`npm run <script>`・`npm test` なら、今までどおり 1 段だけ解いた script）を `src/command-words.ts` で単純コマンドと語に分け（引用符・`\` は語に印を付け、印の無い語だけを照らす。閉じていない引用符・`$(`・バッククォート・括弧・波括弧・`<<` を含む形は照らさない）、次の両方を満たすときだけ pytest を選ぶ
+  1. ある単純コマンドが、`名前=値` の前置きを飛ばした後、P1: 実行位置の語の最後の部分が `pytest`・`py.test`、P2: `python`・`python3`・`python3.<数字>` に値を取らない旗（`-B`・`-E`・`-I`・`-O`・`-OO`・`-P`・`-s`・`-S`・`-u`・`-q`・`-b`・`-bb`・`-d`・`-v`）を 0 個以上置いて、語 `-m` と語 `pytest`、P3: wrapper（`uv`・`poetry`・`pipenv`・`pdm`・`hatch`・`rye` の `run`）の後ろに `=` を含む旗と値を取らない旗（`--frozen`・`--locked`・`--no-sync`・`--offline`・`--quiet`・`-q`）だけを置いて、P1 か P2
+  2. その単純コマンドの前にも後ろにも、ほかの単純コマンドが無い（前に置く `cd <1 語>` だけは認める）
+  - 理由: 「どの語でもよい」では、`echo "1 passed in 0.10s" pytest` の出力や、pytest の前後のコマンドが出す要約に似た行が、pytest の件数として出る（判定は変わらないが、件数が誤る）。選ばれない形は件数が出ないだけ
+  - ほかの 4 つの道具の選び方（語の名前、どの語でもよい）は変えない（出力が変わらないように）。揃えるかは別の項目の候補（batch1 の設計の付録 B の 4）。選ばれた pytest と、同じ単純コマンドの語の名前でほかの道具が見つかったときは、今までどおり `several-tools`
+- **要約**: stdout の、要約の形の**最後の**行。前後に `=` の並びがあれば除いて読む（片側だけなら要約の形ではない）。形は `<n> <語>` を `, ` でつないで ` in <秒>s`（または古い ` <秒> seconds`）、任意の ` (<時>:<分>:<秒>)`。または `no tests ran in …`（数はすべて 0）
+- **語と数**: 8 つの語（passed・failed・skipped・deselected・xfailed・xpassed・warning/warnings・error/errors）だけ。知らない語（プラグインの `rerun` など）・同じ語の 2 回（`warning` と `warnings` も同じ語）・16 桁以上は `unexpected-summary`（B1-Q8 の A。決定 3 と同じ考え）。要約の形の行が無ければ `no-summary`
+- **counts**: `passed`・`failed`・`skipped`・`deselected`・`xfailed`・`xpassed`・`errors`・`warnings`（無い語は 0）
+- **items**: 要約の行より前の、最後の見出し `short test summary info`（前後の `=` を除いて読む）から要約の行までの、`FAILED ` で始まる行を `failed-test`、`ERROR ` で始まる行を `error`。名前は最初の ` - ` の前まで（無ければ行の残り）。見出しが読む範囲（末尾 1 MiB）の外に落ちたら items は無し（counts は読む）。名前のマスクと上限は決定 6・上限の表のまま
+- **表示**（`src/parse/describe.ts`）: 0 でない数を counts の順に `7 passed, 2 failed, 1 skipped, 1 error, 1 warning` の形で（`error`・`warning` は 1 のとき単数）。すべて 0 なら `no tests ran`
+- 読み方は 1 行を決まった回数だけ見る（入れ子の量指定のある正規表現は使わない）。P3 の最悪の形に pytest の 5 つの形を足した
+- **互換**（B1-Q10 の A。記録だけ）: `parsed.tool` に新しい値 `pytest` が入る。`schemaVersion` は 1 のまま（足すだけの変更。決定 9）。ただし **v0.13.x までの `aiqh history` は、`parsed.tool: "pytest"` の入ったレポートを読めない**（`tool` の enum に合わず、そのファイルが `bad-shape` になり `HISTORY INCOMPLETE`・exit 2。設計では推定だったが、v0.14.0 の実装の段で、v0.14.0 の verify が書いた pytest の入った history を、v0.13.2〈`659cae1`〉の `aiqh history` で読んで確かめた。v0.14.0 の `aiqh history` は同じファイルを読める）。同じ history のディレクトリを版の違う aiqh で読むときだけ起きる。history の読み手の厳しさ（ADR-0034）は変えない
+
+### 既知の限界（足すもの）
+- 選ばれない形（`no-parser`。件数が出ないだけ）: wrapper の一覧に無い形（`coverage run -m pytest`・`tox`・`nox`・`make test`・`env pytest`）、`python -X …`・`-W …`・`-c …` など値を取る旗、`-mpytest` の 1 語、引用ありの `pytest`・`-m`・`run`、前後にほかの単純コマンドがある形、Windows の `python.exe`
+- 実物で確かめた要約の形は `-q` の、passed と skipped だけの 1 回（batch1 の設計 §3.4）。既定の形（前後の `=`）・失敗とエラーと警告のある出力・`(h:mm:ss)`・古い ` seconds`・`no tests ran`・`short test summary info` の節は、合成の fixture（`tests/fixtures/parse/pytest-*.stdout.txt`。名前は架空）だけで確かめた [要確認]。pytest の将来の版やプラグインで形が変わると、件数が出なくなる（`no-summary`・`unexpected-summary`。判定は変わらない）
+- 要約を stdout に出さない設定（`-p no:terminal` など）・`--junitxml` だけの形は読まない
+
+### 影響（v0.14.0）
+- 新規: `src/parse/pytest.ts`、`src/command-words.ts`（項目 45 と共有）、テスト `tests/parse-pytest.test.ts`、fixture `tests/fixtures/parse/pytest-*.stdout.txt`（4 つ）
+- 変更: `src/types.ts`（`PARSER_TOOLS`）、`src/parse/read.ts`（`PARSERS`・`COUNT_KEYS`）、`src/parse/select.ts`（pytest の選び方）、`src/parse/describe.ts`
+- 既存テストの期待値の変更は `tests/parse-select.test.ts` の `pytest -q` の 1 行だけ（`no-parser` から `pytest`。設計 §3.7 が明示し、人間が承認した）。ほかは守りの追加（`tests/history-read.test.ts` の fixture の表、`tests/parse-output.test.ts` の P2・P3、`tests/parse-verify.test.ts` の verify の通し）
+- 依存関係・`package-lock.json`・禁止文字の集合・npm の保護設定・`tests/structure/`・設定の仕様（欄を足さない。P5）は変えない

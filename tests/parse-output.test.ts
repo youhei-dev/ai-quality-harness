@@ -202,6 +202,13 @@ describe("P2: a parser that throws or runs out of time is unparsed, with the rea
     const deps: ReadDeps = { parsers: { eslint: { tool: "eslint", parse: () => ({ status: "parsed", counts: { problems: Number.POSITIVE_INFINITY }, items: [], itemsOmitted: 0 }) } } };
     expect(parse("eslint", { stdout: "" }, deps).reason).toBe("parser-error");
   });
+  it("pytest (v0.14.0): a parser that throws is parser-error, reading past the limit is time-limit", () => {
+    const deps: ReadDeps = { parsers: { pytest: { tool: "pytest", parse: () => { throw new Error("boom"); } } } };
+    expect(parse("pytest", { stdout: fx("pytest-q-passed.stdout.txt") }, deps)).toEqual({ tool: "pytest", status: "unparsed", reason: "parser-error", truncated: false, counts: {}, items: [], itemsOmitted: 0 });
+    let t = 0;
+    const slow: ReadDeps = { now: () => (t += PARSE_TIME_LIMIT_MS + 1) };
+    expect(parse("pytest", { stdout: `${"line\n".repeat(50_000)}${fx("pytest-q-passed.stdout.txt")}` }, slow)).toMatchObject({ tool: "pytest", status: "unparsed", reason: "time-limit" });
+  });
   it("reading past PARSE_TIME_LIMIT_MS: time-limit (the clock is checked while lines are read)", () => {
     let t = 0;
     const deps: ReadDeps = { now: () => (t += PARSE_TIME_LIMIT_MS + 1) };
@@ -226,8 +233,14 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     "eslint spaces": (n) => ({ stdout: fill(`  1:1  error${" ".repeat(200)}x\n`, n) }),
     "npm audit packages": (n) => ({ stdout: `# npm audit report\n\n${fill("a  1\nSeverity: high\n", n)}` }),
     "digits": (n) => ({ stdout: fill(`Tests  ${"1".repeat(1000)} passed (1)\n`, n) }),
+    // pytest (v0.14.0, item 39)
+    "pytest summary lines again and again": (n) => ({ stdout: fill("1 failed, 2 passed, 3 skipped in 0.12s\n", n) }),
+    "pytest rows of = only": (n) => ({ stdout: fill(`${"=".repeat(4000)}\n`, n) }),
+    "pytest FAILED lines after the heading": (n) => ({ stdout: `=== short test summary info ===\n${fill("FAILED t.py::a - x\n", n)}1 failed in 0.10s\n` }),
+    "pytest a summary of many words": (n) => ({ stdout: fill(`${"1 passed, ".repeat(400)}in 0.1s\n`, n) }),
+    "pytest headings without a summary": (n) => ({ stdout: fill("=== short test summary info ===\n", n) }),
   };
-  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan"];
+  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest"];
   const linesOf = (s: string): number => {
     let n = 1;
     for (let i = s.indexOf("\n"); i !== -1; i = s.indexOf("\n", i + 1)) n += 1;
