@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-22
+最終更新: 2026-10-23
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1091,7 +1091,11 @@ M2-1 の教訓（R3）:
   - B1-Q25: 実装の最初に、vitest 5.0.0 の reporter で各テストの上限が取れることを実行で確かめ（テストの時計と同じ値。時間は `beforeEach`・`afterEach` を含む）、reporter（`tests/support/near-limit-reporter.ts`）を入れた
   - 負荷のもとの確かめ（設計〈最終〉§5.7。release の commit の tree で、全テスト 2 本を同時に走らせ、その間に項目 41 の対象のファイルを繰り返した。2 回）: 設計の基準は満たした（項目 41 の順序のテストは 31 回と 34 回のすべてで PASS、型を読むガードのテストの時間切れは 0 件）。2 回目（1 分平均の最大 213）で、2 本とも `tests/parse-output.test.ts` の P3「only newlines」の壁時計の上限の 1 件だけが FAIL（前からある負荷への弱さ。この版では変えない。項目 53）
   - 版の分け方（B1-Q22 の V1）: v0.14.0 = 項目 45・39、v0.15.0 = 項目 49 の層 (c)。実装の独立レビュー（B1-Q23）: v0.13.2 もテストの差分に絞って 1 回（label `batch1-v0132-impl`）。依頼文とパケットは、この版のリリースの後に作る
-  - CI の記録とタグの SHA は、次の記録の PR で書く
+  - CI（pull request の run）: PR #14 の run 39884786883（event pull_request、head `d156834`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 5 分 58 秒（verify の duration 5m44s、VERIFY PASSED 8/8）。`unit` 2m47s（167 秒、上限 600 秒の 27.8%）・`unit-minpath` 2m43s（163 秒、27.2%）。`reusable (self) / aiqh verify` はジョブ 4 分 11 秒（VERIFY PASSED 8/8、3m57s。`aiqh --version` は 0.13.2。`unit` 1m54s〈114 秒、19.0%〉・`unit-minpath` 1m52s〈112 秒、18.7%〉）
+  - CI（merge の後の main の run）: merge の commit `a0d0a08` の push の run 39885422340 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 4 分 11 秒（verify の duration 3m59s、VERIFY PASSED 8/8）。`unit` 1m55s（115 秒、19.2%）・`unit-minpath` 1m54s（114 秒、19.0%）。`reusable (self) / aiqh verify` はジョブ 4 分 15 秒（VERIFY PASSED 8/8、4m01s。aiqh のソースは `a0d0a08`、0.13.2。`unit` 1m57s〈117 秒、19.5%〉・`unit-minpath` 1m54s〈114 秒、19.0%〉）。タグは、この success を確かめてから付けた（最後に終わったジョブ `reusable (self) / aiqh verify` の終わり 01:45:47Z、run の更新 01:45:48Z、タグ 01:46:42Z）。時間は項目 42 の線（72%、432 秒）にも 80% にも届いていない（記録だけ）
+  - PR #14: `gh pr merge 14 --merge --match-head-commit d156834… --delete-branch` で merge した（`--admin` は使っていない）。merge の commit `a0d0a087f84ee63b00c3edaa54101bb4318b2bbd`（親は `a7e4d53` と `d156834`）。リモートの branch は merge で消えた。merge のコマンドに `-R`（リポジトリの指定）を付けたため gh が手元の branch を消さず、main の run の success とタグの push の後に、`-R` なしの同じコマンドで消した
+  - タグ v0.13.2 = commit d1568347c2aafae697e300e0eee6f8d8a2b54951 / tag object 401c79729de17faae2ebaddbdd5bf3ef8c9c75c4。CHANGELOG の v0.13.2 の見出しの SHA と、上の CI の記録は、v0.13.2 の後の記録の PR（branch `docs/v0.13.2-record`）で記入した
+  - 実装の独立レビュー batch1-v0132-impl R1（範囲 `a7e4d53..d156834`、8 commit・49 ファイル。`docs/reviews/batch1-v0132-impl/`）: **High 0 / Medium 0 / Low 0**。依頼文に先に書いた基準（High・Medium が 0 なら終える）に達したので R1 で終えた（`aiqh review-check --label batch1-v0132-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）。レビュアーが独立に確かめていない範囲（負荷の試験・`npm audit`・CI のログ・ロックの全項目の機械的な比較）は、新しい指摘ではなく既知の残余として受け入れた（`response-r1.md`）。項目 53 の扱いは変えない
 
 ---
 
