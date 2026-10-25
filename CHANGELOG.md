@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.15.0 — batch1 (3): the security check finds the invisible characters of layer (c), left out only inside complete RGI emoji sequences (a stricter verdict); aiqh init does not detect node:test for an empty `=` value
+## v0.15.0 — commit cf8a7ec306c7b72869f9d97ea310bc22765af216 / tag object 68f2433f30e25a39a49caf9d51735c6848c9a258 — batch1 (3): the security check finds the invisible characters of layer (c), left out only inside complete RGI emoji sequences (a stricter verdict); aiqh init does not detect node:test for an empty `=` value
 
 - **判定が厳しくなる変更**（ROADMAP の項目 49、ADR-0037）: security の check（`aiqh security-scan`）が、見えない文字の層 (c) の 8 分類（4,247 の符号位置）も、中身とパス名で `raw-char` の finding にする（既定で FAIL）。これまで PASS だったリポジトリが FAIL になりうる。**上げる前に**、新しい版の `aiqh security-scan` を手元で走らせ、`[raw-char]` の行（パス・行・符号位置・分類）を見る。意図した文字なら、分類と理由を書いた規則を足し、意図しない文字なら消す。`findings: 0` を確かめてから、verify が呼ぶ aiqh の版（再利用ワークフローの SHA など）を上げる。規則の例（分類を明示した規則だけが生の文字を抑える）:
 
@@ -30,7 +30,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 記録: v0.14.1 の見出しの SHA と記録の行（PR #17、run）、ROADMAP の v0.14.1 の CI
 - テスト: 182 ファイル・2,674 件から 183 ファイル・2,742 件
 - `package.json` version 0.15.0（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`package-lock.json`・`.github/`・`tests/structure/`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.14.1 と同一
-- 記録（この版の後の記録の PR で記入）: release の commit とタグの object の SHA、PR の番号と merge の commit、PR と main の run の id
+- 記録（この版の後の記録の PR で記入）: PR #18（merge の commit `ce38c92a53b8a42bc5d1215c98c5f85902de75dc`）。PR の run `40192730657`・main の run `40193239019` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.15.0 の項）
+- 実装の独立レビュー batch1-v0150-impl R1（この版の後の記録の PR で取り込んだ。`docs/reviews/batch1-v0150-impl/`）: High 0 / Medium 0 / Low 0。R1 で終えた（`aiqh review-check --label batch1-v0150-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）。batch1-design で open だった 4 件・B1-I140-R1-001・値が空の `=` の直しは、どれも解消と評価された
 
 ## v0.14.1 — commit e383637a53d0bd759d3ab3572620cd4803f9c4b6 / tag object 70fd20b221cdc56765bdc2a2ed53905f60a42e5d — a runtime dependency update for an npm advisory (zod 4.6.7); aiqh init does not detect node:test when an option that takes a value has no value (B1-I140-R1-001); the v0.14.0 record (the verdict does not change)
 

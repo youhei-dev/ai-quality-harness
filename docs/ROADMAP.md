@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-25
+最終更新: 2026-10-26
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -889,6 +889,7 @@ ARCHITECTURE・`docs/reviews/` など多くの箇所から参照されている�
 52. **run の一意の名前（runId）／history の一意の鍵**（v0.13.2 で項目にした。batch1 の設計の §6.4・付録 B の 7。項目 47 の関連。Low）。今のレポートには run の一意の名前が無い。`startedAt` はミリ秒までの時刻（`src/report/build-report.ts`）で、同じミリ秒に始めた別の run は同じ値を持てる。history の名前は秒まで＋ぶつかったときの連番（`src/report/write.ts`）で、`latest.*` には書かれない。そのため、`latest.json` と `latest.md` が同じ run のものかを確実には見分けられない（項目 47 の読み手の約束。`tests/regression-item47-latest-pair-race.test.ts` の 47-c-3 が、同じミリ秒の 2 本で固定している）。案: (a) run を始めるときに一意の `runId`（時刻・pid・乱数を合わせたものなど）を作り、`latest.json`・`latest.md`・history に同じ値で書く、(b) history の名前（排他で取った一意の名前）を `latest.json`・`latest.md` に書く（history を書いた後に latest を書く順に変える必要がある）。どちらもレポートの最上位のキーを増やす（最上位のキーのテスト〈ADR-0033〉の期待値、ADR-0003 の追記、`schemaVersion` の扱いを決める）ので、新しい ADR。項目 47 の (a)〈`runs/<runId>/`〉の前提にもなる。外の読み手が組で読む必要が出たら優先を上げる。行き先: 後で（人間の判断）
 53. **`tests/parse-output.test.ts` の P3「only newlines」の壁時計の上限が、強い負荷で外れる**（v0.13.2 で項目にした。batch1 の設計〈`docs/reviews/batch1-design/design-final.md`〉§5.7 の負荷のもとの確かめで見つけた。Low・テストだけ）。P3 は、パーサの 1 回の読みの壁時計の上限（64〜256 KiB は 1,500 ms、1 MiB は 3,000 ms）を `expect(ms).toBeLessThan(…)` で確かめる。全テストを 2 本同時に走らせた負荷（1 分平均の最大 213）で、1 MiB の「only newlines」の読みが 4,763 ms（npm-audit）と 3,409 ms（eslint）になり、2 本とも、このテストの 1 件だけで FAIL した（v0.13.2 の release の commit の tree。同じ条件の 1 回目〈1 分平均の最大 91〉と、負荷のゲートの下の各 commit の検証・全テストの 10 回連続では PASS）。v0.13.2 はこの assert とパーサ（`src/parse/`）を変えていない（assert は 2026-10-14 からある）ので、前からある負荷への弱さ。線形であることは、同じテストの作業量の時計（パーサが読んだ行の数で進む時計。`time-limit` にならないこと）で確かめているので、壁時計の上限は後ろ盾。案: 壁時計の上限を時間の予算の T3 の考え方（静かなときの時間 × 12 など。`docs/ops/ci-and-branch-protection.md` の 8-1）で決め直すか、外して作業量の時計に任せるかを決める。どちらも既存のテストの期待値の変更なので、人間の承認の後。行き先: 後で（人間の判断）
 54. **review-packet と出口の表記は、見えない文字の層 (c) を止めない**（v0.15.0 で項目にした。batch1 の設計〈最終〉の付録 B の 5、ADR-0037 の既知の限界。Low）。review-packet は禁止文字の集合 `FORBIDDEN_RANGES`〈75 の符号位置〉だけを止め、層 (c) の文字〈ゼロ幅・異体字セレクタ・タグ文字など〉はパケットに入る。端末とレポートの出口の表記〈`\u{…}`。ADR-0016・ADR-0020 の決定 3〉も同じ集合だけに効くので、層 (c) の文字を名前に持つパスは、security の check の finding の行にその文字のまま出る。パケットを読むレビュアーの側と、出力を読む人の側で、見えない文字が問題になるかを決める（`FORBIDDEN_RANGES` を変えると、パケット・出口・docs のテストの判定が変わる）。行き先: 未定（人間の判断）
+55. **ほかの 4 つの道具のパーサの選び方を、語の位置にそろえるか**（v0.15.0 の後の記録の PR で項目にした。batch1 の設計〈最終〉`docs/reviews/batch1-design/design-final.md` の §3.5・付録 B の 4、ADR-0028 の決定 12。設計の付録 B は v0.13.2 の docs の commit で ROADMAP に足すとしていたが、この 4 だけは足されないままだった〈ほかは項目 47・50〜52・54〉。Low）。vitest・eslint・npm audit・security-scan のパーサの選び方は、今も単純コマンドのどの語でもよい（`src/parse/select.ts` の `toolsIn`）。pytest だけは v0.14.0 から語の位置で選ぶ（設計〈最終〉の付録 A の語の分け方）。`echo vitest …` のような check の出力に要約と同じ形の行があれば、件数を誤って出しうる（判定は変わらない）。pytest と同じ規則に揃えるかを決める。既存の出力が変わりうるので、別の版で。行き先: 後で（人間の判断）
 
 M2-1 の教訓（R3）:
 - **ファイルシステムの同一性は、文字列の正規化ではなくファイルシステム自身（`dev`+`ino`）に問い合わせる**（R3-001: APFS の名前の同一視は `toLowerCase()` と一致しない）
@@ -1126,7 +1127,13 @@ M2-1 の教訓（R3）:
   - 設計の独立レビュー batch1-design の open 4 件（B1-D-R1-003・B1-D-R1-006・B1-D-R2-001・B1-D-R2-003）を `resolved` にした（`fixedIn` は層 (c) の commit）。`aiqh review-check --label batch1-design` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`（警告 4 件はどれも、resolved で後の回の評価が「部分的に解消」のもの。`note` に理由）。batch1 の設計のレビューのループは閉じた
   - ROADMAP: 項目 49 を閉じ、項目 54（review-packet と出口の表記は層 (c) を止めない。設計の付録 B の 5）を足した
   - 実装の独立レビュー（label `batch1-v0150-impl`）: 依頼文とパケットは、この版のリリースの後に作る。v0.14.1 の B1-I140-R1-001 の直しと、この版の `=` の直しも、そこで確かめる
-  - CI の記録とタグの SHA は、次の記録の PR で書く
+  - CI（pull request の run）: PR #18 の run 40192730657（event pull_request、head `cf8a7ec`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 4 分 45 秒（verify の duration 4m32s、VERIFY PASSED 8/8）。`unit` 2m13s（133 秒、上限 600 秒の 22.2%）・`unit-minpath` 2m07s（127 秒、21.2%）。`reusable (self) / aiqh verify` はジョブ 6 分 21 秒（VERIFY PASSED 8/8、6m02s。`aiqh --version` は 0.15.0。`unit` 2m56s〈176 秒、29.3%〉・`unit-minpath` 2m51s〈171 秒、28.5%〉）
+  - CI（merge の後の main の run）: merge の commit `ce38c92` の push の run 40193239019 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 6 分 26 秒（verify の duration 6m14s、VERIFY PASSED 8/8）。`unit` 3m00s（180 秒、30.0%）・`unit-minpath` 2m57s（177 秒、29.5%）。`reusable (self) / aiqh verify` はジョブ 6 分 12 秒（VERIFY PASSED 8/8、5m55s。aiqh のソースは `ce38c92`、0.15.0。`unit` 2m52s〈172 秒、28.7%〉・`unit-minpath` 2m48s〈168 秒、28.0%〉）。タグは、この success を確かめてから付けた（最後に終わったジョブ `verify (ubuntu)` の終わり 12:34:43Z、run の更新 12:34:44Z、タグ 21:21:01Z）。時間は項目 42 の線（72%、432 秒）にも 80% にも届いていない（記録だけ）
+  - PR #18: `gh pr merge 18 --merge --match-head-commit cf8a7ec… --delete-branch` で merge した（`--admin`・`-R` は使っていない）。merge の commit `ce38c92a53b8a42bc5d1215c98c5f85902de75dc`（親は `c520d88` と `cf8a7ec`）。手元とリモートの branch `release/v0.15.0` は merge で消えた
+  - タグ v0.15.0 = commit cf8a7ec306c7b72869f9d97ea310bc22765af216 / tag object 68f2433f30e25a39a49caf9d51735c6848c9a258。CHANGELOG の v0.15.0 の見出しの SHA と、上の CI の記録は、v0.15.0 の後の記録の PR（branch `docs/v0.15.0-record`）で記入した
+  - 実装の独立レビュー batch1-v0150-impl R1（範囲 `c520d88..cf8a7ec`、4 commit・22 ファイル。`docs/reviews/batch1-v0150-impl/`）: **High 0 / Medium 0 / Low 0**。batch1-design で open だった 4 件・B1-I140-R1-001・値が空の `=` の直しは、どれも解消と評価された。依頼文に先に書いた基準（High・Medium が 0 なら終える）に達したので R1 で終えた（`aiqh review-check --label batch1-v0150-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）。レビュアーが独立に確かめていない範囲（固定の URL の一部の未照合、コードとテストの独立の実行なし、Unicode の全列挙なし、変異のログの未添付）は、新しい指摘ではなく既知の残余として受け入れた。落ちなかった変異の同値の判断は「今の出力についての同値」で、一致の作りか Node の Unicode の版が変わったら見直す（`response-r1.md`）。項目 54 の扱いは変えない
+  - batch1 は、設計の独立レビュー（batch1-design）と 3 つの版の実装の独立レビュー（batch1-v0132-impl・batch1-v0140-impl・batch1-v0150-impl）まで、すべてのレビューのループを閉じた
+  - ROADMAP: 設計の付録 B の 4（ほかの 4 つの道具のパーサの選び方を語の位置にそろえるか）を、項目 55 として v0.15.0 の後の記録の PR で足した（v0.13.2 で足すはずが漏れていた）
 
 ---
 
