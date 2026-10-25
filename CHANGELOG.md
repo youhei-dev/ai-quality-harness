@@ -5,6 +5,25 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.14.1 — a runtime dependency update for an npm advisory (zod 4.6.7); aiqh init does not detect node:test when an option that takes a value has no value (B1-I140-R1-001); the v0.14.0 record (the verdict does not change)
+
+- **実装の独立レビュー batch1-v0140-impl R1 の Low 1 件の直しと、v0.14.0 の記録**（人間の決定 2026-10-25）。判定・終了コード・設定の仕様は変えない。branch `release/v0.14.1`、5 commit: `b62519c`（zod の更新）・`a115582`（実装レビューの取り込み）・`545eeff`（B1-I140-R1-001）・`a5a9fbc`（findings の実装者の欄・記録・訂正）・この release の commit
+- **zod の更新（実行時の依存。人間の決定 2026-10-25）**: v0.14.0 の後に、npm の勧告 GHSA-mrhx-c7xc-m3w5（CVE-2023-54404。high、CVSS 7.5、CWE-770。zod 4.6.6 より前）の範囲が広がって出た（勧告の更新は 2026-10-23T18:26:52Z。v0.14.0 の着手の時の `npm audit` と、main の run `39908726005` の dependency の check は通っていた）。`package-lock.json` を変えないまま、自己 verify の dependency の check（`npm audit --audit-level=high`）が FAIL した（`9abd3ca` の SHA 固定の worktree で 7/8、dependency だけ FAIL を記録した）。中身は、`$ZodArray` が失敗した要素ごとの問題を上限なしにため込み、大きな配列でメモリが尽きうるもの
+  - `package.json` の dependencies の zod を `~4.5.4` から `~4.6.7` にした（4.5 系に直った版は無い。4.6 系のうち、npm の `min-release-age`〈7 日〉を満たし、`npm audit` が 0 件のいちばん新しい版。4.6.7 は 2026-10-12、最初に直った 4.6.6 は 2026-10-11 の公開）。npm の保護設定は変えていない
+  - `package-lock.json` は全欄で比べた: 変わるのは `node_modules/zod`（version・resolved・integrity）とルートの項の `dependencies.zod` だけ。項目は 158 のままで、増減は無い。ほかの欄（`peer`・`license` など）は動かない（zod 4.6.7 に依存は無く、license は MIT のまま）。npm が書き換えたルートの 2 つの `version` は 0.5.35 に戻した（v0.13.2 と同じ）
+  - aiqh での使いどころ: 手元のファイル（設定・レビューの原文・findings のファイル・実行の履歴）の検証。4.5 → 4.6 の変更点（zod の release notes）のうち、aiqh の出力に響くのは勧告の修正そのもの（zod の PR #6652。配列の `.max()` を要素より先に確かめる）だけ: 上限 200 を超えた findings（または previous）に壊れた要素も混ざるレビューでは、`aiqh review-import` が要素の問題を出さなくなり、そのような findings のファイルを読むときの理由の文の件数が 1 になる（拒むのは同じ。人間が受け入れた）。実行の履歴は zod の前に checks の数を確かめる（R1-003）ので変わらない。生成する JSON Schema（`schema/aiqh.config.schema.json`）は同じ。ほかの変更（error map の遅延、`z.emoji`・`z.email`・base64・数の enum、JSON Schema の検査の畳み込み、メタデータの getter など）は、aiqh が使っていないか、出力が同じ
+  - `npm ci` の後: `npm ls zod` は zod 1 つ（4.6.7）、`npm audit` は 0 件、`npm audit signatures` は 133 パッケージすべての署名を確かめた。既存のテストの期待値は変えていない
+- **B1-I140-R1-001（Low。ADR-0011 の v0.14.1 の改訂）**: `aiqh init` の node:test の検出で、値を取る 18 のオプションが次の語を値として取る形のとき、その語が無い（末尾）か `-` で始まる（`-` 1 文字・引用ありの語も）なら提案しない。v0.14.0 は次の語を見ずに飛ばしていたので、`node --test --test-name-pattern`・`node --test --test-reporter --test` などを unit として提案していた。提案しない向きは、提案が減るだけで誤った提案を出さない（規則 7c と同じ向き）
+  - 手元の Node v24.13.1（空のディレクトリ・最小の環境・10 秒の上限）では、`node --test --test-name-pattern`・`node --test --import`・`node --test-reporter --test`・`node --test --test-reporter --test`・`node --test-name-pattern -x --test` は、どれも stderr の 1 行目が `node: <名前> requires an argument` の exit 9 で起動しない
+  - 既知の限界: 値が空の `=` の形（`--import=`）は今も提案する（Node は同じく exit 9。この版では直さない）。`=` の形（`--import=x`）は今までどおり
+  - テストを先に書いた: `tests/regression-item45-node-test-detection.test.ts` の「B1-I140-R1-001 (v0.14.1)」（30 件）は、`9abd3ca` の SHA 固定の worktree で 23 件 FAIL（残る 7 件は見込みどおり PASS）、直した後は PASS。2 つの条件をそれぞれ外す変異で、足したテストが 18 件・21 件 FAIL
+  - 確かめは v0.15.0 の実装レビューで行う（この版では実装レビューの依頼文・パケットを作らない）。`aiqh review-check --label batch1-v0140-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`
+- **v0.14.0 の記録と訂正**: CHANGELOG の v0.14.0 の見出しの SHA と記録の行、ROADMAP の v0.14.0 の項の CI・PR・タグ・実装レビュー。`docs/reviews/batch1-design/findings-r1.json` の B1-D-R1-001 の `regressionTest` の「N5k（照らさない形 8 つ）」を 7 つに直した（テストの行は 7 つ。`aiqh review-check --label batch1-design` は v0.14.0 と同じ open 4・警告 6・passed）
+- 文書: ADR-0011 の改訂、ADR の一覧、CONFIG_SPEC の §5.2b、README、ROADMAP（v0.14.0 の記録、v0.14.1 の項）
+- テスト: 182 ファイル・2,644 件から 182 ファイル・2,674 件。既存のテストの期待値と `tests/structure/` は変えていない
+- `package.json` version 0.14.1（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存は zod の版だけが変わる（commander・jsonc-parser と devDependencies は同じ）。`.github/`・`tests/structure/`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.14.0 と同一
+- 記録（この版の後の記録の PR で記入）: release の commit とタグの object の SHA、PR の番号と merge の commit、PR と main の run の id
+
 ## v0.14.0 — commit 2af638dc4f0f86a520e138d230bf3102b7272a2a / tag object be07f81acec4a4523953e3bcc814154eaef8cbf4 — batch1 (2): aiqh init detects node:test (node --test in scripts.test / test:unit); a pytest output parser chosen by the position of its words (the verdict does not change)
 
 - **batch1 の 2 版目**（人間の決定 2026-10-22。版の分け方は B1-Q22 の V1: v0.14.0 = ROADMAP の項目 45・39）。判定・終了コード・設定の仕様・実行時の依存は変えない。init の unit の提案と、表示用の `parsed` が増える。branch `release/v0.14.0`、4 commit: `5685274`（45）・`3f53ee9`（39）・`bd84b89`（findings の実装者の欄と記録）・この release の commit。設計の正本は batch1 の設計（最終）`docs/reviews/batch1-design/design-final.md` の §2・§3・付録 A
