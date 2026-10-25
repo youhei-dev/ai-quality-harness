@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -146,7 +146,7 @@ src/
                             finding で塞がれた値 Rejected。M2-1-R3-004 / R3-002） [M2-1 R2]
   review/outcome.ts       … review-packet の終了コードの優先順位（InspectionError / DeferredError / decideOutcome、ADR-0015） [M2-2]
   review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
-  security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]
+  security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]。security の check の集合と、絵文字の並びの除外の判断 `decideRawChars`  [v0.15.0]
   review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
   run-history/            … 履歴の読み込み（信頼しない入力。上限・symlink・差し替えの検出）と集計。DB は持たない（v0.11.0 で注記: 計画の `history/`〈履歴 DB〉を置き換えた。名前は push の前の走査に当たらないように変えた）。html.ts は静的 HTML のダッシュボード（固定のひな形、値はすべて h()、CSP の meta、数は data-k）[M4 v0.11.0、ADR-0034。v0.12.0、ADR-0035]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
@@ -326,6 +326,14 @@ package.json のスクリプト本文を入れない（M1-R1-003）。verify の
 候補の条件。分類の無い規則は秘密の形だけ）。出力は情報の行 `raw characters checked: …`、件数の行の最後の `raw characters: N`、`[raw-char]` の行。
 verify のパーサ（ADR-0028）は 6 つの内訳の形だけを読む。検出の範囲は、実際に起動する `aiqh security-scan`（子）の版で決まる（新しい verify と
 古い子では効かない。ADR-0036 の決定 10）。
+
+**層 (c)（v0.15.0、ROADMAP の項目 49、ADR-0037）**: `SCANNED_RAW_RANGES` に見えない文字の 8 分類（4,247。`FORBIDDEN_RANGES` の外のものを含む。
+`FORBIDDEN_RANGES` は変えない）を足した。判断は `decideRawChars`（`raw-chars.ts`）が 1 つの文字列（1 行・長い行の 1 つの窓・1 つのパス名）ごとに
+行い、U+200D・U+FE0F・タグ文字は、絵文字の文字（`\p{Emoji}`・`\p{Emoji_Component}`）の続き（run）の両端が見えて、`\p{RGI_Emoji}` の
+最長の一致の内側にあるときだけ除く。`LineAssembler` は `onLine` に `LinePosition`（行の中の位置・行の終わりまで届いたか・保証された末尾の始まり）
+を渡し、`RawCharSink` は窓から消える位置で両端の見えない run を finding に決め切る（未決の候補を持たない）。決めた位置はその行のあいだ覚えて、
+重なりで 2 回決めない。除いた数は位置で数え、`ScanResult.rawCharsExempted` と情報の行 `raw characters exempted (emoji sequences): N` に出す。
+`FileScanSink`・`scanString`・review-packet は変えていない。
 
 ### 6.2 レビューループ（M2）
 

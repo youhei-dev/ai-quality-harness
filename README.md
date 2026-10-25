@@ -61,6 +61,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | `aiqh security-scan`（内蔵。masker とパターン共有） | M1 実装済み |
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
 | Security Scan の生の文字（双方向の制御文字 U+202A–U+202E・U+2066–U+2069、行区切り U+2028・U+2029。中身とパス名。既定で FAIL、分類を明示した `security.allow` でだけ外せる） | v0.13.0（**判定が厳しくなる変更**。ROADMAP の項目 48。ADR-0036） |
+| Security Scan の見えない文字の層 (c)（方向の印・ゼロ幅・途中の BOM・ソフトハイフン・異体字セレクタ・タグ文字・制御文字・そのほかの既定で無視される文字の 8 分類。正しい絵文字の並びの内側の U+200D・U+FE0F・タグ文字だけ除く） | v0.15.0（**判定が厳しくなる変更**。ROADMAP の項目 49。ADR-0037） |
 | `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.14.1（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit・pytest の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉。pytest は v0.14.0〈決定 12〉） |
@@ -207,7 +208,17 @@ jobs:
   finding にします（`[raw-char] <path>:<line> U+202E bidi-control`。ファイルの中身と、走査の一覧に出るすべてのパス名。行の中身は出しません）。
   **判定が厳しくなる変更**で、これまで PASS だったリポジトリが FAIL になりえます。文字列の中なら言語のエスケープで書き、意図しない文字なら消します。
   意図した文字を残すときは、`category` を `bidi-control` か `line-separator` と明示した `security.allow` の規則で外します（分類の無い規則は生の文字を抑えません）。
-  方向の印（U+200E・U+200F・U+061C）・ゼロ幅の文字・UTF-16 のファイルは見ません（ADR-0036 の既知の限界。ROADMAP の項目 49）
+  UTF-16 のファイルは見ません（ADR-0036 の既知の限界）。方向の印・ゼロ幅の文字などは、v0.15.0 から次の層 (c) で見ます
+- v0.15.0 から、Security Scan は見えない文字の層 (c) も finding にします（ROADMAP の項目 49、ADR-0037。**判定が厳しくなる変更**）。
+  分類は `bidi-mark`（方向の印）・`zero-width`・`bom`（ファイルの先頭でない U+FEFF）・`soft-hyphen`・`variation-selector`・`tag`・
+  `control`（TAB・LF と、LF の前の CR・ファイルの最後の CR を除く制御文字）・`invisible-other` の 8 つ（4,247 の符号位置。一覧は
+  `docs/CONFIG_SPEC.md` の §5.3b）。U+200D・U+FE0F・タグ文字は、正しい絵文字の並び（Unicode の RGI。Node の `\p{RGI_Emoji}`）に
+  完全に一致する区間の内側にあるときだけ除き、除いた数を `raw characters exempted (emoji sequences): N` の行に出します。
+  並びの外に続くものや、長い行の窓の境目で並びの両端を確かめられないものは finding です（FAIL の向き）。入り切りのスイッチはありません。
+  **上げる前に**、新しい版の `aiqh security-scan` を手元で走らせ、`[raw-char]` の行を見てください。意図した文字なら、分類と理由を
+  書いた `security.allow` の規則（例 `{ "path": "app/text/**/*.py", "category": "zero-width", "reason": "…" }`）を足し、意図しない文字なら
+  消します。`findings: 0` を確かめてから、verify が呼ぶ aiqh の版を上げてください。新しい分類を書いた設定は v0.14.x 以前の aiqh では
+  設定のエラー（exit 2）です
 - **版を上げるとき（v0.13.0 から）**: 生の文字の検出が効くのは、実際に起動する `aiqh security-scan` が v0.13.0 以降のときだけです（verify の security の check は、
   check の `command` を PATH で探して起動します。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず、check は PASS のままです）。
   verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえてください。
@@ -217,7 +228,7 @@ jobs:
 - 同梱の JSON Schema は構造の検証・補完用です。チェック名の一意性や必須チェック 1 件以上といった横断規則は `aiqh` が
   実行時に検証します（エディタで valid でも `aiqh` が拒否することがあります）
 - `security.allow`（M2-0）で秘密の形の finding を理由つきで許容できます（`path` glob、`category`、`line`、必須の `reason`、任意の `expires`）。
-  v0.13.0 から、生の文字の finding も、その分類（`bidi-control`・`line-separator`）を明示した規則だけで許容できます。
+  v0.13.0 から、生の文字の finding も、その分類（`bidi-control`・`line-separator`、v0.15.0 から層 (c) の 8 分類）を明示した規則だけで許容できます。
   抑制した finding は件数と一覧が必ず出力され、未使用・期限切れの規則は警告されます。`.env` や `.gitignore` の衛生 finding は抑制できません。
   key-value 分類（`password=…` 等）も走査しますが、値が秘密らしい場合だけ finding になります（英字のみのパスフレーズは検出できません）
 

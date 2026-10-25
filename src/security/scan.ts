@@ -8,9 +8,10 @@
  * ADR-0013) so memory stays bounded. Reports
  * tracked .env files, untracked .env files git does not ignore and missing .gitignore coverage
  * (decided by git itself, counting only tracked .gitignore rules). Raw bidi controls and line
- * separators (raw-chars.ts SCANNED_RAW_RANGES) are findings in the lines of the files it reads and
- * in the names of every listed path (ADR-0036); they are checked beside the secret patterns, never
- * through scanString. `security.allow` rules suppress secret-shaped findings, and raw characters
+ * separators (ADR-0036) and the invisible characters of layer (c) (ADR-0037; raw-chars.ts
+ * SCANNED_RAW_RANGES) are findings in the lines of the files it reads and in the names of every
+ * listed path, except U+200D, U+FE0F and tags inside a complete RGI emoji sequence (counted, never
+ * findings); they are checked beside the secret patterns, never through scanString. `security.allow` rules suppress secret-shaped findings, and raw characters
  * only by a rule that names their category; every suppression is recorded (M2-0 §7). Findings carry
  * category, path and line numbers only — never the matched value. Files that cannot be stat'ed or
  * read are ScanErrors (exit 2, fail closed); only ENOENT is skipped.
@@ -22,7 +23,7 @@ import { StringDecoder } from "node:string_decoder";
 import type { AllowRule, ResolvedSecurity } from "../types.ts";
 import { windowLimitsProblem } from "../config/window-limits.ts";
 import { SCANNED_CATEGORIES, SECRET_PATTERNS, UNSCANNED_CATEGORIES, stripCanonicalMarkers, type SecretPattern } from "./patterns.ts";
-import { formatCodePoint, RAW_CHAR_CATEGORIES, SCANNED_RAW_RANGES, scannedRawCategory } from "./raw-chars.ts";
+import { decideRawChars, formatCodePoint, RAW_CHAR_CATEGORIES, SCANNED_RAW_RANGES, type RawCharWindow } from "./raw-chars.ts";
 
 export class ScanError extends Error {
   override readonly name = "ScanError";
@@ -32,7 +33,7 @@ export type FindingKind = "secret" | "oversized-candidate" | "tracked-env" | "un
 
 export interface ScanFinding {
   kind: FindingKind;
-  /** Secret category (secret / oversized-candidate findings), or raw-character category (raw-char findings: bidi-control / line-separator). */
+  /** Secret category (secret / oversized-candidate findings), or raw-character category (raw-char findings: RAW_CHAR_CATEGORIES). */
   category?: string;
   /** Repository-relative path (".gitignore" for gitignore findings). */
   file: string;
@@ -70,8 +71,10 @@ export interface ScanResult {
   /** Tracked or untracked .env-style files that are example / template files (informational). */
   exampleEnvFiles: string[];
   scannedCategories: string[];
-  /** The raw characters this version finds, by category (ADR-0036). */
+  /** The raw characters this version finds, by category (ADR-0036, ADR-0037). */
   scannedRawChars: Array<{ category: string; codePoints: string[] }>;
+  /** Occurrences of U+200D, U+FE0F and tags left out inside complete RGI emoji sequences, by position (ADR-0037 I7, I9); never findings, not touched by allow rules. */
+  rawCharsExempted: number;
   unscannedCategories: Array<{ category: string; reason: string }>;
 }
 
@@ -142,6 +145,7 @@ export function scanRepository(root: string, security: ResolvedSecurity = DEFAUL
     exampleEnvFiles: [],
     scannedCategories: [...SCANNED_CATEGORIES],
     scannedRawChars: RAW_CHAR_CATEGORIES.map((category) => ({ category, codePoints: scannedCodePoints(category).map(formatCodePoint) })),
+    rawCharsExempted: 0,
     unscannedCategories: UNSCANNED_CATEGORIES.map((u) => ({ ...u })),
   };
   const { lineScanners, blockScanners } = buildScanners();
@@ -300,6 +304,25 @@ export function lineFindings(line: string): string[] {
   return out;
 }
 
+/**
+ * The raw characters of one text fed in the given chunks through the path of a file — the LineAssembler with the secret carry, the
+ * secret sink and the raw-character sink — without git or a file, for the tests of the windows (ADR-0037 I5, I6). `work` counts the
+ * steps of the decisions; `onWindow` is called for each delivery that does not reach the end of its line. scanString is not this path.
+ */
+export function scanRawCharText(chunks: readonly string[], security: ResolvedSecurity = DEFAULT_SECURITY, work?: { steps: number }, onWindow?: () => void): { findings: ScanFinding[]; exempted: number } {
+  const scanners = buildScanners();
+  const sink = new FileScanSink("<string>", scanners.lineScanners, scanners.blockScanners);
+  const raw = new RawCharSink("<string>", work);
+  const lines = new LineAssembler((line, no, _continued, at) => {
+    sink.onLine(line, no);
+    raw.onLine(line, no, at);
+    if (!at.final) onWindow?.();
+  }, assemblerOptions(security, scanners, sink));
+  for (const chunk of chunks) lines.push(chunk);
+  lines.end();
+  return { findings: raw.findings, exempted: raw.exempted };
+}
+
 /** Scan a string (fed in `chunkBytes` pieces) through the same pipeline as a file — no git, for tests. */
 export function scanString(text: string, security: ResolvedSecurity = DEFAULT_SECURITY, chunkBytes = READ_CHUNK_BYTES): ScanFinding[] {
   const scanners = buildScanners();
@@ -389,10 +412,6 @@ class FileScanSink {
   }
 }
 
-/** The span of the scanned raw characters: a quick test per UTF-16 unit before the lookup (each of them is one unit). */
-const RAW_LOWEST = Math.min(...SCANNED_RAW_RANGES.map(([lo]) => lo));
-const RAW_HIGHEST = Math.max(...SCANNED_RAW_RANGES.map(([, hi]) => hi));
-
 /** The code points of a raw-character category, in the order of SCANNED_RAW_RANGES. */
 function scannedCodePoints(category: string): number[] {
   const out: number[] = [];
@@ -401,40 +420,67 @@ function scannedCodePoints(category: string): number[] {
 }
 
 /**
- * Raw characters in the lines of one file (ADR-0036): one finding per line and code point (windows of a long line overlap, so
- * a character can be seen twice). Kept apart from FileScanSink, which scanString (and so review-packet) uses: the packet checks
- * the whole forbidden set itself and must not get these as secret findings.
+ * Raw characters in the lines of one file (ADR-0036, ADR-0037): each position is decided once (I6; the windows of a long line
+ * overlap), and a finding is one per line and code point (I9). The positions decided on the current line are kept until a window
+ * starts after them; nothing undecided is kept (a run left to the next window is in the text the next window repeats, I5 (c)). Kept
+ * apart from FileScanSink, which scanString (and so review-packet) uses: the packet checks the whole forbidden set itself and must not
+ * get these as secret findings.
  */
 class RawCharSink {
   readonly findings: ScanFinding[] = [];
+  exempted = 0;
   private readonly seen = new Set<string>();
+  private readonly decided = new Set<number>();
+  private lineNo = 0;
   private readonly rel: string;
-  constructor(rel: string) {
+  private readonly work: { steps: number } | undefined;
+  /** Reused for every line (decideRawChars reads it during the call only). */
+  private readonly window: RawCharWindow = { offset: 0, final: true, tailStart: 0, firstLine: false };
+  private readonly isDecided = (p: number): boolean => this.decided.has(p);
+  constructor(rel: string, work?: { steps: number }) {
     this.rel = rel;
+    this.work = work;
   }
-  onLine(line: string, no: number): void {
-    for (let i = 0; i < line.length; i += 1) {
-      const cp = line.charCodeAt(i);
-      if (cp < RAW_LOWEST || cp > RAW_HIGHEST) continue;
-      const category = scannedRawCategory(cp);
-      if (category === null || this.seen.has(`${no}:${cp}`)) continue;
-      this.seen.add(`${no}:${cp}`);
-      const codePoint = formatCodePoint(cp);
-      this.findings.push({ kind: "raw-char", category, file: this.rel, line: no, endLine: no, codePoint, message: `raw ${category} character ${codePoint}` });
+  onLine(line: string, no: number, at: LinePosition): void {
+    if (no !== this.lineNo) {
+      this.lineNo = no;
+      if (this.decided.size > 0) this.decided.clear();
+    } else {
+      for (const p of this.decided) if (p < at.offset) this.decided.delete(p);
+    }
+    this.window.offset = at.offset;
+    this.window.final = at.final;
+    this.window.tailStart = at.tailStart;
+    this.window.firstLine = no === 1;
+    for (const d of decideRawChars(line, this.window, this.isDecided, this.work)) {
+      this.decided.add(d.position);
+      if (d.exempt) {
+        this.exempted += 1;
+        continue;
+      }
+      if (this.seen.has(`${no}:${d.codePoint}`)) continue;
+      this.seen.add(`${no}:${d.codePoint}`);
+      const codePoint = formatCodePoint(d.codePoint);
+      this.findings.push({ kind: "raw-char", category: d.category, file: this.rel, line: no, endLine: no, codePoint, message: `raw ${d.category} character ${codePoint}` });
     }
   }
 }
 
-/** Raw characters in a repository-relative path (ADR-0036 decision 5): one finding per code point, without a line. */
+/** A path name is decided as one whole text: its ends are the ends of the run, and its first position is no BOM. */
+const PATH_NAME: RawCharWindow = { offset: 0, final: true, tailStart: 0, firstLine: false };
+
+/** Raw characters in a repository-relative path (ADR-0036 decision 5, ADR-0037): one finding per code point, without a line; positions left out are counted. */
 function checkPathName(rel: string, result: ScanResult): void {
   const seen = new Set<number>();
-  for (const c of rel) {
-    const cp = c.codePointAt(0) ?? 0;
-    const category = scannedRawCategory(cp);
-    if (category === null || seen.has(cp)) continue;
-    seen.add(cp);
-    const codePoint = formatCodePoint(cp);
-    result.findings.push({ kind: "raw-char", category, file: rel, codePoint, message: `raw ${category} character ${codePoint} in the path` });
+  for (const d of decideRawChars(rel, PATH_NAME)) {
+    if (d.exempt) {
+      result.rawCharsExempted += 1;
+      continue;
+    }
+    if (seen.has(d.codePoint)) continue;
+    seen.add(d.codePoint);
+    const codePoint = formatCodePoint(d.codePoint);
+    result.findings.push({ kind: "raw-char", category: d.category, file: rel, codePoint, message: `raw ${d.category} character ${codePoint} in the path` });
   }
 }
 
@@ -451,9 +497,9 @@ function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
   if (!stat.isFile()) return; // symlinks / submodules are not scanned
   const sink = new FileScanSink(rel, lineScanners, blockScanners);
   const raw = new RawCharSink(rel);
-  const onLine = (line: string, no: number): void => {
+  const onLine = (line: string, no: number, _continued: boolean, at: LinePosition): void => {
     sink.onLine(line, no);
-    raw.onLine(line, no);
+    raw.onLine(line, no, at);
   };
   const binary = readLines(abs, rel, onLine, assemblerOptions(security, { lineScanners, blockScanners }, sink));
   if (binary) {
@@ -463,6 +509,18 @@ function scanFile(absRoot: string, rel: string, ctx: FileScanContext): void {
   result.filesScanned += 1;
   sink.finish();
   result.findings.push(...sink.findings, ...raw.findings);
+  result.rawCharsExempted += raw.exempted;
+}
+
+/**
+ * Where a delivered text lies in its line (ADR-0037 decision 5): its first unit's position in the line, whether it reaches the end
+ * of the line, and — for a window that does not — where its guaranteed tail starts (window length − lineOverlap; the next window
+ * starts at or before it). The raw-character check needs it (I5, I6); the secret scanners do not use it.
+ */
+export interface LinePosition {
+  offset: number;
+  final: boolean;
+  tailStart: number;
 }
 
 export interface LineAssemblerOptions {
@@ -486,16 +544,19 @@ export interface LineAssemblerOptions {
  * newline is delivered in windows: the retained text is emitted with the current line number, the
  * carry (candidate prefix from `carryFrom`, at least the overlap, at most maxCarryBytes) is kept
  * and prefixed to the next window (`continued` windows repeat it), and the line number does not
- * advance until a newline arrives. `maxRetained` records the longest text ever held.
+ * advance until a newline arrives. Each delivery also says where it lies in its line (LinePosition).
+ * `maxRetained` records the longest text ever held.
  */
 export class LineAssembler {
   private pending = "";
   private lineNo = 1;
   private continued = false;
+  /** Position of the pending text's first unit in its line (what the windows of the line dropped so far). */
+  private offset = 0;
   private retainedMax = 0;
-  private readonly onLine: (line: string, lineNo: number, continued: boolean) => void;
+  private readonly onLine: (line: string, lineNo: number, continued: boolean, position: LinePosition) => void;
   private readonly opts: Required<Pick<LineAssemblerOptions, "maxLineBytes" | "lineOverlap" | "maxCarryBytes">> & LineAssemblerOptions;
-  constructor(onLine: (line: string, lineNo: number, continued: boolean) => void, opts: LineAssemblerOptions = {}) {
+  constructor(onLine: (line: string, lineNo: number, continued: boolean, position: LinePosition) => void, opts: LineAssemblerOptions = {}) {
     this.onLine = onLine; // no parameter properties: erasableSyntaxOnly
     this.opts = { ...opts, maxLineBytes: opts.maxLineBytes ?? MAX_LINE_BYTES, lineOverlap: opts.lineOverlap ?? LINE_OVERLAP, maxCarryBytes: opts.maxCarryBytes ?? MAX_CARRY_BYTES };
     // M2-0-R1-001, second layer: the config resolver rejects these limits already; a direct caller
@@ -523,8 +584,9 @@ export class LineAssembler {
       const nl = this.pending.indexOf("\n", start);
       if (nl === -1) break;
       const line = this.pending.endsWith("\r", nl) ? this.pending.slice(start, nl - 1) : this.pending.slice(start, nl);
-      this.onLine(line, this.lineNo, this.continued);
+      this.onLine(line, this.lineNo, this.continued, { offset: this.offset, final: true, tailStart: line.length });
       this.continued = false;
+      this.offset = 0;
       this.lineNo += 1;
       start = nl + 1;
     }
@@ -532,8 +594,8 @@ export class LineAssembler {
     while (this.pending.length > this.opts.maxLineBytes) {
       // Over-long line: scan the window now, keep the candidate prefix (≥ overlap, ≤ carry cap), same line number.
       const window = this.pending;
-      this.onLine(window, this.lineNo, this.continued);
       const floor = Math.max(0, window.length - this.opts.lineOverlap);
+      this.onLine(window, this.lineNo, this.continued, { offset: this.offset, final: false, tailStart: floor });
       const decision = this.opts.carryFrom?.(window) ?? { start: floor, category: null };
       let from = Math.min(decision.start, floor);
       if (window.length - from > this.opts.maxCarryBytes) {
@@ -541,6 +603,7 @@ export class LineAssembler {
         from = floor;
       }
       this.continued = true;
+      this.offset += from;
       this.pending = window.slice(from);
       // M2-0-R1-001, third layer: every iteration must shrink the buffer; otherwise fail closed
       // (ScanError → exit 2) instead of looping forever.
@@ -553,9 +616,10 @@ export class LineAssembler {
   end(): void {
     if (this.pending.length > 0) {
       const line = this.pending.endsWith("\r") ? this.pending.slice(0, -1) : this.pending;
-      this.onLine(line, this.lineNo, this.continued);
+      this.onLine(line, this.lineNo, this.continued, { offset: this.offset, final: true, tailStart: line.length });
     }
     this.pending = "";
+    this.offset = 0;
   }
 }
 
@@ -564,7 +628,7 @@ export class LineAssembler {
  * required, windows for over-long lines). Returns true — without calling `onLine` — when the first
  * 8 KiB contain a NUL byte (binary file). Read errors are ScanErrors (fail closed).
  */
-function readLines(abs: string, rel: string, onLine: (line: string, lineNo: number, continued: boolean) => void, opts: LineAssemblerOptions): boolean {
+function readLines(abs: string, rel: string, onLine: (line: string, lineNo: number, continued: boolean, position: LinePosition) => void, opts: LineAssemblerOptions): boolean {
   let fd: number;
   try {
     fd = openSync(abs, "r");

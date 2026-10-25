@@ -144,7 +144,15 @@
                   "jwt",
                   "key-value",
                   "bidi-control",
-                  "line-separator"
+                  "line-separator",
+                  "bidi-mark",
+                  "zero-width",
+                  "bom",
+                  "soft-hyphen",
+                  "variation-selector",
+                  "tag",
+                  "control",
+                  "invisible-other"
                 ]
               },
               "line": {
