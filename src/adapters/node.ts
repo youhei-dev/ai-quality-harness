@@ -139,7 +139,13 @@ function runsNodeTest(command: SimpleCommand): boolean {
     if (NODE_BODY_OPTIONS.has(name)) break;
     const inlineValue = name !== w.text;
     if (NODE_VALUE_OPTIONS.has(name)) {
-      if (!inlineValue) i += 1;
+      if (!inlineValue) {
+        // B1-I140-R1-001: the value is the next word; none (the end) or one starting with "-" (also "-" alone) is not read as a
+        // value but refused (Node v24.13.1 does not start: "requires an argument", exit 9)
+        const value = after[i + 1];
+        if (value === undefined || value.text.startsWith("-")) return false;
+        i += 1;
+      }
     } else if (name === "--test" && !inlineValue && !w.marked) {
       test = true;
     } else if (!NODE_KNOWN_FLAGS.has(name) || inlineValue) {

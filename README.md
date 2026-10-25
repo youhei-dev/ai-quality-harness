@@ -193,7 +193,7 @@ jobs:
   ネットワーク取得を起こしません。監査表・設定案・`--json` には package.json のスクリプト本文を出しません
 - node:test（Node の組み込みのテストランナー）は依存として入らないので、`scripts.test`（次に `scripts.test:unit`）が `node --test` を
   実行するときだけ、unit に `npm run <script>` を提案します（v0.14.0。監視のオプション・`NODE_OPTIONS` の前置き・一覧に無い Node の
-  オプションがあれば提案しません。形の規則は `docs/CONFIG_SPEC.md` の §5.2b）
+  オプション・値の欠けたオプション〈v0.14.1〉があれば提案しません。形の規則は `docs/CONFIG_SPEC.md` の §5.2b）
 - `aiqh init --write` は生成した設定を `aiqh verify` と同じ検証に通し、通らない設定（必須チェック 0 件等）は書きません。
   `--write-gitignore` / `--write-scripts` の失敗は exit 2 で報告されますが、他の書込は取り消されません（`git status` で確認）
 - `aiqh init --write` / `--write-gitignore` は、書込先（`aiqh.config.jsonc`・`.gitignore`）が dangling symlink（リンク先が未作成）のとき、
