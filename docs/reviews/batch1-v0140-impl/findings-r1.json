@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch1-v0140-impl",
+  "round": 1,
+  "idPrefix": "B1-I140",
+  "source": {
+    "name": "independent-review-batch1-v0140-impl-r1-for-claude.md",
+    "bytes": 7951,
+    "sha256": "2ea57353b9cb623fff5521de6441a226133250759970aa25333fff28a166807f"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "previous": [],
+  "importedAt": "2026-10-25T05:11:08.996Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.14.0"
+  },
+  "findings": [
+    {
+      "id": "B1-I140-R1-001",
+      "severity": "Low",
+      "kind": "テスト",
+      "target": "src/adapters/node.ts の runsNodeTest と tests/regression-item45-node-test-detection.test.ts",
+      "content": "値を取る Node オプションの値が欠けている場合でも node:test を available と提案しうる。",
+      "evidence": "NODE_VALUE_OPTIONS の分岐は次の語が存在するか、次の語が別のオプションでないかを検査せず i を増やす。例えば `node --test --test-name-pattern` は `--test` を既に見ており、最後の値欠落を拒まず true になる。Node の実行可能性の証拠としては不足する。既存の N5i は監視の値なしを守るが、通常の値取りオプションの末尾欠落を守らない。",
+      "fix": "値を取るオプションの次の語が無いときは false。別のオプションらしい語が値の位置に来た場合の扱いも明文化し、`node --test --test-name-pattern`、`node --test --import`、`node --test --test-reporter --test` などの回帰テストを追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": null,
+      "action": null,
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": null,
+      "note": null
+    }
+  ]
+}
