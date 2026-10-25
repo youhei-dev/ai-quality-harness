@@ -8,6 +8,7 @@
  * examine. Written to run on the base commit too: it never calls the new adapter directly, only every adapter in NODE_ADAPTERS.
  * v0.14.1 (B1-I140-R1-001): an option that takes its value as the next word is not detected when that word is missing (the end of
  * the command) or starts with "-" (also "-" alone); Node v24.13.1 does not start either ("requires an argument", exit 9).
+ * v0.15.0: nor when it is written with `=` and nothing after it (`--import=`); Node v24.13.1 exits 9 for that too.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -213,6 +214,27 @@ describe("B1-I140-R1-001 (v0.14.1): an option that takes a value, with its value
     ["N2d", "node --test --test-name-pattern foo"],
     ["N2d", "node --test-reporter spec --test"],
     ["N2d", "node --test --import=x"],
+  ])("detected (kept): %s %j", (_id, body) => {
+    expectNodeTest({ test: body }, "test");
+  });
+});
+
+describe("v0.15.0: an option that takes a value, written with = and an empty value (the known limit of v0.14.1)", () => {
+  it.each(ALL_VALUE_OPTIONS)("not detected: N5r %s= before and after --test", (option) => {
+    expectNoNodeTest(`node ${option}= --test`);
+    expectNoNodeTest(`node --test ${option}=`);
+  });
+  it.each([
+    ["N5r", "node --test --import= --no-warnings"],
+    ["N5r", "node --import= --import=x --test"],
+  ])("not detected: %s %j", (_id, body) => {
+    expectNoNodeTest(body);
+  });
+  it.each([
+    ["N2e", "node --test --import=x"],
+    ["N2e", "node --import=x --test"],
+    ["N2e", "node --test --test-name-pattern=foo"],
+    ["N2e", "node --test-reporter=spec --test"],
   ])("detected (kept): %s %j", (_id, body) => {
     expectNodeTest({ test: body }, "test");
   });

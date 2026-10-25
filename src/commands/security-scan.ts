@@ -87,6 +87,8 @@ function renderText(r: ScanResult, log: (line: string) => void): void {
   log(`tracked files: ${r.filesTracked}, untracked (not ignored): ${r.filesUntracked}, scanned: ${r.filesScanned}, skipped binary: ${r.skippedBinary}`);
   log(`scanned categories: ${r.scannedCategories.join(", ")} (key-value: only values that look like secrets)`);
   log(`raw characters checked: ${r.scannedRawChars.map((s) => `${s.category} (${codePointsText(s.codePoints)})`).join(", ")}`);
+  // ADR-0037 I7: the positions of U+200D, U+FE0F and tags inside complete RGI emoji sequences, which are not findings
+  log(`raw characters exempted (emoji sequences): ${r.rawCharsExempted}`);
   log("not scanned (mask-only categories; values in reports are still redacted):");
   for (const u of r.unscannedCategories) log(`  - ${u.category}: ${u.reason}`);
   if (r.exampleEnvFiles.length > 0) log(`example env files (allowed): ${r.exampleEnvFiles.join(", ")}`);

@@ -145,6 +145,9 @@ function runsNodeTest(command: SimpleCommand): boolean {
         const value = after[i + 1];
         if (value === undefined || value.text.startsWith("-")) return false;
         i += 1;
+      } else if (w.text.length === name.length + 1) {
+        // v0.15.0: `--name=` with nothing after the `=` is refused too (Node v24.13.1 does not start: "requires an argument")
+        return false;
       }
     } else if (name === "--test" && !inlineValue && !w.marked) {
       test = true;

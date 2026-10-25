@@ -14,7 +14,7 @@
 | [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用 | 2026-09-15 |
 | [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価。注記〈v0.9.0〉: CI は ADR-0031 の案 D、手元は `npm link` のまま） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
-| [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用（出力パーサの型の項を 0028 で置換。v0.14.0 で node:test の検出〈script の本文を証拠にする。ROADMAP の項目 45〉。v0.14.1 で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001〉） | 2026-09-18 |
+| [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用（出力パーサの型の項を 0028 で置換。v0.14.0 で node:test の検出〈script の本文を証拠にする。ROADMAP の項目 45〉。v0.14.1 で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001〉。v0.15.0 で、値が空の `=` の形も提案しない） | 2026-09-18 |
 | [0012](0012-security-allow.md) | `security.allow` による例外指定と key-value 走査の方針 | 採用（追記の一部を 0016 で置換） | 2026-09-20 |
 | [0013](0013-window-scan-completeness.md) | 窓走査の完全性不変条件と有界アンカー | 採用 | 2026-09-23 |
 | [0014](0014-review-packet.md) | review-packet は機械的に得た事実だけで作り、検査に通らなければ出さない | 採用 | 2026-09-23 |
@@ -40,3 +40,4 @@
 | [0034](0034-history-aggregate-without-database.md) | `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`） | 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を置き換える。ディレクトリの差し替えは検出だけ。v0.11.2 で出力の上限を実際に書くバイトに。HTML は ADR-0035） | 2026-10-18 |
 | [0035](0035-history-dashboard-static-html.md) | 静的 HTML のダッシュボード（`aiqh history --html`） | 採用（v0.12.0。script・外の資源・イベントの属性なし。CSP の meta。値はすべて `h()`。数は `data-k` で `--json` と照合。v0.12.1 で文字の値の列の見出しを左寄せに） | 2026-10-18 |
 | [0036](0036-security-scan-raw-bidi-controls-and-line-separators.md) | security の check は、生の双方向の制御文字と行区切りを、出現ごとに finding にする（既定で FAIL、分類を明示した allow でだけ外せる） | 採用（v0.13.0。ROADMAP の項目 48。11 の符号位置〈`FORBIDDEN_RANGES` の部分集合〉。中身とパス名。`scanString`・review-packet は変えない。設計の独立レビューは `docs/reviews/item48-design/`。v0.13.1 で、未マージの index で同じパスを 1 回だけ扱う〈`docs/reviews/item48-impl/`〉） | 2026-10-19 |
+| [0037](0037-security-scan-layer-c-invisible-characters.md) | security の check は、見えない文字の層 (c) も、既定で FAIL にする（正しい絵文字の並びに完全に一致する区間の内側だけを機械的に除く。分類を明示した allow でだけ外せる） | 採用（v0.15.0。ROADMAP の項目 49。8 分類・4,247 の符号位置。除くのは RGI の並びの内側の U+200D・U+FE0F・タグ文字だけで、除いた数を出す。`FORBIDDEN_RANGES`・`scanString`・review-packet は変えない。設計と独立レビューは `docs/reviews/batch1-design/`） | 2026-10-25 |

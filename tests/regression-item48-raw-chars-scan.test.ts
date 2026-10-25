@@ -5,6 +5,9 @@
  * one; scanString and review-packet do not change. The cases are T1–T9 and T11–T13 of the design (T10 and T14 are in
  * parse-security.test.ts); the ones marked "guard" held before the change as well. Every forbidden character is built from its code
  * point, so this file contains none. Only T1 uses the new constants, so the guard cases still run against the code before the change.
+ * v0.15.0 (item 49, ADR-0037) changed three expectations, as the batch1 design (final) §4.8 names them: T1 looks at the two categories of
+ * layers (a)/(b) only, the T6 case of the direction marks and zero-width characters now finds them (layer (c)), and T9's line of what is
+ * checked names the ten categories. Layer (c) itself is tested in regression-item49-raw-chars-layer-c.test.ts.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
@@ -109,8 +112,8 @@ function nameFinding(file: string, cp: number, category = "bidi-control"): ScanF
 }
 
 describe("T1: the scanned set", () => {
-  it("T1: eleven code points (9 bidi-control, 2 line-separator), all in FORBIDDEN_RANGES and one UTF-16 unit each; the others are not scanned; no name shared with the secret categories", () => {
-    const all = SCANNED_RAW_RANGES.flatMap(([lo, hi, category]) => Array.from({ length: hi - lo + 1 }, (_, i) => [lo + i, category] as const));
+  it("T1: eleven code points (9 bidi-control, 2 line-separator), all in FORBIDDEN_RANGES and one UTF-16 unit each; the others are not in these two categories (layer (c), item 49); no name shared with the secret categories", () => {
+    const all = SCANNED_RAW_RANGES.filter(([, , c]) => c === "bidi-control" || c === "line-separator").flatMap(([lo, hi, category]) => Array.from({ length: hi - lo + 1 }, (_, i) => [lo + i, category] as const));
     expect(all).toEqual(ELEVEN);
     for (const [cp, category] of all) {
       expect(isForbiddenCodePoint(cp)).toBe(true);
@@ -119,8 +122,9 @@ describe("T1: the scanned set", () => {
     }
     expect(all.filter(([, c]) => c === "bidi-control")).toHaveLength(9);
     expect(all.filter(([, c]) => c === "line-separator")).toHaveLength(2);
-    for (const cp of [0x200e, 0x200f, 0x061c, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff, 0x09, 0x0d, 0x0a]) expect(scannedRawCategory(cp)).toBeNull();
-    expect(RAW_CHAR_CATEGORIES).toEqual(["bidi-control", "line-separator"]);
+    for (const cp of [0x200e, 0x200f, 0x061c, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff, 0x0d]) expect(["bidi-control", "line-separator"]).not.toContain(scannedRawCategory(cp));
+    for (const cp of [0x09, 0x0a]) expect(scannedRawCategory(cp)).toBeNull();
+    expect(RAW_CHAR_CATEGORIES.slice(0, 2)).toEqual(["bidi-control", "line-separator"]);
     expect(RAW_CHAR_CATEGORIES.filter((c) => SECRET_CATEGORIES.includes(c))).toEqual([]);
   });
 });
@@ -226,11 +230,17 @@ describe("T2–T6: the content of the files the scan reads", () => {
     expect(rawOf(scanRepository(r.dir))).toEqual([]);
   });
 
-  it("T6 guard: the direction marks U+200E, U+200F, U+061C and the zero-width U+200B, U+200D are not scanned", () => {
+  it("T6 (v0.15.0): the direction marks U+200E, U+200F, U+061C and the zero-width U+200B, U+200D are found as layer (c) (item 49)", () => {
     const r = repo();
     r.write("marks.txt", [0x200e, 0x200f, 0x061c, 0x200b, 0x200d].map((cp) => `a${ch(cp)}b\n`).join(""));
     r.add("marks.txt");
-    expect(rawOf(scanRepository(r.dir))).toEqual([]);
+    expect(rawOf(scanRepository(r.dir)).map((f) => [f.line, f.codePoint, f.category])).toEqual([
+      [1, "U+200E", "bidi-mark"],
+      [2, "U+200F", "bidi-mark"],
+      [3, "U+061C", "bidi-mark"],
+      [4, "U+200B", "zero-width"],
+      [5, "U+200D", "zero-width"],
+    ]);
   });
 });
 
@@ -477,7 +487,7 @@ describe("T9: the terminal output", () => {
     r.add("src/a.ts", name);
     const plain = await scanText(r.dir);
     expect(plain.code).toBe(1);
-    const checked = plain.lines.indexOf("raw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029)");
+    const checked = plain.lines.findIndex((l) => l.startsWith("raw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029), bidi-mark ("));
     expect(checked).toBeGreaterThan(0);
     expect(plain.lines[checked - 1]).toMatch(/^scanned categories: /);
     expect(plain.lines).toContain("findings: 2 (secret-shaped: 0, oversized candidates: 0, tracked .env: 0, untracked .env not ignored: 0, .gitignore: 0, raw characters: 2)");

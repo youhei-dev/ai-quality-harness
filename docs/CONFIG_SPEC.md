@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-25（v0.14.1。§5.2b の node:test の検出で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001。ADR-0011 の改訂〉）。その前: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-25（v0.15.0。§5.3b の生の文字に層 (c) の 8 分類〈既定で FAIL。正しい絵文字の並びの内側だけ除く〉と移行の手順、§3b の `allow[].category` に 8 つの分類〈ROADMAP の項目 49。ADR-0037〉。§5.2b の node:test の検出で、値を取るオプションの値が空の `=` の形〈`--import=`〉も提案しない〈ADR-0011 の改訂〉）。その前: 2026-10-25（v0.14.1。§5.2b の node:test の検出で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001。ADR-0011 の改訂〉）。その前: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -81,9 +81,9 @@
 
 | キー | 型 | 既定 | 意味 |
 |---|---|---|---|
-| `allow[]` | 配列 | `[]` | 秘密の形の finding（`secret` / `oversized-candidate`）と、生の文字の finding（`raw-char`。v0.13.0、ADR-0036。**分類を明示した規則だけ**）の例外指定。**`tracked-env` / `untracked-env` / `gitignore` は抑制できない** |
+| `allow[]` | 配列 | `[]` | 秘密の形の finding（`secret` / `oversized-candidate`）と、生の文字の finding（`raw-char`。v0.13.0、ADR-0036。v0.15.0 から層 (c) も、ADR-0037。**分類を明示した規則だけ**）の例外指定。**`tracked-env` / `untracked-env` / `gitignore` は抑制できない** |
 | `allow[].path` | string（必須） | — | リポジトリ相対パスの glob（`path.matchesGlob`。`tests/**`、`src/*.py`、`**` 等） |
-| `allow[].category` | string | 秘密の形の全分類 | 抑制する分類（`anthropic` / `aws` / `key-value` …、v0.13.0 から生の文字の `bidi-control` / `line-separator`。既知の分類名のみ）。省略すると秘密の形のすべての分類に効き、**生の文字は抑えない** |
+| `allow[].category` | string | 秘密の形の全分類 | 抑制する分類（`anthropic` / `aws` / `key-value` …、v0.13.0 から生の文字の `bidi-control` / `line-separator`、v0.15.0 から層 (c) の `bidi-mark` / `zero-width` / `bom` / `soft-hyphen` / `variation-selector` / `tag` / `control` / `invisible-other`。既知の分類名のみ。新しい分類を書いた設定を v0.14.x 以前の aiqh で読むと設定のエラー〈exit 2〉）。省略すると秘密の形のすべての分類に効き、**生の文字は抑えない** |
 | `allow[].line` | 正の整数 | 全行 | その行だけを抑制（パス名の生の文字には行が無いので効かない） |
 | `allow[].reason` | string（必須、空白のみ不可） | — | 理由。scan の出力とレポートにそのまま表示される |
 | `allow[].expires` | `YYYY-MM-DD` | 無期限 | この日を過ぎた規則は無効（該当 finding は残り、警告を出す） |
@@ -232,10 +232,10 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 提案するのは、script の単純コマンドのどれかが次をすべて満たすときだけ（規則の全体は batch1 の設計〈最終〉の §2.4）:
 - 実行位置（`名前=値` の前置きを飛ばした最初の語）が、引用符も `\` も無い `node`。`NODE_OPTIONS=…` の前置きがあれば提案しない
 - Node 自身のオプションとして、値の無い `--test` がある（スクリプトの名前・`-e` などの本文・`--` より前）
-- `--test` の隣に置けるのは、値を取るオプション 18（`--import`・`--require`・`-r`・`--loader`・`--experimental-loader`・`--conditions`・`-C`・`--env-file`・`--input-type`・`--test-reporter`・`--test-reporter-destination`・`--test-name-pattern`・`--test-skip-pattern`・`--test-concurrency`・`--test-timeout`・`--test-shard`・`--watch-path`・`--title`。`--name value` と `--name=value` は同じ）と、既知のブールの旗 24（`--experimental-strip-types`・`--no-warnings`・`--enable-source-maps` など）だけ。2 語の形で、値の語が無い（末尾）か `-` で始まる（`-` 1 文字も）ときは提案しない（v0.14.1、B1-I140-R1-001。Node v24.13.1 は `requires an argument` の exit 9 で起動しない）
+- `--test` の隣に置けるのは、値を取るオプション 18（`--import`・`--require`・`-r`・`--loader`・`--experimental-loader`・`--conditions`・`-C`・`--env-file`・`--input-type`・`--test-reporter`・`--test-reporter-destination`・`--test-name-pattern`・`--test-skip-pattern`・`--test-concurrency`・`--test-timeout`・`--test-shard`・`--watch-path`・`--title`。`--name value` と `--name=value` は同じ）と、既知のブールの旗 24（`--experimental-strip-types`・`--no-warnings`・`--enable-source-maps` など）だけ。2 語の形で、値の語が無い（末尾）か `-` で始まる（`-` 1 文字も）ときは提案しない（v0.14.1、B1-I140-R1-001。Node v24.13.1 は `requires an argument` の exit 9 で起動しない）。`=` の形で値が空（`--import=`）のときも提案しない（v0.15.0）
 - 実行位置より後ろに、名前に `watch` を含むオプション（`--no-watch` も）と、`--experimental-config-file`・`--experimental-default-config-file`・`--env-file`・`--env-file-if-exists` が無い
 
-提案しない形（unit は今までどおり NOT APPLICABLE。設定に手で足す）: `npx node --test`・`env node --test`・`cross-env … node --test`・パスつきの `node`、一覧に無いオプションつき（例 `node --unknown-option=value --test`）、値を取るオプションの値が無い形（例 `node --test --import`・`node --test --test-reporter --test`）、監視のオプションつき、`node "--test"`、`node script.js --test`、`echo node --test`、`$(…)` などで組み立てた形。vitest がローカルにあれば、vitest の直接の実行が先に選ばれる（node-test は代替として監査の表に出る）。
+提案しない形（unit は今までどおり NOT APPLICABLE。設定に手で足す）: `npx node --test`・`env node --test`・`cross-env … node --test`・パスつきの `node`、一覧に無いオプションつき（例 `node --unknown-option=value --test`）、値を取るオプションの値が無い形（例 `node --test --import`・`node --test --test-reporter --test`・`node --test --import=`）、監視のオプションつき、`node "--test"`、`node script.js --test`、`echo node --test`、`$(…)` などで組み立てた形。vitest がローカルにあれば、vitest の直接の実行が先に選ばれる（node-test は代替として監査の表に出る）。
 
 ### 5.3 Python 系の対象リポジトリ（`aiqh init` の生成例。FastAPI + venv、pytest のみ導入）
 
@@ -297,7 +297,34 @@ verify は check の出力を表示のためだけに読む（判定と終了コ
   - パス名: 2 つの一覧に出たすべてのパス（中身を読まないものも含む）の、リポジトリからの相対のパス。符号位置ごとに 1 件で、行は無い。作業ディレクトリ（ルート）のパスは見ない。未追跡で ignore されたパスは一覧に出ないので見ない
   - 出力: `raw characters checked: bidi-control (U+202A-U+202E, U+2066-U+2069), line-separator (U+2028, U+2029)` の情報の行（`--json` は `scannedRawChars`）、件数の行の最後の `raw characters: N`、`[raw-char] <path>:<line> U+202E bidi-control`（パス名は `[raw-char] <path> U+202E bidi-control (in the path)`）。行の中身は出さない。パスは出口で表記にしてから出す
   - 抑えるのは、その分類を明示した `security.allow` の規則だけ（§3b）
-  - 見ないもの（既知の限界）: 方向の印 U+200E・U+200F・U+061C、ゼロ幅の文字、異体字セレクタ、タグ文字（ROADMAP の項目 49）、UTF-16・UTF-32 のファイル（NUL を含むのでバイナリとして読まない）、不正な UTF-8 のバイトそのもの、symlink の先・submodule の中
+  - 見ないもの（既知の限界）: UTF-16・UTF-32 のファイル（NUL を含むのでバイナリとして読まない）、不正な UTF-8 のバイトそのもの、symlink の先・submodule の中（方向の印・ゼロ幅の文字・異体字セレクタ・タグ文字などは、v0.15.0 から下の層 (c) で見る）
+  - **層 (c)（v0.15.0、ROADMAP の項目 49、ADR-0037。判定が厳しくなる変更）**: 見えない文字の 8 分類（4,247 の符号位置）も、同じ中身とパス名で `raw-char` の finding にする（既定で FAIL）。入り切りのスイッチと警告の段は無い
+
+    | 分類（`category`） | 符号位置 |
+    |---|---|
+    | `bidi-mark` | U+061C、U+200E、U+200F |
+    | `zero-width` | U+200B–U+200D、U+2060 |
+    | `bom` | U+FEFF（ファイルの 1 行目の、行の先頭のものは見ない） |
+    | `soft-hyphen` | U+00AD |
+    | `variation-selector` | U+180B–U+180D、U+180F、U+FE00–U+FE0F、U+E0100–U+E01EF（Unicode の Variation_Selector と同じ 260） |
+    | `tag` | U+E0000–U+E007F |
+    | `control` | U+0000–U+0008、U+000B–U+001F、U+007F–U+009F（TAB・LF は見ない。U+000D は行の途中のものだけ。LF の前の CR とファイルの最後の CR は見ない） |
+    | `invisible-other` | U+034F、U+115F、U+1160、U+17B4、U+17B5、U+180E、U+2061–U+2065、U+206A–U+206F、U+3164、U+FFA0、U+FFF0–U+FFFB、U+13430–U+1343F、U+1BCA0–U+1BCA3、U+1D173–U+1D17A、U+E0080–U+E00FF、U+E01F0–U+E0FFF |
+
+    - 範囲: Unicode の Default_Ignorable_Code_Point をすべて含み、ほかに C0・DEL・C1、U+FFF9–U+FFFB、U+13430–U+1343F を入れる。後ろの数字にかかる表示のある印（U+0600–U+0605 など 13）と TAB・LF は入れない（差分はテストで固定。ADR-0037 の決定 1）
+    - **正しい絵文字の並びの内側だけ除く**: U+200D・U+FE0F・タグ文字 U+E0020–U+E007F は、Unicode の RGI の絵文字の並び（Node の `\p{RGI_Emoji}`）に完全に一致する区間の内側にあるときだけ finding にしない。並びの外に続くもの、並びにならない組み合わせは finding。判定のデータは、aiqh を動かす Node の Unicode の版から来る（古い Node が知らない絵文字は finding になる）。設定では変えられない
+    - 長い行の窓の境目: 窓から消える位置で、その文字の続き（絵文字の文字の続き）の両端が確かめられないときは、並びの内側でも finding（FAIL の向き）。重なり（`lineOverlapBytes`）より短い続きは、次の窓で両端を見て決める
+    - 件数: finding は今までどおり、ファイル・行・符号位置で 1 件（パス名はパス・符号位置で 1 件）。除いた数は位置の数で、情報の行 `raw characters exempted (emoji sequences): N`（`--json` は `rawCharsExempted`）に出る。`security.allow` は除いた数を変えない
+    - 出力: `raw characters checked:` の情報の行に 10 の分類が並ぶ。件数の行の `raw characters: N` は層 (a)〜(c) の合計（パーサの形は同じ）。端末の表記（`\u{…}`）は禁止文字の集合だけに効くので、層 (c) の文字を名前に持つパスは、その文字のまま出る
+    - **移行（v0.14.x から上げるとき）**: (1) 手元で新しい版の `aiqh security-scan` を走らせ、`[raw-char]` の行（パス・行・符号位置・分類）を見る。(2) 意図して使っている文字なら、分類と理由を書いた規則を足す（範囲は狭く、できれば期限つき）。意図していなければ、その文字を消す。(3) 規則を足した後に、もう一度走らせて `findings: 0` を確かめてから、verify が呼ぶ aiqh の版（再利用ワークフローの SHA など）を上げる。規則の例:
+
+      ```jsonc
+      "security": {
+        "allow": [
+          { "path": "app/text/**/*.py", "category": "zero-width", "reason": "intended zero-width characters in user-facing strings", "expires": "2027-04-30" }
+        ]
+      }
+      ```
   - **検出の範囲は、実際に起動する `aiqh security-scan` の版で決まる**: verify の security の check は、check の `command`（`aiqh security-scan`）を PATH で探して起動する。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず check は PASS のまま（verify のパーサは、古い 5 つの内訳の件数の行を `unexpected-summary` にする。判定は変えない。ADR-0028）
   - 版を上げるとき: verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえる。`--version` は package の版を示すだけで、`dist/` が新しくなったことの証明にはならない。版を上げた後は `npm run build` をし、実際の security の check と同じ起動の経路（`aiqh verify` の中の security、または `aiqh security-scan`）で、`raw characters checked:` の情報の行と、`raw characters` を含む 6 つの内訳の件数の行が出ることを確かめる。手元は、どの `aiqh` が呼ばれるかを `command -v aiqh` で確かめる
 
