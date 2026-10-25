@@ -1,7 +1,7 @@
 # ADR-0011: アダプタは「検出＋推奨＋任意パーサ」に限定し、`init` の書込は別フラグに分ける
 
 - 状態: 採用（「出力パーサは `OutputParser` の型だけ定義」は ADR-0028〈v0.8.0〉で置換: パーサは `src/parse/` に置き、verify が check の出力を表示のためだけに読む。アダプタは検出と推奨のまま。M1 の下書きの型は消した）
-- 日付: 2026-09-18。追記: 2026-10-14（v0.8.0。状態の行だけ）、2026-10-23（v0.14.0。下の「改訂（v0.14.0、ROADMAP の項目 45）」）、2026-10-25（v0.14.1。下の「改訂（v0.14.1、B1-I140-R1-001）」）
+- 日付: 2026-09-18。追記: 2026-10-14（v0.8.0。状態の行だけ）、2026-10-23（v0.14.0。下の「改訂（v0.14.0、ROADMAP の項目 45）」）、2026-10-25（v0.14.1。下の「改訂（v0.14.1、B1-I140-R1-001）」）、2026-10-25（v0.15.0。下の「改訂（v0.15.0、値が空の `=` の形）」）
 
 ## 文脈
 M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実行経路 1 本、fail closed、判定と文言の 1 対 1）を壊さない
@@ -62,5 +62,12 @@ M1 でアダプタと `aiqh init` を加えるにあたり、M0 の性質（実�
   - 次の語が `-` で始まる（`-` 1 文字だけの語、引用ありの語も含む）→ 提案しない
 - 理由: 提案しない向きは、init の提案が減るだけで、誤った提案を出さない（規則 7c と同じ向き）。Node がその語を実際に値として読むかどうかに頼らない。設計（最終）§2.4 の規則 4 は「次の 1 語が値（次の語が無ければ値なし）」という読み方だけを決めており、この規則は規則 6・7 と同じ「認めない」形の追加で、読み方は変えない
 - 手元の Node v24.13.1 での照らし（空のディレクトリ・最小の環境・10 秒の上限。v0.14.0 と同じ方法）: `node --test --test-name-pattern`・`node --test --import`・`node --test-reporter --test`・`node --test --test-reporter --test`・`node --test-name-pattern -x --test` は、どれも exit 9 で起動せず、stderr の 1 行目は `node: <名前> requires an argument`（`-` で始まる語を値として読まない）。`node --test --test-name-pattern -` も同じ
-- `=` の形は今までどおり（`--import=x` は値のある形）。**既知の限界**: 値が空の `=` の形（`--import=`・`--test-name-pattern=`）は、今も提案する（`=` の後ろが空なら空の値がある、という規則 4 のまま。手元の Node v24.13.1 は `node: --import= requires an argument` の exit 9 で起動しない）。この版では直さない
+- `=` の形は今までどおり（`--import=x` は値のある形）。**既知の限界**: 値が空の `=` の形（`--import=`・`--test-name-pattern=`）は、今も提案する（`=` の後ろが空なら空の値がある、という規則 4 のまま。手元の Node v24.13.1 は `node: --import= requires an argument` の exit 9 で起動しない）。この版では直さない（**v0.15.0 で直した**。下の「改訂（v0.15.0、値が空の `=` の形）」）
 - テスト: `tests/regression-item45-node-test-detection.test.ts` の「B1-I140-R1-001 (v0.14.1)」（N5p・N5q の各形、18 個すべての「`--test` の後ろで末尾に値なし」と「値の位置に `--no-warnings`」、守りの N2d）
+
+## 改訂（v0.15.0、値が空の `=` の形）
+
+- v0.14.1 の既知の限界を直す（人間の決定 2026-10-25）。値を取るオプションの一覧（18）の名前の `=` の形で、**`=` の後ろが空**なら提案しない（`node --test --import=`・`node --import= --test`・`node --test --test-name-pattern=` など。短い形の `-r=`・`-C=` も同じ）
+- 理由: v0.14.1 の改訂と同じ「提案しない向き」。手元の Node v24.13.1 は、値が空の `=` の形で `node: --import= requires an argument`・`node: --test-name-pattern= requires an argument` の exit 9 で起動しない（v0.14.1 の照らし）
+- 値のある `=` の形（`--import=x`・`--test-name-pattern=foo`）は今までどおり認める
+- テスト: `tests/regression-item45-node-test-detection.test.ts` の「v0.15.0: an option that takes a value, written with = and an empty value」（N5r: 18 個それぞれの `--test` の前と後ろ、ほか 2 形。守りの N2e）

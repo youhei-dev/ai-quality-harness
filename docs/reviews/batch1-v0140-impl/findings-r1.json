@@ -36,7 +36,7 @@
       "regressionTest": "tests/regression-item45-node-test-detection.test.ts の「B1-I140-R1-001 (v0.14.1)」（30 件: N5p・N5q の各形〈node --test --test-name-pattern、node --test --import、node --test --test-reporter --test、node --test-reporter --test、node --test --test-name-pattern -x、- 1 文字、\"-x\"、node --import -r --test〉、18 個すべての「--test の後ろで末尾に値なし」と「値の位置に --no-warnings」、守りの N2d〈--test-name-pattern foo、--test-reporter spec --test、--import=x〉）。9abd3ca3cff61f6a493db096f5c9cdd51e1b8973 の SHA 固定の worktree では 30 件中 23 件が FAIL（残る 7 件は見込みどおり PASS）。2 つの条件をそれぞれ外す変異で 18 件・21 件 FAIL",
       "guard": null,
       "destination": "v0.14.1",
-      "note": "確かめは v0.15.0 の実装レビューで行う（この版では実装レビューの依頼文・パケットを作らない）。手元の Node v24.13.1 は、指摘と修正案の形（node --test --test-name-pattern・node --test --import・node --test-reporter --test・node --test --test-reporter --test・node --test-name-pattern -x --test）のどれでも「requires an argument」の exit 9 で起動しない（- で始まる語を値として読まない）。値が空の = の形（--import=）は今も検出する（既知の限界。Node は同じく exit 9。この版では直さない）"
+      "note": "確かめは v0.15.0 の実装レビューで行う（この版では実装レビューの依頼文・パケットを作らない）。手元の Node v24.13.1 は、指摘と修正案の形（node --test --test-name-pattern・node --test --import・node --test-reporter --test・node --test --test-reporter --test・node --test-name-pattern -x --test）のどれでも「requires an argument」の exit 9 で起動しない（- で始まる語を値として読まない）。値が空の = の形（--import=）は今も検出する（既知の限界。Node は同じく exit 9。この版では直さない）。v0.15.0 で直した（= の後ろが空なら検出しない。ADR-0011 の v0.15.0 の改訂）"
     }
   ]
 }

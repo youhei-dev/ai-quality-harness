@@ -15,7 +15,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
   - `npm ci` の後: `npm ls zod` は zod 1 つ（4.6.7）、`npm audit` は 0 件、`npm audit signatures` は 133 パッケージすべての署名を確かめた。既存のテストの期待値は変えていない
 - **B1-I140-R1-001（Low。ADR-0011 の v0.14.1 の改訂）**: `aiqh init` の node:test の検出で、値を取る 18 のオプションが次の語を値として取る形のとき、その語が無い（末尾）か `-` で始まる（`-` 1 文字・引用ありの語も）なら提案しない。v0.14.0 は次の語を見ずに飛ばしていたので、`node --test --test-name-pattern`・`node --test --test-reporter --test` などを unit として提案していた。提案しない向きは、提案が減るだけで誤った提案を出さない（規則 7c と同じ向き）
   - 手元の Node v24.13.1（空のディレクトリ・最小の環境・10 秒の上限）では、`node --test --test-name-pattern`・`node --test --import`・`node --test-reporter --test`・`node --test --test-reporter --test`・`node --test-name-pattern -x --test` は、どれも stderr の 1 行目が `node: <名前> requires an argument` の exit 9 で起動しない
-  - 既知の限界: 値が空の `=` の形（`--import=`）は今も提案する（Node は同じく exit 9。この版では直さない）。`=` の形（`--import=x`）は今までどおり
+  - 既知の限界: 値が空の `=` の形（`--import=`）は今も提案する（Node は同じく exit 9。この版では直さない。**v0.15.0 で直した**）。`=` の形（`--import=x`）は今までどおり
   - テストを先に書いた: `tests/regression-item45-node-test-detection.test.ts` の「B1-I140-R1-001 (v0.14.1)」（30 件）は、`9abd3ca` の SHA 固定の worktree で 23 件 FAIL（残る 7 件は見込みどおり PASS）、直した後は PASS。2 つの条件をそれぞれ外す変異で、足したテストが 18 件・21 件 FAIL
   - 確かめは v0.15.0 の実装レビューで行う（この版では実装レビューの依頼文・パケットを作らない）。`aiqh review-check --label batch1-v0140-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`
 - **v0.14.0 の記録と訂正**: CHANGELOG の v0.14.0 の見出しの SHA と記録の行、ROADMAP の v0.14.0 の項の CI・PR・タグ・実装レビュー。`docs/reviews/batch1-design/findings-r1.json` の B1-D-R1-001 の `regressionTest` の「N5k（照らさない形 8 つ）」を 7 つに直した（テストの行は 7 つ。`aiqh review-check --label batch1-design` は v0.14.0 と同じ open 4・警告 6・passed）

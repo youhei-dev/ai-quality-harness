@@ -45,7 +45,7 @@
 
   - どの形でも、Node は `-` で始まる語を値として読まず、起動しない。決めた規則と食い違わない
   - 指示の 5 つの形のほかに、参考に照らしたもの: `node --test --test-name-pattern -` も同じく exit 9。`node --test --import=`・`node --test --test-name-pattern=` は exit 9（`node: --import= requires an argument` など）
-- **値が空の `=` の形（`--import=`）**: 今のコードは検出する（`=` の後ろが空なら空の値がある、という設計 §2.4 の規則 4 のまま）。Node は起動しない。人間の指示のとおり、この版では直さない（ADR-0011 の既知の限界に書いた）
+- **値が空の `=` の形（`--import=`）**: 今のコードは検出する（`=` の後ろが空なら空の値がある、という設計 §2.4 の規則 4 のまま）。Node は起動しない。人間の指示のとおり、この版では直さない（ADR-0011 の既知の限界に書いた）。**v0.15.0 で直した**（人間の決定 2026-10-25。`=` の後ろが空なら検出しない。ADR-0011 の「改訂（v0.15.0、値が空の `=` の形）」）
 - **テスト**: `tests/regression-item45-node-test-detection.test.ts` に describe「B1-I140-R1-001 (v0.14.1)」（30 件）を足した。ID は既存の流儀（N5 系が検出しない側、N2 系が検出する側）
   - 検出しない: N5p（末尾に値なし）`node --test --test-name-pattern`・`node --test --import`、N5q（値の位置が `-` で始まる）`node --test --test-reporter --test`・`node --test-reporter --test`・`node --test --test-name-pattern -x`・`node --test --test-name-pattern -`・`node --test --test-name-pattern "-x"`・`node --import -r --test`
   - 18 個すべてについて、`node --test <名前>`（末尾に値なし）と `node --test <名前> --no-warnings`（値の位置に既知の旗）。一覧が 18 個であることも確かめる
