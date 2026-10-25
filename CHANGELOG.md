@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.14.0 — batch1 (2): aiqh init detects node:test (node --test in scripts.test / test:unit); a pytest output parser chosen by the position of its words (the verdict does not change)
+## v0.14.0 — commit 2af638dc4f0f86a520e138d230bf3102b7272a2a / tag object be07f81acec4a4523953e3bcc814154eaef8cbf4 — batch1 (2): aiqh init detects node:test (node --test in scripts.test / test:unit); a pytest output parser chosen by the position of its words (the verdict does not change)
 
 - **batch1 の 2 版目**（人間の決定 2026-10-22。版の分け方は B1-Q22 の V1: v0.14.0 = ROADMAP の項目 45・39）。判定・終了コード・設定の仕様・実行時の依存は変えない。init の unit の提案と、表示用の `parsed` が増える。branch `release/v0.14.0`、4 commit: `5685274`（45）・`3f53ee9`（39）・`bd84b89`（findings の実装者の欄と記録）・この release の commit。設計の正本は batch1 の設計（最終）`docs/reviews/batch1-design/design-final.md` の §2・§3・付録 A
 - **45（node:test の検出。ADR-0011 の改訂）**: `aiqh init` のアダプタ `node-test`（`NODE_ADAPTERS` の jest の後）が、`scripts.test`（次に `scripts.test:unit`）の単純コマンドのどれかが、実行位置の `node`（引用符も `\` も無い）と、Node 自身のオプションの値の無い `--test` を持つときだけ、unit に `npm run <script>`（600 秒）を提案する。理由は `package.json scripts.<script> found (runs node --test)`（本文は出さない）。script が無ければ何も足さない（node:test を使わないプロジェクトの init の出力は変わらない）
@@ -23,7 +23,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 文書: ADR-0011 の改訂、ADR-0028 の決定 12、ADR の一覧、CONFIG_SPEC の §5.2b・§5.3a・§6、README、ARCHITECTURE、`docs/ops/reusable-workflow.md` の §8、ROADMAP（項目 45・39 を閉じた、v0.14.0 の項）
 - テスト: 179 ファイル・2,381 件から 182 ファイル・2,644 件。`tests/structure/` は変えていない
 - `package.json` version 0.14.0（`package-lock.json` の `version` は 0.5.35 のまま）。依存関係・`package-lock.json`・`.github/`・`tests/structure/`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.13.2 と同一
-- 記録（この版の後の記録の PR で記入）: release の commit とタグの object の SHA、PR の番号と merge の commit、PR と main の run の id
+- 記録（この版の後の記録の PR〈v0.14.1 の PR〉で記入）: PR #16（merge の commit `9abd3ca3cff61f6a493db096f5c9cdd51e1b8973`）。PR の run `39908090984`・main の run `39908726005` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.14.0 の項）
+- 実装の独立レビュー batch1-v0140-impl R1（この版の後の v0.14.1 の PR で取り込んだ。`docs/reviews/batch1-v0140-impl/`）: High 0 / Medium 0 / Low 1。B1-I140-R1-001（値を取る Node のオプションの値が欠けていても node:test を検出する）は v0.14.1 で直した（確かめは v0.15.0 の実装レビュー）
 
 ## v0.13.2 — commit d1568347c2aafae697e300e0eee6f8d8a2b54951 / tag object 401c79729de17faae2ebaddbdd5bf3ef8c9c75c4 — a dev-dependency update for npm advisories (vitest 5.0.3, vite 8.2.4); batch1 (1): load-sensitive tests (the leader ignores SIGTERM before its ready marker; time budgets), no reference to the untracked instructions file, the latest.json / latest.md pair as an accepted limit, a near-limit test reporter (the verdict does not change)
 
