@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "label": "batch1-v0150-impl",
+  "round": 1,
+  "idPrefix": "B1-I150",
+  "source": {
+    "name": "independent-review-batch1-v0150-impl-r1-for-claude.md",
+    "bytes": 9696,
+    "sha256": "b0979ede51a62e9bc7019c4c0753a81ef484884dacd69027c50f86a93903b897"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-25T22:27:27.743Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.15.0"
+  },
+  "findings": []
+}
