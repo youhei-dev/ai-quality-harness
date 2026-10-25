@@ -6,6 +6,8 @@
  * option end them. Not detected (unit stays NOT APPLICABLE): watch options anywhere (B1-D-R2-002), a NODE_OPTIONS prefix, options that
  * read options or the environment from a file, a node path / npx / env / cross-env, quoted or escaped words, forms appendix A does not
  * examine. Written to run on the base commit too: it never calls the new adapter directly, only every adapter in NODE_ADAPTERS.
+ * v0.14.1 (B1-I140-R1-001): an option that takes its value as the next word is not detected when that word is missing (the end of
+ * the command) or starts with "-" (also "-" alone); Node v24.13.1 does not start either ("requires an argument", exit 9).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -181,6 +183,38 @@ describe("item 45: not detected (unit stays as before)", () => {
   it("no scripts at all: node-test returns null", () => {
     const { nodeTest } = unitOf(project({}));
     for (const d of nodeTest) expect(d).toBeNull();
+  });
+});
+
+// All 18 options that take a value (the 16 above and the 2 refused by rules 7c and 7a).
+const ALL_VALUE_OPTIONS = [...VALUE_OPTIONS, "--env-file", "--watch-path"];
+
+describe("B1-I140-R1-001 (v0.14.1): an option that takes a value, with its value missing or a word starting with - in its place", () => {
+  it.each([
+    ["N5p", "node --test --test-name-pattern"],
+    ["N5p", "node --test --import"],
+    ["N5q", "node --test --test-reporter --test"],
+    ["N5q", "node --test-reporter --test"],
+    ["N5q", "node --test --test-name-pattern -x"],
+    ["N5q", "node --test --test-name-pattern -"],
+    ["N5q", 'node --test --test-name-pattern "-x"'],
+    ["N5q", "node --import -r --test"],
+  ])("not detected: %s %j", (_id, body) => {
+    expectNoNodeTest(body);
+  });
+  it("the list has all 18 options that take a value", () => {
+    expect(new Set(ALL_VALUE_OPTIONS).size).toBe(18);
+  });
+  it.each(ALL_VALUE_OPTIONS)("not detected: %s after --test, N5p with no value at the end and N5q with --no-warnings in the value position", (option) => {
+    expectNoNodeTest(`node --test ${option}`);
+    expectNoNodeTest(`node --test ${option} --no-warnings`);
+  });
+  it.each([
+    ["N2d", "node --test --test-name-pattern foo"],
+    ["N2d", "node --test-reporter spec --test"],
+    ["N2d", "node --test --import=x"],
+  ])("detected (kept): %s %j", (_id, body) => {
+    expectNodeTest({ test: body }, "test");
   });
 });
 

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch1-v0140-impl",
+  "round": 1,
+  "idPrefix": "B1-I140",
+  "source": {
+    "name": "independent-review-batch1-v0140-impl-r1-for-claude.md",
+    "bytes": 7951,
+    "sha256": "2ea57353b9cb623fff5521de6441a226133250759970aa25333fff28a166807f"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "previous": [],
+  "importedAt": "2026-10-25T05:11:08.996Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.14.0"
+  },
+  "findings": [
+    {
+      "id": "B1-I140-R1-001",
+      "severity": "Low",
+      "kind": "テスト",
+      "target": "src/adapters/node.ts の runsNodeTest と tests/regression-item45-node-test-detection.test.ts",
+      "content": "値を取る Node オプションの値が欠けている場合でも node:test を available と提案しうる。",
+      "evidence": "NODE_VALUE_OPTIONS の分岐は次の語が存在するか、次の語が別のオプションでないかを検査せず i を増やす。例えば `node --test --test-name-pattern` は `--test` を既に見ており、最後の値欠落を拒まず true になる。Node の実行可能性の証拠としては不足する。既存の N5i は監視の値なしを守るが、通常の値取りオプションの末尾欠落を守らない。",
+      "fix": "値を取るオプションの次の語が無いときは false。別のオプションらしい語が値の位置に来た場合の扱いも明文化し、`node --test --test-name-pattern`、`node --test --import`、`node --test --test-reporter --test` などの回帰テストを追加する。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-25: v0.14.1 で直す。規則は人間が決め、ADR-0011 に足した）。src/adapters/node.ts の runsNodeTest で、値を取る 18 のオプションが次の語を値として取る形のとき、次の語が無い（末尾）か - で始まる（- 1 文字、引用ありの語も）なら検出しない（null）。= の形は今までどおり",
+      "fixedIn": "545eeffffbfb6f88e07d27e4a031c77102813acf",
+      "regressionTest": "tests/regression-item45-node-test-detection.test.ts の「B1-I140-R1-001 (v0.14.1)」（30 件: N5p・N5q の各形〈node --test --test-name-pattern、node --test --import、node --test --test-reporter --test、node --test-reporter --test、node --test --test-name-pattern -x、- 1 文字、\"-x\"、node --import -r --test〉、18 個すべての「--test の後ろで末尾に値なし」と「値の位置に --no-warnings」、守りの N2d〈--test-name-pattern foo、--test-reporter spec --test、--import=x〉）。9abd3ca3cff61f6a493db096f5c9cdd51e1b8973 の SHA 固定の worktree では 30 件中 23 件が FAIL（残る 7 件は見込みどおり PASS）。2 つの条件をそれぞれ外す変異で 18 件・21 件 FAIL",
+      "guard": null,
+      "destination": "v0.14.1",
+      "note": "確かめは v0.15.0 の実装レビューで行う（この版では実装レビューの依頼文・パケットを作らない）。手元の Node v24.13.1 は、指摘と修正案の形（node --test --test-name-pattern・node --test --import・node --test-reporter --test・node --test --test-reporter --test・node --test-name-pattern -x --test）のどれでも「requires an argument」の exit 9 で起動しない（- で始まる語を値として読まない）。値が空の = の形（--import=）は今も検出する（既知の限界。Node は同じく exit 9。この版では直さない）"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-25（v0.14.1。§5.2b の node:test の検出で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001。ADR-0011 の改訂〉）。その前: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -232,10 +232,10 @@ check の出力は端末ではなくレポートに入るので、色を強制�
 提案するのは、script の単純コマンドのどれかが次をすべて満たすときだけ（規則の全体は batch1 の設計〈最終〉の §2.4）:
 - 実行位置（`名前=値` の前置きを飛ばした最初の語）が、引用符も `\` も無い `node`。`NODE_OPTIONS=…` の前置きがあれば提案しない
 - Node 自身のオプションとして、値の無い `--test` がある（スクリプトの名前・`-e` などの本文・`--` より前）
-- `--test` の隣に置けるのは、値を取るオプション 18（`--import`・`--require`・`-r`・`--loader`・`--experimental-loader`・`--conditions`・`-C`・`--env-file`・`--input-type`・`--test-reporter`・`--test-reporter-destination`・`--test-name-pattern`・`--test-skip-pattern`・`--test-concurrency`・`--test-timeout`・`--test-shard`・`--watch-path`・`--title`。`--name value` と `--name=value` は同じ）と、既知のブールの旗 24（`--experimental-strip-types`・`--no-warnings`・`--enable-source-maps` など）だけ
+- `--test` の隣に置けるのは、値を取るオプション 18（`--import`・`--require`・`-r`・`--loader`・`--experimental-loader`・`--conditions`・`-C`・`--env-file`・`--input-type`・`--test-reporter`・`--test-reporter-destination`・`--test-name-pattern`・`--test-skip-pattern`・`--test-concurrency`・`--test-timeout`・`--test-shard`・`--watch-path`・`--title`。`--name value` と `--name=value` は同じ）と、既知のブールの旗 24（`--experimental-strip-types`・`--no-warnings`・`--enable-source-maps` など）だけ。2 語の形で、値の語が無い（末尾）か `-` で始まる（`-` 1 文字も）ときは提案しない（v0.14.1、B1-I140-R1-001。Node v24.13.1 は `requires an argument` の exit 9 で起動しない）
 - 実行位置より後ろに、名前に `watch` を含むオプション（`--no-watch` も）と、`--experimental-config-file`・`--experimental-default-config-file`・`--env-file`・`--env-file-if-exists` が無い
 
-提案しない形（unit は今までどおり NOT APPLICABLE。設定に手で足す）: `npx node --test`・`env node --test`・`cross-env … node --test`・パスつきの `node`、一覧に無いオプションつき（例 `node --unknown-option=value --test`）、監視のオプションつき、`node "--test"`、`node script.js --test`、`echo node --test`、`$(…)` などで組み立てた形。vitest がローカルにあれば、vitest の直接の実行が先に選ばれる（node-test は代替として監査の表に出る）。
+提案しない形（unit は今までどおり NOT APPLICABLE。設定に手で足す）: `npx node --test`・`env node --test`・`cross-env … node --test`・パスつきの `node`、一覧に無いオプションつき（例 `node --unknown-option=value --test`）、値を取るオプションの値が無い形（例 `node --test --import`・`node --test --test-reporter --test`）、監視のオプションつき、`node "--test"`、`node script.js --test`、`echo node --test`、`$(…)` などで組み立てた形。vitest がローカルにあれば、vitest の直接の実行が先に選ばれる（node-test は代替として監査の表に出る）。
 
 ### 5.3 Python 系の対象リポジトリ（`aiqh init` の生成例。FastAPI + venv、pytest のみ導入）
 

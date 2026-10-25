@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-23
+最終更新: 2026-10-25
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1103,6 +1103,16 @@ M2-1 の教訓（R3）:
   - テストを先に書き、直す前の `659cae1` の SHA 固定の worktree で 116 件 FAIL・234 件 PASS（FAIL は検出する・選ぶ・読む側。PASS は検出しない・選ばない側の守りと既存のテスト）。テストの検出力の確かめ: src をわざと壊す 26 通り（監視の判定を外す、一覧の外を認める、B-1 を外す、知らない語を飛ばす など）で、どれも 1〜18 件 FAIL（最初の 3 通りが 0 件だったので、それを捕まえる入力を足した）
   - 設計の独立レビュー batch1-design の、この版で確かめる 4 件（B1-D-R1-001・B1-D-R1-002・B1-D-R2-002・B1-D-R3-001）は `resolved`（`fixedIn` は 45 と 39 の commit）。`aiqh review-check --label batch1-design` は `REVIEW LOOP: incomplete (open 4)`・`REVIEW CHECK: passed`（open は v0.15.0 の B1-D-R1-003・006、B1-D-R2-001・003。警告 6 件はどれも `note` に理由）
   - 実装の独立レビュー（label `batch1-v0140-impl`）: 依頼文とパケットは、この版のリリースの後に作る。上の 4 件が本当に解消したかも、そこで確かめる
+  - CI（pull request の run）: PR #16 の run 39908090984（event pull_request、head `2af638d`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 4 分 18 秒（verify の duration 4m06s、VERIFY PASSED 8/8）。`unit` 2m01s（121 秒、上限 600 秒の 20.2%）・`unit-minpath` 1m55s（115 秒、19.2%）。`reusable (self) / aiqh verify` はジョブ 6 分 13 秒（VERIFY PASSED 8/8、5m57s。`aiqh --version` は 0.14.0。`unit` 2m53s〈173 秒、28.8%〉・`unit-minpath` 2m48s〈168 秒、28.0%〉）
+  - CI（merge の後の main の run）: merge の commit `9abd3ca` の push の run 39908726005 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 4 分 35 秒（verify の duration 4m22s、VERIFY PASSED 8/8）。`unit` 2m08s（128 秒、21.3%）・`unit-minpath` 2m03s（123 秒、20.5%）。`reusable (self) / aiqh verify` はジョブ 6 分 16 秒（VERIFY PASSED 8/8、6m01s。aiqh のソースは `9abd3ca`、0.14.0。`unit` 2m56s〈176 秒、29.3%〉・`unit-minpath` 2m49s〈169 秒、28.2%〉）。タグは、この success を確かめてから付けた（最後に終わったジョブ `reusable (self) / aiqh verify` の終わり 06:04:43Z、run の更新 06:04:44Z、タグ 06:15:41Z）。時間は項目 42 の線（72%、432 秒）にも 80% にも届いていない（記録だけ）
+  - PR #16: `gh pr merge 16 --merge --match-head-commit 2af638d… --delete-branch` で merge した（`--admin`・`-R` は使っていない）。merge の commit `9abd3ca3cff61f6a493db096f5c9cdd51e1b8973`（親は `659cae1` と `2af638d`）。手元とリモートの branch `release/v0.14.0` は消えている
+  - タグ v0.14.0 = commit 2af638dc4f0f86a520e138d230bf3102b7272a2a / tag object be07f81acec4a4523953e3bcc814154eaef8cbf4。CHANGELOG の v0.14.0 の見出しの SHA と、上の CI の記録は、v0.14.1 の PR（branch `release/v0.14.1`）で記入した
+  - 実装の独立レビュー batch1-v0140-impl R1（範囲 `659cae1..2af638d`、4 commit・31 ファイル。`docs/reviews/batch1-v0140-impl/`）: **High 0 / Medium 0 / Low 1**。上の 4 件はどれも解消と評価された。Low の B1-I140-R1-001（値を取る Node のオプションの値が欠けていても node:test を検出する）は v0.14.1 で直した（確かめは v0.15.0 の実装レビュー）。レビュアーが独立に確かめていない範囲（固定の URL の 13 件の未照合、コードとテストの独立の実行なし）は、新しい指摘ではなく既知の残余として受け入れた（`response-r1.md`）
+- v0.14.1（2026-10-25）: 実行時の依存 zod の更新（npm の勧告）、実装レビュー batch1-v0140-impl R1 の B1-I140-R1-001 の修正、v0.14.0 の記録。判定は変えない（init の提案が、Node が起動しない形で出なくなる）。branch `release/v0.14.1`、5 commit（zod の更新、レビューの取り込み、B1-I140-R1-001、記録と訂正、release）
+  - zod の更新（実行時の依存。人間の決定 2026-10-25）: v0.14.0 の後に勧告 GHSA-mrhx-c7xc-m3w5（high。zod 4.6.6 より前）の範囲が広がって出て（勧告の更新は 2026-10-23T18:26:52Z。v0.14.0 の audit と CI は通っていた）、自己 verify の dependency の check が FAIL したので、`~4.5.4` を `~4.6.7` にした（4.5 系に直った版は無い）。ロックファイルは zod の項とルートの指定だけが変わる。勧告の修正そのもの（配列の `.max()` を要素より先に確かめる）で、上限 200 を超えた findings に壊れた要素も混ざる入力の問題の一覧が短くなる（拒むのは同じ。人間が受け入れた）
+  - B1-I140-R1-001（ADR-0011 の v0.14.1 の改訂）: 値を取る 18 のオプションが次の語を値として取る形で、その語が無い（末尾）か `-` で始まる（`-` 1 文字も）ときは提案しない。手元の Node v24.13.1 は、そのどの形でも `requires an argument` の exit 9 で起動しない。値が空の `=` の形（`--import=`）は今も提案する（既知の限界。この版では直さない）。テストを先に書き、`9abd3ca` の SHA 固定の worktree で 30 件中 23 件 FAIL、直した後は PASS。2 つの条件をそれぞれ外す変異で、足したテストが 18 件・21 件 FAIL
+  - 記録と訂正: v0.14.0 の SHA・PR・CI（上の v0.14.0 の項）。`docs/reviews/batch1-design/findings-r1.json` の B1-D-R1-001 の `regressionTest` の「N5k（照らさない形 8 つ）」を 7 つに直した（テストの行は 7 つ。判定とテストは変わらない）
+  - 実装の独立レビュー: この版の依頼文・パケットは作らない。B1-I140-R1-001 の直しは、v0.15.0 の実装レビューで確かめる
   - CI の記録とタグの SHA は、次の記録の PR で書く
 
 ---
