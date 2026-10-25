@@ -65,14 +65,14 @@
       "evidence": "指定コミットの src/security/scan.ts:391-400 は長い行の窓ごとに生文字を調べ、同一行・符号位置を dedup する。C4 は候補の前後 16 符号位置という例に依存するが、RGI_Emoji の最長長さ・境界の正当性を未確認のまま固定する。部分一致や行窓の片側だけの文脈で「一致した絵文字の一部」と判定すると、外側の見えない文字を誤除外し得る。",
       "fix": "C4 自体は条件付きで支持するが、Unicode データで完全な RGI シーケンスの両端を確定し、候補が完全一致区間の内部にある場合だけ除外する仕様にする。窓端で文脈が不足したら除外しない。タグ列、隣接した余分な制御文字、連続した絵文字、長い行とパス名で漏れ・過剰除外を試験する。",
       "confidence": "推測",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-21。条件つきの C4）。RGI の完全一致の区間の内側だけを除く不変条件 I1〜I9（設計 §4.5、ADR-0037 の案の決定 3）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-21。条件つきの C4）。RGI の完全一致の区間の内側だけを除く不変条件 I1〜I9（設計 §4.5、ADR-0037 の案の決定 3）。v0.15.0 で、src/security/raw-chars.ts の decideRawChars（I1〜I9）と、src/security/scan.ts の RawCharSink・LineAssembler の LinePosition として実装した（ADR-0037）",
+      "fixedIn": "dd8feb392076d4ee3a38b0dfe27e8d4b416b9c87",
+      "regressionTest": "tests/regression-item49-raw-chars-layer-c.test.ts の L4（ZWJ の家族・U+26A0 U+FE0F・イングランドの旗は除き、除いた数 2・1・6。数字の間の U+200D は finding）・L13（タグ列: RGI の旗、RGI でないタグの並び、基の無いタグ、旗の後ろの余分なタグ）・L14（隣の余分な制御文字 5 形）・L15（連続した並び）・L17（パス名: 並びの名前・並びの外の U+200D・/ の後ろ）・L18（E の外の U+FE0E・U+E0001・U+E0100・U+180B）・L19（見本の並びが RGI で、文字がすべて E）・L16（長い行。既定の窓と小さい窓）と、decideRawChars の I5 の各分岐",
       "guard": null,
       "destination": "v0.15.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消。残りは B1-D-R2-001・B1-D-R2-003 で直した（R3 の評価: どちらも解消）。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 部分的に解消。残りは B1-D-R2-001・B1-D-R2-003 で直した（R3 の評価: どちらも解消）。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.15.0 で実装した（commit dd8feb3）。人間の指示（2026-10-25）で、この版の記録の commit で resolved にした。確かめは実装の独立レビュー batch1-v0150-impl"
     },
     {
       "id": "B1-D-R1-004",
@@ -119,14 +119,14 @@
       "evidence": "指定コミットの src/security/raw-chars.ts:18-25 は review-packet 用の禁止集合を別に維持する。新分類は Default_Ignorable_Code_Point の「主なもの」で網羅集合ではない。C0 の U+0000 は先頭 8 KiB のバイナリ判定で走査されず、設計上の「全分類 FAIL」という表現には対象範囲の注記が必要。",
       "fix": "固定集合と Unicode 属性との差分をテスト用に出し、意図的に対象外とする符号位置を明示する。先頭 8 KiB とそれ以降の NUL、行内 CR、先頭 BOM の境界を回帰テストに加える。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-21。B1-Q17 は A' に確定）。Unicode の属性との差分の表と、NUL・CR・BOM の境界のテスト（設計 §4.4・§4.8 の L20〜L23）、「全分類 FAIL」の対象範囲の注記",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-21。B1-Q17 は A' に確定）。Unicode の属性との差分の表と、NUL・CR・BOM の境界のテスト（設計 §4.4・§4.8 の L20〜L23）、「全分類 FAIL」の対象範囲の注記。v0.15.0 で、SCANNED_RAW_RANGES と RAW_CHAR_CATEGORIES に 8 分類を足し、差分の表をテストで固定した（ADR-0037 の決定 1・対象範囲）",
+      "fixedIn": "dd8feb392076d4ee3a38b0dfe27e8d4b416b9c87",
+      "regressionTest": "tests/regression-item49-raw-chars-layer-c.test.ts の L1（10 分類・層 (c) の 4,247・層 (a)/(b) の 11 は変わらない・TAB と LF は見ない・FORBIDDEN_RANGES は変わらない。TAB・LF・LF の前の CR・最後の CR・先頭の BOM は finding にならない）・L20（Unicode の属性との差分の 5 行。名前に使った Node の Unicode の版）・L21（NUL が 8,191 バイト目ならバイナリ、8,192 バイト目なら control の finding）・L22（CR の境界 6 形）・L5 と L23（BOM の境界）・L2（層 (c) のすべての符号位置と各分類の finding）",
       "guard": null,
       "destination": "v0.15.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R2 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.15.0 で実装した（commit dd8feb3）。人間の指示（2026-10-25）で、この版の記録の commit で resolved にした。確かめは実装の独立レビュー batch1-v0150-impl"
     },
     {
       "id": "B1-D-R1-007",

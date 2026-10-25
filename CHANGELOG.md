@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.14.1 — a runtime dependency update for an npm advisory (zod 4.6.7); aiqh init does not detect node:test when an option that takes a value has no value (B1-I140-R1-001); the v0.14.0 record (the verdict does not change)
+## v0.14.1 — commit e383637a53d0bd759d3ab3572620cd4803f9c4b6 / tag object 70fd20b221cdc56765bdc2a2ed53905f60a42e5d — a runtime dependency update for an npm advisory (zod 4.6.7); aiqh init does not detect node:test when an option that takes a value has no value (B1-I140-R1-001); the v0.14.0 record (the verdict does not change)
 
 - **実装の独立レビュー batch1-v0140-impl R1 の Low 1 件の直しと、v0.14.0 の記録**（人間の決定 2026-10-25）。判定・終了コード・設定の仕様は変えない。branch `release/v0.14.1`、5 commit: `b62519c`（zod の更新）・`a115582`（実装レビューの取り込み）・`545eeff`（B1-I140-R1-001）・`a5a9fbc`（findings の実装者の欄・記録・訂正）・この release の commit
 - **zod の更新（実行時の依存。人間の決定 2026-10-25）**: v0.14.0 の後に、npm の勧告 GHSA-mrhx-c7xc-m3w5（CVE-2023-54404。high、CVSS 7.5、CWE-770。zod 4.6.6 より前）の範囲が広がって出た（勧告の更新は 2026-10-23T18:26:52Z。v0.14.0 の着手の時の `npm audit` と、main の run `39908726005` の dependency の check は通っていた）。`package-lock.json` を変えないまま、自己 verify の dependency の check（`npm audit --audit-level=high`）が FAIL した（`9abd3ca` の SHA 固定の worktree で 7/8、dependency だけ FAIL を記録した）。中身は、`$ZodArray` が失敗した要素ごとの問題を上限なしにため込み、大きな配列でメモリが尽きうるもの
@@ -22,7 +22,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 文書: ADR-0011 の改訂、ADR の一覧、CONFIG_SPEC の §5.2b、README、ROADMAP（v0.14.0 の記録、v0.14.1 の項）
 - テスト: 182 ファイル・2,644 件から 182 ファイル・2,674 件。既存のテストの期待値と `tests/structure/` は変えていない
 - `package.json` version 0.14.1（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存は zod の版だけが変わる（commander・jsonc-parser と devDependencies は同じ）。`.github/`・`tests/structure/`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.14.0 と同一
-- 記録（この版の後の記録の PR で記入）: release の commit とタグの object の SHA、PR の番号と merge の commit、PR と main の run の id
+- 記録（この版の後の記録の PR〈v0.15.0 の PR〉で記入）: PR #17（merge の commit `c520d88dccbac6e28e54c91685b2d67c0b8375af`）。PR の run `40172323122`・main の run `40172788524` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.14.1 の項）
 
 ## v0.14.0 — commit 2af638dc4f0f86a520e138d230bf3102b7272a2a / tag object be07f81acec4a4523953e3bcc814154eaef8cbf4 — batch1 (2): aiqh init detects node:test (node --test in scripts.test / test:unit); a pytest output parser chosen by the position of its words (the verdict does not change)
 

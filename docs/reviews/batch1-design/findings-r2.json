@@ -58,14 +58,14 @@
       "evidence": "I5 は「その窓では決めない」と「どの窓でも両端が見えないときは finding」を述べるが、I6 は「両端が見える最初の窓で 1 回だけ決める」とする。基準コードの LineAssembler は窓を渡した直後に overlap 以外の先頭を捨てる（src/security/scan.ts:502-515）。その捨てる部分の候補が未決定なら、次の窓ではその位置が存在せず、未検出になりうる。",
       "fix": "窓の時点で消える位置について、両端が確定しないなら即 finding に確定するか、未確定候補の位置と分類を保持して後から必ず flush する不変条件を追加する。持越し長の上限、EOF、改行時、重なり中の重複排除を L16 の追加ケースで検証する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-22）。窓から消える位置にある候補で、run の両端が確定しないものは、その窓で finding に確定する。未決の候補を持ち越さない（設計 §4.5 の I5・I6、L16 の (a)〜(g)）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-22）。窓から消える位置にある候補で、run の両端が確定しないものは、その窓で finding に確定する。未決の候補を持ち越さない（設計 §4.5 の I5・I6、L16 の (a)〜(g)）。v0.15.0 で、src/security/raw-chars.ts の decideRawChars（I1〜I9）と、src/security/scan.ts の RawCharSink・LineAssembler の LinePosition として実装した（ADR-0037）",
+      "fixedIn": "dd8feb392076d4ee3a38b0dfe27e8d4b416b9c87",
+      "regressionTest": "tests/regression-item49-raw-chars-layer-c.test.ts の L16 の (a)（左の隣から run の終わりまで 300 単位: 重なり 300 で除き、299 で finding）・(b)（ファイルの終わり。最後が CR でも）・(c)（改行）・(d)（重なりより長く保つ窓で、前の窓の finding は決め直さない。除いた数は 1 回分）・(e)（保証された末尾の始まりがタグ文字の組の途中: 次の窓の run は finding）・(f)（窓の端の前後 300 単位のすべての位置で、もれも重複も無い）・(g)（窓 5 つ以上の行が、窓に分けない走査と同じ）と、既定の窓の L16・L6、decideRawChars の (a)・(b)・(c) と組の後ろ半分の分岐",
       "guard": null,
       "destination": "v0.15.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.15.0 で実装した（commit dd8feb3）。人間の指示（2026-10-25）で、この版の記録の commit で resolved にした。確かめは実装の独立レビュー batch1-v0150-impl"
     },
     {
       "id": "B1-D-R2-002",
@@ -94,14 +94,14 @@
       "evidence": "基準コードの RawCharSink は seen に `行番号:符号位置` を記録して同一行の同一符号位置を集約し、パスも符号位置だけで集約する（src/security/scan.ts:384-412）。一方、R2 の I6 は候補の位置ごと、I7 は除いた数を出す。例えば同じ行に RGI の U+200D が2個と孤立した U+200D が1個ある場合、exempted は2なのか、finding は1なのか、行単位の既存契約と位置単位の新契約を明示する必要がある。",
       "fix": "位置別の分類・除外判断と、最終 finding の重複排除キーを別の仕様として記す。除外数は出現位置数、finding は既存の行＋符号位置の集約を維持するのかを明記し、同一行・同一符号位置の混在を検査する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
-      "action": "受け入れ（人間の決定 2026-10-22）。位置の判断と finding の鍵を分ける（除いた数は位置の数、finding は行番号と符号位置で 1 件。設計 §4.5 の I9、L24）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "action": "受け入れ（人間の決定 2026-10-22）。位置の判断と finding の鍵を分ける（除いた数は位置の数、finding は行番号と符号位置で 1 件。設計 §4.5 の I9、L24）。v0.15.0 で、src/security/raw-chars.ts の decideRawChars（I1〜I9）と、src/security/scan.ts の RawCharSink・LineAssembler の LinePosition として実装した（ADR-0037）",
+      "fixedIn": "dd8feb392076d4ee3a38b0dfe27e8d4b416b9c87",
+      "regressionTest": "tests/regression-item49-raw-chars-layer-c.test.ts の L24（同じ行の家族と英字の間の U+200D: 除いた数 2・finding 1。順を入れ替えても同じ。並びの外の U+200D 2 つ: 0・1。家族 2 つ: 4・0。パス名の同じ混在: 2・1。小さい窓で重なりの中の家族: 2〈4 でない〉・1。zero-width の規則で finding を抑えても除いた数は 2）",
       "guard": null,
       "destination": "v0.15.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch1-design/design-final.md（docs の commit 1d15206）。R3 の評価: 解消。振る舞いと回帰テストは v0.15.0 で入るので、その版の実装と実装の独立レビューで確かめてから resolved にする。それまで open（docs/ops/review-loop.md の手順 6、M4-D-R1-004 と同じ扱い）。v0.15.0 で実装した（commit dd8feb3）。人間の指示（2026-10-25）で、この版の記録の commit で resolved にした。確かめは実装の独立レビュー batch1-v0150-impl"
     },
     {
       "id": "B1-D-R2-004",
