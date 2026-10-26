@@ -41,6 +41,12 @@ describe("v0.9.0 (ADR-0031): ci.yml applies verify.yml to this repository", () =
     expect(job.some((l) => l.startsWith("if:")), "no if: (runs like verify (ubuntu))").toBe(false);
   });
 
+  it("v0.15.1 (ROADMAP item 51): passes job-summary: true, so every run goes through the job summary step", () => {
+    const ls = lines(CI);
+    const at = ls.findIndex((l) => /^ {4}uses:\s*\.\/\.github\/workflows\/verify\.yml\s*$/.test(l));
+    expect(jobAround(ls, at).map((l) => l.trim())).toContain("job-summary: true");
+  });
+
   it("keeps verify (ubuntu) and uploads no artifact", () => {
     const text = lines(CI).join("\n");
     expect(text).toContain("name: verify (ubuntu)");

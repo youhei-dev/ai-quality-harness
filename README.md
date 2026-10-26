@@ -169,6 +169,8 @@ jobs:
       setup-command: npm ci
 ```
 
+`job-summary: true` を渡すと、その run の `latest.md`（マスク済み）が Job Summary に足されます。v0.15.1 から、このときの verify はレポートを作業ディレクトリの `artifacts/verification/` ではなく、その run だけの一時のディレクトリ（`$RUNNER_TEMP` の下）に書き、ログの `report:` の行もそこを指します。設定の場所（下のディレクトリ）や `output.dir` によらずその run のレポートが届き、書かれなかったときは決まった 1 行が足されます（作業ディレクトリの古い `latest.md` は読まない）。再利用ワークフローの job には呼び出す側から手順を足せず、`verify.yml` の中に要約の後でレポートを読む手順は無いので、同じ job の後の手順への影響はありません。`job-summary: false`（既定）は変わりません（`docs/ops/reusable-workflow.md` の §3。ROADMAP の項目 51）。
+
 `aiqh init` は `aiqh` を PATH のどこから解決したか（リンク先と version）を表示します。生成される `aiqh.config.jsonc` の例：
 
 ```jsonc

@@ -1,7 +1,7 @@
 # ADR-0031: CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D）
 
 - 状態: 採用（v0.9.0。ADR-0009 の「M3 で再評価」の結果のうち CI の部分。手元の `npm link` は ADR-0009 のまま）
-- 日付: 2026-10-16（v0.9.0）。注記: 2026-10-17（v0.9.1。適用で確かめたこと。下の「注記（v0.9.1: 適用で確かめたこと）」）
+- 日付: 2026-10-16（v0.9.0）。注記: 2026-10-17（v0.9.1。適用で確かめたこと。下の「注記（v0.9.1: 適用で確かめたこと）」）。注記: 2026-10-26（v0.15.1。決定 6 の Job Summary の読む場所。末尾の「注記（v0.15.1: Job Summary の場所）」）
 
 ## 文脈
 - 波 4（M3 の後半）では、aiqh の配布の方式・他のリポジトリから呼ぶ再利用ワークフロー・個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`）への適用を決める。適用先は 2 つとも private で、ワークフローは無い（SP1、2026-10-16）
@@ -96,3 +96,9 @@
 - CI のログに pytest の件数が出ない（PASS のチェックの出力は表示されず、pytest の読み取りが無い）
 - `actions/runs/<id>/timing` の `billable` が 0 を返した。呼び出す側の分数は、請求の画面で確かめる
 - `aiqh init` が node:test を unit として検出しない
+
+## 注記（v0.15.1: Job Summary の場所。ROADMAP の項目 51。2026-10-26）
+決定 6（レポートは job の外に出さない。`job-summary: true` のときだけ `latest.md` を Job Summary に足す）は変えない。足す `latest.md` の場所だけを直した（人間の決定 batch2 の B2-Q3・B2-Q4 の A。設計は `docs/reviews/batch2-design/design-final.md` の §2）。
+- 今までは作業ディレクトリの `artifacts/verification/latest.md` だけを読んだ。設定が下のディレクトリにあるときと `output.dir` を変えたときは、何も足されず（エラーにもならず）、作業ディレクトリに古い `latest.md` があれば、それが足された（batch2 の設計の段で、手元でワークフローの本文を走らせて確かめた）
+- v0.15.1 から、`job-summary: true` のときだけ、手順「aiqh verify」が `$RUNNER_TEMP` の下にその run だけの空のディレクトリ（`mktemp -d`）を作り、手順の出力 `report-dir` に書いてから、verify に `--output-dir` でそこへ書かせる。要約の手順はその `latest.md` だけを読み、無ければ決まった 1 行を足す。`job-summary: false` の呼び出しは変わらない。src は変えていない（`--output-dir` は前からある）
+- 自己適用（`reusable (self)`）に `job-summary: true` を足し、CI の毎回の run でこの手順を通す（上の「残る未確認の点」の `job-summary: true` の経路）。2 つの手順の本文は、手元のテスト（`tests/reusable-workflow-run.test.ts`。bash で本文を走らせる 7 つの場面）でも確かめる

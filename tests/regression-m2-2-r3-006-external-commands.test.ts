@@ -52,6 +52,8 @@ const FORMS: Record<string, { text: string; bad: number[] }> = {
   },
   f22_string_in_array: { text: `${CP("spawnSync")}\n${V}\nconst tools = ["unzip", "python3"];\nit.skipIf(tools.length === 0)("list", () => { spawnSync("unzip", ["-l", "a.zip"]); });\n`, bad: [4] },
   f15_git_node_ok: { text: `${CP("execFileSync, spawnSync")}\n${V}\nit("f", () => { execFileSync("git", ["--version"]); spawnSync(process.execPath, ["-v"]); });\n`, bad: [] },
+  // v0.15.1 (item 51): bash is a probed tool like unzip and python3
+  f23_bash_guarded_ok: { text: `${CP("spawnSync")}\nimport { describe, it } from "vitest";\nconst hasBash = spawnSync("bash", ["--version"]).status === 0;\ndescribe.skipIf(!hasBash)("guarded", () => { it("runs", () => { spawnSync("bash", ["-e", "step.sh"]); }); });\n`, bad: [] },
   f16_require: {
     text: `import { createRequire } from "node:module";\n${V}\nconst require = createRequire(import.meta.url);\nit("f", () => { const cp = require("node:child_process") as typeof import("node:child_process"); cp.spawnSync("shasum", ["-a", "256"]); });\n`,
     bad: [4],
@@ -112,5 +114,10 @@ describe("M2-1-R3-006: tests/ start only declared or probed commands", () => {
     expect(calls.filter((c) => c.command === "git").length).toBeGreaterThanOrEqual(80);
     expect(calls.filter((c) => c.command === "node").length).toBeGreaterThanOrEqual(10);
     expect(calls.filter((c) => c.where.startsWith("tests/zip-interop.test.ts:")).map((c) => `${c.command} ${c.verdict}`)).toEqual(["unzip probe", "python3 probe", "unzip guarded", "unzip guarded", "python3 guarded"]);
+  });
+
+  it("v0.15.1 (item 51): the bash probe of the workflow run test and its guarded calls", () => {
+    expect(calls.filter((c) => c.where.startsWith("tests/reusable-workflow-run.test.ts:")).map((c) => `${c.command} ${c.verdict}`)).toEqual(["bash probe", "bash guarded", "bash guarded"]);
+    expect(processCalls(program, filesUnder(program, `${DIR}/f23_`)).map((c) => `${c.command} ${c.verdict}`)).toEqual(["bash probe", "bash guarded"]);
   });
 });
