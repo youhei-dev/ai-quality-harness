@@ -54,12 +54,18 @@ export function createProgram(fixtures: Record<string, string> = {}, opts: { reu
  * Item 50 (v0.15.1; batch2 design, final, §1.6, 50-B): the SourceFiles read from disk, reused by the next programs of this process
  * (a test file runs in one process; nothing is shared between test files). A program over the repository parses about 600 files;
  * the reused ones are only checked. A SourceFile is reused only when all of its key is the same: the resolved path, the SHA-256 of
- * the text read now (so a file changed on disk is parsed anew), the parse conditions (languageVersion, impliedNodeFormat,
- * jsDocParsingMode; parent nodes are always set here) and the compiler options that affect a SourceFile or its binding (the list
- * TypeScript's language service keys on when it shares SourceFiles between programs: sourceFileAffectingCompilerOptions).
+ * the text read now (so a file changed on disk is parsed anew), every parse condition TypeScript passes (languageVersion,
+ * impliedNodeFormat, jsDocParsingMode, whether there is a setExternalModuleIndicator, packageJsonLocations, and packageJsonScope as
+ * its directory and the SHA-256 of its package.json; parent nodes are always set here) and the compiler options that affect a
+ * SourceFile or its binding (the list TypeScript's language service keys on when it shares SourceFiles between programs:
+ * sourceFileAffectingCompilerOptions). v0.16.0 (B2-I151-R1-001): the package.json values are not read by the parse (the program writes
+ * them onto the SourceFile after getSourceFile), and setExternalModuleIndicator is made from the options of the key and the file's
+ * impliedNodeFormat (typescript.js 5.9.3: getCreateSourceFileOptions, getSetExternalModuleIndicator); still, the values are in the
+ * key, and before a SourceFile is handed out again the indicator of these conditions is computed for it once more and must be the one
+ * it has (otherwise the host parses it, and the table keeps the old one).
  * Not reused (the host's own getSourceFile, as without the table): shouldCreateNewSourceFile, a parse condition or an option value it
- * does not know, a text it cannot read. Fixtures never enter the table. Before a SourceFile is handed out again, its text must still
- * be the text read now; otherwise it is dropped and parsed anew. The table never leaves this module.
+ * does not know or of a shape it does not know, a text it cannot read. Fixtures never enter the table. Before a SourceFile is handed
+ * out again, its text must still be the text read now; otherwise it is dropped and parsed anew. The table never leaves this module.
  * Known limit: a caller that changes the nodes of a shared SourceFile (not its text) is not noticed. TypeScript itself writes to the
  * nodes when it binds them, so they cannot be frozen, and checking every node of about 600 files for each program would cost most of
  * what the reuse saves. The callers (the structure guards and their tests) only read; a test that changes an AST passes `reuse: false`.
@@ -85,20 +91,53 @@ function reusing(host: ts.CompilerHost, options: ts.CompilerOptions): ts.Compile
     if (text === undefined) return undefined;
     const key = JSON.stringify([path.resolve(file), createHash("sha256").update(text).digest("hex"), condition, optionsKey]);
     const known = REUSED.get(key);
-    if (known !== undefined && known.text === text) return known;
+    if (known !== undefined && known.text === text) return sameModuleIndicator(known, languageVersion) ? known : own(file, languageVersion, onError, shouldCreate);
     const sf = ts.createSourceFile(file, text, languageVersion, true);
     REUSED.set(key, sf);
     return sf;
   };
 }
 
-/** The parse conditions as a key, or null when they hold a field this table does not know (then nothing is reused). */
+/** The parse conditions as a key, or null when they hold a field this table does not know or a value of a shape it does not know. */
 function conditionOf(v: ts.ScriptTarget | ts.CreateSourceFileOptions): string | null {
   if (typeof v === "number") return JSON.stringify([v]);
   if (typeof v !== "object" || v === null || Object.keys(v).some((k) => !PARSE_KEYS.has(k))) return null;
-  const { languageVersion, impliedNodeFormat, jsDocParsingMode } = v;
+  const { languageVersion, impliedNodeFormat, jsDocParsingMode, setExternalModuleIndicator } = v;
+  const { packageJsonLocations, packageJsonScope } = v as { packageJsonLocations?: unknown; packageJsonScope?: unknown };
   if (typeof languageVersion !== "number" || !["number", "undefined"].includes(typeof impliedNodeFormat) || !["number", "undefined"].includes(typeof jsDocParsingMode)) return null;
-  return JSON.stringify([languageVersion, impliedNodeFormat ?? null, jsDocParsingMode ?? null]);
+  if (!["function", "undefined"].includes(typeof setExternalModuleIndicator)) return null;
+  if (packageJsonLocations !== undefined && !(Array.isArray(packageJsonLocations) && packageJsonLocations.every((l) => typeof l === "string"))) return null;
+  const scope = scopeOf(packageJsonScope);
+  if (scope === null) return null;
+  return JSON.stringify([languageVersion, impliedNodeFormat ?? null, jsDocParsingMode ?? null, setExternalModuleIndicator !== undefined, packageJsonLocations ?? null, scope]);
+}
+
+/** packageJsonScope as its directory and the SHA-256 of its package.json, [] without a scope, or null for a shape it does not know. */
+function scopeOf(scope: unknown): unknown[] | null {
+  if (scope === undefined) return [];
+  if (typeof scope !== "object" || scope === null) return null;
+  const { packageDirectory, contents } = scope as { packageDirectory?: unknown; contents?: { packageJsonContent?: unknown } };
+  const content = contents?.packageJsonContent;
+  if (typeof packageDirectory !== "string" || typeof content !== "object" || content === null) return null;
+  try {
+    return [path.resolve(packageDirectory), createHash("sha256").update(JSON.stringify(content)).digest("hex")];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether the setExternalModuleIndicator of these conditions gives `known` the externalModuleIndicator it has (true without one: the
+ * key then holds that there is none). It is computed on an object over `known`, so `known` does not change; the package.json scope
+ * that a program wrote onto `known` is hidden, as it is not there yet when a file is parsed.
+ */
+function sameModuleIndicator(known: ts.SourceFile, v: ts.ScriptTarget | ts.CreateSourceFileOptions): boolean {
+  if (typeof v !== "object" || v.setExternalModuleIndicator === undefined) return true;
+  const probe = Object.create(known) as ts.SourceFile & { packageJsonScope?: unknown; externalModuleIndicator?: unknown };
+  probe.packageJsonScope = undefined;
+  if (v.impliedNodeFormat !== undefined) probe.impliedNodeFormat = v.impliedNodeFormat;
+  v.setExternalModuleIndicator(probe);
+  return probe.externalModuleIndicator === (known as ts.SourceFile & { externalModuleIndicator?: unknown }).externalModuleIndicator;
 }
 
 /** Source files of the program that are the repository's (or fixture) files under `prefix` ("src/", "tests/", …). */

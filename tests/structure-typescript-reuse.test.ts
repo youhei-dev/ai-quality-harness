@@ -5,7 +5,7 @@
  * the table and one without); T50-7 fails without the way to switch it off and to see the host; the others guard the cases where
  * nothing may be reused.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,7 +26,10 @@ afterEach(() => {
 function project(configs: Record<string, Record<string, unknown>>, files: Record<string, string>): { dir: string; config: (name: string) => string } {
   const { dir, cleanup } = makeTempDir();
   cleanups.push(cleanup);
-  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(dir, name), text);
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+    writeFileSync(path.join(dir, name), text);
+  }
   for (const [name, compilerOptions] of Object.entries(configs)) {
     writeFileSync(path.join(dir, name), JSON.stringify({ compilerOptions: { strict: true, noEmit: true, types: [], lib: ["es2022"], ...compilerOptions }, files: Object.keys(files).filter((f) => f.endsWith(".ts")) }));
   }
@@ -182,6 +185,134 @@ describe("item 50: the SourceFiles of createProgram are reused only under the sa
     const once = plain.getSourceFile(file, conditions);
     expect(plain.getSourceFile(file, conditions)).not.toBe(once);
     expect(once).not.toBe(first);
+  });
+
+  // v0.16.0 (B2-I151-R1-001): TypeScript also passes setExternalModuleIndicator (always; made from the options) and, where it looks for a
+  // package.json, packageJsonLocations and packageJsonScope (written by the program onto the SourceFile after getSourceFile). Each of them
+  // is part of the reuse: the locations and the scope (its directory and the SHA-256 of its package.json) in the key, and the indicator
+  // by computing it again on the SourceFile to be reused. These tests call the host's getSourceFile directly, so only one value differs.
+  type Indicator = (f: ts.SourceFile) => void;
+  const asScript: Indicator = (f) => {
+    (f as unknown as { externalModuleIndicator?: unknown }).externalModuleIndicator = undefined;
+  };
+  const asModule: Indicator = (f) => {
+    (f as unknown as { externalModuleIndicator?: unknown }).externalModuleIndicator = true;
+  };
+  /** A host of a small project and the parse conditions TypeScript would pass for its file a.ts (a script), with some values replaced. */
+  const conditionsFor = (): { host: ts.CompilerHost; file: string; conditions: (replaced?: Record<string, unknown>) => ts.CreateSourceFileOptions } => {
+    const { dir, config } = project({ "tsconfig.json": { target: "es2022", module: "esnext" } }, { "a.ts": "const x = 1;\n" });
+    const seen: { host?: ts.CompilerHost } = {};
+    createProgram({}, { configFile: config("tsconfig.json"), onHost: (h) => {
+      seen.host = h;
+    } });
+    const host = seen.host;
+    if (host === undefined) throw new Error("no host");
+    const conditions = (replaced: Record<string, unknown> = {}): ts.CreateSourceFileOptions =>
+      ({
+        languageVersion: ts.ScriptTarget.ES2022,
+        impliedNodeFormat: ts.ModuleKind.CommonJS,
+        setExternalModuleIndicator: asScript,
+        packageJsonLocations: [path.join(dir, "package.json")],
+        packageJsonScope: { packageDirectory: dir, contents: { packageJsonContent: { name: "a" } } },
+        ...replaced,
+      }) as unknown as ts.CreateSourceFileOptions;
+    return { host, file: path.join(dir, "a.ts"), conditions };
+  };
+  it("T50-8a: only packageJsonLocations differs: another SourceFile; the first stays in the table", () => {
+    const { host, file, conditions } = conditionsFor();
+    const first = host.getSourceFile(file, conditions());
+    expect(host.getSourceFile(file, conditions({ packageJsonLocations: [path.join(path.dirname(file), "sub", "package.json")] }))).not.toBe(first);
+    expect(host.getSourceFile(file, conditions())).toBe(first);
+  });
+  it("T50-8b: only the package.json of packageJsonScope differs: another SourceFile; the first stays in the table", () => {
+    const { host, file, conditions } = conditionsFor();
+    const first = host.getSourceFile(file, conditions());
+    expect(host.getSourceFile(file, conditions({ packageJsonScope: { packageDirectory: path.dirname(file), contents: { packageJsonContent: { name: "b" } } } }))).not.toBe(first);
+    expect(host.getSourceFile(file, conditions())).toBe(first);
+  });
+  it("T50-8c: only setExternalModuleIndicator differs (it makes the script a module): another SourceFile that is a module; the first stays", () => {
+    const { host, file, conditions } = conditionsFor();
+    const first = host.getSourceFile(file, conditions());
+    const other = host.getSourceFile(file, conditions({ setExternalModuleIndicator: asModule }));
+    expect(other).not.toBe(first);
+    expect([first !== undefined && ts.isExternalModule(first), other !== undefined && ts.isExternalModule(other)]).toEqual([false, true]);
+    expect(host.getSourceFile(file, conditions())).toBe(first);
+  });
+  it("T50-8d: the same values in new objects and a new function with the same effect: the same SourceFile (the reuse is kept)", () => {
+    const { host, file, conditions } = conditionsFor();
+    const first = host.getSourceFile(file, conditions());
+    const same = conditions({
+      setExternalModuleIndicator: (f: ts.SourceFile) => asScript(f),
+      packageJsonLocations: [path.join(path.dirname(file), "package.json")],
+      packageJsonScope: { packageDirectory: path.dirname(file), contents: { packageJsonContent: { name: "a" } } },
+    });
+    expect(host.getSourceFile(file, same)).toBe(first);
+  });
+  it("T50-8e: a value of a shape it does not know (locations not a list of strings, a scope without its package.json): not reused", () => {
+    const { host, file, conditions } = conditionsFor();
+    const first = host.getSourceFile(file, conditions());
+    expect(host.getSourceFile(file, conditions({ packageJsonLocations: "package.json" }))).not.toBe(first);
+    expect(host.getSourceFile(file, conditions({ packageJsonLocations: [1] }))).not.toBe(first);
+    expect(host.getSourceFile(file, conditions({ packageJsonScope: { packageDirectory: path.dirname(file) } }))).not.toBe(first);
+    // such a value never enters the table: the same value twice gives two SourceFiles
+    const odd = conditions({ packageJsonLocations: "package.json" });
+    expect(host.getSourceFile(file, odd)).not.toBe(host.getSourceFile(file, odd));
+    const scopeless = conditions({ packageJsonScope: { packageDirectory: path.dirname(file) } });
+    expect(host.getSourceFile(file, scopeless)).not.toBe(host.getSourceFile(file, scopeless));
+    // (a setExternalModuleIndicator that is not a function is not reused either, but the host's own parse then throws, as TypeScript does)
+  });
+  it("T50-8f: only whether there is a setExternalModuleIndicator differs (one made the script a module, then none): another SourceFile, a script", () => {
+    const { host, file, conditions } = conditionsFor();
+    const module = host.getSourceFile(file, conditions({ setExternalModuleIndicator: asModule }));
+    const plain = host.getSourceFile(file, conditions({ setExternalModuleIndicator: undefined }));
+    expect(plain).not.toBe(module);
+    expect([module !== undefined && ts.isExternalModule(module), plain !== undefined && ts.isExternalModule(plain)]).toEqual([true, false]);
+  });
+  it("T50-8g: with TypeScript's own conditions, a script under node_modules with a package.json of type module is reused by the next program", () => {
+    // module esnext: TypeScript looks for the package.json (the file is under node_modules) and the program writes its scope onto the
+    // SourceFile; the indicator then reads that scope, which the parse did not see. The check before reuse hides it, so it agrees.
+    const { dir, config } = project(
+      { "tsconfig.json": { target: "es2022", module: "esnext" } },
+      { "a.ts": "export const x = 1;\n", "node_modules/pkg/b.ts": "const y = 1;\n", "node_modules/pkg/package.json": '{ "type": "module" }\n' },
+    );
+    const b = path.join(dir, "node_modules", "pkg", "b.ts");
+    const first = sourceOf(createProgram({}, { configFile: config("tsconfig.json") }), b);
+    const scope = (first as unknown as { packageJsonScope?: { packageDirectory: string } }).packageJsonScope;
+    expect([first.impliedNodeFormat, scope?.packageDirectory]).toEqual([ts.ModuleKind.ESNext, path.join(dir, "node_modules", "pkg")]);
+    expect(sourceOf(createProgram({}, { configFile: config("tsconfig.json") }), b)).toBe(first);
+    expect(ts.isExternalModule(first)).toBe(ts.isExternalModule(sourceOf(createProgram({}, { configFile: config("tsconfig.json"), reuse: false }), b)));
+  });
+  /** What the parse gave each SourceFile of `p` (the repository files, the fixtures, the libraries and node_modules), by file name. */
+  const parsed = (p: Program) =>
+    p.program
+      .getSourceFiles()
+      .map((sf) => {
+        const internal = sf as unknown as { packageJsonLocations?: readonly string[]; packageJsonScope?: { packageDirectory: string } };
+        return {
+          file: sf.fileName,
+          languageVersion: sf.languageVersion,
+          impliedNodeFormat: sf.impliedNodeFormat ?? null,
+          module: ts.isExternalModule(sf),
+          locations: internal.packageJsonLocations ?? null,
+          scope: internal.packageJsonScope?.packageDirectory ?? null,
+          syntax: p.program.getSyntacticDiagnostics(sf).map((d) => `${d.start ?? ""} ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`),
+        };
+      })
+      .sort((a, b) => (a.file < b.file ? -1 : 1));
+  it("T50-9a: with and without the table, every SourceFile of the repository program was parsed the same (B2-I151-R1-001)", () => {
+    const { withTable, without } = programs();
+    const answers = parsed(withTable);
+    expect(answers.length).toBeGreaterThan(500);
+    expect(answers).toEqual(parsed(without));
+  });
+  it("T50-9b: with and without the table, every SourceFile of a guard fixture program was parsed the same, fixtures included", () => {
+    const fixtures = {
+      "src/output.ts": readFileSync(OUTPUT, "utf8").replace("if (line) console.log(text);", "if (line) console.trace(text);"),
+      "tests/__fixtures__/reuse/r3a_optional_param.ts": `import type { Safe } from "../../../src/output.ts";\nconst cast = <T>(raw: string, x?: T): T | undefined => (x === undefined ? (raw as T) : x);\nexport const f = (): Safe | undefined => cast<Safe>("raw");\n`,
+    };
+    const answers = parsed(createProgram(fixtures));
+    expect(answers.filter((a) => a.file.includes("__fixtures__")).length).toBe(1);
+    expect(answers).toEqual(parsed(createProgram(fixtures, { reuse: false })));
   });
 });
 

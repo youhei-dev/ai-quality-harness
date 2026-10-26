@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch2-v0151-impl",
+  "round": 1,
+  "idPrefix": "B2-I151",
+  "source": {
+    "name": "independent-review-batch2-v0151-impl-r1-for-claude.md",
+    "bytes": 8856,
+    "sha256": "76b087771efce8ffb8bdb3ec1c51efb91651e7b1c59445d36544034fd291bead"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-26T07:41:53.555Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.15.1"
+  },
+  "findings": [
+    {
+      "id": "B2-I151-R1-001",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "tests/structure/typescript.ts の conditionOf・reusing、設計最終 §1.6、T50-3・T50-3b",
+      "content": "SourceFile の解析条件について、既知と認めたオプションの一部がキャッシュキーから抜けている。解析条件が異なる SourceFile を同じものとして再利用しうる。",
+      "evidence": "conditionOf は PARSE_KEYS に setExternalModuleIndicator・packageJsonLocations・packageJsonScope を含め、これらの存在を拒まない。一方、返すキーは languageVersion・impliedNodeFormat・jsDocParsingMode だけである。reusing は同じパス・本文・optionsKey なら既存 SourceFile を返す。T50-3b は package.json の type による impliedNodeFormat の違いしか検査しておらず、上記3フィールドのみ異なる条件を検査しない。固定コミットの output-guard.ts と parse/read.ts も参照し、製品コードの変更でなくテスト共通部品の同一性契約の問題と判定した。",
+      "fix": "上記3フィールドが与えられた場合は保守的にキャッシュを使わず元の host.getSourceFile に戻すか、値の意味を保持できる安定した同一性をキーに含める。最初の実行と、条件だけを変更した2回目の実行で別 SourceFile になる T50 の負のテストを足す。元の host とキャッシュ経路の解析・診断結果を比較する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": null,
+      "action": null,
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": null,
+      "note": null
+    }
+  ]
+}
