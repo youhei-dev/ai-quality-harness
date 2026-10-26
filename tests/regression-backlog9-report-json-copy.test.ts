@@ -31,6 +31,7 @@ function report(results: CheckResult[]): VerificationReport {
     startedAt: new Date("2026-01-01T00:00:00.000Z"),
     finishedAt: new Date("2026-01-01T00:00:01.000Z"),
     toolVersion: "0.5.24",
+    runId: "00000000-0000-4000-8000-000000000000",
   });
 }
 
@@ -73,7 +74,7 @@ describe("backlog 9: buildReport copies the report as JSON data", () => {
     const results = [checkResult({ name: "lint", kind: "lint" }), checkResult({ name: "unit", kind: "unit", status: "FAIL", exitCode: 1, errorSummary: "exit code 1: x", stdoutTail: "line 1\nline 2", stderrTail: "e" })];
     const r = report(results);
     expect(JSON.stringify(r)).toBe(JSON.stringify(maskDeep(JSON.parse(JSON.stringify(r)))));
-    expect(Object.keys(r)).toEqual(["schemaVersion", "tool", "project", "configPath", "configSha256", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"]);
+    expect(Object.keys(r)).toEqual(["schemaVersion", "tool", "project", "configPath", "configSha256", "runId", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"]);
   });
 });
 

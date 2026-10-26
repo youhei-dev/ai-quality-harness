@@ -224,7 +224,7 @@ describe("backlog 8 O3: the Markdown report does not say more than it knows", ()
   };
 
   it("git null: the cell names the non-repository and the failed git (before: only 'not a git repository / no commit')", () => {
-    const report = buildReport({ config, results: [checkResult()], git: null, startedAt: new Date(), finishedAt: new Date(), toolVersion: "0.0.0" });
+    const report = buildReport({ config, results: [checkResult()], git: null, startedAt: new Date(), finishedAt: new Date(), toolVersion: "0.0.0", runId: "00000000-0000-4000-8000-000000000000" });
     const md = renderMarkdown(report);
     expect(md).toContain("not a git repository");
     expect(md).toContain("git unavailable");

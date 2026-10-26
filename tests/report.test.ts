@@ -48,6 +48,7 @@ describe("buildReport", () => {
       startedAt: new Date("2026-01-02T03:04:05.000Z"),
       finishedAt: new Date("2026-01-02T03:05:05.000Z"),
       toolVersion: "9.9.9",
+      runId: "00000000-0000-4000-8000-000000000000",
     });
 
     expect(report.schemaVersion).toBe(1);
@@ -78,6 +79,7 @@ describe("buildReport", () => {
       startedAt: new Date(),
       finishedAt: new Date(),
       toolVersion: "0.0.0",
+      runId: "00000000-0000-4000-8000-000000000000",
     });
     expect(report.git).toBeNull();
     expect(renderMarkdown(report)).toContain("not a git repository");
@@ -96,6 +98,7 @@ describe("writeReports", () => {
       startedAt: new Date("2026-09-15T12:34:56.789Z"),
       finishedAt: new Date("2026-09-15T12:35:00.000Z"),
       toolVersion: "0.1.0",
+      runId: "00000000-0000-4000-8000-000000000000",
     });
 
     const first = writeReports(report, outputDir);

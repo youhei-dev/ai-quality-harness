@@ -10,6 +10,8 @@ export interface BuildReportInput {
   startedAt: Date;
   finishedAt: Date;
   toolVersion: string;
+  /** The run's id, made once by the caller at the start of the run (ADR-0038; buildReport makes none, so one run has one value). */
+  runId: string;
   /** Signal name when the run was interrupted (R3-002). Forces verdict ERROR and exit 128 + signal. */
   interruptedBy?: string | null;
 }
@@ -25,6 +27,8 @@ export function buildReport(input: BuildReportInput): VerificationReport {
     configPath: input.config.configPath,
     // Right after configPath, only when the config was read from a file (ADR-0033: absent, never null).
     ...(input.config.configSha256 === undefined ? {} : { configSha256: input.config.configSha256 }),
+    // Right before startedAt (ADR-0038)
+    runId: input.runId,
     startedAt: input.startedAt.toISOString(),
     finishedAt: input.finishedAt.toISOString(),
     durationMs: input.finishedAt.getTime() - input.startedAt.getTime(),

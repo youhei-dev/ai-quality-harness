@@ -122,6 +122,7 @@ function report(check: Partial<CheckResult>): VerificationReport {
     startedAt: new Date(0),
     finishedAt: new Date(1000),
     toolVersion: "t",
+    runId: "00000000-0000-4000-8000-000000000000",
   });
 }
 

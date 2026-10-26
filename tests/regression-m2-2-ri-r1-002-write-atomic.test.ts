@@ -115,6 +115,7 @@ describe("M2-2-RI-R1-002: a symbolic link at the old predictable name is not fol
       startedAt: new Date("2026-10-13T01:02:03.456Z"),
       finishedAt: new Date("2026-10-13T01:02:04.000Z"),
       toolVersion: "9.9.9",
+      runId: "00000000-0000-4000-8000-000000000000",
     });
     const paths = writeReports(report, outputDir);
     expect(readFileSync(outside, "utf8")).toBe("outside: keep\n");
