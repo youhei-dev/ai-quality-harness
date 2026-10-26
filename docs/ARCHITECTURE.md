@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-26（v0.16.0。§7.1・§7.2 のレポートに `runId`〈ROADMAP の項目 52。ADR-0038〉）。その前: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -370,6 +370,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
   "project": { "name": "ai-quality-harness", "root": "/abs/path" },
   "configPath": "/abs/path/aiqh.config.jsonc",
   "configSha256": "3f1c…（64 桁）",                                      // v0.10.0（ADR-0033）: 設定ファイルのバイト列の SHA-256（小文字 16 進 64 桁）。記録であって固定ではない（設定の外の変更は表れない）。古いレポートには無い。schemaVersion は 1 のまま
+  "runId": "6f1c2a7e-…（36 文字）",                                       // v0.16.0（ADR-0038）: verify の run ごとに 1 つの crypto.randomUUID()（UUID の版 4、小文字）。latest.md の `| Run ID |` と history のファイルにも同じ値。古いレポートには無い。schemaVersion は 1 のまま
   "startedAt": "2026-09-15T12:00:00.000Z",
   "finishedAt": "2026-09-15T12:03:10.000Z",
   "durationMs": 190000,
@@ -410,6 +411,7 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
 
 見出し、最終判定、メタ情報（日時・commit・branch・dirty・所要時間）、チェック一覧表、
 分類別サマリ表、失敗チェックの詳細（errorSummary と出力末尾）。人間と独立レビューAI がそのまま読める形にする。
+v0.16.0（ADR-0038）: メタ情報の表の `| Started |` の直前に `| Run ID | <runId> |`（`latest.json` と同じ値。`runId` の無い古いレポートを表にするときは出さない）。
 v0.8.0: どれかの check の出力が読まれたときだけ、チェック一覧表の後ろに `## Parsed Output`（ツール・状態・要約の表と、check ごとの名前の一覧。ADR-0028）。
 v0.8.1（M2-2-PS-R1-001）: ツールの出力から来る文字列は Markdown の構文として読まれない形で書く。check ごとの名前の一覧は 1 つのコードブロック（fence は出力の末尾と同じ `fenceFor`）の行、失敗の詳細の `- Summary:` の行（`errorSummary`）は 1 つの行内のコード（区切りは中の最長のバッククォートの並び +1。端の規則は ADR-0028 の追記の決定 11）。`latest.json` と端末は変わらない。
 

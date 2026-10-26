@@ -123,13 +123,15 @@ artifacts/verification/
   history/<UTC timestamp>.json
 ```
 
-`latest.json` と `latest.md` を組で読むとき（v0.13.2。ROADMAP の項目 47。既知の限界として受け入れ、直していない）:
+`latest.json` と `latest.md` を組で読むとき（v0.13.2。ROADMAP の項目 47。既知の限界として受け入れ、直していない。v0.16.0 から `runId` で見分けられる。ADR-0038）:
 
 - 1 回の verify は、`latest.json` の `startedAt`、`latest.md` の `| Started | … |`、その run の `history/` のファイルの `startedAt` に、同じ文字列を書く
+- v0.16.0 から、1 回の verify は、その run だけの `runId`（UUID の版 4、小文字 36 文字）も、`latest.json` と `history/` のファイルの最上位（`startedAt` の直前）と、`latest.md` の `| Run ID | … |` の行に、同じ値で書く
 - 各ファイルは入れ替え（rename）で書くので、半分だけのファイルは見えない。ただし組は、同じ出力のディレクトリに並行して書く verify があると、別の run のものになりうる（`latest.md` の書き込みだけが失敗した run の後も同じ）
-- 2 つの `startedAt` が**違えば、確実に別の run**。**同じでも、同じ run の保証はない**（`startedAt` はミリ秒までの時刻で、同じミリ秒に始めた別の run は同じ値を持てる。run の一意の名前は無い）
-- 食い違ったら: (a) その出力のディレクトリに書く verify が走っていないことを確かめて、読み直す。(b) まだ食い違うなら、`latest.md` を使わず、run ごとの記録 `history/<stamp>.json` を使う（名前は `startedAt` の秒までで、同じ秒の別の run は `-2` などが付く。同じ `startedAt` の history が 2 つ以上あれば、どれが `latest.json` の run かは決められない）。(c) 組が要るなら、並行の無い状態で verify をやり直す（確実なのはこれだけ）
-- リポジトリの中の読み手は組で読まない（review-packet は `latest.json` だけ、再利用ワークフローの Job Summary は `latest.md` だけ、`aiqh history` は `history/` だけ）。この約束は外の読み手（人・別の道具）のためのもの。固定しているテスト: `tests/regression-item47-latest-pair-started-at.test.ts`・`tests/regression-item47-latest-pair-race.test.ts`
+- 2 つのファイルの両方に `runId` があれば: **同じ値なら同じ run、違えば別の run**
+- どちらかに `runId` が無ければ（v0.15.x までの版が書いたファイル）: 2 つの `startedAt` が**違えば、確実に別の run**。**同じでも、同じ run の保証はない**（`startedAt` はミリ秒までの時刻で、同じミリ秒に始めた別の run は同じ値を持てる）
+- 食い違ったら: (a) その出力のディレクトリに書く verify が走っていないことを確かめて、読み直す。(b) まだ食い違うなら、`latest.md` を使わず、run ごとの記録 `history/<stamp>.json` を使う（名前は `startedAt` の秒までで、同じ秒の別の run は `-2` などが付く。同じ `startedAt` の history が 2 つ以上あれば、`startedAt` だけでは、どれが `latest.json` の run かは決められない。v0.16.0 からは、`latest.json` の `runId` を持つ history がその run の記録）。(c) 組が要るなら、並行の無い状態で verify をやり直す（確実なのはこれだけ）
+- リポジトリの中の読み手は組で読まない（review-packet は `latest.json` だけ、再利用ワークフローの Job Summary は `latest.md` だけ、`aiqh history` は `history/` だけ）。この約束は外の読み手（人・別の道具）のためのもの。固定しているテスト: `tests/regression-item47-latest-pair-started-at.test.ts`・`tests/regression-item47-latest-pair-race.test.ts`・`tests/regression-item52-run-id.test.ts`
 
 v0.8.0 から、check の出力を aiqh が読めるときは、件数と失敗の名前が `latest.json` の `checks[].parsed`、`latest.md` の「Parsed Output」、端末の `parsed:` の行に出ます（vitest・eslint・npm audit・`aiqh security-scan`、v0.14.0 から pytest）。
 pytest は、コマンドが pytest を実行する単純コマンド 1 つ（`pytest`・`python -m pytest`・`uv run pytest` など。前に `cd <1 語>` を置いてよい）のときだけ読みます（`echo … pytest` や前後にほかのコマンドがある形は読みません。形は `docs/CONFIG_SPEC.md` の §5.3a）。v0.13.x までの `aiqh history` は、pytest の件数の入ったレポートを読めません（`bad-shape`。同じ history を版の違う aiqh で読むときだけ）。
