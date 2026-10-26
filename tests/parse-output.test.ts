@@ -7,7 +7,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseOutputAs, type ReadDeps } from "../src/parse/read.ts";
+import { PARSERS, parseOutputAs, type ReadDeps } from "../src/parse/read.ts";
+import type { ToolParser } from "../src/parse/tool.ts";
 import { CLOCK_EVERY, PARSED_ITEMS_MAX, PARSED_NAME_MAX, PARSE_INPUT_MAX, PARSE_LINE_MAX, PARSE_TIME_LIMIT_MS } from "../src/parse/text.ts";
 import type { ParserTool } from "../src/types.ts";
 import { fake } from "./helpers.ts";
@@ -256,29 +257,113 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     let looks = 0;
     return () => (looks++ * PARSE_TIME_LIMIT_MS) / looksAllowed;
   };
-  // Item 41 (v0.13.2), time budget T3 (docs/ops/ci-and-branch-protection.md): one limit for every shape, the largest of their T3 = 40 s
-  // (only newlines: 12 × the quiet 3.14 s, up to a multiple of 10 s; every other shape was under 0.4 s quietly)
+  // Item 53 (v0.15.1; batch2 design, final, §4.6, 53-F): the time of a read is the CPU time of this thread, not the wall clock, so a
+  // thread that waits for the CPU on a loaded machine is not counted (waiting is left to the limit of the test, T3). Besides the limit of
+  // one read, the growth from 256 KiB to 1 MiB is checked on the least of RUNS reads: linear code takes about 4 times, a quadratic path
+  // about 16 times, and the work clock does not see the splitting into lines (it starts after it).
+  const RUNS = 3;
+  // Item 41 (v0.13.2), time budget T3 (docs/ops/ci-and-branch-protection.md): one limit for every shape, the largest of their T3 = 70 s
+  // (v0.15.1, item 53: 7 reads per tool instead of 3; only newlines took 2.78 s to 5.50 s in 4 quiet full runs, 12 × 5.50 s = 66.0 s,
+  // up to a multiple of 10 s; was 40 s from 12 × 3.14 s. Every other shape was under 0.6 s quietly)
   it.each(Object.keys(shapes))("%s", (shape) => {
     const make = shapes[shape];
     if (make === undefined) throw new Error(shape);
-    for (const size of [64 * KIB, 256 * KIB, 1024 * KIB]) {
-      const out = make(size);
-      for (const tool of tools) {
-        const t0 = performance.now();
-        const r = parse(tool, out, { now: workClock(out) });
-        const ms = performance.now() - t0;
-        expect(["parsed", "unparsed"]).toContain(r.status);
+    const small = make(256 * KIB);
+    const big = make(1024 * KIB);
+    let evaluated = 0;
+    for (const tool of tools) {
+      const read = (out: Out, size: number): number => {
+        const answer: { r: ReturnType<typeof parse> | null } = { r: null };
+        const ms = cpuMs(() => {
+          answer.r = parse(tool, out, { now: workClock(out) });
+        });
+        expect(["parsed", "unparsed"]).toContain(answer.r?.status);
         // reaching the time limit here means more than WORK_PER_LINE lines read per input line: a slow path
-        expect(r.reason, `${tool} ${shape} ${size / KIB} KiB`).not.toBe("time-limit");
-        // Linear code reads 1 MiB in tens of milliseconds; a quadratic path over 1 MiB would take minutes.
-        expect(ms, `${tool} ${shape} ${size / KIB} KiB took ${ms.toFixed(0)} ms`).toBeLessThan(size <= 256 * KIB ? 1500 : 3000);
-      }
+        expect(answer.r?.reason, `${tool} ${shape} ${size / KIB} KiB`).not.toBe("time-limit");
+        return ms;
+      };
+      const least = (out: Out, size: number): number => Math.min(...Array.from({ length: RUNS }, () => read(out, size)));
+      // Linear code reads 1 MiB in tens of milliseconds of CPU; a quadratic path over 1 MiB would take minutes.
+      const t64 = read(make(64 * KIB), 64 * KIB);
+      expect(t64, `${tool} ${shape} 64 KiB took ${t64.toFixed(0)} ms of CPU`).toBeLessThan(1500);
+      const t256 = least(small, 256 * KIB);
+      expect(t256, `${tool} ${shape} 256 KiB took ${t256.toFixed(0)} ms of CPU`).toBeLessThan(1500);
+      const t1024 = least(big, 1024 * KIB);
+      expect(t1024, `${tool} ${shape} 1 MiB took ${t1024.toFixed(0)} ms of CPU`).toBeLessThan(3000);
+      expect(grewLinearly(t256, t1024), `${tool} ${shape}: 256 KiB ${t256.toFixed(1)} ms, 1 MiB ${t1024.toFixed(1)} ms of CPU`).toBe(true);
+      evaluated += 1;
     }
-  }, 40_000);
+    // every tool of the shape was evaluated by the three checks (the limit, the growth and the work clock)
+    expect(evaluated).toBe(tools.length);
+  }, 70_000);
   it("an input of 4 MiB is cut to PARSE_INPUT_MAX before anything is read", () => {
-    const t0 = performance.now();
-    const r = parse("vitest", { stdout: "x".repeat(4 * PARSE_INPUT_MAX) });
-    expect(r).toMatchObject({ status: "unparsed", reason: "no-summary", truncated: true });
-    expect(performance.now() - t0).toBeLessThan(3000);
+    const answer: { r: ReturnType<typeof parse> | null } = { r: null };
+    const ms = cpuMs(() => {
+      answer.r = parse("vitest", { stdout: "x".repeat(4 * PARSE_INPUT_MAX) });
+    });
+    expect(answer.r).toMatchObject({ status: "unparsed", reason: "no-summary", truncated: true });
+    expect(ms).toBeLessThan(3000);
+  });
+  // T53-1 waits (its time hardly grows under load, so T3 leaves it at the default limit); T53-2 computes for 3.5 s of CPU, and its limit
+  // is T3: max(30 s, 12 × 5.54 s, the longest in 4 quiet full runs = 66.5 s, up to a multiple of 10 s) = 70 s
+  it("T53-1: a pause of the reading thread is not counted (3.5 s of Atomics.wait inside one read stays under the 3,000 ms limit)", () => {
+    const real = PARSERS.vitest;
+    const pausing: ToolParser = {
+      tool: "vitest",
+      parse: (input, budget) => {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3500);
+        return real.parse(input, budget);
+      },
+    };
+    const wall0 = performance.now();
+    const ms = cpuMs(() => {
+      parse("vitest", { stdout: fx("vitest-self-unit.stdout.txt") }, { parsers: { vitest: pausing }, now: () => 0 });
+    });
+    expect(performance.now() - wall0, "the wall clock saw the pause").toBeGreaterThanOrEqual(3000);
+    expect(ms).toBeLessThan(3000);
+  });
+  it("T53-2: CPU used inside a read is counted (3.5 s of computation inside one read goes over the 3,000 ms limit)", () => {
+    const real = PARSERS.vitest;
+    const burning: ToolParser = {
+      tool: "vitest",
+      parse: (input, budget) => {
+        const start = process.threadCpuUsage();
+        for (let used = process.threadCpuUsage(start); (used.user + used.system) / 1000 < 3500; used = process.threadCpuUsage(start)) {
+          // computing, not waiting
+        }
+        return real.parse(input, budget);
+      },
+    };
+    const ms = cpuMs(() => {
+      parse("vitest", { stdout: fx("vitest-self-unit.stdout.txt") }, { parsers: { vitest: burning }, now: () => 0 });
+    });
+    // the limit check of P3 (`toBeLessThan(3000)`) fails on this read
+    expect(ms).toBeGreaterThanOrEqual(3000);
+  }, 70_000);
+  it("T53-3: the growth check passes linear growth and very short reads, and fails quadratic growth", () => {
+    expect(grewLinearly(10, 40)).toBe(true);
+    expect(grewLinearly(15.6, 66.9)).toBe(true);
+    expect(grewLinearly(0.01, 0.05)).toBe(true);
+    expect(grewLinearly(2, 13)).toBe(true);
+    expect(grewLinearly(10, 160)).toBe(false);
+    expect(grewLinearly(56, 913)).toBe(false);
+    expect(grewLinearly(2.6, 41.6)).toBe(false);
   });
 });
+
+/** The CPU time of this thread while `fn` runs, in milliseconds (a wait for the CPU or a pause is not counted). Node 23.9 and later. */
+function cpuMs(fn: () => void): number {
+  const start = process.threadCpuUsage();
+  fn();
+  const used = process.threadCpuUsage(start);
+  return (used.user + used.system) / 1000;
+}
+
+/**
+ * Item 53 (batch2 design, final, §4.6): four times the input takes at most 8 times the CPU time plus 20 ms. Linear growth is about 4
+ * times, a quadratic one about 16 times; the 20 ms keep very short reads (their jitter) out of the comparison. Measured on the least of
+ * three reads: quiet and under load the 85 pairs of shape and tool stayed at or under 6.44 times.
+ */
+function grewLinearly(small: number, big: number): boolean {
+  return big <= 8 * small + 20;
+}

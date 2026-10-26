@@ -59,6 +59,23 @@ describe("the command names the tool", () => {
   });
 });
 
+// Item 55 (v0.15.1; ADR-0028, decision 13): vitest, eslint, npm audit and security-scan are chosen by any word of a simple command (only
+// pytest by the position of the word), so a wrapper that is in no list of launch forms still reads the counts. These forms read correct
+// counts today, so a change of the choosing shows here. The known limit (a command that only names a tool, such as `echo vitest …`,
+// also chooses it) is recorded in ADR-0028 and ROADMAP item 55, and deliberately not pinned by a test.
+describe("item 55: the four tools other than pytest are chosen behind a wrapper", () => {
+  const dir = (): string => dirWith(null);
+  it.each([
+    ["cross-env CI=1 vitest run", "vitest"],
+    ["pnpm exec vitest run", "vitest"],
+    ["npm exec vitest", "vitest"],
+    ["timeout 600 vitest run", "vitest"],
+    ["npm --prefix web audit", "npm-audit"],
+  ])("%s -> %s", (command, tool) => {
+    expect(selectParser(command, dir())).toEqual({ kind: "tool", tool });
+  });
+});
+
 describe("npm run <script> / npm test: the script in the check's package.json", () => {
   const scripts = { lint: "eslint .", test: "vitest run", "test:minpath": "node scripts/test-minimal-path.ts", security: "node src/cli.ts security-scan", build: "tsc -p tsconfig.build.json", dependency: "npm audit --audit-level=high", both: "eslint . && vitest run" };
   it.each([

@@ -185,6 +185,44 @@ describe("v0.9.0 (ADR-0031): the reusable workflow verify.yml", () => {
     expect(summary).toHaveLength(1);
     const cond = summary[0]!.find((l) => /^\s+if:/.test(l)) ?? "";
     expect(cond).toContain("inputs.job-summary");
-    expect(runBlocks(summary[0]!).join("\n")).toContain("artifacts/verification/latest.md");
+    // v0.15.1 (item 51): the latest.md of this run, in the directory that the verify step names (was artifacts/verification/latest.md)
+    expect(runBlocks(summary[0]!).join("\n")).toContain('"$REPORT_DIR/latest.md"');
+  });
+});
+
+/** The step whose `- name:` is `name`. */
+function step(ls: string[], name: string): string[] {
+  const found = steps(ls).filter((st) => st[0]!.trim() === `- name: ${name}`);
+  expect(found, `one step named ${name}`).toHaveLength(1);
+  return found[0]!;
+}
+
+describe("v0.15.1 (ROADMAP item 51): the job summary reads the report of this run, wherever the config and output.dir are", () => {
+  it("W1: the verify step has id verify; only with job-summary it writes report-dir (a new mktemp -d directory) before it runs verify --output-dir there", () => {
+    const st = step(lines(VERIFY), "aiqh verify");
+    const trimmed = st.map((l) => l.trim());
+    expect(trimmed).toContain("id: verify");
+    expect(trimmed).toContain("JOB_SUMMARY: ${{ inputs.job-summary }}");
+    const run = runBlocks(st).join("\n");
+    const branch = run.slice(run.indexOf('if [ "$JOB_SUMMARY" = "true" ]; then'), run.indexOf("else"));
+    expect(branch, "the job-summary branch").toContain('dir="$(mktemp -d "$RUNNER_TEMP/aiqh-verification.XXXXXX")"');
+    expect(branch.indexOf('echo "report-dir=$dir" >> "$GITHUB_OUTPUT"'), "report-dir is written").toBeGreaterThan(-1);
+    expect(branch.indexOf('echo "report-dir=$dir" >> "$GITHUB_OUTPUT"'), "before verify runs").toBeLessThan(branch.indexOf('aiqh verify --config "$AIQH_CONFIG" --output-dir "$dir"'));
+  });
+  it("W2: the summary step reads REPORT_DIR (the report-dir of the verify step) and adds a fixed line when latest.md is not there", () => {
+    const st = step(lines(VERIFY), "Append latest.md to the job summary");
+    expect(st.map((l) => l.trim())).toContain("REPORT_DIR: ${{ steps.verify.outputs.report-dir }}");
+    const run = runBlocks(st).join("\n");
+    expect(run).toContain('if [ -n "$REPORT_DIR" ] && [ -f "$REPORT_DIR/latest.md" ]; then');
+    expect(run).toContain('cat "$REPORT_DIR/latest.md" >> "$GITHUB_STEP_SUMMARY"');
+    expect(run).toContain('echo "aiqh: latest.md was not written (see the log of the aiqh verify step)" >> "$GITHUB_STEP_SUMMARY"');
+    expect(run, "nothing is read from the working directory").not.toContain("artifacts/verification");
+  });
+  it("W3: without job-summary, verify is called as before (no --output-dir)", () => {
+    const run = runBlocks(step(lines(VERIFY), "aiqh verify")).join("\n");
+    // the else branch (before v0.15.1 the whole body had no branch)
+    const otherwise = run.includes("else") ? run.slice(run.indexOf("else")) : run;
+    expect(otherwise.split("\n").map((l) => l.trim())).toContain('aiqh verify --config "$AIQH_CONFIG"');
+    expect(otherwise).not.toContain("--output-dir");
   });
 });

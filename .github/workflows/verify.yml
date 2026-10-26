@@ -30,7 +30,7 @@ on:
         type: string
         default: aiqh.config.jsonc
       job-summary:
-        description: Append artifacts/verification/latest.md to the job summary
+        description: Append the latest.md of this run to the job summary (verify then writes its report into a new directory under RUNNER_TEMP instead of the working directory)
         type: boolean
         default: false
 
@@ -115,17 +115,32 @@ jobs:
         env:
           SETUP_COMMAND: ${{ inputs.setup-command }}
         run: bash -euo pipefail -c "$SETUP_COMMAND"
+      # job-summary (v0.15.1, ROADMAP item 51): verify writes its report into a new empty directory of this run, named in the step
+      # output report-dir before verify starts, so the summary step finds this run's latest.md wherever the config and output.dir
+      # are, and never an older one. Without job-summary, verify is called as before.
       - name: aiqh verify
+        id: verify
         working-directory: target/${{ inputs.working-directory }}
         env:
           AIQH_CONFIG: ${{ inputs.config }}
+          JOB_SUMMARY: ${{ inputs.job-summary }}
         run: |
           aiqh --version
-          aiqh verify --config "$AIQH_CONFIG"
+          if [ "$JOB_SUMMARY" = "true" ]; then
+            dir="$(mktemp -d "$RUNNER_TEMP/aiqh-verification.XXXXXX")"
+            echo "report-dir=$dir" >> "$GITHUB_OUTPUT"
+            aiqh verify --config "$AIQH_CONFIG" --output-dir "$dir"
+          else
+            aiqh verify --config "$AIQH_CONFIG"
+          fi
       - name: Append latest.md to the job summary
         if: always() && inputs.job-summary && steps.guard.outcome == 'success'
         working-directory: target/${{ inputs.working-directory }}
+        env:
+          REPORT_DIR: ${{ steps.verify.outputs.report-dir }}
         run: |
-          if [ -f artifacts/verification/latest.md ]; then
-            cat artifacts/verification/latest.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$REPORT_DIR" ] && [ -f "$REPORT_DIR/latest.md" ]; then
+            cat "$REPORT_DIR/latest.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "aiqh: latest.md was not written (see the log of the aiqh verify step)" >> "$GITHUB_STEP_SUMMARY"
           fi

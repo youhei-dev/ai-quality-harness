@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "label": "batch2-design",
+  "round": 2,
+  "idPrefix": "B2-D",
+  "source": {
+    "name": "independent-review-batch2-design-r2-for-claude.md",
+    "bytes": 13423,
+    "sha256": "26350cab98d2e7416f5c757d6cdd9172b645b4e0063413f13988665349380fa8"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 2,
+    "low": 1
+  },
+  "previous": [
+    {
+      "id": "B2-D-R1-001",
+      "assessment": "部分的に解消。キー4要素、毎回のreadFileとSHA-256、text照合、fixture排除と等価試験で旧SourceFileの利用条件を大きく改善した。ただしtext以外の可変ASTの汚染について境界が残る。"
+    },
+    {
+      "id": "B2-D-R1-002",
+      "assessment": "部分的に解消。保存用JSONと表示用文字列を分け、サロゲートの組とJSON.parse後の同一性を規定した点は解消。ただしLFだけの分割ではCRLFの行末CRがsecurityのLineAssemblerと食い違う。"
+    },
+    {
+      "id": "B2-D-R1-003",
+      "assessment": "解消。CPU絶対時間に256 KiB対1 MiBの比と二乗変異を追加し、旧指摘の検出力根拠を補った。実装時の完走条件・負荷条件の精緻化は新たなテスト指摘として扱う。"
+    },
+    {
+      "id": "B2-D-R1-004",
+      "assessment": "解消。W4〜W10でworkflow本文をbashから実行する計画、空のrun専用dir、偽aiqh、probeとprocess guardの整合が明記された。"
+    },
+    {
+      "id": "B2-D-R1-005",
+      "assessment": "解消。正しいwrapperの選択だけを守り、既知の偽陽性を永久的な期待値として固定しない方針に変更した。"
+    }
+  ],
+  "importedAt": "2026-10-26T04:01:34.510Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.15.0"
+  },
+  "findings": [
+    {
+      "id": "B2-D-R2-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §5.6・§5.8、ADR-0039 案 R2 決定 1",
+      "content": "LF 区切りだけでは、CRLF の CR を security の check と同じ扱いにできない。",
+      "evidence": "R2 は元の文字列を LF で分割し、各部分を final=true の全行として decideRawChars に渡す。一方 src/security/scan.ts の LineAssembler は LF 直前の CR を除去してから RawCharSink に渡す。CR は control の分類対象なので、例えば文字列 A + U+000D + U+000A + B は、出口側では U+000D を対象とし、security 側では対象としない。N8 の試験群に CRLF を含む一致試験が明記されていない。",
+      "fix": "共通判断の前に、LF 直前とファイル末尾の U+000D を LineAssembler と同じ条件で扱う。ただし元の文字列と位置は保持し、出力の字面を変えない。CRLF、単独 CR、CR CR LF、ファイル末尾 CR、長い行と CRLF の分割を N8 に追加する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-26。R3 は出さない）。54 の判断の前に、LF の直前の U+000D と文字列の終わりの U+000D を src/security/scan.ts の LineAssembler と同じ条件で判断から外す。元の文字列と位置は保ち、出力の字面は変えない。N8 に CRLF・単独の CR・CR CR LF・終わりの CR・長い行と CRLF の分割を足した（設計〈最終〉§5.6・§5.8、ADR-0039 の案〈最終〉の決定 1）",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.17.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。実装と確かめは v0.17.0 の実装レビュー（人間の決定 2026-10-26。B2-Q16 の決め直し）"
+    },
+    {
+      "id": "B2-D-R2-002",
+      "severity": "Medium",
+      "kind": "テスト",
+      "target": "設計 §4.6・§4.8、B2-Q7",
+      "content": "CPU 時間の比の試験の受け入れ条件は、元の P3 の 17 形をすべて判定することと、CI の時間予算との両立を固定しきれていない。",
+      "evidence": "R2 は 85 組を 256 KiB と 1 MiB で各3回読み、二乗の変異は複数形で検出できたとする。一方設計は強い負荷での比を未測定とし、変異の一部は60秒打ち切りである。比だけの成功例は有力だが、元の17形のそれぞれで比が動作し、T3 の40秒内で完了することまで保証するものではない。",
+      "fix": "実装時の受け入れ条件に、17形×5道具の全組で測定が完走し CPU の絶対上限・倍率・作業量の時計をすべて評価できたこと、打ち切りは検出成功でなく別扱いにすること、40秒超ではT3式で根拠付き再設定することを明示する。変異は実際に全試験を通して失敗箇所を記録する。",
+      "confidence": "推測",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-26。R3 は出さない）。53-F の受け入れの条件 1〜4 を設計〈最終〉§4.8 に書いた: 17 の形 × 5 つの道具の全部の組で 3 つの確かめを評価、打ち切りは検出に数えない、40 秒を超えたら T3 の式で決め直す、二乗の変異は実際の P3 のテストに通す。v0.15.1 で、静かな全テストの最大 5.50 秒から、上限を 40 秒から 70 秒にした（B2-Q15 の 1 の条件つきの :277）",
+      "fixedIn": "f0cf37499e7149c0de7353b79cda7c88ee1a0385",
+      "regressionTest": "tests/parse-output.test.ts の P3（各形の最後の expect(evaluated).toBe(tools.length)。どの読みでも time-limit にならないこと、64 KiB と 3 回の最小の CPU の絶対の上限、比）。変異の記録: 今のテストに MUT-1 で 4・MUT-2 で 3 の形が落ち（どれも絶対の上限）、新しいテストに MUT-1 で 9（絶対 4・比 5）・MUT-2 で 8（絶対 3・比 5）。打ち切り・作業量の時計の外れは 0",
+      "guard": null,
+      "destination": "v0.15.1",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。確かめは v0.15.1 の実装レビュー（人間の決定 2026-10-26。B2-Q16 の決め直し）"
+    },
+    {
+      "id": "B2-D-R2-003",
+      "severity": "Low",
+      "kind": "テスト",
+      "target": "設計 §1.6・§1.8、B2-Q1",
+      "content": "SourceFile の text 一致だけでは AST や束縛情報を後から書き換えた汚染を検出できない。",
+      "evidence": "50-B は SourceFile.text を照らすが、TypeScript の SourceFile は可変のオブジェクトであり、AST ノードのフラグや識別子・親参照などを変更しても text は一致し得る。T50-5 は text の変更しか確認しない。",
+      "fix": "テスト用キャッシュを外部に公開しないことを明記し、AST ノードだけを変えた負の試験か、共有される SourceFile の AST 変更を許さない呼び出し境界のテストを追加する。可能なら 50-B の残る制限として明記する。",
+      "confidence": "推測",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-26。R3 は出さない）。負のテストも境界のテストも作れない（TypeScript 自身が束縛のときに共有の SourceFile のノードへ書き込むので凍らせられない。全ノードの照らしは使い回しの利益の大半を消す）ので、50-B の残る制限として設計〈最終〉§1.6・helper の説明・ROADMAP の項目 50 に書いた。表は tests/structure/typescript.ts の外に出さず、export の一覧をテストで固定した。AST を書き換えるテストは reuse: false を使う",
+      "fixedIn": "7460e65721df8b28883b25919871082a53d0a231",
+      "regressionTest": "tests/structure-typescript-reuse.test.ts の「the module exports these names only (values and types); none of them is the table」（値 7 つと型 Program。ESM の名前空間と型の checker の両方で）。AST だけの書き換えは、残る制限として記録だけ（テストで固定しない）",
+      "guard": null,
+      "destination": "v0.15.1",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。選んだ形は残る制限の明記（理由は response-r2.md）。50 には ADR が無い（設計 §1.9: テストの部品だけ）ので、設計・helper の説明・ROADMAP に書いた。確かめは v0.15.1 の実装レビュー"
+    }
+  ]
+}

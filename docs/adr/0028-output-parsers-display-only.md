@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
 - 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
-- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）。追記: 2026-10-26（v0.15.1。末尾の「追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方）」）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -235,3 +235,26 @@
 - 変更: `src/types.ts`（`PARSER_TOOLS`）、`src/parse/read.ts`（`PARSERS`・`COUNT_KEYS`）、`src/parse/select.ts`（pytest の選び方）、`src/parse/describe.ts`
 - 既存テストの期待値の変更は `tests/parse-select.test.ts` の `pytest -q` の 1 行だけ（`no-parser` から `pytest`。設計 §3.7 が明示し、人間が承認した）。ほかは守りの追加（`tests/history-read.test.ts` の fixture の表、`tests/parse-output.test.ts` の P2・P3、`tests/parse-verify.test.ts` の verify の通し）
 - 依存関係・`package-lock.json`・禁止文字の集合・npm の保護設定・`tests/structure/`・設定の仕様（欄を足さない。P5）は変えない
+
+## 追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方。ROADMAP の項目 55。2026-10-26）
+
+### 文脈
+- 決定 12 で pytest だけを語の位置で選ぶことにし、ほかの 4 つの道具（vitest・eslint・npm audit・security-scan）を揃えるかは別の項目にした（ROADMAP の項目 55。batch1 の設計の付録 B の 4）
+- 人間の決定（batch2、2026-10-26。B2-Q12 の A）。設計は batch2 の設計（最終）`docs/reviews/batch2-design/design-final.md` の §6（設計の独立レビュー R1・R2。`docs/reviews/batch2-design/`）
+
+### 決定 13: ほかの 4 つの道具の選び方は、語の位置で見ない
+- 今までどおり、単純コマンドのどの語でもよい（`src/parse/select.ts` の `toolsIn`。語の最後の部分で決める）。製品のコードは変えない
+- 理由
+  1. 誤った件数が出るのは、道具でない単純コマンドが、道具の要約と同じ形の行を出すときだけ。4 つの要約（vitest の 2 行の組、eslint の印の後ろの `N problems (…)`、npm audit と security-scan の固有の文）は、偶然に出る形ではない（pytest の短い 1 行の要約 `N passed in Xs` とは違う。決定 12 を厳しくした理由はこの違い）
+  2. 語の位置で見ると、起動の形の一覧に無い wrapper（`cross-env`・`pnpm exec`・`npm exec`・`timeout`・値を取る npm の旗など）で、今出ている正しい件数が出なくなる（batch2 の設計の試作で、例の 22 の形のうち 9〜12。aiqh 本体と適用先 A・B の設定の check は、どの規則でも変わらない）
+  3. 判定と終了コードは変わらない（P1。件数は表示だけ）
+- 守りのテスト（`tests/parse-select.test.ts` の「item 55」）が固定するのは、正しく件数が取れる wrapper の形が選ばれることだけ（`cross-env CI=1 vitest run`・`pnpm exec vitest run`・`npm exec vitest`・`timeout 600 vitest run`・`npm --prefix web audit`）。選び方を変える日に、件数が消える形がテストの差分に出る
+
+### 既知の限界（足すもの）
+- `echo vitest …`・`printf '%s' eslint` のように道具の名前を引数に持つだけのコマンドでも、その道具のパーサが選ばれ、出力に要約の形の行があれば、その件数が出る（決定 3「別の道具の出力を、その道具の件数として出さない」と食い違う）。また、道具の後ろのほかの単純コマンドが要約の形の行を出すと、その件数が出る
+- この限界は記録だけで、テストで固定しない。将来この限界を直しても、それ自体は回帰と扱わない（その形の期待を足す・変えるのは、直す版の設計で決める）
+- 後で揃えるときのために、試作の 2 つの規則（「位置」と、pytest と同じ「B-1」）と、変わる形の一覧を、batch2 の設計（最終）§6.3 に残した
+
+### 影響（v0.15.1）
+- 変更: テスト `tests/parse-select.test.ts`（守りの 5 つの形を足した）、この ADR、ROADMAP の項目 55
+- 製品のコード・出力・判定・既存のテストの期待値は変えない

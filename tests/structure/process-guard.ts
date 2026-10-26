@@ -4,8 +4,8 @@
  * destructuring, promisify, dynamic import or require — and its command, evaluated by type (a string literal
  * type, including const variables and template literals without substitutions, or `process.execPath`).
  *
- * Rules for tests/ (M2-1-R2-004): git and node (process.execPath, fork) are declared; unzip and python3 are
- * probed tools, allowed only as the probe itself (the initializer of a variable that a skipIf / runIf
+ * Rules for tests/ (M2-1-R2-004): git and node (process.execPath, fork) are declared; unzip, python3 and bash (v0.15.1: the run:
+ * bodies of verify.yml, tests/reusable-workflow-run.test.ts) are probed tools, allowed only as the probe itself (the initializer of a variable that a skipIf / runIf
  * condition uses) or inside an it / test / describe whose skipIf / runIf condition uses a probe of that same
  * tool; any other command, a command that is not known statically, and a shell (exec, execSync,
  * `shell: true`) are violations. A command started from inside a string (a `node -e` script) cannot be seen
@@ -15,7 +15,7 @@ import ts from "typescript";
 import { where, type Program } from "./typescript.ts";
 
 export const DECLARED = new Set(["git", "node"]);
-export const PROBED = new Set(["unzip", "python3"]);
+export const PROBED = new Set(["unzip", "python3", "bash"]);
 const STARTERS = new Set(["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]);
 const SHELL = new Set(["exec", "execSync"]);
 

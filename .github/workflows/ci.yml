@@ -47,6 +47,8 @@ jobs:
     uses: ./.github/workflows/verify.yml
     with:
       setup-command: npm ci
+      # every run goes through the job summary step (v0.15.1, ROADMAP item 51)
+      job-summary: true
 
   measure-windows:
     # Measurement only (Windows is not a supported platform): a failure here does not fail the run.

@@ -1,6 +1,6 @@
 # 再利用ワークフロー（verify.yml）の手順書
 
-最終更新: 2026-10-23（v0.14.0。§8 の pytest の件数〈ROADMAP の項目 39〉）。その前: 2026-10-19（v0.12.1。§6 と §7 に、運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉への参照）。その前: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
+最終更新: 2026-10-26（v0.15.1。§2 の `job-summary` と §3 の手順 7・8: Job Summary は、その run だけの一時のディレクトリのレポートを読む〈ROADMAP の項目 51〉）。その前: 2026-10-23（v0.14.0。§8 の pytest の件数〈ROADMAP の項目 39〉）。その前: 2026-10-19（v0.12.1。§6 と §7 に、運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉への参照）。その前: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
 
 ほかのリポジトリの CI から `aiqh verify` を走らせるための再利用ワークフロー `.github/workflows/verify.yml` の使い方。決定の根拠は ADR-0031（CI での配布は案 D）。aiqh は、tarball や npm のパッケージとしては配らない。ワークフローが、自分と同じ commit の aiqh のソースを使う。
 
@@ -55,7 +55,7 @@ jobs:
 | `setup-command` | string | 空 | verify の前に、作業ディレクトリで走らせるコマンド（例: `npm ci`）。空なら何もしない |
 | `working-directory` | string | `.` | 呼び出す側のリポジトリの中の、verify を走らせる場所。`..` を含むもの、絶対パス、リポジトリの外に解決されるもの（symlink を含む）は止める |
 | `config` | string | `aiqh.config.jsonc` | 設定ファイルのパス（作業ディレクトリからの相対） |
-| `job-summary` | boolean | `false` | `true` のときだけ、`artifacts/verification/latest.md`（マスク済み）を Job Summary に足す |
+| `job-summary` | boolean | `false` | `true` のときだけ、その run の `latest.md`（マスク済み）を Job Summary に足す。このとき verify は、レポートを作業ディレクトリの `artifacts/verification/` ではなく、その run だけの一時のディレクトリ（`$RUNNER_TEMP` の下）に書く（v0.15.1。下の §3 の 7・8） |
 
 artifact のアップロードは無い。レポートは、既定では job の外に出ない。
 
@@ -68,7 +68,9 @@ artifact のアップロードは無い。レポートは、既定では job の
 5. `aiqh-src/` の `git rev-parse HEAD` が `job.workflow_sha` と同じかを確かめる（**空か食い違いなら止める**）。同じなら `npm ci --omit=dev`（aiqh の lockfile のとおり、実行時の依存だけ）を入れ、`node <aiqh-src>/src/cli.ts` を起動する `aiqh` を PATH に置く
 6. `setup-command` を作業ディレクトリで走らせる
 7. `aiqh --version` と `aiqh verify --config <config>` を走らせる。verify が FAILED（終了コード非ゼロ）なら job も失敗する
-8. `job-summary: true` なら、`latest.md` を Job Summary に足す
+   - `job-summary: true` のときだけ（v0.15.1。ROADMAP の項目 51）: verify の前に `mktemp -d "$RUNNER_TEMP/aiqh-verification.XXXXXX"` でその run だけの空のディレクトリを作り、手順の出力 `report-dir` に書いてから、`aiqh verify --config <config> --output-dir <そのディレクトリ>` で、レポート（`latest.json`・`latest.md`・`history/`）をそこへ書かせる。設定の場所（下のディレクトリ）や `output.dir` によらず、その run のレポートが Job Summary に届く。作業ディレクトリの `artifacts/verification/` には書かれず、ログの `report:` の行はその一時のディレクトリを指す。`job-summary: false`（既定）なら今までどおり（`--output-dir` を渡さない）
+8. `job-summary: true` なら、手順の出力 `report-dir` の `latest.md` を Job Summary に足す（verify が FAILED でも足す）。無ければ（verify がレポートを書かずに終わったなど）、決まった 1 行 `aiqh: latest.md was not written (see the log of the aiqh verify step)` を足す。作業ディレクトリの古い `latest.md` は読まない
+   - 同じ job の後の手順への影響: 再利用ワークフローの job には、呼び出す側から手順を足せない。`verify.yml` の中で、Job Summary の手順の後にレポートを読む手順は無い。呼び出す側の別の job は、もとから作業ディレクトリのレポートを読めない（job ごとに別の runner）
 
 - 権限は `contents: read` だけ。job の `env:` で `npm_config_ignore_scripts: "true"` を設定する（呼び出す側のワークフローの `env` は引き継がれないため）
 - アクションは、すべて 40 桁の commit SHA で固定している（checkout v7.0.1、setup-node v7.0.0、setup-python v7.0.0）
