@@ -5,6 +5,21 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.16.0 — batch2 (2): one runId per verify run in latest.json, latest.md and the history file (item 52, ADR-0038); the SourceFile reuse of the test helper keys on every parse condition (B2-I151-R1-001); the v0.15.1 record
+
+- **レポートの最上位のキーが 1 つ増える**（ROADMAP の項目 52、ADR-0038）: verify は run の始めに `runId`（`crypto.randomUUID()`。UUID の版 4、小文字 36 文字）を 1 つ作り、`latest.json` と `history/<ts>.json` の最上位（`startedAt` の直前）と、`latest.md` の表（`| Started |` の直前の `| Run ID | … |`）に同じ値で書く。中断された run（verdict ERROR）にも入る。**`schemaVersion` は 1 のまま**（足すだけの変更。ADR-0033 の前例）。aiqh の読み手（`aiqh history`・review-packet）は知らないキーを捨てるので変わらない（v0.15.0 と同じ src の `aiqh history` で、この版の history を読めることを確かめた）が、**最上位のキーを厳しく照らす外の読み手（追加のキーを拒む JSON Schema など）にとっては変更になる**。再利用ワークフローで `job-summary: true` を使う呼び出し側は、Job Summary にも `Run ID` の行が出る。判定・終了コード・端末の出力（B2-Q6 の A）・書く順・history の名前は変わらない
+- **読み手の約束**（README「`latest.json` と `latest.md` を組で読むとき」、ADR-0003・ADR-0034 の L の注記）: 2 つのファイルの両方に `runId` があれば、同じ値なら同じ run、違えば別の run。どちらかに無ければ（v0.15.x までの版が書いたファイル）、今までの `startedAt` の約束。並行の verify で組が別の run になりうること（項目 47）は直っていない（受け入れ・未解決のまま。見分けられるようになった）
+- **batch2 の 2 版目**（人間の決定 2026-10-26。設計の正本は batch2 の設計〈最終〉`docs/reviews/batch2-design/design-final.md` の §3 と ADR-0038 の案〈最終〉）。branch `release/v0.16.0`、5 commit: `3ff8b52`（B2-I151-R1-001）・`2101913`（v0.15.1 の記録と実装レビューの対応）・`8d2be8e`（項目 52）・`3a4a305`（文書）・この release の commit
+- **B2-I151-R1-001**（v0.15.1 の実装レビュー batch2-v0151-impl R1 の Medium。テストの部品 `tests/structure/typescript.ts` だけ。製品の動きは変わらない）: SourceFile の使い回しの鍵に、TypeScript が渡す解析の条件のうち鍵に入っていなかった 3 つを入れた（`packageJsonLocations`・`packageJsonScope` は値の同一性を鍵に、`setExternalModuleIndicator` は有り無しを鍵に入れ、使い回す前にその関数で計算し直す。形の分からない値は使い回さない）。根拠は TypeScript 5.9.3 の配布物と、全テストの `getSourceFile` 39,415 回の記録（`docs/reviews/batch2-v0151-impl/response-r1.md`）。使い回しの効果は保った
+- **テストを先に**: B2-I151-R1-001 は `98d7ddf` で T50 の 21 件中 5 件 FAIL、足した条件を 1 つずつ外す 8 つの変異はどれも 1 件 FAIL。項目 52 は `98d7ddf` で新しい 8 件のうち 7 件（R5 は守り）と 47-c-2・47-c-3、最上位のキーの並び・数の 3 件が FAIL、7 つの変異（書かない・別の値を書く・順を変える・端末に出す・UUID の版 4 でない値）はどれも 1〜12 件 FAIL
+- **既存のテストの期待値の変更**は B2-Q15 の項目 52 の分だけ: 最上位のキーの並び（`tests/regression-backlog9-report-json-copy.test.ts`、`tests/parse-verify.test.ts` の `REPORT_KEYS`）、最上位のキーの数 15 → 16（`tests/config-sha256.test.ts`）、項目 47 の 47-c-3（同じミリ秒の組を `runId` で見分けられる）。`buildReport(` の 14 か所（11 ファイル）は、決まった `runId` を渡す呼び出しの形の変更だけ（期待値は変えていない）
+- **設計の独立レビュー batch2-design と実装の独立レビュー batch2-v0151-impl**: batch2-v0151-impl R1（High 0 / Medium 1 / Low 0）を取り込み、B2-I151-R1-001 を `resolved`（`fixedIn` は `3ff8b52`）。`aiqh review-check --label batch2-v0151-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`。batch2-design は `REVIEW LOOP: incomplete (open 2)`（v0.17.0 の項目 54 の 2 件）・`REVIEW CHECK: passed`。実装の独立レビュー（label `batch2-v0160-impl`）は、この版のリリースの後に依頼する
+- 文書: ADR-0038（採用。案からの違いを ADR の中に）・ADR の一覧・ADR-0003・ADR-0034 の L の注記、README、ARCHITECTURE の §7.1・§7.2、ROADMAP（項目 52 を閉じ、項目 47 に一言、v0.16.0 の項）、設計（最終）§1.6 と ROADMAP の項目 50 の「解析の条件」
+- 記録: v0.15.1 の見出しの SHA と記録の行（PR #20、run）、実装レビュー batch2-v0151-impl R1 の行、ROADMAP の v0.15.1 の CI
+- テスト: 185 ファイル・2,774 件から 186 ファイル・2,791 件
+- `package.json` version 0.16.0（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存・`package-lock.json`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.15.1 と同一。src は `src/commands/verify.ts`・`src/report/build-report.ts`・`src/report/markdown.ts`・`src/types.ts` だけ
+- 記録（この版の後の記録の PR で記入）: PR、run、merge の commit、タグの SHA
+
 ## v0.15.1 — commit 1960630ccdfd203a6a37e313c20653d5c6d0a8fd / tag object 36e6fb9f233e3c4128bc81967e129010b01db51b — batch2 (1): tests and the reusable workflow only (src unchanged): P3 by thread CPU time and growth; createProgram reuses SourceFiles; with job-summary the report goes to a new directory of the run; the four parsers stay chosen by any word
 
 - **batch2 の 1 版目**（人間の決定 2026-10-26。版の分け方は B2-Q13 の V1: v0.15.1 = 項目 53・50・51・55、v0.16.0 = 52、v0.17.0 = 54。設計の正本は batch2 の設計〈最終〉`docs/reviews/batch2-design/design-final.md`）。**src は変えない**: 判定・終了コード・製品の出力・設定の仕様は変わらない。branch `release/v0.15.1`、6 commit: `f0cf374`（53）・`7460e65`（50）・`ee559ed`（51）・`673ba46`（55）・`fa19b7b`（設計の記録・ROADMAP）・この release の commit
