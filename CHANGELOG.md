@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.15.1 — batch2 (1): tests and the reusable workflow only (src unchanged): P3 by thread CPU time and growth; createProgram reuses SourceFiles; with job-summary the report goes to a new directory of the run; the four parsers stay chosen by any word
+## v0.15.1 — commit 1960630ccdfd203a6a37e313c20653d5c6d0a8fd / tag object 36e6fb9f233e3c4128bc81967e129010b01db51b — batch2 (1): tests and the reusable workflow only (src unchanged): P3 by thread CPU time and growth; createProgram reuses SourceFiles; with job-summary the report goes to a new directory of the run; the four parsers stay chosen by any word
 
 - **batch2 の 1 版目**（人間の決定 2026-10-26。版の分け方は B2-Q13 の V1: v0.15.1 = 項目 53・50・51・55、v0.16.0 = 52、v0.17.0 = 54。設計の正本は batch2 の設計〈最終〉`docs/reviews/batch2-design/design-final.md`）。**src は変えない**: 判定・終了コード・製品の出力・設定の仕様は変わらない。branch `release/v0.15.1`、6 commit: `f0cf374`（53）・`7460e65`（50）・`ee559ed`（51）・`673ba46`（55）・`fa19b7b`（設計の記録・ROADMAP）・この release の commit
 - **再利用ワークフローで `job-summary: true` を使う呼び出し側への影響**（項目 51。ADR-0031 の注記）: verify のレポート（`latest.json`・`latest.md`・`history/`）は、作業のディレクトリの `artifacts/verification/` ではなく、その run だけの一時のディレクトリ（`mktemp -d "$RUNNER_TEMP/aiqh-verification.XXXXXX"`）に書かれ、ログの `report:` の 3 行もそこを指す。Job Summary には、設定の場所（下のディレクトリ）や `output.dir` によらずその run の `latest.md` が足され、書かれなかったときは決まった 1 行 `aiqh: latest.md was not written (see the log of the aiqh verify step)` が足される（作業のディレクトリの古い `latest.md` は読まない）。再利用ワークフローの job には呼び出す側から手順を足せず、`verify.yml` の中で要約の後にレポートを読む手順は無いので、同じ job の後の手順への影響は無い。`job-summary: false`（既定）の呼び出しは何も変わらない（適用先 A・B は `job-summary` を指定していない）
@@ -19,7 +19,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 文書: ADR-0028 の決定 13、ADR-0031 の注記、`docs/ops/ci-and-branch-protection.md` の 8-1、`docs/ops/reusable-workflow.md`、README（再利用ワークフローの節）、ROADMAP（項目 51・53・55 を閉じ、項目 50 は入れた部分と残りを書いた。v0.15.1 の項）
 - テスト: 183 ファイル・2,742 件から 185 ファイル・2,774 件
 - `package.json` version 0.15.1（`package-lock.json` の `version` は 0.5.35 のまま）。src・実行時の依存・`package-lock.json`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.15.0 と同一。変えたのは tests・`.github/workflows/`・docs（`tests/structure/` は `typescript.ts` の 50-B と `process-guard.ts` の `PROBED`）
-- 記録（この版の後の記録で記入）: PR、run、merge の commit、タグの SHA
+- 記録（v0.16.0 の PR で記入）: PR #20（merge の commit `98d7ddf8d3ee9724d83ad4f8d995fccc1d809ed9`）。PR の run `40277938802`・main の run `40278580982` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.15.1 の項）。`reusable (self)` は `job-summary: true` で、要約の手順も success
+- 実装の独立レビュー batch2-v0151-impl R1（v0.16.0 の PR で取り込んだ。`docs/reviews/batch2-v0151-impl/`）: High 0 / Medium 1 / Low 0。Medium の B2-I151-R1-001（`tests/structure/typescript.ts` の SourceFile の使い回しの鍵に、TypeScript が渡す解析の条件のうち 3 つ〈`setExternalModuleIndicator`・`packageJsonLocations`・`packageJsonScope`〉が入っていない）は v0.16.0 で直した（確かめは v0.16.0 の実装レビュー）。B2-D-R2-002 は「解消」、B2-D-R2-003・B2-D-R1-001 の残りは、この指摘のために「部分的に解消」と評価された
 
 ## v0.15.0 — commit cf8a7ec306c7b72869f9d97ea310bc22765af216 / tag object 68f2433f30e25a39a49caf9d51735c6848c9a258 — batch1 (3): the security check finds the invisible characters of layer (c), left out only inside complete RGI emoji sequences (a stricter verdict); aiqh init does not detect node:test for an empty `=` value
 

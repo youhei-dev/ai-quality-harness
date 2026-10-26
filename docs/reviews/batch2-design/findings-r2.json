@@ -75,7 +75,7 @@
       "regressionTest": "tests/parse-output.test.ts の P3（各形の最後の expect(evaluated).toBe(tools.length)。どの読みでも time-limit にならないこと、64 KiB と 3 回の最小の CPU の絶対の上限、比）。変異の記録: 今のテストに MUT-1 で 4・MUT-2 で 3 の形が落ち（どれも絶対の上限）、新しいテストに MUT-1 で 9（絶対 4・比 5）・MUT-2 で 8（絶対 3・比 5）。打ち切り・作業量の時計の外れは 0",
       "guard": null,
       "destination": "v0.15.1",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。確かめは v0.15.1 の実装レビュー（人間の決定 2026-10-26。B2-Q16 の決め直し）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。確かめは v0.15.1 の実装レビュー（人間の決定 2026-10-26。B2-Q16 の決め直し）。v0.15.1 の実装レビュー batch2-v0151-impl R1 の評価: 解消（変異のログと高負荷の独立の実行は未確認、とレビュアーが明記）"
     },
     {
       "id": "B2-D-R2-003",
@@ -93,7 +93,7 @@
       "regressionTest": "tests/structure-typescript-reuse.test.ts の「the module exports these names only (values and types); none of them is the table」（値 7 つと型 Program。ESM の名前空間と型の checker の両方で）。AST だけの書き換えは、残る制限として記録だけ（テストで固定しない）",
       "guard": null,
       "destination": "v0.15.1",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。選んだ形は残る制限の明記（理由は response-r2.md）。50 には ADR が無い（設計 §1.9: テストの部品だけ）ので、設計・helper の説明・ROADMAP に書いた。確かめは v0.15.1 の実装レビュー"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。選んだ形は残る制限の明記（理由は response-r2.md）。50 には ADR が無い（設計 §1.9: テストの部品だけ）ので、設計・helper の説明・ROADMAP に書いた。確かめは v0.15.1 の実装レビュー。v0.15.1 の実装レビュー batch2-v0151-impl R1 の評価: 部分的に解消（残る制限の明記は認められたが、使い回しの同一性に別の条件漏れがある。B2-I151-R1-001）。v0.16.0 の 3ff8b52 で直した（確かめは v0.16.0 の実装レビュー）"
     }
   ]
 }
