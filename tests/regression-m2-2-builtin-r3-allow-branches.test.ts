@@ -15,7 +15,6 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { brandGuard } from "./structure/brand-guard.ts";
 import * as guard from "./structure/output-guard.ts";
@@ -241,15 +240,29 @@ const edited = (c: Case): string => {
 
 // the source-only fixtures share one program; each edit of a repository file has a program of its own
 const plainProgram = createProgram(Object.fromEntries(all.filter((x) => !isEdit(x.c)).map((x) => [`${P}/${x.id}.ts`, x.c.src ?? ""])));
+// Item 50 (v0.15.1, 50-A): the program of an edit is made once, by the first test that needs it (its type check below), and both of its
+// answers are kept: the type errors and what the guards report (the guard test of the same edit reads them). The program itself is not
+// kept (19 of them at once would hold much memory).
+const editAnswers = new Map<string, { typeErrors: string[]; violations: string[] }>();
+const answersOfEdit = (x: { id: string; c: Case }): { typeErrors: string[]; violations: string[] } => {
+  const known = editAnswers.get(x.id);
+  if (known !== undefined) return known;
+  const file = x.c.file ?? "";
+  const program = createProgram({ [file]: edited(x.c) });
+  const files = filesUnder(program, file);
+  const answers = {
+    typeErrors: typeErrors(program, files),
+    violations: [...guard.outputViolations(program, files).map((v) => v.what), ...brandGuard(program, files).map((v) => v.rule)],
+  };
+  editAnswers.set(x.id, answers);
+  return answers;
+};
 const violations = (x: { id: string; c: Case }): string[] => {
   if (!isEdit(x.c)) {
     const files = filesUnder(plainProgram, `${P}/${x.id}.ts`);
     return [...guard.outputViolations(plainProgram, files).map((v) => v.what), ...brandGuard(plainProgram, files).map((v) => v.rule)];
   }
-  const file = x.c.file ?? "";
-  const program = createProgram({ [file]: edited(x.c) });
-  const files = filesUnder(program, file);
-  return [...guard.outputViolations(program, files).map((v) => v.what), ...brandGuard(program, files).map((v) => v.rule)];
+  return answersOfEdit(x).violations;
 };
 
 describe("M2-2-BUILTIN-R3: the fixtures", () => {
@@ -285,9 +298,7 @@ describe("M2-2-BUILTIN-R3: the fixtures", () => {
   });
   for (const x of repositoryEdits) {
     it(`every edit of a repository file type-checks: ${x.id}`, () => {
-      const file = x.c.file ?? "";
-      const program = createProgram({ [file]: edited(x.c) });
-      expect(typeErrors(program, filesUnder(program, file) as ts.SourceFile[]).length, x.id).toBe(0);
+      expect(answersOfEdit(x).typeErrors.length, x.id).toBe(0);
     });
   }
 });
