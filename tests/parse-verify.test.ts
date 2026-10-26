@@ -71,7 +71,7 @@ async function verify(dir: string, failFast = false): Promise<{ code: number; li
 }
 
 const CHECK_KEYS = ["name", "kind", "command", "cwd", "required", "timeoutSec", "description", "status", "exitCode", "signal", "timedOut", "startedAt", "durationMs", "errorSummary", "stdoutTail", "stderrTail", "outputTruncated"];
-const REPORT_KEYS = ["schemaVersion", "tool", "project", "configPath", "configSha256", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"];
+const REPORT_KEYS = ["schemaVersion", "tool", "project", "configPath", "configSha256", "runId", "startedAt", "finishedAt", "durationMs", "git", "verdict", "exitCode", "interruptedBy", "summary", "categories", "checks"];
 
 describe("P1: the parsers change nothing that decides the result", () => {
   it("the same output read by a parser and not read: same exit code, verdict, summary, categories and check results", async () => {
@@ -136,7 +136,7 @@ describe("P4: names reach the terminal and the files masked, raw characters as n
 });
 
 describe("P9: the report's shape for the readers that exist", () => {
-  it("top-level keys (configSha256 added in v0.10.0) and schemaVersion unchanged; parsed is the last key of every check", async () => {
+  it("top-level keys (configSha256 added in v0.10.0, runId in v0.16.0) and schemaVersion unchanged; parsed is the last key of every check", async () => {
     const r = await verify(project({ unit: "vitest.mjs", lint: "eslint.js" }));
     expect(Object.keys(r.report)).toEqual(REPORT_KEYS);
     expect(r.report.schemaVersion).toBe(1);
@@ -144,7 +144,7 @@ describe("P9: the report's shape for the readers that exist", () => {
   });
   it("Markdown: no Parsed Output section unless a check was read; with one, a table and the names", () => {
     const base = (checks: CheckResult[]): VerificationReport =>
-      buildReport({ config: { projectRoot: "/p", configPath: "/p/aiqh.config.jsonc", project: { name: "p" }, outputDir: "/p/a", security: DEFAULT_SECURITY, checks: [] }, results: checks, git: null, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "t" });
+      buildReport({ config: { projectRoot: "/p", configPath: "/p/aiqh.config.jsonc", project: { name: "p" }, outputDir: "/p/a", security: DEFAULT_SECURITY, checks: [] }, results: checks, git: null, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "t", runId: "00000000-0000-4000-8000-000000000000" });
     const plain = checkResult({ name: "unit", kind: "unit" });
     const none: ParsedOutput = { tool: null, status: "not-applicable", reason: "no-parser", truncated: false, counts: {}, items: [], itemsOmitted: 0 };
     expect(renderMarkdown(base([{ ...plain, parsed: none }]))).toBe(renderMarkdown(base([plain])));
@@ -170,7 +170,7 @@ describe("P9: the report's shape for the readers that exist", () => {
     const results: CheckResult[] = [
       { ...checkResult({ name: "unit", kind: "unit", durationMs: 12 }), parsed: { tool: "vitest", status: "parsed", reason: null, truncated: false, counts: { tests: 2 }, items: [{ kind: "failed-test", name: `x ${SECRET} y${RLO}` }], itemsOmitted: 0 } },
     ];
-    const report = buildReport({ config: { projectRoot: t.dir, configPath: path.join(t.dir, "aiqh.config.jsonc"), project: { name: "p" }, outputDir: "", security: DEFAULT_SECURITY, checks: [] }, results, git: { commit: head, branch: "main", dirty: false }, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "9.9.9" });
+    const report = buildReport({ config: { projectRoot: t.dir, configPath: path.join(t.dir, "aiqh.config.jsonc"), project: { name: "p" }, outputDir: "", security: DEFAULT_SECURITY, checks: [] }, results, git: { commit: head, branch: "main", dirty: false }, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "9.9.9", runId: "00000000-0000-4000-8000-000000000000" });
     writeReports(report, path.join(t.dir, "artifacts", "verification"));
     const out: string[] = [];
     const err: string[] = [];

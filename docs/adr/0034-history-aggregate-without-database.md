@@ -1,7 +1,7 @@
 # ADR-0034: `aiqh history` — 履歴を DB 無しで、読み取りだけで集計する（端末の表と `--json`）
 
 - 状態: 採用（v0.11.0。ARCHITECTURE の「履歴 DB」を、DB を持たない集計に置き換える。ADR-0003 の代替案「SQLite に直接保存: M4 の履歴 DB で扱う」〈ADR-0003 の 29 行目〉への答え。HTML のダッシュボードは ADR-0035〈v0.12.0〉。設計と独立レビューの記録は `docs/reviews/m4-design/`〈設計 R3 の §2 がこの ADR の案〉。v0.11.2 で H・I・N の出力の上限の数え方を直した〈実装レビュー m4-history R1 の M4-H-R1-001。`docs/reviews/m4-history/`〉。v0.12.0 で `--html`〈ADR-0035〉の注記を A・H・I に足した）
-- 日付: 2026-10-18（v0.11.0）。注記: 2026-10-22（v0.13.2。L に、項目 47 の受け入れと読み手の約束）、2026-10-19（v0.13.0。C の 5 の `src/parse/security-scan.ts` の行の参照を、実装で動いた行に合わせた〈ADR-0036。security-scan のキーに `rawChars`〉）
+- 日付: 2026-10-18（v0.11.0）。注記: 2026-10-26（v0.16.0。L に、`runId`〈ADR-0038〉による読み手の約束の書き換え）、2026-10-22（v0.13.2。L に、項目 47 の受け入れと読み手の約束）、2026-10-19（v0.13.0。C の 5 の `src/parse/security-scan.ts` の行の参照を、実装で動いた行に合わせた〈ADR-0036。security-scan のキーに `rawChars`〉）
 
 ## 文脈
 - 計画では、複数プロジェクトの `history/*.json` を、ユーザーローカルの 1 か所（例: `~/.aiqh/history.db`）に取り込む想定だった（ARCHITECTURE の §6.3。v0.11.0 で書き直した）
@@ -143,6 +143,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--cwd <dir>]
 - **M4 では作らない**。`aiqh history` は `history/` だけを読み、`history/` の名前は N1 で排他的に取るので、`latest.*` の不整合の影響を受けない
 - ROADMAP の**項目 47** に残した（v0.10.0。案は (a) `runs/<runId>/` と単一の pointer / manifest の原子的な更新、(b) latest の更新の全体を lock、(c) 記録で閉じる。行き先は M4 の後。人間の判断）。独立レビュー R2 の「roadmap から落とさないこと」（`docs/reviews/m0/independent-review-r2.md` の 218〜224 行）を守る
 - 注記（v0.13.2）: 項目 47 は (c) を「既知の限界として受け入れる・未解決」にした（解決済みにしない。ROADMAP の項目 47 は残す）。読み手の約束は README（`latest.json` と `latest.md` を組で読むとき）と ADR-0003 の注記: `startedAt` が違えば確実に別の run、同じでも同じ run の保証はない。`aiqh history` は `history/` だけを読むので、この限界の影響を受けない。あわせて記録する: verify と同時に `aiqh history` を走らせると、verify が名前を取った直後の空の history のファイル（`src/report/write.ts` の `reserveHistoryPath`）を `empty` と読み、`HISTORY INCOMPLETE`・exit 2 になりうる（一時的で、fail closed の向き。コードを読んだ推定で、実行はしていない）。確実に run を見分ける仕組み（runId・history の一意の鍵）は ROADMAP の別の項目
+- 注記（v0.16.0。ADR-0038）: レポートと history のファイルの最上位に `runId` が入った（`startedAt` の直前）。読み手の約束: `latest.json` と `latest.md` の両方に `runId` があれば、同じ値なら同じ run、違えば別の run（どちらかに無ければ、上の `startedAt` の約束）。`history/` では、`latest.json` の `runId` を持つファイルが、その run の記録（1 つに決まる）。`aiqh history` は `runId` を読まない（知らないキーとして捨てる。集計と出力は変わらない）。項目 47 は「受け入れ（未解決）」のまま
 
 ### M. テストのための差し替え
 - 読み込みは、上限の値・1 回の読み取りの大きさと、読む途中の 4 か所の呼び出し（lstat の後、記述子からの 1 回の読み取りの後、1 ファイルを読んだ後、すべてを読んだ後）を引数で差し替えられる（`ReadDeps`。`src/run-history/read.ts:132`）。集計は数の葉の上限と、有限の確かめの前の呼び出し（`AggregateDeps`）。コマンドは、それらと出力の上限（`HistoryOptions.deps`）

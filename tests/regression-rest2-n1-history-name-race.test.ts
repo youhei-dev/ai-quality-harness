@@ -53,7 +53,7 @@ function report(root: string, name: string, startedAt: string): VerificationRepo
     security: DEFAULT_SECURITY,
     checks: [],
   };
-  return buildReport({ config, results: [checkResult({ name: "unit", kind: "unit" })], git: null, startedAt: new Date(startedAt), finishedAt: new Date(startedAt), toolVersion: "0.0.0" });
+  return buildReport({ config, results: [checkResult({ name: "unit", kind: "unit" })], git: null, startedAt: new Date(startedAt), finishedAt: new Date(startedAt), toolVersion: "0.0.0", runId: "00000000-0000-4000-8000-000000000000" });
 }
 
 /** The other run: writeReports() of src/report/write.ts in a separate node process (real node:fs, its own pid). */

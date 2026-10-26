@@ -74,6 +74,7 @@ function reportWith(over: { name?: string; root?: string; configPath?: string; b
     startedAt: new Date("2026-01-01T00:00:00.000Z"),
     finishedAt: new Date("2026-01-01T00:00:01.000Z"),
     toolVersion: "0.5.24",
+    runId: "00000000-0000-4000-8000-000000000000",
   });
 }
 

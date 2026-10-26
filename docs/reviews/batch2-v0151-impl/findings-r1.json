@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch2-v0151-impl",
+  "round": 1,
+  "idPrefix": "B2-I151",
+  "source": {
+    "name": "independent-review-batch2-v0151-impl-r1-for-claude.md",
+    "bytes": 8856,
+    "sha256": "76b087771efce8ffb8bdb3ec1c51efb91651e7b1c59445d36544034fd291bead"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-26T07:41:53.555Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.15.1"
+  },
+  "findings": [
+    {
+      "id": "B2-I151-R1-001",
+      "severity": "Medium",
+      "kind": "バグ",
+      "target": "tests/structure/typescript.ts の conditionOf・reusing、設計最終 §1.6、T50-3・T50-3b",
+      "content": "SourceFile の解析条件について、既知と認めたオプションの一部がキャッシュキーから抜けている。解析条件が異なる SourceFile を同じものとして再利用しうる。",
+      "evidence": "conditionOf は PARSE_KEYS に setExternalModuleIndicator・packageJsonLocations・packageJsonScope を含め、これらの存在を拒まない。一方、返すキーは languageVersion・impliedNodeFormat・jsDocParsingMode だけである。reusing は同じパス・本文・optionsKey なら既存 SourceFile を返す。T50-3b は package.json の type による impliedNodeFormat の違いしか検査しておらず、上記3フィールドのみ異なる条件を検査しない。固定コミットの output-guard.ts と parse/read.ts も参照し、製品コードの変更でなくテスト共通部品の同一性契約の問題と判定した。",
+      "fix": "上記3フィールドが与えられた場合は保守的にキャッシュを使わず元の host.getSourceFile に戻すか、値の意味を保持できる安定した同一性をキーに含める。最初の実行と、条件だけを変更した2回目の実行で別 SourceFile になる T50 の負のテストを足す。元の host とキャッシュ経路の解析・診断結果を比較する。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-26: v0.16.0 の最初の commit で直す）。直し方は B（値の意味を保つ同一性を鍵に入れる）。packageJsonLocations（文字列の配列のまま）と packageJsonScope（ディレクトリと package.json の中身の SHA-256）を鍵に入れ、setExternalModuleIndicator は有り無しを鍵に入れて、使い回す前にその関数でそのファイルの externalModuleIndicator を計算し直し、今の値と違えば使い回さない。形の分からない値は使い回さず、表にも入れない。A（3 つのどれかがあれば使い回さない）は、setExternalModuleIndicator が毎回渡されるので使い回しが全く効かなくなるため採らなかった",
+      "fixedIn": "3ff8b522f9c336e7665318c84556febcaf649a3f",
+      "regressionTest": "tests/structure-typescript-reuse.test.ts の T50-8a（packageJsonLocations だけが違う）・T50-8b（packageJsonScope の package.json だけが違う）・T50-8c（setExternalModuleIndicator だけが違い、script を module にする）・T50-8e（形の分からない値は使い回さず、同じ値を 2 回渡しても表に入らない）・T50-8f（setExternalModuleIndicator の有り無しだけが違う）、守りの T50-8d（同じ値の新しいオブジェクトと同じ効果の新しい関数は使い回す）・T50-8g（TypeScript 自身の条件で、node_modules の中の script と type module の package.json でも次の program が使い回す）・T50-9a・T50-9b（表の有り無しで、リポジトリの program とガードの fixture の program のすべての SourceFile の解析の結果が同じ）。直す前の 98d7ddf で 21 件中 5 件 FAIL（8a・8b・8c・8e・8f）。足した条件を 1 つずつ外す 8 つの変異は、どれも 1 件 FAIL",
+      "guard": null,
+      "destination": "v0.16.0",
+      "note": "確かめは v0.16.0 の実装レビュー（人間の決定 2026-10-26）。根拠（TypeScript 5.9.3 の配布物と、98d7ddf の全テストの getSourceFile 39,415 回の記録）は response-r1.md。使い回しの効果は保った（program を作る 15 ファイルの時間の和 74.6 秒〈v0.15.1 の記録は 122.4 → 84.2 秒〉）"
+    }
+  ]
+}

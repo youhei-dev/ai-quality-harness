@@ -95,7 +95,7 @@ describe("ADR-0033: configSha256 in the report", () => {
     expect(report.configSha256).toMatch(HEX64);
     const keys = Object.keys(report);
     expect(keys.indexOf("configSha256")).toBe(keys.indexOf("configPath") + 1);
-    expect(keys).toHaveLength(15);
+    expect(keys).toHaveLength(16);
     expect(report.schemaVersion).toBe(1);
     expect(r.history).toHaveLength(1);
     expect((JSON.parse(r.history[0] ?? "{}") as VerificationReport).configSha256).toBe(expected);
@@ -135,7 +135,7 @@ describe("ADR-0033: configSha256 in the report", () => {
 
   it("a report built from a config without a hash has no configSha256 key (absent, never null)", () => {
     const config: ResolvedConfig = { projectRoot: "/p", configPath: "/p/aiqh.config.jsonc", project: { name: "p" }, outputDir: "/p/a", security: DEFAULT_SECURITY, checks: [] };
-    const r = buildReport({ config, results: [checkResult({ name: "unit", kind: "unit" })], git: null, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "t" });
+    const r = buildReport({ config, results: [checkResult({ name: "unit", kind: "unit" })], git: null, startedAt: new Date(0), finishedAt: new Date(1000), toolVersion: "t", runId: "00000000-0000-4000-8000-000000000000" });
     expect(Object.keys(r)).not.toContain("configSha256");
     expect(JSON.stringify(r)).not.toContain("configSha256");
   });

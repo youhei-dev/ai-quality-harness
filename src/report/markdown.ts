@@ -22,6 +22,8 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push("");
   lines.push("| Item | Value |");
   lines.push("|---|---|");
+  // ADR-0038: the run's id, the same value as in latest.json and the history file (older reports have none)
+  if (report.runId !== undefined) lines.push(`| Run ID | ${cell(report.runId)} |`);
   lines.push(`| Started | ${report.startedAt} |`);
   lines.push(`| Finished | ${report.finishedAt} |`);
   lines.push(`| Duration | ${formatDuration(report.durationMs)} |`);

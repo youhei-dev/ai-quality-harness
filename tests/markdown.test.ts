@@ -33,6 +33,7 @@ describe("renderMarkdown", () => {
     startedAt: new Date("2026-01-01T00:00:00.000Z"),
     finishedAt: new Date("2026-01-01T00:01:10.000Z"),
     toolVersion: "0.1.0",
+    runId: "00000000-0000-4000-8000-000000000000",
   });
   const md = renderMarkdown(report);
 

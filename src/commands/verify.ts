@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { ConfigError, DEFAULT_CONFIG_FILENAME, loadConfig } from "../config/load.ts";
 import { lookupGit } from "../git/info.ts";
@@ -61,6 +62,8 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
   const log = output.log;
   const logError = output.error;
   const startedAt = new Date();
+  // ADR-0038: one id per run, made before any check, also for a run that is interrupted
+  const runId = randomUUID();
 
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const configPath = path.resolve(cwd, options.config ?? DEFAULT_CONFIG_FILENAME);
@@ -142,6 +145,7 @@ export async function runVerify(options: VerifyOptions): Promise<number> {
     startedAt,
     finishedAt,
     toolVersion: options.toolVersion,
+    runId,
     interruptedBy,
   });
 

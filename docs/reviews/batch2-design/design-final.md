@@ -125,8 +125,9 @@ TypeScript の program を作るテスト（`tests/*.ts` で `createProgram` を
     1. 正規化したパス（`path.resolve`。大文字と小文字の違いは別の鍵になる。共有が減るだけで安全な向き）
     2. 今 host の `readFile` で読んだ中身の SHA-256（呼ぶたびに読み直す。ディスクの書き換えは別の鍵になり、古いものは使われない）
     3. 解析の条件: `getSourceFile` が受け取る `languageVersion`・`impliedNodeFormat`・`jsDocParsingMode`、helper の `setParentNodes`（`true`）。scriptKind は拡張子から決まる（鍵 1 に入る）
+       - 【v0.16.0 で直した。実装レビュー batch2-v0151-impl R1 の B2-I151-R1-001】v0.15.1 は、TypeScript が渡すほかの 3 つ（`setExternalModuleIndicator`・`packageJsonLocations`・`packageJsonScope`）を、知っている欄として受けながら鍵に入れていなかった。v0.16.0 から: `packageJsonLocations`（文字列の配列のまま）と `packageJsonScope`（ディレクトリと package.json の中身の SHA-256）を鍵に入れ、`setExternalModuleIndicator` は有り無しを鍵に入れて、使い回す前にその関数でそのファイルの `externalModuleIndicator` を計算し直し、今の値と違えば使い回さない。形の分からない値は使い回さない。根拠（TypeScript 5.9.3 の配布物）: `getCreateSourceFileOptions` は毎回 `setExternalModuleIndicator` を options から作り（`getSetExternalModuleIndicator`。`module`・`target`・`moduleDetection`・`jsx` とファイルの `impliedNodeFormat` で決まる）、package.json を探す形のときだけ 2 つの package.json の値を渡す。`createSourceFile` は package.json の 2 つを読まず、program が `getSourceFile` の後で SourceFile に書く
     4. 上の 11 の compiler options の値
-  - 使い回さない（毎回作る）とき（fail closed）: `shouldCreateNewSourceFile` が真、解析の条件のオブジェクトに知らない欄がある、`languageVersion` が数でない、options の値が文字列にできない、`readFile` が投げた。このときは既定の host と同じく作る
+  - 使い回さない（毎回作る）とき（fail closed）: `shouldCreateNewSourceFile` が真、解析の条件のオブジェクトに知らない欄がある、`languageVersion` が数でない、options の値が文字列にできない、`readFile` が投げた。このときは既定の host と同じく作る（v0.16.0 から、解析の条件の値が分からない形のとき〈`packageJsonLocations` が文字列の配列でない、`packageJsonScope` に package.json の中身が無い、`setExternalModuleIndicator` が関数でない〉と、`setExternalModuleIndicator` の答えが使い回す SourceFile の今の値と違うときも）
   - fixture（メモリの源）と、fixture で上書きした repository のファイル（builtin-r3 の編集）は、表に入れず、表から出さない（今の helper の形のまま、fixture を先に見る）
   - 汚染: 表から渡した SourceFile は、TypeScript が束縛の結果を書き込む共有のオブジェクトで、凍らせられない。呼び手が中身（`text`）を書き換えた場合に備え、渡す前に、その SourceFile の `text` が今読んだ中身と同じことを確かめ、違えば表から捨てて作り直す。ガードは SourceFile を書き換えない（読むだけ）
   - 表を使わない呼び方（`createProgram(fixtures, { reuse: false })` の形）を残し、等しさのテストに使う
