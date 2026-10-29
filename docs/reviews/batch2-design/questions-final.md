@@ -201,6 +201,8 @@
   4. `tests/config-sha256.test.ts:98`（52。最上位のキーの数 15 → 16）【R2 で足した】
   5. `tests/regression-item47-latest-pair-race.test.ts` の 47-c-3（`:117-131`。52。同じミリ秒の組を runId で見分けられる）
   6. `tests/regression-item49-raw-chars-layer-c.test.ts:473-474`・`tests/regression-backlog9-report-file-notation.test.ts:104`（54。層 (c) の表記）
+     - **v0.17.0 の実装の段で足した（人間の承認 2026-10-29）**: `tests/regression-item49-raw-chars-layer-c.test.ts:532-543`（v0.16.0 の行。L12 guard「review-packet does not change」。ADR-0037 の決定 7 の守りで、U+200B を含む差分のパケットが書かれる〈exit 0〉ことを固定していた）。項目 54 の決定 2（パケットは拒む）で必ず変わるが、網羅性の確かめ（設計の付録 A12）は item49 の 28 行を security の check の走査の結果と分類して見落としていた。v0.17.0 の作業は止まる場所 S4 で止まり、人間が A（同じ場面で exit 1・`raw-char` の finding 2 件〈`U+200B zero-width`〉・家族の絵文字の ZWJ は finding にならない、に変え、名前を変え、`scanString` の確かめは残す）を承認した
+     - あわせて: `tests/regression-backlog9-report-file-notation.test.ts:104` は変わらなかった（この行は `escapeRawCharsAsJson` を試していて、ADR-0039 の決定 3 はこの関数を禁止の集合だけの最後の門として残す）。ファイルの JSON が U+200B を escape で書くことは、新しいテスト〈N4〉で固定した（ADR-0039 の「案（最終）からの違い」の 1・2）
   - 50・55-A: 無し
 - 期待値は変えない変更（参考。承認の対象に含める）
   - 52: テストの `buildReport(` の 15 か所（11 ファイル）に、決まった `runId` を渡す（必須の入力にするため）

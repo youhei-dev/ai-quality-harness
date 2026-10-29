@@ -5,7 +5,7 @@ import { ConfigError, resolveInsideRoot } from "../config/load.ts";
 import { copyJson, createOutput } from "../output.ts";
 import { writeAtomic } from "../report/write.ts";
 import { maskSecrets } from "../security/mask.ts";
-import { decodeUtf8Strict, findRawChars } from "../security/raw-chars.ts";
+import { decodeUtf8Strict, findDisplayRawChars, jsonForFile } from "../security/raw-chars.ts";
 import { scanString } from "../security/scan.ts";
 import { EXIT_ERROR, EXIT_PASSED } from "../types.ts";
 import { errorCode as code, lstatOrNull, readFindingsFile as readFindings } from "../review/findings-file.ts";
@@ -61,7 +61,9 @@ function loopLine(root: string, label: string): string {
  * `aiqh review-import` (ADR-0026): 0 = imported (or the same review was imported before: nothing written), 2 = anything that cannot be
  * read or that does not agree, a usage error or a write error, and nothing written. The number of open findings never changes the exit
  * code (a reviewer's judgment does not become a pass / fail). The terminal gets the conditions, IDs, line numbers and counts only, through
- * the output boundary; the file gets every string through the masker, and its forbidden characters as JSON notation (ADR-0020).
+ * the output boundary; the file gets every string through the masker, and what ADR-0039 shows (the forbidden set and the invisible
+ * characters outside RGI emoji sequences) as JSON escapes through jsonForFile, the data unchanged (ADR-0020, ADR-0039). The count line
+ * counts the same characters.
  */
 export async function runReviewImport(options: ReviewImportOptions): Promise<number> {
   const output = createOutput({ log: options.log, logError: options.logError });
@@ -168,7 +170,7 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
     checkPrevious();
 
     // What the terminal may say about the content: counts and lines only.
-    const raw = findRawChars(decoded.text);
+    const raw = findDisplayRawChars(decoded.text);
     const shapes = scanString(decoded.text);
 
     const findings = [...input.findings]
@@ -186,7 +188,7 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
       tool: { name: "aiqh", version: options.toolVersion },
       findings,
     };
-    const text = `${JSON.stringify(copyJson(file, maskSecrets), null, 2)}\n`;
+    const text = `${jsonForFile(copyJson(file, maskSecrets))}\n`;
 
     // The label's directory (created here when it is new, and removed again when the write fails), then the two-step write.
     const dir = path.dirname(target);

@@ -5,7 +5,7 @@ import { EXIT_ERROR, EXIT_FAILED, EXIT_PASSED } from "../types.ts";
 import type { ResolvedSecurity } from "../types.ts";
 import { ConfigError, loadSecurityConfig } from "../config/load.ts";
 import { createOutput } from "../output.ts";
-import { findRawChars, formatCodePoint } from "../security/raw-chars.ts";
+import { findDisplayRawChars, rawCharDetail } from "../security/raw-chars.ts";
 import { REJECTED, UncheckedValueError, checkValue, type Checked, type Rejected, type ValueFinding } from "../review/checked.ts";
 import { DeferredError, InspectionError, decideOutcome } from "../review/outcome.ts";
 import { inspectPacket, type PacketFinding, type PacketInspection, type PacketOptions } from "../review/packet.ts";
@@ -306,14 +306,14 @@ function outputTargets(options: ReviewPacketOptions, cwd: string, inspection: Pa
 }
 
 /**
- * A resolved path that contains a forbidden character (M2-1-R1-002): the message names the option and
- * the code points only, never the path. LF and TAB are allowed (they are shown as `\u{A}` / `\u{9}`).
+ * A resolved path that contains a raw character of findDisplayRawChars (M2-1-R1-002; ADR-0039): the message names the option and
+ * the code points (an invisible one with its category) only, never the path. LF and TAB are allowed (they are shown as `\u{A}` / `\u{9}`).
  */
 function rawCharsIn(option: string, resolved: string): string | null {
-  const hits = findRawChars(resolved);
+  const hits = findDisplayRawChars(resolved);
   if (hits.length === 0) return null;
-  const codes = [...new Set(hits.map((h) => formatCodePoint(h.codePoint)))].join(", ");
-  return `${option}: the resolved path contains ${codes}; choose a path without control, separator or bidi characters`;
+  const codes = [...new Set(hits.map(rawCharDetail))].join(", ");
+  return `${option}: the resolved path contains ${codes}; choose a path without control, separator, bidi or invisible characters`;
 }
 
 /**

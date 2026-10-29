@@ -9,6 +9,9 @@
  * v0.15.0 the invisible characters of layer (c) (ADR-0037) — controls other than TAB and LF, but not the CR before LF, the last CR
  * of a file or a leading BOM, which ordinary sources have. Inside a complete RGI emoji sequence, U+200D, U+FE0F and the tag
  * characters are left out (decideRawChars, ADR-0037 decision 3).
+ * Since v0.17.0 (ADR-0039, item 54) what aiqh passes to a review packet and shows at its exits is decided once: the forbidden set and
+ * the characters that decision finds (findDisplayRawChars). The packet refuses them, the terminal and Markdown show them as
+ * `\u{HEX}`, and a JSON file writes them as JSON escapes without changing its data (jsonForFile). FORBIDDEN_RANGES does not change.
  */
 
 /** A forbidden character: 1-based line (split on LF) and 1-based column in code points. */
@@ -311,17 +314,110 @@ export function findRawChars(text: string): RawCharHit[] {
 }
 
 /**
- * Safe display of a user-derived string on a terminal or in JSON (M2-1-R1-002): every forbidden
- * character and LF / TAB become the ASCII notation `\u{HEX}`; everything else is unchanged. Apply the
- * masker after this. The single place that turns user strings into printable text for review-packet.
+ * A character that aiqh does not pass to a review packet or show raw (ADR-0039 decision 1): one of the forbidden set, or one the
+ * security scan's decision finds (a character of SCANNED_RAW_RANGES outside a complete RGI emoji sequence).
+ */
+export interface DisplayRawHit extends RawCharHit {
+  /** Index of its first UTF-16 unit in the text. */
+  index: number;
+  /** Its category of the security scan (every forbidden code point has one). */
+  category: RawCharCategory;
+  /** In FORBIDDEN_RANGES. */
+  forbidden: boolean;
+  /** The security scan's decision finds it on its line (never the CR before LF, the CR at the end of the text or the BOM that starts the text). */
+  scanned: boolean;
+}
+
+/**
+ * The characters of `text` that aiqh does not pass or show raw (ADR-0039 decision 1, item 54), in order: the forbidden set, and what
+ * the security scan's decision finds, decided on the original text — each line (split on LF) given to decideRawChars as one whole
+ * window that reaches the end of its line. A run never crosses an LF (LF is not in E), so the lines decide what the whole text would.
+ * The CR before an LF and a CR at the end of the text are not given to that decision, as LineAssembler does not deliver them, and the
+ * BOM at the start of line 1 is not scanned, as for a file (B2-D-R2-001); the three are still forbidden. `work` counts the steps of
+ * the decision and the units of every line that has a candidate.
+ */
+export function findDisplayRawChars(text: string, work?: { steps: number }): DisplayRawHit[] {
+  const hits: DisplayRawHit[] = [];
+  // FORBIDDEN_RANGES lies inside the scanned BMP code points: a text without any (most texts) has nothing to find
+  if (firstRawUnit(text) === -1) return hits;
+  for (let start = 0, line = 1; ; line += 1) {
+    const nl = text.indexOf("\n", start);
+    const end = nl === -1 ? text.length : nl;
+    const content = text.slice(start, end);
+    if (firstRawUnit(content) !== -1) lineHits(content, start, line, hits, work);
+    if (nl === -1) return hits;
+    start = nl + 1;
+  }
+}
+
+/** The hits of one line (without its LF) that starts at `start` of the text. */
+function lineHits(content: string, start: number, line: number, hits: DisplayRawHit[], work: { steps: number } | undefined): void {
+  // The CR before the LF, or at the end of the text, is the last unit of its line: left out of the decision (B2-D-R2-001)
+  const decided = content.endsWith("\r") ? content.slice(0, -1) : content;
+  const found = decideRawChars(decided, { offset: 0, final: true, tailStart: decided.length, firstLine: line === 1 }, NOTHING_DECIDED, work);
+  let next = 0;
+  let column = 0;
+  for (let i = 0; i < content.length; ) {
+    if (work !== undefined) work.steps += 1;
+    const c = content.charCodeAt(i);
+    const cp = c < 0xd800 || c > 0xdfff ? c : codePointAt(content, i);
+    column += 1;
+    let d = found[next];
+    while (d !== undefined && d.position < i) {
+      next += 1;
+      d = found[next];
+    }
+    const finding = d !== undefined && d.position === i && !d.exempt ? d : null;
+    const forbidden = cp === c && BMP_CATEGORY[c] !== 0 && isForbiddenCodePoint(c);
+    const category = finding !== null ? finding.category : scannedRawCategory(cp);
+    if ((forbidden || finding !== null) && category !== null) hits.push({ line, column, codePoint: cp, index: start + i, category, forbidden, scanned: finding !== null });
+    i += cp > 0xffff ? 2 : 1;
+  }
+}
+
+/** How a packet finding names a hit (ADR-0039 decision 2): a forbidden character by its code point, as before ("U+2028"); an added one with its category ("U+200B zero-width"). */
+export function rawCharDetail(hit: DisplayRawHit): string {
+  return hit.forbidden ? formatCodePoint(hit.codePoint) : `${formatCodePoint(hit.codePoint)} ${hit.category}`;
+}
+
+/** `s` with every hit — and LF and TAB when `lineBreaks` — as `\u{HEX}`: the positions decided on `s` first, then one pass (ADR-0039 decision 1). */
+function withNotation(s: string, lineBreaks: boolean): string {
+  const hits = findDisplayRawChars(s);
+  if (hits.length === 0 && !lineBreaks) return s;
+  let out = "";
+  let from = 0;
+  let next = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    const hit = hits[next];
+    let cp = -1;
+    if (hit !== undefined && hit.index === i) {
+      cp = hit.codePoint;
+      next += 1;
+    } else if (lineBreaks) {
+      const c = s.charCodeAt(i);
+      if (c === 0x0a || c === 0x09) cp = c;
+    }
+    if (cp === -1) continue;
+    out += `${s.slice(from, i)}\\u{${cp.toString(16).toUpperCase()}}`;
+    if (cp > 0xffff) i += 1;
+    from = i + 1;
+  }
+  return from === 0 ? s : out + s.slice(from);
+}
+
+/**
+ * Safe display of a user-derived string on a terminal or in a Markdown file (M2-1-R1-002): every character findDisplayRawChars finds
+ * — the forbidden set and, since v0.17.0, the invisible characters the security scan finds (ADR-0039 decision 4) — and LF / TAB become
+ * the ASCII notation `\u{HEX}`; everything else, an RGI emoji sequence too, is unchanged. Apply the masker after this. The single place
+ * that turns user strings into printable text for review-packet.
  */
 export function escapeRawChars(s: string): string {
-  let out = "";
-  for (const c of s) {
-    const cp = c.codePointAt(0) ?? 0;
-    out += cp === 0x0a || cp === 0x09 || isForbiddenCodePoint(cp) ? `\\u{${cp.toString(16).toUpperCase()}}` : c;
-  }
-  return out;
+  return withNotation(s, true);
+}
+
+/** The same, with LF and TAB left as they are (the lines of a block, a whole Markdown file). */
+export function escapeRawCharsKeepingLineBreaks(s: string): string {
+  return withNotation(s, false);
 }
 
 /**
@@ -336,6 +432,52 @@ export function escapeRawCharsAsJson(text: string): string {
     out += isForbiddenCodePoint(cp) ? `\\u${cp.toString(16).padStart(4, "0")}` : c;
   }
   return out;
+}
+
+/**
+ * A JSON text for a file (ADR-0039 decision 3, item 54; B2-D-R1-002): the text of JSON.stringify(value, null, 2), except that in every
+ * string — keys too — the characters findDisplayRawChars finds in that string are written as JSON escapes: `\uXXXX`, a code point above
+ * U+FFFF as the two of its surrogate pair (four digits never hold more), a C0 control as JSON.stringify writes it. The data does not
+ * change (JSON.parse gives what JSON.stringify writes), and a value with nothing to write so is the same text as JSON.stringify. The
+ * decision is on each string's value, never on the JSON text, where the escape of a control (the `7` of U+0007 written out) could join
+ * a sequence (U+FE0F U+20E3, a keycap) that the value does not have. `work` counts the steps of the decisions.
+ */
+export function jsonForFile(value: unknown, work?: { steps: number }): string {
+  const text = JSON.stringify(value, null, 2) as string | undefined;
+  if (text === undefined) throw new TypeError("jsonForFile: the value has no JSON text");
+  // No scanned unit and no surrogate in the text: its strings have nothing to write as an escape but C0 controls, written as escapes already
+  if (firstRawUnit(text) === -1) return text;
+  // The data JSON.stringify writes (its strings are the value's strings, unit for unit), written again with the escapes
+  return jsonValueForFile(JSON.parse(text) as unknown, "", work);
+}
+
+function jsonValueForFile(value: unknown, indent: string, work: { steps: number } | undefined): string {
+  if (typeof value === "string") return jsonStringForFile(value, work);
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  const inner = `${indent}  `;
+  if (Array.isArray(value)) {
+    const items = (value as unknown[]).map((v) => `${inner}${jsonValueForFile(v, inner, work)}`);
+    return items.length === 0 ? "[]" : `[\n${items.join(",\n")}\n${indent}]`;
+  }
+  const members = Object.entries(value).map(([k, v]) => `${inner}${jsonStringForFile(k, work)}: ${jsonValueForFile(v, inner, work)}`);
+  return members.length === 0 ? "{}" : `{\n${members.join(",\n")}\n${indent}}`;
+}
+
+/** One string as a JSON string token: the hits as escapes, everything between them as JSON.stringify writes it. */
+function jsonStringForFile(s: string, work: { steps: number } | undefined): string {
+  const hits = findDisplayRawChars(s, work);
+  if (hits.length === 0) return JSON.stringify(s);
+  const between = (from: number, to: number): string => JSON.stringify(s.slice(from, to)).slice(1, -1);
+  let out = "";
+  let from = 0;
+  for (const hit of hits) {
+    const end = hit.index + (hit.codePoint > 0xffff ? 2 : 1);
+    out += between(from, hit.index);
+    if (hit.codePoint < 0x20) out += between(hit.index, end);
+    else for (let i = hit.index; i < end; i += 1) out += `\\u${s.charCodeAt(i).toString(16).padStart(4, "0")}`;
+    from = end;
+  }
+  return `"${out}${between(from, s.length)}"`;
 }
 
 /** "U+2028" style label. */

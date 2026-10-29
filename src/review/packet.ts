@@ -5,7 +5,8 @@
  * sources at <to>, selected documents and the verify result of <to>. There are no hand-written
  * sections and no conclusion by the implementer.
  *
- * Fail closed: every input is checked for invalid UTF-8, forbidden raw characters (raw-chars.ts) and
+ * Fail closed: every input is checked for invalid UTF-8, raw characters (raw-chars.ts' findDisplayRawChars: the forbidden set and,
+ * since v0.17.0, the invisible characters outside RGI emoji sequences; ADR-0039, security.allow does not apply) and
  * secret-shaped strings (the shared scanner) before the packet is assembled, and the assembled packet
  * is checked again as a whole. Option values that are rendered are checked by the caller before this
  * module is called (runReviewPacket, M2-1-R2-006). Any finding means no packet (exit 1). Findings carry a
@@ -26,7 +27,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { ResolvedSecurity } from "../types.ts";
-import { decodeUtf8Strict, findRawChars, formatCodePoint, isForbiddenCodePoint } from "../security/raw-chars.ts";
+import { decodeUtf8Strict, findDisplayRawChars, rawCharDetail } from "../security/raw-chars.ts";
 import { findAllowRule, scanString, type ScanFinding } from "../security/scan.ts";
 import { REJECTED, UncheckedValueError, assertChecked, checkValue, settled, type Checked, type Rejected } from "./checked.ts";
 import { DeferredError, InspectionError } from "./outcome.ts";
@@ -256,19 +257,22 @@ function resolveCommit(root: string, ref: string, side: string): { sha: string; 
 
 /**
  * Content of an inline code span (M2-1-R1-004, M2-1-R2-005): LF, TAB and backslash become `\\n` `\\t` `\\\\`,
- * a backtick (U+0060) and other control / separator / bidi characters the ASCII notation `\\u{HEX}`. No U+0060 is
+ * a backtick (U+0060), the other controls and what findDisplayRawChars finds (ADR-0039) the ASCII notation `\\u{HEX}`. No U+0060 is
  * left (a backslash does not escape inside a CommonMark code span, so `` \\` `` would still close it), so one backtick
  * on each side always delimits the span, and no line break can start a heading or a table row.
  */
 function escapeInline(s: string): string {
+  const hidden = new Set(findDisplayRawChars(s).map((h) => h.index));
   let out = "";
+  let i = 0;
   for (const c of s) {
     const cp = c.codePointAt(0) ?? 0;
     if (cp === 0x0a) out += "\\n";
     else if (cp === 0x09) out += "\\t";
     else if (cp === 0x5c) out += "\\\\";
-    else if (cp === 0x60 || cp < 0x20 || isForbiddenCodePoint(cp)) out += `\\u{${cp.toString(16).toUpperCase()}}`;
+    else if (cp === 0x60 || cp < 0x20 || hidden.has(i)) out += `\\u{${cp.toString(16).toUpperCase()}}`;
     else out += c;
+    i += c.length;
   }
   return out;
 }
@@ -465,7 +469,7 @@ function checkText(ck: Checker, text: string, source: string, origin: LineOrigin
     if (!at?.side) return null;
     return at.side === "old" ? `${at.path}@from:${at.line}` : `${at.path}:${at.line}`;
   };
-  for (const h of findRawChars(text)) ck.findings.push({ kind: "raw-char", source, line: h.line, detail: formatCodePoint(h.codePoint), location: locate(h.line), stage });
+  for (const h of findDisplayRawChars(text)) ck.findings.push({ kind: "raw-char", source, line: h.line, detail: rawCharDetail(h), location: locate(h.line), stage });
   for (const f of scanString(text, ck.security)) {
     const line = f.line ?? 1;
     const at = origin ? origin(line - 1) : null;
@@ -555,7 +559,7 @@ function parseRaw(buf: Buffer, ck: Checker): RawChange[] {
 
 /**
  * A path from git, decoded strictly (M2-1-R1-001). Invalid UTF-8 is an `invalid-utf8` finding, a valid path
- * with a forbidden raw character (anything of raw-chars.ts; LF and TAB are allowed in paths) is a `raw-char`
+ * with a raw character (what findDisplayRawChars finds; LF and TAB are allowed in paths) is a `raw-char`
  * finding and a secret-shaped path a `secret` finding (M2-1-R2-007: a path is rendered in the metadata, so it
  * is checked like other rendered values), all with the source `path`; the value is never reported. A path with
  * a finding is Rejected (ADR-0015): the inspection goes on, but never with that path as a pathspec.

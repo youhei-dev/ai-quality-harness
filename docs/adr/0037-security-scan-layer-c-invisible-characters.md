@@ -1,7 +1,7 @@
 # ADR-0037: security の check は、見えない文字の層 (c) も、既定で FAIL にする（正しい絵文字の並びに完全に一致する区間の内側だけを機械的に除く。分類を明示した allow でだけ外せる）
 
-- 状態: 採用（v0.15.0。ROADMAP の項目 49。batch1 の設計〈最終〉`docs/reviews/batch1-design/design-final.md` の §4 と、この ADR の案〈最終〉`docs/reviews/batch1-design/adr-0037-draft-final.md` を採用した。設計の独立レビュー R1〜R3 は `docs/reviews/batch1-design/`。決めること B1-Q12〜B1-Q17 は `questions-final.md`）
-- 日付: 2026-10-25（v0.15.0）。案: 2026-10-21（R1・R2）、2026-10-22（R3・最終）
+- 状態: 採用（v0.15.0。ROADMAP の項目 49。batch1 の設計〈最終〉`docs/reviews/batch1-design/design-final.md` の §4 と、この ADR の案〈最終〉`docs/reviews/batch1-design/adr-0037-draft-final.md` を採用した。設計の独立レビュー R1〜R3 は `docs/reviews/batch1-design/`。決めること B1-Q12〜B1-Q17 は `questions-final.md`）。決定 7 と既知の限界のパケット・出口の 2 項は、v0.17.0 で ADR-0039 が置換
+- 日付: 2026-10-25（v0.15.0）。案: 2026-10-21（R1・R2）、2026-10-22（R3・最終）。注記: 2026-10-29（v0.17.0。決定 7・対象範囲・既知の限界に ADR-0039 の注記）
 - 案からの違いは、下の「案（最終）からの違い」。決定の中身は案のまま
 
 ## 文脈
@@ -53,7 +53,7 @@
 4. **判定**: 既定で FAIL（`kind: "raw-char"` の finding → `aiqh security-scan` の exit 1 → check の FAIL）。入り切りのスイッチは作らない。警告の段も作らない
 5. **範囲**: ADR-0036 の決定 4〜6 と同じ（同じファイルの集まり、`scanFile` の側だけ、パス名も見る、不正な UTF-8・UTF-16 は finding にしない）。走査は UTF-16 の単位から符号位置に変える（タグ文字と U+E0100 以上はサロゲートの組）。I5・I6 と行の途中の CR のために、行を窓で渡すときの位置、「行の終わりまで届いたか」、届いていない窓の保証された末尾の始まりを、生の文字の走査に渡す（秘密の形の走査は変えない）。範囲の細部は下の「対象範囲」
 6. **allow**: 既存の `security.allow` の `category` に 8 つの分類を足す。生の文字の finding は、分類を明示した規則だけが抑える（ADR-0036 の決定 8 のまま）
-7. **review-packet は変えない**（ADR-0036 の決定 9 のまま）
+7. **review-packet は変えない**（ADR-0036 の決定 9 のまま）。**v0.17.0 で ADR-0039 が置換**: パケットと出口は、この ADR の判断（決定 3）を使って、RGI の並びの外の層 (c) も拒み・表記にする
 8. **出力とパーサ**: 件数の行の `raw characters: N` は層 (a)〜(c) の合計（パーサの数のキー `rawChars` の形は変えない）。`raw characters checked:` の行に分類を足す
 9. **版**: 判定が厳しくなるので minor（v0.15.0）。CHANGELOG の先頭に「判定が厳しくなる」と、規則の書き方の例（`category` を明示した規則）を書く
 
@@ -66,7 +66,7 @@
 - TAB、LF、LF の前の CR、ファイルの最後の CR（`LineAssembler` が除いて渡す）、ファイルの先頭の BOM
 - 行の終わりまで届いていない窓の末尾の CR は、その窓では決めず、次の窓で決める（LF が続けば行の終わりの CR として除かれる）
 - ルートのパス、symlink の先、submodule の中、ignore された未追跡のファイル
-- review-packet（`FORBIDDEN_RANGES` だけを止める）
+- review-packet（`FORBIDDEN_RANGES` だけを止める。v0.17.0 から ADR-0039 の判断で層 (c) も止める）
 - 決定 3 の、RGI の並びに完全に一致する区間の内側の U+200D・U+FE0F・タグ文字（ただし、窓から消える位置で両端が確定しない run の候補は、並びの内側でも finding。I5 の (b)）
 
 ## fail closed との関係
@@ -96,8 +96,8 @@
 - 漢字の異体字（IVS。漢字 + U+E0100–U+E01EF）も finding になる（allow で扱う。人間の決定 B1-Q16）
 - 言語ごとの字句解析を持たないので、右から左に書く言語の文書の方向の印、組版のソフトハイフン、意図したゼロ幅の文字も finding になる（allow で扱う）
 - UTF-16・UTF-32 のファイル、不正な UTF-8、ルートのパス、symlink の先、submodule の中は、ADR-0036 と同じく見ない（上の「対象範囲」）
-- review-packet は `FORBIDDEN_RANGES` だけを止めるので、層 (c) の文字はパケットに入る（ROADMAP の項目 54）
-- 端末とレポートの出口の表記（`\u{…}`）は `FORBIDDEN_RANGES` だけに効く（ADR-0016・ADR-0020 の決定 3。この ADR では変えない）。層 (c) の文字を名前に持つパスは、finding の行に、その文字のまま出る（ROADMAP の項目 54）
+- review-packet は `FORBIDDEN_RANGES` だけを止めるので、層 (c) の文字はパケットに入る（ROADMAP の項目 54）。**v0.17.0 で ADR-0039 が解消**（RGI の並びの外は拒む）
+- 端末とレポートの出口の表記（`\u{…}`）は `FORBIDDEN_RANGES` だけに効く（ADR-0016・ADR-0020 の決定 3。この ADR では変えない）。層 (c) の文字を名前に持つパスは、finding の行に、その文字のまま出る（ROADMAP の項目 54）。**v0.17.0 で ADR-0039 が解消**（端末・`latest.md` は表記、ファイルの JSON は値を変えずに escape）
 
 ## 資料
 

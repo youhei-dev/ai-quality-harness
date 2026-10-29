@@ -1,7 +1,8 @@
 /**
  * The one boundary between aiqh and the terminal (M2-2-R2-001): every line, JSON document and commander message that
  * aiqh writes to standard output or standard error goes through here. Forbidden raw characters (raw-chars.ts: C0
- * controls other than TAB and LF, DEL, C1 controls, U+2028 / U+2029, the bidi controls, U+FEFF) first become the ASCII
+ * controls other than TAB and LF, DEL, C1 controls, U+2028 / U+2029, the bidi controls, U+FEFF) — and since v0.17.0 the invisible
+ * characters the security scan finds outside an RGI emoji sequence (ADR-0039, findDisplayRawChars) — first become the ASCII
  * notation `\u{HEX}`, then the masker redacts secret shapes (it is idempotent, so text a command masked already is
  * unchanged). In a JSON document the object keys go through the same processing as the values (M2-2-R3-002), and only
  * JSON data is accepted: anything else is refused before printing (M2-2-R4-001).
@@ -17,7 +18,7 @@
  * made by a type assertion elsewhere.
  */
 import { maskSecrets } from "./security/mask.ts";
-import { escapeRawChars, isForbiddenCodePoint } from "./security/raw-chars.ts";
+import { escapeRawChars, escapeRawCharsKeepingLineBreaks } from "./security/raw-chars.ts";
 
 /**
  * How the strings of a JSON document treat LF and TAB, which are not in the forbidden set (JSON.stringify writes them as
@@ -27,15 +28,9 @@ import { escapeRawChars, isForbiddenCodePoint } from "./security/raw-chars.ts";
  */
 export type LineMode = "keep" | "escape";
 
-/** Forbidden raw characters as `\u{HEX}`; LF and TAB as well with "escape". */
+/** The characters findDisplayRawChars finds — the forbidden set and, since v0.17.0, the invisible ones (ADR-0039) — as `\u{HEX}`; LF and TAB as well with "escape". */
 export function escapeForDisplay(s: string, mode: LineMode): string {
-  if (mode === "escape") return escapeRawChars(s);
-  let out = "";
-  for (const c of s) {
-    const cp = c.codePointAt(0) ?? 0;
-    out += isForbiddenCodePoint(cp) ? `\\u{${cp.toString(16).toUpperCase()}}` : c;
-  }
-  return out;
+  return mode === "escape" ? escapeRawChars(s) : escapeRawCharsKeepingLineBreaks(s);
 }
 
 declare const safeBrand: unique symbol;
@@ -169,7 +164,7 @@ export function safeJson(value: unknown, mode: LineMode = "keep"): Safe {
 
 /**
  * The same copy for data that goes to a file instead of the terminal (backlog 9, ADR-0020): the verify report. `mapString` is applied to every
- * string and key (the report: the masker; the forbidden characters are converted where the file is written). The answer is a copy without
+ * string and key (the report: the masker; the file's writer, jsonForFile, writes what ADR-0039 shows as JSON escapes without changing the data). The answer is a copy without
  * prototypes, so a key such as `__proto__` stays a key, and `JSON.stringify` never meets a function.
  */
 export function copyJson<T>(value: T, mapString: (s: string) => string): T {

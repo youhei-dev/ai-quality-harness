@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { closeSync, constants, mkdirSync, openSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { escapeForDisplay } from "../output.ts";
-import { escapeRawCharsAsJson } from "../security/raw-chars.ts";
+import { escapeRawCharsAsJson, jsonForFile } from "../security/raw-chars.ts";
 import type { VerificationReport } from "../types.ts";
 import { renderMarkdown } from "./markdown.ts";
 
@@ -17,7 +17,7 @@ export function writeReports(report: VerificationReport, outputDir: string): Wri
   const historyDir = path.join(outputDir, "history");
   mkdirSync(historyDir, { recursive: true });
 
-  const json = `${JSON.stringify(report, null, 2)}\n`;
+  const json = `${jsonForFile(report)}\n`;
   const md = renderMarkdown(report);
 
   const latestJson = path.join(outputDir, "latest.json");
@@ -90,6 +90,8 @@ const REOPEN_FLAG = REOPEN as unknown as string; // @types/node types `flag` as 
  * The one place the report files — and the findings files of review-import (ADR-0026) — are written: a forbidden character never reaches a
  * file raw (JSON: `\uXXXX`, Markdown: `\u{HEX}`; ADR-0020). A temporary file next to the target, then a rename; when either step fails the
  * temporary file is removed and the error is thrown.
+ * v0.17.0 (ADR-0039 decision 3): writeReports and review-import make their JSON with jsonForFile, which writes the invisible characters
+ * as JSON escapes too without changing the data; the json branch's escape of the forbidden set stays as the last gate (it changes nothing there).
  * v0.6.1 (M2-2-RI-R1-002, ADR-0026): the temporary file has a random name (`.<base>.tmp-<16 hex digits>`) and is created exclusively
  * (O_EXCL, and O_NOFOLLOW where there is one): an existing name — a file, a directory or a symbolic link, also a dangling one — is never
  * opened, another random name is tried (TEMPORARY_ATTEMPTS in all). The created file is closed and its path opened again with REOPEN to write

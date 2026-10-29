@@ -1,7 +1,7 @@
 # ADR-0036: security の check は、生の双方向の制御文字と行区切りを、出現ごとに finding にする（既定で FAIL、分類を明示した allow でだけ外せる）
 
-- 状態: 採用（v0.13.0。ROADMAP の項目 48。設計と独立レビューの記録は `docs/reviews/item48-design/`〈設計 R2 の記録 `design-r2.md`。レビューは R1: High 0 / Medium 3 / Low 2、R2: High 0 / Medium 0 / Low 1 で閉じた。R2 の Low〈I48-D-R2-001〉は、決定 10 の版を上げるときの案内に入れた〉）
-- 日付: 2026-10-19（v0.13.0）。追記: 2026-10-20（v0.13.1。未マージの index で同じパスを 1 回だけ扱う。下の「追記（v0.13.1）」）、2026-10-25（v0.15.0。既知の限界の 1 項に、層 (c) は ADR-0037 の注記だけ）
+- 状態: 採用（v0.13.0。ROADMAP の項目 48。設計と独立レビューの記録は `docs/reviews/item48-design/`〈設計 R2 の記録 `design-r2.md`。レビューは R1: High 0 / Medium 3 / Low 2、R2: High 0 / Medium 0 / Low 1 で閉じた。R2 の Low〈I48-D-R2-001〉は、決定 10 の版を上げるときの案内に入れた〉）。決定 9 は v0.17.0 で ADR-0039 が置換
+- 日付: 2026-10-19（v0.13.0）。追記: 2026-10-20（v0.13.1。未マージの index で同じパスを 1 回だけ扱う。下の「追記（v0.13.1）」）、2026-10-25（v0.15.0。既知の限界の 1 項に、層 (c) は ADR-0037 の注記だけ）、2026-10-29（v0.17.0。決定 9 を ADR-0039 が置換）
 
 ## 文脈
 
@@ -34,7 +34,7 @@
 6. **不正な UTF-8・UTF-16**: finding にしない。正しく符号化された 11 文字は、不正なバイトがあるファイルでも見つける。UTF-16・UTF-32 はバイナリとして読まない（既知の限界）
 7. **finding の形**: `kind: "raw-char"`、`category`（`bidi-control`・`line-separator`）、`file`、`line`・`endLine`（パス名では無い）、`codePoint`（`U+202E` の形）。行の中身と桁は持たない。端末の行は `[raw-char] <path>:<line> U+202E bidi-control`。パスは出口で表記にしてからマスクする（ADR-0016）
 8. **allow**: 既存の `security.allow` の `category` に `bidi-control`・`line-separator` を足す。生の文字の finding は、**その分類を明示した規則だけ**が抑える。分類の無い規則は、今と同じく秘密の形の finding だけに効く。この規則は、allow の照合の 1 つの関数（`findAllowRule`。scan と review-packet が共有）の中で保証する。候補の規則を順に見るとき、生の文字の finding には分類を明示した規則だけを候補にする（最初に当たった規則を採ってから分類を確かめて捨てるのではない。先頭に分類の無い規則があっても、後ろにある正しい規則が抑え、使われた回数もその規則に付く）。`line` 付きの規則はその行だけ（パス名の finding には効かない）。`expires` は任意のまま。`reason` の書式は決めない（ADR-0029 は key-value の誤検出の記録で、意図した文字は対象外）。抑えた finding と規則の使われ方は、今と同じく出力に残す
-9. **review-packet は変えない**: パケットは 75 の符号位置を別に確かめ、allow では抑えない（ADR-0014）。パケットは `scanString` の finding を（oversized-candidate 以外は）`secret` として扱い allow を当てるので、生の文字の確かめを `scanString` の経路に入れると、同じ文字が 2 回出て、片方が allow で抑えられてしまう。それを避けるため、確かめは決定 4 のとおりファイルの走査の側だけに置く
+9. **review-packet は変えない**: パケットは 75 の符号位置を別に確かめ、allow では抑えない（ADR-0014）。パケットは `scanString` の finding を（oversized-candidate 以外は）`secret` として扱い allow を当てるので、生の文字の確かめを `scanString` の経路に入れると、同じ文字が 2 回出て、片方が allow で抑えられてしまう。それを避けるため、確かめは決定 4 のとおりファイルの走査の側だけに置く。**v0.17.0 で ADR-0039 が置換**: パケットは禁止の集合に加えて、層 (c) の RGI の並びの外も、自分の確かめ（`findDisplayRawChars`）で拒む。allow を当てない理由（同じ文字が 2 回出て片方だけが抑えられる形を避ける）はそのまま
 10. **出力とパーサ**: 件数の行の内訳の最後に `raw characters: N` を足す。出力のパーサ（ADR-0028）の数のキー `rawChars`、項目の種類 `raw-char`、`describe.ts` の表示を足す。パーサは新しい形（6 つの内訳）だけを受け付ける。古い aiqh と新しい aiqh が verify とその子の `aiqh security-scan` で食い違うと、`parsed` は `unexpected-summary` になる
     - **パースの失敗は判定を変えない**（ADR-0028 の P1。判定と終了コードは変わらない）
     - **検出の範囲は、実際に起動する `aiqh security-scan`（子）の版で決まる**。新しい verify と古い security-scan の組み合わせでは、項目 48 の検出は効かない（古い子は生の文字を見ないので、ほかの finding が無ければ PASS のまま）。古い verify と新しい security-scan の組み合わせでは、検出は効き、パースだけが失敗する

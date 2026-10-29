@@ -36,7 +36,7 @@
       "regressionTest": "tests/structure-typescript-reuse.test.ts の T50-1（fixture の違う 2 つの program で src/cli.ts の SourceFile が同一）・T50-2（ディスクの書き換えで作り直し、型の誤り 1 → 0。元の中身に戻すと最初の SourceFile）・T50-3（target・jsx の違いで別、同じ条件で同一、同じ中身の 2 ファイルは別）・T50-3b（package.json の type だけを変えると別。impliedNodeFormat）・T50-4（fixture で上書きした後の次の program は実ファイル）・T50-5（text を書き換えた SourceFile は使わない）・T50-6a〜6d（表の有り無しで、リポジトリの全ファイルの型の誤りと src/ のガードの答え、編集と fixture の答えが同じ）・T50-7（shouldCreateNewSourceFile・知らない解析の条件・reuse: false で使い回さない）。直す前の 8650a72 で 11 件中 8 件 FAIL。鍵の要素などを外す変異 8 つはどれも 1〜4 件 FAIL",
       "guard": null,
       "destination": "v0.15.1",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（text 以外の AST の汚染の境界）。その残りは B2-D-R2-003 で、残る制限として明記した。確かめは v0.15.1 の実装レビュー。v0.15.1 の実装レビュー batch2-v0151-impl R1 の評価: 部分的に解消（解析の条件のうち setExternalModuleIndicator・packageJsonLocations・packageJsonScope が鍵に無い。B2-I151-R1-001）。v0.16.0 の 3ff8b52 で直した（確かめは v0.16.0 の実装レビュー）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（text 以外の AST の汚染の境界）。その残りは B2-D-R2-003 で、残る制限として明記した。確かめは v0.15.1 の実装レビュー。v0.15.1 の実装レビュー batch2-v0151-impl R1 の評価: 部分的に解消（解析の条件のうち setExternalModuleIndicator・packageJsonLocations・packageJsonScope が鍵に無い。B2-I151-R1-001）。v0.16.0 の 3ff8b52 で直した（確かめは v0.16.0 の実装レビュー）。v0.16.0 の実装レビュー batch2-v0160-impl R1 の評価: 解消"
     },
     {
       "id": "B2-D-R1-002",
@@ -47,14 +47,14 @@
       "evidence": "基準の writeReports は JSON.stringify の後に writeAtomic へ渡し、output.ts は JSON の各キーと値も処理する。ADR 案は JSON を unicode escape にしてデータは同じと約束するが、JSON 構文化より前にバックスラッシュ列へ置き換える実装では読み戻し結果が変わる。review-import と通常レポートでも出力経路が異なる。",
       "fix": "JSON は文字列値自体を変更せず、JSON.stringify 後の妥当なトークン内だけをエスケープするか、等価な JSON serializer を使う、と明記する。JSON.parse 後の深い同一性を必須テストにし、キー・配列・サロゲート・既存のエスケープ表記・U+200D／U+FE0F・行境界の入力を含める。パケット検査と出口の同一判断を、複数行と連続RGIのケースで固定する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の決定 2026-10-26。B2-Q9 の A）。判断は元の文字列の上で LF で分けた 1 行ずつ。保存の経路は値を変えない JSON の書き手、表示の経路は表記。v0.17.0 で入れる（ADR-0039 の案）",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "c537c667fa3d9cdfb58d6f70a7860a73c4a4fd31",
+      "regressionTest": "tests/regression-item54-display-raw-chars.test.ts の N8（判断は元の文字列の上で LF で分けた 1 行ずつ。出口・パケットの値の確かめ・security の check の行と符号位置が一致。決まった種の 400 の文を含む）、N4（jsonForFile: JSON.parse の後の深い同一性・表記にする文字が残らない・表記にする文字が無ければ JSON.stringify と同じ字面）と 2 つの落とし穴（BMP の外を 4 桁で書かない・JSON の字面の上で判断しない）、N1・N7（表示の経路は表記）、N3（review-import）、N6（禁止の集合だけの値は今までの字面）",
       "guard": null,
       "destination": "v0.17.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（LF だけの分割では CRLF の CR が security の check と食い違う）。その残りは B2-D-R2-001。実装と確かめは v0.17.0"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（LF だけの分割では CRLF の CR が security の check と食い違う）。その残りは B2-D-R2-001。実装と確かめは v0.17.0。v0.17.0 の c537c66 で直した（ADR-0039 の決定 1・3・4。確かめは v0.17.0 の実装レビュー）"
     },
     {
       "id": "B2-D-R1-003",
