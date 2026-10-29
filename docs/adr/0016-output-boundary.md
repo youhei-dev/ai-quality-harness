@@ -1,7 +1,7 @@
 # ADR-0016: 端末への出力は 1 つの出口を通し、禁止文字を表記にしてから秘密の形をマスクする
 
 - 状態: 採用（ADR-0012 の追記〈M2-0-R2-002〉の「text 出力側でのエスケープは行わない」を置換）。決定 3 と「既知の限界」は ADR-0017 で置換（v0.5.4）
-- 日付: 2026-09-25（M2-2、v0.5.2。M2-2 独立レビュー R2 の M2-2-R2-001）。注記: 2026-10-18（v0.11.0。`Output` の口 `jsonWithin`。決定 1 の注記）、2026-10-18（v0.11.2。口 `linesWithin`・書き手 `write`。同じ注記）、2026-10-18（v0.12.0。上限つきの口の `beforeWrite`）
+- 日付: 2026-09-25（M2-2、v0.5.2。M2-2 独立レビュー R2 の M2-2-R2-001）。注記: 2026-10-18（v0.11.0。`Output` の口 `jsonWithin`。決定 1 の注記）、2026-10-18（v0.11.2。口 `linesWithin`・書き手 `write`。同じ注記）、2026-10-18（v0.12.0。上限つきの口の `beforeWrite`）、2026-10-29（v0.17.0。末尾の「注記（v0.17.0、ADR-0039）」）
 
 ## 文脈
 v0.5.1 で読めない既定の設定ファイルを設定の誤り（exit 2）にしたところ、security-scan がそのパスを含むエラー文を標準エラーへ出し、パスの禁止文字
@@ -48,3 +48,7 @@ ADR-0012 の追記は、`security.allow` の `reason` / `path` をスキーマ�
 - 禁止文字を含む出力は、その文字が表記になる（CHANGELOG v0.5.2）。verify の check の出力の末尾にある ESC（色付け）や CR も表記になる
 - ファイルへの出力（verify のレポート、init が書く設定）はこの ADR の対象外（ROADMAP のバックログ）→ ADR-0020（v0.5.24）
 - 回帰テスト: `tests/regression-m2-2-r2-001-output-boundary.test.ts`
+
+## 注記（v0.17.0、ADR-0039）
+
+- 決定 2 の「禁止文字を表記にする」は、v0.17.0 から ADR-0039 の判断（`findDisplayRawChars`: 禁止の集合と、security の check の判断で RGI の並びの外の層 (c)）で行う（`escapeRawChars` と `escapeRawCharsKeepingLineBreaks`。`safeText`・`safeJson`〈`escapeForDisplay` を通す〉・commander の出力）。正しい絵文字の並びはそのまま。端末の `--json` の値は表示のための表記の文字列になる（ファイルの JSON はデータを変えない。ADR-0039 の決定 3・4）

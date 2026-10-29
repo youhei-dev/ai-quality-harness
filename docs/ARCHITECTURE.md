@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-26（v0.16.0。§7.1・§7.2 のレポートに `runId`〈ROADMAP の項目 52。ADR-0038〉）。その前: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-29（v0.17.0。§5 の `raw-chars.ts`・`output.ts`・`write.ts`、§6.1b と §8 の出口とパケットの見えない文字〈ROADMAP の項目 54。ADR-0039〉）。その前: 2026-10-26（v0.16.0。§7.1・§7.2 のレポートに `runId`〈ROADMAP の項目 52。ADR-0038〉）。その前: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -102,7 +102,7 @@ src/
   cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
   command-words.ts        … コマンドの単純コマンドと語（引用符・`\` の印、照らさない形）。init の node:test の検出と、パーサの pytest の選び方が使う [v0.14.0]
   node-options.ts         … 起動を拒否する Node のオプション（`--unhandled-rejections=warn`・`--abort-on-uncaught-exception`。`process.execArgv` と NODE_OPTIONS。ADR-0024 決定 6） [v0.5.44]
-  output.ts               … 端末への出力の出口（禁止文字を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
+  output.ts               … 端末への出力の出口（禁止文字〈v0.17.0 から ADR-0039 の判断: 正しい絵文字の並びの外の層 (c) も〉を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
   commands/
     verify.ts             … verify のオーケストレーション                                 [M0]
     init.ts               … 監査 → 設定提案 → 配置（--write 系フラグでのみ書込）              [M1 実装済み]
@@ -122,7 +122,7 @@ src/
     verdict.ts            … PASS/FAIL/SKIPPED から最終判定と分類別サマリを算出              [M0]
     build-report.ts       … 実行結果 → レポートオブジェクト（マスク適用）                   [M0]
     markdown.ts           … レポート → Markdown                                            [M0]
-    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]。`writeAtomic` の一時ファイルは、同じディレクトリのランダムな名前（`.<名前>.tmp-<16 桁の 16 進数>`）を `O_EXCL | O_NOFOLLOW` で排他的に作って閉じ、数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（リンクを追わない。Windows は O_NOFOLLOW が無い）[v0.6.1、ADR-0026 決定 16]
+    write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。JSON は `jsonForFile`（ADR-0039 の文字を、値を変えない JSON の escape で）で作る [v0.17.0]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]。`writeAtomic` の一時ファイルは、同じディレクトリのランダムな名前（`.<名前>.tmp-<16 桁の 16 進数>`）を `O_EXCL | O_NOFOLLOW` で排他的に作って閉じ、数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（リンクを追わない。Windows は O_NOFOLLOW が無い）[v0.6.1、ADR-0026 決定 16]
   parse/                  … check の出力を表示のためだけに読む（判定と終了コードは見ない。ADR-0028） [v0.8.0]
     select.ts             … パーサの選び方: コマンドの語と、`npm run <script>` / `npm test` なら作業ディレクトリの package.json の script（設定の欄は無い）。pytest だけは語の位置で選ぶ（command-words.ts。v0.14.0）
     text.ts               … 入力の準備と上限（各ストリームの末尾 1 MiB・1 行 4,096・名前 50 × 300・1,000 ms）、名前のマスク（行ごと、切る前）
@@ -146,7 +146,7 @@ src/
                             finding で塞がれた値 Rejected。M2-1-R3-004 / R3-002） [M2-1 R2]
   review/outcome.ts       … review-packet の終了コードの優先順位（InspectionError / DeferredError / decideOutcome、ADR-0015） [M2-2]
   review/zip.ts           … 無圧縮 ZIP の書き出し（固定日時、zlib.crc32）                      [M2-1]
-  security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]。security の check の集合と、絵文字の並びの除外の判断 `decideRawChars`  [v0.15.0]
+  security/raw-chars.ts   … 生文字の禁止集合と厳格な UTF-8 検査（パケットと docs テストで共有）  [M2-1]。security の check の集合と、絵文字の並びの除外の判断 `decideRawChars`  [v0.15.0]。パケットと出口の 1 つの判断 `findDisplayRawChars`、表記 `escapeRawChars`・`escapeRawCharsKeepingLineBreaks`、ファイルの JSON の書き手 `jsonForFile`  [v0.17.0、ADR-0039]
   review/                 … 指摘パーサ、対応状況モデル                                        [M2-2 以降]
   run-history/            … 履歴の読み込み（信頼しない入力。上限・symlink・差し替えの検出）と集計。DB は持たない（v0.11.0 で注記: 計画の `history/`〈履歴 DB〉を置き換えた。名前は push の前の走査に当たらないように変えた）。html.ts は静的 HTML のダッシュボード（固定のひな形、値はすべて h()、CSP の meta、数は data-k）[M4 v0.11.0、ADR-0034。v0.12.0、ADR-0035]
   types.ts                … 共有型（CheckResult, VerificationReport 等）                   [M0]
@@ -334,6 +334,13 @@ verify のパーサ（ADR-0028）は 6 つの内訳の形だけを読む。検�
 を渡し、`RawCharSink` は窓から消える位置で両端の見えない run を finding に決め切る（未決の候補を持たない）。決めた位置はその行のあいだ覚えて、
 重なりで 2 回決めない。除いた数は位置で数え、`ScanResult.rawCharsExempted` と情報の行 `raw characters exempted (emoji sequences): N` に出す。
 `FileScanSink`・`scanString`・review-packet は変えていない。
+
+**パケットと出口（v0.17.0、ROADMAP の項目 54、ADR-0039）**: `findDisplayRawChars`（`raw-chars.ts`）が、元の文字列の LF で分けた 1 行ずつを
+`decideRawChars` に行の終わりまで届いた 1 つの窓として渡し（LF の前の CR と文字列の最後の CR は `LineAssembler` と同じく外す。1 行目は先頭の BOM を見ない）、
+禁止の集合（`FORBIDDEN_RANGES`）の文字と、その判断が finding とする文字を返す。review-packet の入力の確かめ（`checkText`）・`checkValue`・
+パスのオプションの確かめはこれで拒み（`security.allow` は当てない）、端末（`escapeForDisplay`）・`latest.md`・ダッシュボードはこれで表記にし、
+`writeReports` と review-import は `jsonForFile` で、値の上で決めた位置だけを JSON の escape で書く（データは変えない）。`FileScanSink`・`scanString`・
+security の check の判定は変えていない。
 
 ### 6.2 レビューループ（M2）
 
@@ -550,7 +557,7 @@ CODEOWNERS 等）である。設定改変への対策候補（保護されたポ
   ファイル + 最上位の宣言の名前（writer は `emitOut` = `console.log`・`process.stdout.write`、`emitErr` = `console.error`・`process.stderr.write` の組で、引数は全枝が `Safe` の 1 つ）、fs・child_process の関数は
   呼び出しの callee としてだけ（要素アクセス・分割代入・`fs/promises` の参照も見る。その入口は名前付き import の関数だけで、default import・`import * as`・`{ promises }`・`export *`・動的 `import()` は違反。関数を名前で export する形〈再 export〉も違反。v0.5.22・v0.5.23）、総称型の cast は必須の T の引数があるときだけ許す。型が `any` の値の呼び出しと fs の書き込み先、`.constructor` の読み取り、fd option（型が `fd` を持つ枝のある引数。キーが静的に分からない fs の呼び出しの引数も。`createReadStream`・`createWriteStream` の options は省略・文字列・新しい object literal だけで、`new Utf8Stream` と `Utf8Stream` の値の import・再 export は違反。v0.5.22・v0.5.23）、`this` を使う listener を `process.on` などに渡す形（`process["on"]` の要素アクセスでも。別名は shorthand property・class field を含めて何段でも追う。v0.5.22・v0.5.23）、リテラルのキーの
   `eval`・`Function`・`require`・`createRequire` は違反。fs のリテラルのパスは `.`・`//`・`x/../` を畳んでから、`FS_WRITERS` は先頭の引数だけ・ほかの fs の関数は全引数で `/dev/`・`/proc/` を見る）。
-  一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定）は、v0.5.24 から書き込みの出口で形式別に禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`。review-packet は fail closed のまま。ADR-0020）。
+  一覧を変えるときは ADR-0019 に追記し、独立レビューの対象にする。ファイルへの出力（レポート、init が書く設定）は、v0.5.24 から書き込みの出口で形式別に禁止文字を表記にする（JSON は `\uXXXX`、Markdown は `\u{HEX}`。review-packet は fail closed のまま。ADR-0020）。v0.17.0 から、出口とパケットは ADR-0039 の 1 つの判断（禁止文字と、層 (c) の正しい絵文字の並びの外）を使う（ファイルの JSON は `jsonForFile`）。
   既知の限界（ADR-0017）: 設定の検証エラーの詳細の中の設定の値の LF は残る（設定は信頼された入力、R-006）。
   既知の限界（ADR-0019）: 構造テストは次を扱わない。実行時に組み立てたパスへの fs の書き込み（検出するのはリテラルの `/dev/`・`/proc/` のパスと数値の fd だけ）、
   自分自身への SIGUSR1（inspector の起動）、依存のパッケージの中の出力、子プロセスが自分で端末を開くこと。コールバックの中の未処理の例外・拒否の形も

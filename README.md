@@ -62,6 +62,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | Security Scan の保守（候補の持ち越し、追跡済み `.gitignore`、実生成物のプローブ、`security.allow`、key-value 走査、設定化） | M2-0 実装済み |
 | Security Scan の生の文字（双方向の制御文字 U+202A–U+202E・U+2066–U+2069、行区切り U+2028・U+2029。中身とパス名。既定で FAIL、分類を明示した `security.allow` でだけ外せる） | v0.13.0（**判定が厳しくなる変更**。ROADMAP の項目 48。ADR-0036） |
 | Security Scan の見えない文字の層 (c)（方向の印・ゼロ幅・途中の BOM・ソフトハイフン・異体字セレクタ・タグ文字・制御文字・そのほかの既定で無視される文字の 8 分類。正しい絵文字の並びの内側の U+200D・U+FE0F・タグ文字だけ除く） | v0.15.0（**判定が厳しくなる変更**。ROADMAP の項目 49。ADR-0037） |
+| review-packet と出口の見えない文字（禁止文字に、Security Scan と同じ判断で正しい絵文字の並びの外の層 (c) を加えた 1 つの判断。パケットは書かない〈`security.allow` は当てない〉、端末・`latest.md` は表記、ファイルの JSON は値を変えずに escape） | v0.17.0（**パケットが厳しくなる変更**。ROADMAP の項目 54。ADR-0039） |
 | `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.16.0（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
 | 出力パーサ（vitest・eslint・npm audit・pytest の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉。pytest は v0.14.0〈決定 12〉） |
@@ -223,6 +224,18 @@ jobs:
   書いた `security.allow` の規則（例 `{ "path": "app/text/**/*.py", "category": "zero-width", "reason": "…" }`）を足し、意図しない文字なら
   消します。`findings: 0` を確かめてから、verify が呼ぶ aiqh の版を上げてください。新しい分類を書いた設定は v0.14.x 以前の aiqh では
   設定のエラー（exit 2）です
+- v0.17.0 から、review-packet と出口も、同じ判断で見えない文字を扱います（ROADMAP の項目 54、ADR-0039。**パケットが厳しくなる変更**）。
+  禁止文字（`FORBIDDEN_RANGES`、75）に、Security Scan が finding とする層 (c) の文字（正しい絵文字の並びの外）を加えた 1 つの判断で、
+  元の文字列の上で LF で分けた 1 行ずつ決めます（LF の前の CR と文字列の最後の CR は Security Scan と同じく層 (c) の判断から外し、禁止文字として扱います）
+  - review-packet: 依頼文・レビューの原文・commit のメッセージ・全文・差分（範囲の始まりの側の古い行も）・`latest.json` の値・オプションの値とパスに
+    該当があれば、パケットを書きません（exit 1。`[raw-char] … U+200B zero-width` のように符号位置と分類。禁止文字は今までどおり符号位置だけ）。
+    `security.allow` は当てません（Security Scan で許容した文字も、パケットでは止まります）。外すには `--exclude` です
+  - 端末・`latest.md`・`aiqh history --html` のダッシュボード: 該当する文字を `\u{HEX}` の表記で出します（パスの名前の U+200B など）。
+    端末の `--json` の値も、表示のために表記の文字列になります（データとして読むときは、ファイルの JSON を読んでください）
+  - ファイルの JSON（`latest.json`・history・review-import の findings）: 該当する文字を JSON の escape（U+FFFF より上はサロゲートの組）で書きます。
+    読み戻したデータは変わりません。該当する文字が無ければ、ファイルの中身は今までと同じです
+  - review-import は取り込みを止めず、件数の行（`forbidden characters in the review: N …`。件数に層 (c) を含む）を出します
+  - 正しい絵文字の並び（RGI）は、どこでもそのまま通り、そのまま出ます。`FORBIDDEN_RANGES` と Security Scan の判定は変わりません
 - **版を上げるとき（v0.13.0 から）**: 生の文字の検出が効くのは、実際に起動する `aiqh security-scan` が v0.13.0 以降のときだけです（verify の security の check は、
   check の `command` を PATH で探して起動します。新しい verify が古い `aiqh security-scan` を呼ぶと、生の文字は見つからず、check は PASS のままです）。
   verify が実際に呼ぶ `aiqh`（手元は PATH の `aiqh` と、`npm run` のスクリプトが呼ぶもの。CI は再利用ワークフローの `uses:` の SHA）の版・commit をそろえてください。
@@ -276,7 +289,7 @@ aiqh history --from <dir> [--from <dir> …] [--json] [--html [--out <dir>]] [--
 
 相対パス（`--request` / `--review` / `--config` / `-o` / `--zip-output`）は `--cwd` のディレクトリ（省略時はカレント）を基準に解決します。
 `--config` を省略したときは `--cwd` のディレクトリの `aiqh.config.jsonc` を読み、無ければ既定値、あるのに読めない・不正なら `2` です（`aiqh security-scan` も同じ。v0.5.1）。
-`aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・秘密の形のいずれかを検出（何も書かない。
+`aiqh review-packet` の終了コード: `0` = 書いた、`1` = 不正な UTF-8・生の制御 / 区切り / 双方向制御文字・見えない文字（v0.17.0 から。正しい絵文字の並びの外の層 (c)。ADR-0039）・秘密の形のいずれかを検出（何も書かない。
 値は表示しない）、`2` = 使い方・設定・検査不能（読めない入力、作業ツリー外、git の失敗など）・上限・書込のエラー。検査そのものができないときは finding があっても
 `2` で、それまでの finding を「検査が完了していないため不完全」と明記して出します。上限超過など検査を妨げないエラーは finding が無いときだけ `2` です（ADR-0015）。
 `<from>` は `<to>` の祖先であること。lock ファイルは既定で全文・差分を載せない（ADR-0014）。
