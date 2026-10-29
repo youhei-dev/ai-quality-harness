@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.17.0 — batch2 (3): the review packet refuses, and the exits show, the invisible characters outside RGI emoji sequences, decided once as the security check decides them (item 54, ADR-0039); the JSON files keep their data; the v0.16.0 record
+## v0.17.0 — commit baecd63c3b5f7f405d16830d39a9ddc9865f5e82 / tag object 46a1a56a143e8473aea89bd0d1198e32dffa47f9 — batch2 (3): the review packet refuses, and the exits show, the invisible characters outside RGI emoji sequences, decided once as the security check decides them (item 54, ADR-0039); the JSON files keep their data; the v0.16.0 record
 
 - **review-packet が厳しくなる**（ROADMAP の項目 54、ADR-0039。人間の決定 B2-Q9・B2-Q10 の A）: 禁止文字の集合（`FORBIDDEN_RANGES`、75。変えない）に、security の check（ADR-0037）が finding とする層 (c) の文字（ゼロ幅・方向の印・異体字セレクタ・タグ文字など。**正しい絵文字の並び〈RGI〉の外**）を加えた 1 つの判断で、依頼文・レビューの原文・commit のメッセージ・全文・差分（範囲の始まりの側の古い行も）・`latest.json` の値・オプションの値とパスを確かめ、該当があればパケットを書かない（exit 1、`raw-char` の finding。`detail` は禁止文字なら今までどおり符号位置〈`U+202E`〉、足した文字は符号位置と分類〈`U+200B zero-width`〉）。**`security.allow` は当てない**（security-scan で許容した文字もパケットは書かない。外すには `--exclude`）。絵文字の並び（家族・旗・keycap など）は今までどおり通る
 - **出口の表記が広がる**（ADR-0039 の決定 4）: 端末の行・端末の `--json`・`latest.md`・`aiqh history --html` のダッシュボードは、同じ判断の文字を `\u{HEX}` の表記で出す（例: 層 (c) の文字を名前に持つパスの finding の行）。端末の `--json` の値は表示のために表記の文字列になる（今までの禁止文字と同じ）
@@ -21,7 +21,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - テスト: 186 ファイル・2,791 件から 187 ファイル・2,822 件
 - `package.json` version 0.17.0（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存・`package-lock.json`・禁止文字の集合（`FORBIDDEN_RANGES`）・`scanString` の経路・security の check の判定は v0.16.0 と同一。src は `src/security/raw-chars.ts`・`src/output.ts`・`src/report/write.ts`・`src/review/checked.ts`・`src/review/packet.ts`・`src/commands/review-packet.ts`・`src/commands/review-import.ts` だけ
 - 適用先 A・B の再利用ワークフローの SHA は、この版の後に 1 回上げる（B2-Q14 の A。別の作業）
-- 記録（この版の後の記録の PR で記入）: PR、run、merge の commit、タグの SHA
+- 記録（v0.17.0 の後の記録の PR で記入）: PR #22（merge の commit `a2bf78c31e5d80ed4f71377444ad2cd19fc88239`）。PR の run `40875932433`・main の run `40876937339` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.17.0 の項）。`reusable (self)` は `job-summary: true` で、要約の手順も success
+- 実装の独立レビュー batch2-v0170-impl R1（v0.17.0 の後の記録の PR で取り込んだ。`docs/reviews/batch2-v0170-impl/`）: High 0 / Medium 0 / Low 0（complete。R1 で終えた）。B2-D-R1-002・B2-D-R2-001 はどちらも「解消」。生き残った 2 つの変異の同値性は、レビュー側も「現在の観測可能な仕様に関して」支持した。これで batch2 は、設計の独立レビューと 3 つの版の実装の独立レビューのループをすべて閉じた
 
 ## v0.16.0 — commit 3b6b1c31d0569665f51ff12ee885af34d71e9603 / tag object 1ecbb2f6dc17ad0086239cd02ad2e6d9abca5b66 — batch2 (2): one runId per verify run in latest.json, latest.md and the history file (item 52, ADR-0038); the SourceFile reuse of the test helper keys on every parse condition (B2-I151-R1-001); the v0.15.1 record
 

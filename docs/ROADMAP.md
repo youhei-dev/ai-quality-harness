@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-29
+最終更新: 2026-10-30
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1163,7 +1163,13 @@ M2-1 の教訓（R3）:
   - 実測（数と時間だけ）: aiqh の最初の commit から項目 54 の commit までの 448 commit の差分（`git log -p`、13.7 MB）・全 commit のメッセージ・`docs/reviews/`・受け取ったレビューの原文・手元のレポートで、足した判断の該当は 0（禁止の集合は、過去の差分の中の既知の 10 件〈生の文字を入れた行と、v0.11.1・M2-0 でそれを直した行〉だけ。13.7 MB の判断は 87 ms）。aiqh の最初の commit から項目 54 の commit までの範囲（447 commit）のパケットは、変更の前後で同じ 3 件（範囲の始まりの側の古い行の秘密の形。前からのもの）で書かれない。適用先 A・B の写しの security-scan は、変更の前後で端末と `--json` の出力がバイト単位で同じ（finding 0、除いた数 3・11）。追跡しているファイルと手元のレポートで、足した判断の該当は 0
   - 設計の独立レビュー batch2-design: B2-D-R1-002・B2-D-R2-001 を `resolved`（`fixedIn` は項目 54 の commit。確かめは v0.17.0 の実装レビュー）。`aiqh review-check --label batch2-design` は `REVIEW LOOP: complete`（open 0。警告 2 件は、resolved で R2 の評価が「部分的に解消」の B2-D-R1-001・B2-D-R1-002。`note` に理由）
   - 実装の独立レビュー（label `batch2-v0170-impl`）: 依頼文とパケットは、この版のリリースの後に作る。B2-D-R1-002・B2-D-R2-001 の解消と項目 54 の実装を、そこで確かめる
-  - 適用先 A・B の再利用ワークフローの SHA は、この版の後に 1 回上げる（B2-Q14 の A。この版の作業には入れていない）
+  - CI（pull request の run）: PR #22 の run 40875932433（event pull_request、head `baecd63`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 4 分 4 秒（verify の duration 3m52s、VERIFY PASSED 8/8）。`unit` 1m51s（111 秒、上限 600 秒の 18.5%）・`unit-minpath` 1m51s（111 秒、18.5%）。`reusable (self) / aiqh verify` はジョブ 6 分 11 秒（VERIFY PASSED 8/8、5m53s。`aiqh --version` は 0.17.0。`unit` 2m49s〈169 秒、28.2%〉・`unit-minpath` 2m47s〈167 秒、27.8%〉）。`job-summary: true` で、`report:` の行は `RUNNER_TEMP` の `aiqh-verification.XXXXXX` を指し、要約の手順は success
+  - CI（merge の後の main の run）: merge の commit `a2bf78c` の push の run 40876937339 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 6 分 22 秒（verify の duration 6m10s、VERIFY PASSED 8/8）。`unit` 2m54s（174 秒、29.0%）・`unit-minpath` 2m58s（178 秒、29.7%）。`reusable (self) / aiqh verify` はジョブ 6 分 8 秒（VERIFY PASSED 8/8、5m50s。aiqh のソースは `a2bf78c`、0.17.0。`unit` 2m46s〈166 秒、27.7%〉・`unit-minpath` 2m47s〈167 秒、27.8%〉）。タグは、この run の success の後に付けた
+  - PR #22: `gh pr merge 22 --merge --match-head-commit baecd63… --delete-branch` で merge した（`--admin`・`-R` は使っていない）。merge の commit `a2bf78c31e5d80ed4f71377444ad2cd19fc88239`（親は `29d582d` と `baecd63`）。手元とリモートの branch `release/v0.17.0` は merge で消えた
+  - タグ v0.17.0 = commit baecd63c3b5f7f405d16830d39a9ddc9865f5e82 / tag object 46a1a56a143e8473aea89bd0d1198e32dffa47f9。CHANGELOG の v0.17.0 の見出しの SHA と、上の CI の記録は、v0.17.0 の後の記録の PR（branch `docs/v0.17.0-record`）で記入した
+  - 実装の独立レビュー batch2-v0170-impl R1（範囲 `29d582d..baecd63`、4 commit・28 ファイル。`docs/reviews/batch2-v0170-impl/`）: **High 0 / Medium 0 / Low 0**。B2-D-R1-002・B2-D-R2-001 はどちらも解消と評価された。生き残った 2 つの変異（`escapeInline` の判断を外す・`jsonForFile` の速い道を通らない）の同値性は、レビュー側も「現在の観測可能な仕様に関して」支持した。依頼文に先に書いた基準（High・Medium が 0 なら終える）に達したので、R1 で終えた。レビュアーが独立に確かめていない範囲（「必要なら」の固定の URL、コード・テスト・変異・性能・CI の独立の実行、直す前の FAIL と変異の生のログ、適用先 A・B の中身）は、新しい指摘ではなく既知の残余として受け入れた（`response-r1.md`）
+  - batch2（項目 50〜55）は、設計の独立レビュー（batch2-design）と 3 つの版の実装の独立レビュー（batch2-v0151-impl・batch2-v0160-impl・batch2-v0170-impl）まで、すべてのレビューのループを閉じた
+  - 適用先 A・B の再利用ワークフローの SHA は、B2-Q14 の A のとおり、この後に 1 回上げる（v0.17.0 の作業にも、この記録の PR にも入れていない）
 
 ---
 

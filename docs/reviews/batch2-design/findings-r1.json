@@ -54,7 +54,7 @@
       "regressionTest": "tests/regression-item54-display-raw-chars.test.ts の N8（判断は元の文字列の上で LF で分けた 1 行ずつ。出口・パケットの値の確かめ・security の check の行と符号位置が一致。決まった種の 400 の文を含む）、N4（jsonForFile: JSON.parse の後の深い同一性・表記にする文字が残らない・表記にする文字が無ければ JSON.stringify と同じ字面）と 2 つの落とし穴（BMP の外を 4 桁で書かない・JSON の字面の上で判断しない）、N1・N7（表示の経路は表記）、N3（review-import）、N6（禁止の集合だけの値は今までの字面）",
       "guard": null,
       "destination": "v0.17.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（LF だけの分割では CRLF の CR が security の check と食い違う）。その残りは B2-D-R2-001。実装と確かめは v0.17.0。v0.17.0 の c537c66 で直した（ADR-0039 の決定 1・3・4。確かめは v0.17.0 の実装レビュー）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch2-design/design-final.md（この記録と同じ v0.15.1 の docs の commit で入れた）。R2 の評価: 部分的に解消（LF だけの分割では CRLF の CR が security の check と食い違う）。その残りは B2-D-R2-001。実装と確かめは v0.17.0。v0.17.0 の c537c66 で直した（ADR-0039 の決定 1・3・4。確かめは v0.17.0 の実装レビュー）。v0.17.0 の実装レビュー batch2-v0170-impl R1 の評価: 解消"
     },
     {
       "id": "B2-D-R1-003",
