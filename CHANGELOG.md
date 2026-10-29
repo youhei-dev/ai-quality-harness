@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.16.0 — batch2 (2): one runId per verify run in latest.json, latest.md and the history file (item 52, ADR-0038); the SourceFile reuse of the test helper keys on every parse condition (B2-I151-R1-001); the v0.15.1 record
+## v0.16.0 — commit 3b6b1c31d0569665f51ff12ee885af34d71e9603 / tag object 1ecbb2f6dc17ad0086239cd02ad2e6d9abca5b66 — batch2 (2): one runId per verify run in latest.json, latest.md and the history file (item 52, ADR-0038); the SourceFile reuse of the test helper keys on every parse condition (B2-I151-R1-001); the v0.15.1 record
 
 - **レポートの最上位のキーが 1 つ増える**（ROADMAP の項目 52、ADR-0038）: verify は run の始めに `runId`（`crypto.randomUUID()`。UUID の版 4、小文字 36 文字）を 1 つ作り、`latest.json` と `history/<ts>.json` の最上位（`startedAt` の直前）と、`latest.md` の表（`| Started |` の直前の `| Run ID | … |`）に同じ値で書く。中断された run（verdict ERROR）にも入る。**`schemaVersion` は 1 のまま**（足すだけの変更。ADR-0033 の前例）。aiqh の読み手（`aiqh history`・review-packet）は知らないキーを捨てるので変わらない（v0.15.0 と同じ src の `aiqh history` で、この版の history を読めることを確かめた）が、**最上位のキーを厳しく照らす外の読み手（追加のキーを拒む JSON Schema など）にとっては変更になる**。再利用ワークフローで `job-summary: true` を使う呼び出し側は、Job Summary にも `Run ID` の行が出る。判定・終了コード・端末の出力（B2-Q6 の A）・書く順・history の名前は変わらない
 - **読み手の約束**（README「`latest.json` と `latest.md` を組で読むとき」、ADR-0003・ADR-0034 の L の注記）: 2 つのファイルの両方に `runId` があれば、同じ値なら同じ run、違えば別の run。どちらかに無ければ（v0.15.x までの版が書いたファイル）、今までの `startedAt` の約束。並行の verify で組が別の run になりうること（項目 47）は直っていない（受け入れ・未解決のまま。見分けられるようになった）
@@ -18,7 +18,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 記録: v0.15.1 の見出しの SHA と記録の行（PR #20、run）、実装レビュー batch2-v0151-impl R1 の行、ROADMAP の v0.15.1 の CI
 - テスト: 185 ファイル・2,774 件から 186 ファイル・2,791 件
 - `package.json` version 0.16.0（`package-lock.json` の `version` は 0.5.35 のまま）。実行時の依存・`package-lock.json`・禁止文字の集合（`FORBIDDEN_RANGES`）・review-packet の生の文字の確かめ・`scanString` の経路は v0.15.1 と同一。src は `src/commands/verify.ts`・`src/report/build-report.ts`・`src/report/markdown.ts`・`src/types.ts` だけ
-- 記録（この版の後の記録の PR で記入）: PR、run、merge の commit、タグの SHA
+- 記録（v0.17.0 の PR で記入）: PR #21（merge の commit `29d582d89fc46b05cb74cdb9ce7420d9bcac992e`）。PR の run `40302815054`・main の run `40303680562` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.16.0 の項）。`reusable (self)` は `job-summary: true` で、要約の手順も success
+- 実装の独立レビュー batch2-v0160-impl R1（v0.17.0 の PR で取り込んだ。`docs/reviews/batch2-v0160-impl/`）: High 0 / Medium 0 / Low 0（complete。R1 で終えた）。B2-I151-R1-001・B2-D-R1-001 は「解消」。B2-D-R2-003 は「部分的に解消」（AST だけの書き換えを見つける仕組みは無い。残る制限とした決定のとおりで、新しい指摘にはなっていない）
 
 ## v0.15.1 — commit 1960630ccdfd203a6a37e313c20653d5c6d0a8fd / tag object 36e6fb9f233e3c4128bc81967e129010b01db51b — batch2 (1): tests and the reusable workflow only (src unchanged): P3 by thread CPU time and growth; createProgram reuses SourceFiles; with job-summary the report goes to a new directory of the run; the four parsers stay chosen by any word
 

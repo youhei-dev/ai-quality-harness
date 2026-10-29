@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-26
+最終更新: 2026-10-29
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1152,6 +1152,11 @@ M2-1 の教訓（R3）:
   - 項目 52: テストを先に書き（`tests/regression-item52-run-id.test.ts` の 8 件と、47-c-2・47-c-3 の `runId` の判定）、`98d7ddf` の SHA 固定の worktree で、新しい 8 件のうち 7 件（R5 は守り）と 47-c-2・47-c-3、最上位のキーの並び・数の 3 件が FAIL。`runId` を書かない・別の値を書く・順を変える・端末に出す・UUID の版 4 でない値、の 7 つの変異は、どれも 1〜12 件 FAIL
   - 既存のテストの期待値の変更は B2-Q15 の項目 52 の分だけ（最上位のキーの並び 2 か所、最上位のキーの数 15 → 16、47-c-3）。`buildReport(` の 14 か所（11 ファイル）は、決まった `runId` を渡す呼び出しの形の変更だけ
   - 実装の独立レビュー（label `batch2-v0160-impl`）: 依頼文とパケットは、この版のリリースの後に作る。B2-I151-R1-001 の直しと、項目 52 の実装を、そこで確かめる
+  - CI（pull request の run）: PR #21 の run 40302815054（event pull_request、head `3b6b1c3`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 5 分 50 秒（verify の duration 5m34s、VERIFY PASSED 8/8）。`unit` 2m40s（160 秒、上限 600 秒の 26.7%）・`unit-minpath` 2m38s（158 秒、26.3%）。`reusable (self) / aiqh verify` はジョブ 4 分 30 秒（VERIFY PASSED 8/8、4m14s。`aiqh --version` は 0.16.0。`unit` 2m01s〈121 秒、20.2%〉・`unit-minpath` 2m00s〈120 秒、20.0%〉）。`job-summary: true` で、`report:` の行は `RUNNER_TEMP` の `aiqh-verification.XXXXXX` を指し、要約の手順は success（Job Summary の `Run ID` の行は、人が見るものとして残した）
+  - CI（merge の後の main の run）: merge の commit `29d582d` の push の run 40303680562 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 4 分 38 秒（verify の duration 4m23s、VERIFY PASSED 8/8）。`unit` 2m06s（126 秒、21.0%）・`unit-minpath` 2m04s（124 秒、20.7%）。`reusable (self) / aiqh verify` はジョブ 5 分 41 秒（VERIFY PASSED 8/8、5m25s。aiqh のソースは `29d582d`、0.16.0。`unit` 2m34s〈154 秒、25.7%〉・`unit-minpath` 2m35s〈155 秒、25.8%〉）。タグは、この run の success の後に付けた
+  - PR #21: `gh pr merge 21 --merge --match-head-commit 3b6b1c3… --delete-branch` で merge した（`--admin`・`-R` は使っていない）。merge の commit `29d582d89fc46b05cb74cdb9ce7420d9bcac992e`（親は `98d7ddf` と `3b6b1c3`）。手元とリモートの branch `release/v0.16.0` は merge で消えた
+  - タグ v0.16.0 = commit 3b6b1c31d0569665f51ff12ee885af34d71e9603 / tag object 1ecbb2f6dc17ad0086239cd02ad2e6d9abca5b66。CHANGELOG の v0.16.0 の見出しの SHA と、上の CI の記録は、v0.17.0 の PR（branch `release/v0.17.0`）で記入した
+  - 実装の独立レビュー batch2-v0160-impl R1（範囲 `98d7ddf..3b6b1c3`、5 commit・33 ファイル。`docs/reviews/batch2-v0160-impl/`）: **High 0 / Medium 0 / Low 0**（R1 で終えた。`aiqh review-check --label batch2-v0160-impl` は `REVIEW LOOP: complete`）。B2-I151-R1-001 と B2-D-R1-001 は解消。B2-D-R2-003 は「部分的に解消」（AST だけの書き換えを見つける仕組みは無い。残る制限とした決定〈設計（最終）§1.6〉のとおりで、レビュアーは新しい指摘にしていない）。レビュアーが独立に確かめていない範囲（「必要なら」の固定の URL、`getSourceFile` の記録と変異のログ、直す前の FAIL のログ、TypeScript の配布物の実行、古い版の `aiqh history` の実行、CI の再実行）は、新しい指摘ではなく既知の残余として受け入れた（`response-r1.md`）
 
 ---
 
