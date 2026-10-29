@@ -9,7 +9,7 @@
  * imported from modules that exist before the change, so on the base commit only the cases that use them fail.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runReviewPacket } from "../src/commands/review-packet.ts";
@@ -470,8 +470,8 @@ describe("L7, L17: the names of the listed paths", () => {
       ].sort(),
     );
     const t = await scanText(r.dir);
-    // the terminal notation covers FORBIDDEN_RANGES only (unchanged, ADR-0020 decision 3): a zero-width character in a name is printed as it is
-    expect(t.lines).toContain(`  [raw-char] ${zw} U+200B zero-width (in the path)`);
+    // since v0.17.0 the terminal shows a zero-width character in a name as notation, like the forbidden characters (ADR-0039 decision 4)
+    expect(t.lines).toContain(`  [raw-char] docs/a${String.fromCharCode(92)}u{200B}b.md U+200B zero-width (in the path)`);
   });
 });
 
@@ -529,16 +529,22 @@ describe("L9, L10, L12: the output, the parser and review-packet", () => {
     expect(summaryText(p)).toContain("raw characters 2");
   });
 
-  it("L12 guard: review-packet does not change: a zero-width character in the diff passes its raw-character check (it stops FORBIDDEN_RANGES only)", async () => {
+  it("L12 (v0.17.0, ADR-0039): review-packet stops a zero-width character outside an RGI sequence in the diff (two raw-char findings); the family emoji's ZWJ is no finding", async () => {
     const r = repo();
     r.git("commit", "-q", "-m", "base");
     const base = r.git("rev-parse", "HEAD").trim();
     r.write("docs/zw.md", `x${ch(0x200b)}y ${FAMILY}\n`);
     r.add("docs/zw.md");
     r.git("commit", "-q", "-m", "zw");
-    const err: string[] = [];
-    const code = await runReviewPacket({ cwd: r.dir, range: `${base}..HEAD`, label: "l12", output: path.join(r.parent, "packet.md"), toolVersion: "0.0.0-test", today: "2026-10-25", log: () => {}, logError: (l) => err.push(l) });
-    expect(code, err.join("\n")).toBe(0);
+    const out: string[] = [];
+    const code = await runReviewPacket({ cwd: r.dir, range: `${base}..HEAD`, label: "l12", output: path.join(r.parent, "packet.md"), toolVersion: "0.0.0-test", today: "2026-10-25", json: true, log: (l) => out.push(l), logError: () => {} });
+    expect(code).toBe(1);
+    const findings = (JSON.parse(out.join("\n")) as { findings: Array<{ kind: string; source: string; line: number | null; detail: string | null; location: string | null }> }).findings;
+    expect(findings.map((f) => [f.kind, f.source, f.line, f.detail, f.location])).toEqual([
+      ["raw-char", "full source docs/zw.md", 1, "U+200B zero-width", null],
+      ["raw-char", "diff docs/zw.md", 7, "U+200B zero-width", "docs/zw.md:1"],
+    ]);
+    expect(existsSync(path.join(r.parent, "packet.md"))).toBe(false);
     expect(scanString(`x${ch(0x200b)}y\n`)).toEqual([]);
   });
 });

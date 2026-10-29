@@ -1,8 +1,8 @@
 /**
  * Checked strings (M2-1 R2, ADR-0014). Every string that is rendered into the review packet or written into
  * its ZIP — paths, refs, globs, file names, labels, verify values, commit subjects, the ZIP entry name, and
- * the values aiqh derives (SHAs, versions, times) — must first pass the pre-render check: no forbidden raw
- * character (raw-chars.ts) and no secret shape (the shared scanner). The renderers of packet.ts and the ZIP
+ * the values aiqh derives (SHAs, versions, times) — must first pass the pre-render check: no raw character
+ * (raw-chars.ts' findDisplayRawChars: the forbidden set, and since v0.17.0 the invisible ones; ADR-0039) and no secret shape (the shared scanner). The renderers of packet.ts and the ZIP
  * writer accept only `Checked`, so a value that skipped the check is a type error rather than a leak found in
  * review.
  *
@@ -17,12 +17,12 @@
  * value.
  */
 import type { ResolvedSecurity } from "../types.ts";
-import { findRawChars, formatCodePoint } from "../security/raw-chars.ts";
+import { findDisplayRawChars, rawCharDetail } from "../security/raw-chars.ts";
 import { scanString } from "../security/scan.ts";
 
 declare const checkedBrand: unique symbol;
 
-/** A string that passed checkValue (no forbidden raw character, no secret shape). */
+/** A string that passed checkValue (no raw character of findDisplayRawChars, no secret shape). */
 export type Checked = string & { readonly [checkedBrand]: true };
 
 /** Why a value is not Checked; never contains the value. */
@@ -51,7 +51,7 @@ function issue(value: string): Checked {
 /** The pre-render check: raw characters, then secret shapes (without allow rules: a value has no file line). */
 export function checkValue(value: string, security: ResolvedSecurity): CheckResult {
   const findings: ValueFinding[] = [];
-  for (const h of findRawChars(value)) findings.push({ kind: "raw-char", line: h.line, detail: formatCodePoint(h.codePoint) });
+  for (const h of findDisplayRawChars(value)) findings.push({ kind: "raw-char", line: h.line, detail: rawCharDetail(h) });
   for (const f of scanString(value, security)) {
     findings.push({ kind: f.kind === "oversized-candidate" ? "oversized-candidate" : "secret", line: f.line ?? 1, detail: f.category ?? null });
   }
