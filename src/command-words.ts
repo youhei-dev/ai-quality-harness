@@ -1,6 +1,6 @@
 /**
  * The words of a command line, read without running it (appendix A of the batch1 design, final; items 45 and 39, v0.14.0). Shared by
- * the node:test detection of `aiqh init` (src/adapters/node.ts) and the pytest parser selection (src/parse/select.ts); the other
+ * the node:test rules (src/node-command.ts, used by `aiqh init` since v0.14.0) and the pytest parser selection (src/parse/select.ts); the other
  * parsers keep their own reading (select.ts `segmentsOf`), so their output does not change.
  * - Simple commands end at `;`, `&&`, `||`, `|`, `&` and newlines outside quotes. The `&` of `>&`, `<&` and `&>` is part of a word.
  * - Words end at blanks outside quotes. `'…'` and `"…"` are parts of a word (the quotes are removed); in double quotes `\` escapes only
