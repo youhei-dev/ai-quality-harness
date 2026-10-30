@@ -164,6 +164,8 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する
 - タグの push は、ruleset の対象（branch）の外
+- 版を上げる（release の commit。v0.17.1 から。ADR-0008 の追記）: `npm version <新しい版> --no-git-tag-version` で、`package.json` の `version` と `package-lock.json` のルートの 2 つの `version` を同時に上げる（commit とタグは作らない。手で `package.json` だけを書き換えない）。lock の全欄の比べで、ルートの 2 つのほかが変わっていないことを確かめる。`tests/regression-m2-1-r2-008-version-consistency.test.ts` が、3 つ（と CHANGELOG・README の版）の一致を確かめる
+- 依存を更新した commit では、npm が書いたルートの `version`（そのときの `package.json` の版）をそのまま commit する（v0.13.2・v0.14.1 のように 0.5.35 に手で戻さない。v0.17.1 から）
 
 ### 8-1. テストの時間の予算（T1〜T4。v0.13.2、ROADMAP の項目 41）
 

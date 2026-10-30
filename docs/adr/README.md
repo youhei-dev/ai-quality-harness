@@ -11,7 +11,7 @@
 | [0005](0005-child-process-execution.md) | チェックは shell 経由・プロセスグループ管理で実行する | 採用（注記〈v0.10.1〉: `timeoutSec` の上限 2,147,483 秒） | 2026-09-15 |
 | [0006](0006-secret-masking.md) | 出力の秘密情報はパターンマスクし、値を保存しない | 採用（注記〈v0.10.0〉: CI ではレポートを artifact に上げない） | 2026-09-15 |
 | [0007](0007-artifacts-untracked.md) | `artifacts/` を git 管理外にする | 採用（注記〈v0.10.0〉: CI の artifact と履歴 DB は、そのとおりにはならなかった） | 2026-09-15 |
-| [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用 | 2026-09-15 |
+| [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用（追記〈v0.17.1〉: `package-lock.json` のルートの version は npm が書いた値のまま。リリースで `npm version <版> --no-git-tag-version` により `package.json` と揃える） | 2026-09-15 |
 | [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価。注記〈v0.9.0〉: CI は ADR-0031 の案 D、手元は `npm link` のまま） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
 | [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用（出力パーサの型の項を 0028 で置換。v0.14.0 で node:test の検出〈script の本文を証拠にする。ROADMAP の項目 45〉。v0.14.1 で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001〉。v0.15.0 で、値が空の `=` の形も提案しない） | 2026-09-18 |
