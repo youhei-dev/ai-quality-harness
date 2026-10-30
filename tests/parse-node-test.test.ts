@@ -115,6 +115,11 @@ describe("node-test: the names of the spec reporter's failing list", () => {
     expect(r.items[0]?.name).not.toContain(secret);
     expect(r.items[0]?.name).toContain("[REDACTED");
   });
+  // found by the mutations of v0.18.0: real TAP output never has a spec failing list after its block, so only this input tells it
+  it("after a TAP block, a spec-like failing list is not read (TAP names are not read)", () => {
+    const r = parse(text([...block(TAP, { tests: "1", suites: "0", pass: "0", fail: "1", todo: "0" }), "", `${CROSS} failing tests:`, "", "test at t.test.mjs:1:1", `${CROSS} x (0.1ms)`]), 1);
+    expect(r).toEqual(parsed(counts(1, 0, 0, 1, 0, 0, 0)));
+  });
   it("a name line without a `test at` line just before it is not a name", () => {
     const r = parse(text([...block(SPEC, { tests: "1", suites: "0", pass: "0", fail: "1", todo: "0" }), "", `${CROSS} failing tests:`, "", `${CROSS} orphan (0.1ms)`, "test at o.test.mjs:2:1", `${CROSS} real (0.1ms)`]), 1);
     expect(r.items).toEqual([failed("o.test.mjs:2:1 real")]);
@@ -202,6 +207,11 @@ describe("node-test: the boundary table (§3.12)", () => {
   });
   it("e12: no exit code (the run was stopped): unexpected-summary", () => {
     expect(parse(text(block(SPEC)), null)).toEqual(unparsed("unexpected-summary"));
+  });
+  // found by the mutations of v0.18.0 (none taken as 0 survived e12): a block without failures and no exit code is not read either
+  it("e12b: no exit code with a block of no failures (none is not 0): unexpected-summary", () => {
+    expect(parse(text(block(SPEC, { tests: "2", suites: "0", pass: "2", fail: "0", todo: "0" })), null)).toEqual(unparsed("unexpected-summary"));
+    expect(parse(text(block(SPEC, { tests: "2", suites: "0", pass: "2", fail: "0", todo: "0" })), 0)).toEqual(parsed(counts(2, 0, 2, 0, 0, 0, 0)));
   });
   it("e13: the 8 lines indented by 2 spaces: no-summary", () => {
     expect(parse(text(block(SPEC).map((l) => `  ${l}`)), 1)).toEqual(unparsed("no-summary"));

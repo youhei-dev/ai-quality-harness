@@ -117,9 +117,12 @@ describe("item 40 (a): maskSecrets redacts exactly what the private-key regex re
       `${BEGIN()}${END_HEAD}${END_HEAD}${END_HEAD}x`,
       `x${":"}//u${":"}p@h ${BEGIN()}${body}${END()}`,
       `${BEGIN_HEAD}${"A".repeat(300)}${TAIL}${body}${END()}`,
+      // found by the mutations of v0.18.0: the last hyphen of an end marker and 4 hyphens after it look like a begin head; the regex goes
+      // on from the end of the match and does not see it (a scan that went back one character would)
+      `${BEGIN()}${body}${END()}${"-".repeat(4)}BEGIN RSA ${TAIL}${body}${END()}`,
     ];
     for (const s of examples) expect(maskSecrets(s), JSON.stringify(s)).toBe(oracleMask(s));
-    expect(examples.filter((s) => oracleMask(s) !== s).length, "most of them are redacted").toBe(15);
+    expect(examples.filter((s) => oracleMask(s) !== s).length, "most of them are redacted").toBe(16);
   });
 });
 
