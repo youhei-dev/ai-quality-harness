@@ -73,7 +73,7 @@ artifact のアップロードは無い。レポートは、既定では job の
    - 同じ job の後の手順への影響: 再利用ワークフローの job には、呼び出す側から手順を足せない。`verify.yml` の中で、Job Summary の手順の後にレポートを読む手順は無い。呼び出す側の別の job は、もとから作業ディレクトリのレポートを読めない（job ごとに別の runner）
 
 - 権限は `contents: read` だけ。job の `env:` で `npm_config_ignore_scripts: "true"` を設定する（呼び出す側のワークフローの `env` は引き継がれないため）
-- アクションは、すべて 40 桁の commit SHA で固定している（checkout v7.0.1、setup-node v7.0.0、setup-python v7.0.0）
+- アクションは、すべて 40 桁の commit SHA で固定している（checkout v7.0.1、setup-node v7.1.0、setup-python v7.1.0）
 - 入力の値は `env:` を通して script に渡す（`run:` に式を埋め込まない）
 - `setup-command` は、呼び出す側が書いたコマンドを、そのまま呼び出す側の job で走らせる（設定ファイルと同じく、呼び出す側の信頼された入力）
 
