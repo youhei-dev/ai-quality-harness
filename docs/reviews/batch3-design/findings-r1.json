@@ -72,7 +72,7 @@
       "regressionTest": "tests/regression-m2-1-r2-008-version-consistency.test.ts の 2 件目（package-lock.json のルートの 2 つの version = package.json の version。447fb66〈lock 0.5.35・package.json 0.17.0〉で FAIL、v0.17.1 の最初の commit から PASS）",
       "guard": null,
       "destination": "v0.17.1",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（B を支持）。lock は v0.17.1 の依存の commit で npm が 0.17.0 に書き、release の commit で 0.17.1 に揃える"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（B を支持）。lock は v0.17.1 の依存の commit で npm が 0.17.0 に書き、release の commit で 0.17.1 に揃える。v0.17.1 の実装レビュー batch3-v0171-impl R1 の問い 3 の評価: 指摘なし（守りのテストは、release での上げ忘れ・依存の commit で 0.5.35 に戻す・片方だけの不一致のどれも FAIL にする。直す前の FAIL は独立に再実行していない）"
     }
   ]
 }
