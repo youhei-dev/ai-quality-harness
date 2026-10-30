@@ -5,7 +5,7 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
-## v0.17.1 — batch3 (1): in-range devDependency updates; setup-node and setup-python v7.1.0 and the procedure for action SHAs (ADR-0025 decision 9); package-lock.json's root version follows package.json (ADR-0008 addendum); the batch3 design records, H11 rounds 2 and 3, ROADMAP item 56
+## v0.17.1 — commit ac847820712680533c2dad9ec5da47f3c12cebb6 / tag object 9b8888a0459af723172a5574e1d08c391f0065f5 — batch3 (1): in-range devDependency updates; setup-node and setup-python v7.1.0 and the procedure for action SHAs (ADR-0025 decision 9); package-lock.json's root version follows package.json (ADR-0008 addendum); the batch3 design records, H11 rounds 2 and 3, ROADMAP item 56
 
 - **src を変えない版**（判定・終了コード・製品の出力は変わらない。依存・ワークフロー・テストの守り 1 つ・文書）。**batch3 の 1 版目**（人間の決定 2026-10-30。設計の正本は batch3 の設計〈最終〉`docs/reviews/batch3-design/design-final.md`）。branch `release/v0.17.1`、5 commit: `21862e3`（依存）・`149cad4`（Actions と手順）・`128930a`（lock の決まりと守り）・`e12ce2d`（記録と文書）・この release の commit
 - **依存**（devDependency だけ。範囲の中。B3-Q3・B3-Q4）: vitest 5.0.3 → 5.0.5、@types/node 24.13.3 → 24.13.6、typescript-eslint 8.70.0 → 8.70.1（どれも公開から 7 日以上。`npm update vitest @types/node typescript-eslint`。`package.json` は変わらない）。`package-lock.json` は全欄で比べ、版の変化は 21 項目（typescript-eslint の 10 の部品、`@vitest/mocker`・`@vitest/spy`、`chai` 6.3.0、`obug` 2.1.4 → 3.0.0〈semver-major。vitest 5.0.5 が固定する開発用の依存〉、`std-env`・`tinybench`・`tinyexec`、`ignore` 7.0.13）、増減 0、版が同じでほかの欄が変わる項目 0。実行時の依存は変わらない。`npm audit` は 0 件
@@ -17,7 +17,8 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 - 文書: 今の状態を書く文書の古い現在形 4 か所を書き換えた（ci 手順書の表の `verify (ubuntu)`・`reusable (self)` は必須チェック、ARCHITECTURE の図の運用テンプレートの札、CONFIG_SPEC の `$schema` の注釈）。ADR の一覧（0008・0025 の行）
 - テスト: 187 ファイル・2,822 件から 187 ファイル・2,823 件（足したのは上の守りの 1 件。既存のテストの期待値は変えない）
 - `package.json` version 0.17.1（`package-lock.json` のルートの 2 つの `version` も 0.17.1）。src・実行時の依存・禁止文字の集合（`FORBIDDEN_RANGES`）・`tests/structure/`・security の check の判定は v0.17.0 と同一
-- 記録（この版の後の記録の PR で記入）: PR、run、merge の commit、タグの SHA
+- 記録（v0.17.1 の後の記録の PR で記入）: PR #24（merge の commit `125517b868dc46522b725fea3e34b3c55c4a9118`）。PR の run `40993909112`・main の run `40994503181` で、必須の 2 つが success（`unit`・`unit-minpath` の秒と割合は ROADMAP の v0.17.1 の項）。どちらの run でも setup-node v7.1.0 の手順は success（setup-python は、自己適用では `python-version` が空で skipped）
+- 実装の独立レビュー batch3-v0171-impl R1（v0.17.1 の後の記録の PR で取り込んだ。`docs/reviews/batch3-v0171-impl/`）: High 0 / Medium 0 / Low 0（complete。R1 で終えた）。実装者が依頼文に書いた不備（`docs/ops/reusable-workflow.md` が setup-node・setup-python を v7.0.0 と書いたまま）は、レビュアーも実在・Low 相当と評価し、新しい ID は出さなかった。記録の PR で v7.1.0 に直し（タグ v0.17.1 の後。main に入る）、ci 手順書 §8-2 の 5 に、版の名前を書いた文書も直すこと（古い SHA と古い版の名前の両方で `git grep`）と、更新対象を一覧にして `git diff` で確かめること（レビュアーの提案）を足した
 
 ## v0.17.0 — commit baecd63c3b5f7f405d16830d39a9ddc9865f5e82 / tag object 46a1a56a143e8473aea89bd0d1198e32dffa47f9 — batch2 (3): the review packet refuses, and the exits show, the invisible characters outside RGI emoji sequences, decided once as the security check decides them (item 54, ADR-0039); the JSON files keep their data; the v0.16.0 record
 
