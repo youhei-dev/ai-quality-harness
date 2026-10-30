@@ -32,7 +32,7 @@
 
 ```jsonc
 {
-  // 任意。エディタ補完用（M1 で JSON Schema を同梱予定）
+  // 任意。エディタ補完用（配布物に同梱の JSON Schema `schema/aiqh.config.schema.json`）
   "$schema": "./node_modules/ai-quality-harness/schema/aiqh.config.schema.json",
 
   // 必須。設定スキーマのバージョン。M0 は 1 のみ受け付ける

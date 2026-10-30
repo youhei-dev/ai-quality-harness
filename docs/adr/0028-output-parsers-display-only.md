@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
 - 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
-- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）。追記: 2026-10-26（v0.15.1。末尾の「追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方）」）
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）。追記: 2026-10-26（v0.15.1。末尾の「追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方）」）。注記: 2026-10-30（v0.17.1。決定 12 の既知の限界に、pytest の実物の形の注記）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -228,6 +228,7 @@
 ### 既知の限界（足すもの）
 - 選ばれない形（`no-parser`。件数が出ないだけ）: wrapper の一覧に無い形（`coverage run -m pytest`・`tox`・`nox`・`make test`・`env pytest`）、`python -X …`・`-W …`・`-c …` など値を取る旗、`-mpytest` の 1 語、引用ありの `pytest`・`-m`・`run`、前後にほかの単純コマンドがある形、Windows の `python.exe`
 - 実物で確かめた要約の形は `-q` の、passed と skipped だけの 1 回（batch1 の設計 §3.4）。既定の形（前後の `=`）・失敗とエラーと警告のある出力・`(h:mm:ss)`・古い ` seconds`・`no tests ran`・`short test summary info` の節は、合成の fixture（`tests/fixtures/parse/pytest-*.stdout.txt`。名前は架空）だけで確かめた [要確認]。pytest の将来の版やプラグインで形が変わると、件数が出なくなる（`no-summary`・`unexpected-summary`。判定は変わらない）
+  - 注記（v0.17.1）: 適用先 B の CI（v0.17.0 の再利用ワークフロー。2026-10-29 の pull request と main の run）で、`-q` の passed と warning の形（`parsed: pytest — <n> passed, 1 warning`）が実物で出た。失敗・エラーのある形は、今も合成の fixture だけで確かめている。決定・テスト・fixture は変えない
 - 要約を stdout に出さない設定（`-p no:terminal` など）・`--junitxml` だけの形は読まない
 
 ### 影響（v0.14.0）

@@ -11,7 +11,7 @@
 | [0005](0005-child-process-execution.md) | チェックは shell 経由・プロセスグループ管理で実行する | 採用（注記〈v0.10.1〉: `timeoutSec` の上限 2,147,483 秒） | 2026-09-15 |
 | [0006](0006-secret-masking.md) | 出力の秘密情報はパターンマスクし、値を保存しない | 採用（注記〈v0.10.0〉: CI ではレポートを artifact に上げない） | 2026-09-15 |
 | [0007](0007-artifacts-untracked.md) | `artifacts/` を git 管理外にする | 採用（注記〈v0.10.0〉: CI の artifact と履歴 DB は、そのとおりにはならなかった） | 2026-09-15 |
-| [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用 | 2026-09-15 |
+| [0008](0008-dependency-policy.md) | 依存パッケージは最小限・バージョン固定とする | 採用（追記〈v0.17.1〉: `package-lock.json` のルートの version は npm が書いた値のまま。リリースで `npm version <版> --no-git-tag-version` により `package.json` と揃える） | 2026-09-15 |
 | [0009](0009-distribution-npm-link.md) | M1 の配布は `npm link` によるローカル配布とする | 採用（M3 で再評価。注記〈v0.9.0〉: CI は ADR-0031 の案 D、手元は `npm link` のまま） | 2026-09-18 |
 | [0010](0010-builtin-security-scan.md) | Security Scan は内蔵実装とし、masker とパターン定義を共有する | 採用 | 2026-09-18 |
 | [0011](0011-adapter-boundary.md) | アダプタは検出＋推奨に限定し、`init` の書込は別フラグに分ける | 採用（出力パーサの型の項を 0028 で置換。v0.14.0 で node:test の検出〈script の本文を証拠にする。ROADMAP の項目 45〉。v0.14.1 で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001〉。v0.15.0 で、値が空の `=` の形も提案しない） | 2026-09-18 |
@@ -28,7 +28,7 @@
 | [0022](0022-unreadable-is-not-absent.md) | 読めないものを「無い」としない: パスの包含と書込の前提 | 採用（ADR-0010・0015 の「ENOENT だけが無い」を、設定のパスの包含判定と init の書込の前提へ広げる） | 2026-10-04 |
 | [0023](0023-unconfirmed-termination-is-not-terminated.md) | 確認できなかった終了を、終了したことにしない: タイムアウト・中断の後のグループの消滅の確認と有界時間 | 採用（ADR-0005 の「猶予後 SIGKILL」の後に確認を足す） | 2026-10-05 |
 | [0024](0024-unhandled-exceptions-exit-2.md) | 処理されなかった例外・拒否は、出口を通して exit 2 で終え、動いている子を片付ける | 採用（ADR-0019 の既知の限界のうち CLI の終わり方を決める。シグナルが先なら 130 / 143 のまま） | 2026-10-11 |
-| [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない。注記〈v0.8.4〉: Public にした後、main の ruleset〈削除と force push の禁止。必須チェックは未設定〉。注記〈v0.9.0〉: 再利用ワークフロー `verify.yml` と自己適用の job〈ADR-0031〉。注記〈v0.9.2〉: main は pull request 必須、必須チェック 2 つ〈ADR-0032〉） | 2026-10-12 |
+| [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない。注記〈v0.8.4〉: Public にした後、main の ruleset〈削除と force push の禁止。必須チェックは未設定〉。注記〈v0.9.0〉: 再利用ワークフロー `verify.yml` と自己適用の job〈ADR-0031〉。注記〈v0.9.2〉: main は pull request 必須、必須チェック 2 つ〈ADR-0032〉。追記〈v0.17.1〉: アクションの SHA を更新する手順〈決定 9〉） | 2026-10-12 |
 | [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま） | 2026-10-13 |
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない） | 2026-10-13 |
 | [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま。v0.14.0 で pytest のパーサ〈決定 12。選び方は語の位置で見る。ROADMAP の項目 39〉） | 2026-10-14 |

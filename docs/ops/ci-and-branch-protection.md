@@ -11,8 +11,8 @@
 
 | ジョブ（名前） | runner | いつ走るか | 手順 | 失敗したとき |
 |---|---|---|---|---|
-| `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。**まだ必須チェックではない**（下の §2） |
-| `reusable (self)` | `ubuntu-24.04`（呼ばれた `verify.yml` の中） | `verify (ubuntu)` と同じ | `uses: ./.github/workflows/verify.yml`（`setup-command: npm ci`）。再利用ワークフローを、このリポジトリ自身を対象に呼ぶ（v0.9.0、ADR-0031。手順は `docs/ops/reusable-workflow.md`） | 実行が赤になる。必須チェックではない（ROADMAP の項目 44）。check の名前は `reusable (self) / aiqh verify` |
+| `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。必須チェック（v0.9.2 から。ruleset `main-protection`、ADR-0032。§2・§3） |
+| `reusable (self)` | `ubuntu-24.04`（呼ばれた `verify.yml` の中） | `verify (ubuntu)` と同じ | `uses: ./.github/workflows/verify.yml`（`setup-command: npm ci`）。再利用ワークフローを、このリポジトリ自身を対象に呼ぶ（v0.9.0、ADR-0031。手順は `docs/ops/reusable-workflow.md`） | 実行が赤になる。必須チェック（v0.9.2 から。ADR-0032）。check の名前は `reusable (self) / aiqh verify` |
 | `measure (windows)` | `windows-2025` | **手動（`workflow_dispatch`）のときだけ**（main への push と pull request では走らない。分数の節約: Windows の分数は多く数えられ [推定]、POSIX 前提のテストで 30 分の上限まで走りうる） | 同じ | `continue-on-error`: 実行は赤にならない。測定だけ（Windows は対象外。ADR-0005） |
 
 共通:
@@ -164,6 +164,8 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する
 - タグの push は、ruleset の対象（branch）の外
+- 版を上げる（release の commit。v0.17.1 から。ADR-0008 の追記）: `npm version <新しい版> --no-git-tag-version` で、`package.json` の `version` と `package-lock.json` のルートの 2 つの `version` を同時に上げる（commit とタグは作らない。手で `package.json` だけを書き換えない）。lock の全欄の比べで、ルートの 2 つのほかが変わっていないことを確かめる。`tests/regression-m2-1-r2-008-version-consistency.test.ts` が、3 つ（と CHANGELOG・README の版）の一致を確かめる
+- 依存を更新した commit では、npm が書いたルートの `version`（そのときの `package.json` の版）をそのまま commit する（v0.13.2・v0.14.1 のように 0.5.35 に手で戻さない。v0.17.1 から）
 
 ### 8-1. テストの時間の予算（T1〜T4。v0.13.2、ROADMAP の項目 41）
 
@@ -178,3 +180,18 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 
 - 時間を確かめるテストの測り方（v0.15.1。ROADMAP の項目 53）: 製品の時間の上限に届かないこと・線形であることを確かめるテストは、作業量の時計か、そのスレッドの CPU 時間（`process.threadCpuUsage()`。絶対の上限と、入力の大きさを 4 倍にしたときの比）で確かめる。壁時計の絶対の上限は使わない。待つ時間（スレッドが止まる・CPU を待つ）は、テストの timeout（T3）と suite の上限（T4）が受け持つ。例: `tests/parse-output.test.ts` の P3（各形・各道具で 256 KiB と 1 MiB を 3 回ずつ読み、最小どうしで `t(1 MiB) ≤ 8 × t(256 KiB) + 20 ms`。線形なら約 4 倍、二乗なら約 16 倍）。同じ形の `tests/regression-backlog35-url-credential-linear.test.ts` の壁時計の確かめは、記録で外れていないので替えていない（batch2 の設計の B2-Q8）
 - 上限に近い遅さの記録（v0.13.2）: 全テストの終わりに、vitest の reporter（`tests/support/near-limit-reporter.ts`）が、上限の 50% を超えたテストを割合の大きい順に最大 20 行と、件数の行を 1 行、stderr に出す。判定は変えない。PASS の check の出力は端末に出ないが、`latest.json` の `checks[].stderrTail` に残る（上限は各テストの timeout、時間は vitest の時間で `beforeEach`・`afterEach` を含む。上限の分からないテストは件数の行の `unknown-limit` に数える）
+
+### 8-2. アクションの SHA の更新（v0.17.1。ADR-0025 の決定 9）
+
+ワークフローのアクション（今は `actions/checkout`・`actions/setup-node`・`actions/setup-python`）は、完全な commit SHA と `# vX.Y.Z` のコメントで固定している（ADR-0025 の決定 5、ADR-0031）。次の手順で上げる。
+
+1. **いつ**: batch の最初の版の着手前の確認（上の手順 8）で、使っているアクションの最新のリリースを見る（`gh api repos/<owner>/<名前>/releases/latest`）。ほかに、アクションの勧告・非推奨（実行環境の Node の版の終わりなど）を知ったとき
+2. **SHA の取り方**: タグの ref を `gh api repos/<owner>/<名前>/git/ref/tags/<タグ>` で読む。object の type が `tag`（注釈付きタグ）なら `gh api repos/<owner>/<名前>/git/tags/<sha>` で commit まで剥がす。`uses:` に書くのは commit の SHA
+3. **条件**: 公開から 7 日を満たす版だけ（npm の `min-release-age=7` と同じ考え）。前の版と `action.yml` を比べる（`runs.using`・入力・出力・`post`）。リリースの記述を読む
+4. **承認**: アクションごとに、今と新しい SHA・版・公開日・`action.yml` の違いの一覧を出し、人間が承認する（依存の更新と同じ扱い）
+5. **直す所**: `.github/workflows/` のすべての同じアクションを、同じ SHA と `# vX.Y.Z` にする。テストは SHA を固定していない
+6. **確かめ**: pull request の run で必須の 2 つが success。再利用ワークフロー `verify.yml` の変更は、適用先が呼び出しの SHA を上げるまで適用先には届かない（人間の決定 H11 の回に含める）
+7. **記録**: CHANGELOG に、前と後の SHA と版
+
+- v0.17.1 の更新: setup-node v7.0.0（`820762786026740c76f36085b0efc47a31fe5020`）→ v7.1.0（`949feb2413d6458794dcd2491c4babbbce0c15c1`、2026-10-08 公開）、setup-python v7.0.0（`5fda3b95a4ea91299a34e894583c3862153e4b97`）→ v7.1.0（`6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`、2026-10-22 公開）。どちらも軽量タグ。`runs.using` は `node24` のまま、入力が増えただけ（aiqh は使わない）。checkout は v7.0.1 が最新で変えない
+- `sha_pinning_required`（完全な SHA を強制する GitHub の設定）は、版とは別に、人間の承認の後に入れる（batch3 の設計〈最終〉§8.2）

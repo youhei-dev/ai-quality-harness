@@ -41,7 +41,7 @@ ai-quality-harness は、AI 駆動開発において「AI の回答だけを品�
   ↓                       │ aiqh history / dashboard（M4）│
 人間による実データ・業務確認     └──────────────────────────┘
   ↓
-本番（Monitoring / Rollback — M4 で設計テンプレート）
+本番（Monitoring / Rollback — 運用テンプレートは docs/ops/rollback.md・monitoring.md〈M4〉）
 ```
 
 aiqh が担うのは「独立レビューAI への入力生成」「Quality Gate の実行と判定」「履歴の記録」である。
