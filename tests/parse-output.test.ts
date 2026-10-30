@@ -367,3 +367,47 @@ function cpuMs(fn: () => void): number {
 function grewLinearly(small: number, big: number): boolean {
   return big <= 8 * small + 20;
 }
+
+// v0.18.0 (ADR-0028 decision 14, B3-D-R1-001; batch3 design, final, §3.11): the parser input carries stdoutTruncated, true when the
+// runner kept only the end of stdout or the window of PARSE_INPUT_MAX cut its start. Only the node:test parser reads it; the other five
+// read the same output the same way with and without it (written to run on the commit before the change too).
+describe("v0.18.0: stdoutTruncated in the parser input (B3-D-R1-001)", () => {
+  const FILES: Record<string, string> = {
+    vitest: "vitest-agent.stdout.txt",
+    eslint: "eslint-sample.stdout.txt",
+    "npm-audit": "npm-audit-two.stdout.txt",
+    "aiqh-security-scan": "security-self.stdout.txt",
+    pytest: "pytest-q-failures.stdout.txt",
+  };
+  it.each(Object.keys(FILES))("%s: the same output with and without the runner's cut is read the same (only truncated differs)", (name) => {
+    const tool = name as ParserTool;
+    const stdout = fx(FILES[name] ?? "");
+    const whole = parse(tool, { stdout, exitCode: 1 });
+    const cut = parse(tool, { stdout, exitCode: 1, stdoutTruncated: true });
+    expect(whole.status).toBe("parsed");
+    expect(whole.truncated).toBe(false);
+    expect(cut).toEqual({ ...whole, truncated: true });
+  });
+  it("parseOutputAs passes true when the runner cut stdout or the window cut it, false otherwise (a cut stderr does not count)", () => {
+    const seen: unknown[] = [];
+    const recorder: ToolParser = {
+      tool: "vitest",
+      parse: (input, budget) => {
+        seen.push((input as { stdoutTruncated?: unknown }).stdoutTruncated);
+        return PARSERS.vitest.parse(input, budget);
+      },
+    };
+    const deps: ReadDeps = { parsers: { vitest: recorder } };
+    parse("vitest", { stdout: "a\n" }, deps);
+    parse("vitest", { stdout: "a\n", stdoutTruncated: true }, deps);
+    parse("vitest", { stdout: "x".repeat(PARSE_INPUT_MAX + 1) }, deps);
+    parse("vitest", { stdout: "a\n", stderr: "x".repeat(PARSE_INPUT_MAX + 1), stderrTruncated: true }, deps);
+    parse("vitest", { stdout: "x".repeat(PARSE_INPUT_MAX) }, deps);
+    expect(seen).toEqual([false, true, true, false, false]);
+  });
+  it("a parser's answer output-truncated stays the reason (not parser-error); truncated is recorded", () => {
+    const truncatedAnswer = { status: "unparsed", reason: "output-truncated" } as unknown as ReturnType<ToolParser["parse"]>;
+    const deps: ReadDeps = { parsers: { vitest: { tool: "vitest", parse: () => truncatedAnswer } } };
+    expect(parse("vitest", { stdout: "a\n", stdoutTruncated: true }, deps)).toEqual({ tool: "vitest", status: "unparsed", reason: "output-truncated", truncated: true, counts: {}, items: [], itemsOmitted: 0 });
+  });
+});

@@ -72,9 +72,11 @@ export function parseOutputAs(tool: ParserTool, exec: OutputFacts, deps: ReadDep
     truncated = truncated || stdout.truncated || stderr.truncated;
     budget.check();
     const parser = deps.parsers?.[tool] ?? PARSERS[tool];
-    const answer = parser.parse({ stdout: stdout.lines, stderr: stderr.lines, exitCode: exec.exitCode }, budget);
+    // stdoutTruncated (v0.18.0, B3-D-R1-001): the runner kept only the end of stdout, or the window cut its start (stderr's cut is not in it)
+    const answer = parser.parse({ stdout: stdout.lines, stderr: stderr.lines, exitCode: exec.exitCode, stdoutTruncated: exec.stdoutTruncated || stdout.truncated }, budget);
     if (answer.status === "unparsed") {
-      return notRead(tool, "unparsed", answer.reason === "no-summary" || answer.reason === "unexpected-summary" ? answer.reason : "parser-error", truncated);
+      const known = answer.reason === "no-summary" || answer.reason === "unexpected-summary" || answer.reason === "output-truncated";
+      return notRead(tool, "unparsed", known ? answer.reason : "parser-error", truncated);
     }
     const counts = jsonCounts(answer.counts);
     const items = jsonItems(answer.items);
