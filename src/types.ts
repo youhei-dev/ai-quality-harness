@@ -107,8 +107,8 @@ export interface ExecutionResult {
   durationMs: number;
 }
 
-/** The tools whose output aiqh reads (ADR-0028; pytest since v0.14.0, decision 12). */
-export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest"] as const;
+/** The tools whose output aiqh reads (ADR-0028; pytest since v0.14.0, decision 12; node-test since v0.18.0, decision 14). */
+export const PARSER_TOOLS = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest", "node-test"] as const;
 
 export type ParserTool = (typeof PARSER_TOOLS)[number];
 
@@ -116,10 +116,11 @@ export type ParserTool = (typeof PARSER_TOOLS)[number];
  * Why a check's output was not read (ADR-0028): a fixed word, never text from the output.
  * not-applicable: "not-run" (the command was not started), "no-parser" (nothing in the command, or in the npm script it names, is a tool
  * aiqh reads), "several-tools" (more than one is). unparsed: "script-unreadable" (package.json could not be read; not "absent", ADR-0022),
- * "no-summary" (the tool's summary was not found), "unexpected-summary" (a summary whose words or numbers do not add up), "time-limit",
+ * "no-summary" (the tool's summary was not found), "unexpected-summary" (a summary whose words or numbers do not add up),
+ * "output-truncated" (a parser that reads only a whole stdout, node:test since v0.18.0, was given a cut one), "time-limit",
  * "parser-error" (the parser threw or returned what is not JSON data: a bug, and verify goes on).
  */
-export type ParseReason = "not-run" | "no-parser" | "several-tools" | "script-unreadable" | "no-summary" | "unexpected-summary" | "time-limit" | "parser-error";
+export type ParseReason = "not-run" | "no-parser" | "several-tools" | "script-unreadable" | "no-summary" | "unexpected-summary" | "output-truncated" | "time-limit" | "parser-error";
 
 /** One named entry read from an output: a failed test, a lint error, a vulnerable package, a security-scan entry (ADR-0028). */
 export interface ParsedItem {

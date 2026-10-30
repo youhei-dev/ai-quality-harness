@@ -18,6 +18,10 @@ export function maskSecrets(text: string): string {
       out = maskUrlCredentials(out);
       continue;
     }
+    if (rule.category === "private-key") {
+      out = maskPrivateKeys(out);
+      continue;
+    }
     out =
       typeof rule.replacement === "string"
         ? out.replace(rule.pattern, rule.replacement)
@@ -63,6 +67,60 @@ function maskUrlCredentials(text: string): string {
     out += text.slice(done, sep + 3) + URL_CREDENTIAL_REDACTED;
     done = URL_USER_PASSWORD.lastIndex;
     from = done;
+  }
+  return out + text.slice(done);
+}
+
+/** The pieces of the private-key pattern of ./patterns.ts (the begin and end markers are never written whole in a source file). */
+const PK_BEGIN = "-----BEGIN ";
+const PK_END = "-----END ";
+const PK_LABEL_TAIL = "PRIVATE KEY";
+const PK_DASHES = "-----";
+const PRIVATE_KEY_REDACTED = "[REDACTED:private-key]";
+/** `[A-Z0-9 ]`, the label class of the pattern. */
+const isLabelChar = (c: number): boolean => (c >= 0x41 && c <= 0x5a) || isDigit(c) || c === 0x20;
+
+/**
+ * The index just after a marker `<head>[A-Z0-9 ]*PRIVATE KEY-----` that starts at `at`, or -1. The label class holds the letters of
+ * "PRIVATE KEY" but not "-", so the regex can only match when the longest run of label characters after the head ends with
+ * "PRIVATE KEY" and is followed by "-----": one read of the run.
+ */
+function markerEnd(text: string, at: number, head: string): number {
+  const from = at + head.length;
+  let i = from;
+  while (i < text.length && isLabelChar(text.charCodeAt(i))) i++;
+  if (i - from < PK_LABEL_TAIL.length || !text.startsWith(PK_LABEL_TAIL, i - PK_LABEL_TAIL.length) || !text.startsWith(PK_DASHES, i)) return -1;
+  return i + PK_DASHES.length;
+}
+
+/**
+ * The private-key pattern of ./patterns.ts, `<begin marker>[\s\S]*?<end marker>` (flag g), replaced by `[REDACTED:private-key]` — the
+ * same matches and the same output in linear time (item 40). The regex searched to the end of the text for an end marker after every
+ * begin marker that had none, so many begin markers without an end took quadratic time. Here the first end marker at or after a
+ * begin marker is found once: when there is none, no later begin marker can have one either, and the scan stops. A test keeps the
+ * regex as the oracle and compares the outputs.
+ */
+function maskPrivateKeys(text: string): string {
+  let out = "";
+  let done = 0;
+  let from = 0;
+  for (;;) {
+    const begin = text.indexOf(PK_BEGIN, from);
+    if (begin < 0) break;
+    const body = markerEnd(text, begin, PK_BEGIN);
+    if (body < 0) {
+      from = begin + 1;
+      continue;
+    }
+    let end = -1;
+    for (let q = text.indexOf(PK_END, body); q >= 0; q = text.indexOf(PK_END, q + 1)) {
+      end = markerEnd(text, q, PK_END);
+      if (end >= 0) break;
+    }
+    if (end < 0) break;
+    out += text.slice(done, begin) + PRIVATE_KEY_REDACTED;
+    done = end;
+    from = end;
   }
   return out + text.slice(done);
 }

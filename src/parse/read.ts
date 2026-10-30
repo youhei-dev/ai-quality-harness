@@ -6,6 +6,7 @@
  */
 import type { ExecutionResult, ParsedItem, ParsedOutput, ParseReason, ParserTool, ResolvedCheck } from "../types.ts";
 import { ESLINT_COUNT_KEYS, ESLINT_PARSER } from "./eslint.ts";
+import { NODE_TEST_COUNT_KEYS, NODE_TEST_PARSER } from "./node-test.ts";
 import { NPM_AUDIT_COUNT_KEYS, NPM_AUDIT_PARSER } from "./npm-audit.ts";
 import { PYTEST_COUNT_KEYS, PYTEST_PARSER } from "./pytest.ts";
 import { SECURITY_SCAN_COUNT_KEYS, SECURITY_SCAN_PARSER } from "./security-scan.ts";
@@ -20,6 +21,7 @@ export const PARSERS: Readonly<Record<ParserTool, ToolParser>> = {
   "npm-audit": NPM_AUDIT_PARSER,
   "aiqh-security-scan": SECURITY_SCAN_PARSER,
   pytest: PYTEST_PARSER,
+  "node-test": NODE_TEST_PARSER,
 };
 
 /** The count keys of each parser, in their order (one list, kept by the parsers; aiqh history reads only these, ADR-0034 E). */
@@ -29,6 +31,7 @@ export const COUNT_KEYS: Readonly<Record<ParserTool, readonly string[]>> = {
   "npm-audit": NPM_AUDIT_COUNT_KEYS,
   "aiqh-security-scan": SECURITY_SCAN_COUNT_KEYS,
   pytest: PYTEST_COUNT_KEYS,
+  "node-test": NODE_TEST_COUNT_KEYS,
 };
 
 /** For tests: the clock, the parsers and the package.json reader can be replaced. Not reachable from the config or the CLI. */
@@ -72,9 +75,11 @@ export function parseOutputAs(tool: ParserTool, exec: OutputFacts, deps: ReadDep
     truncated = truncated || stdout.truncated || stderr.truncated;
     budget.check();
     const parser = deps.parsers?.[tool] ?? PARSERS[tool];
-    const answer = parser.parse({ stdout: stdout.lines, stderr: stderr.lines, exitCode: exec.exitCode }, budget);
+    // stdoutTruncated (v0.18.0, B3-D-R1-001): the runner kept only the end of stdout, or the window cut its start (stderr's cut is not in it)
+    const answer = parser.parse({ stdout: stdout.lines, stderr: stderr.lines, exitCode: exec.exitCode, stdoutTruncated: exec.stdoutTruncated || stdout.truncated }, budget);
     if (answer.status === "unparsed") {
-      return notRead(tool, "unparsed", answer.reason === "no-summary" || answer.reason === "unexpected-summary" ? answer.reason : "parser-error", truncated);
+      const known = answer.reason === "no-summary" || answer.reason === "unexpected-summary" || answer.reason === "output-truncated";
+      return notRead(tool, "unparsed", known ? answer.reason : "parser-error", truncated);
     }
     const counts = jsonCounts(answer.counts);
     const items = jsonItems(answer.items);

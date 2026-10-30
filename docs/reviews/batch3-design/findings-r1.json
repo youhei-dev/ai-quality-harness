@@ -29,14 +29,14 @@
       "evidence": "設計 §3.3 は stdout の末尾 1 MiB だけを読み、§3.5 は一致する8行が1組なら採用する。設計 §3.4 は console.log が stdout に入り、同じ印を付けた行をテストが出せると記録する。2組のときの拒否は、この1組だけ残る場合には効かない。基準の src/parse/text.ts は末尾入力の上限を持つ。",
       "fix": "要約の出所を検証できないことを既知の限界として明記し、末尾の本物が失われて偽の8行だけが残るテストを加える。誤った件数を避けるなら、末尾が切れたときの採用規則を見直す。少なくとも末尾切り詰めの情報を確認できない構成では、正確性を保証しない。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の決定 2026-10-30）。stdout が切れたら（runner が先頭を捨てた、または読む窓 1 MiB が先頭を切った）node:test の要約を読まず unparsed・理由 output-truncated にする。そのためパーサへの入力に stdoutTruncated を足す。切れていなければ全体が見えるので、偽の組は 2 組で unexpected-summary。要約の出所は検証できないことを ADR-0028 の追記の既知の限界に書く。終了コードとの一致も確かめる（B3-D-Q14）。v0.18.0 で入れる",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "bc4c023b6434df09e96c51f369bb66d65fadcabb",
+      "regressionTest": "tests/parse-node-test.test.ts の境目の表（設計 §3.12）の a・b・c1・c2・d1・d2・e18・e21 と、§3.13 の境目（1,048,576 単位ちょうどで parsed、1 単位上・runner の切れ・合成の 20,000 件で output-truncated）。tests/parse-output.test.ts の v0.18.0 の describe（stdoutTruncated の受け渡しと、ほかの 5 つのパーサが変わらないこと）",
       "guard": null,
       "destination": "v0.18.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（正常な大きな出力で件数が出なくなる点は、R2 の新しい指摘 B3-D-R2-001）。実装と確かめは v0.18.0 の実装レビュー"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（正常な大きな出力で件数が出なくなる点は、R2 の新しい指摘 B3-D-R2-001）。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 で直した: 4e1fa7a（ParserInput の stdoutTruncated を runner の切れと窓の切れの論理和で渡し、理由 output-truncated を通す）と bc4c023（node:test のパーサの 0 の段: 切れた stdout は組を数えずに output-truncated）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）"
     },
     {
       "id": "B3-D-R1-002",
@@ -47,14 +47,14 @@
       "evidence": "設計 §3.5 の1は countOf の1〜15桁を要約の成立条件として使うが、同5では「かたまりの形で数が16桁以上」を unexpected-summary とする。15桁の正規の候補と、16桁以上を含む異常候補の優先関係が未定義。試作では no-summary としたことも明記されている。",
       "fix": "字面の8行の形を先に認識してから数の桁数を検証する二段階を仕様に書く。数の1行だけが超長い場合、他7行は正しい場合、正常な別の組と共存する場合の期待を固定する。",
       "confidence": "確認済み",
-      "status": "open",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の決定 2026-10-30）。2 段の認識（8 行の字面の形〈同じ印・語の順・値は数字と点〉で組を数え、組が 1 つのときだけ値〈1〜15 桁・時間の形・和・終了コード〉を確かめる）を仕様にし、境目の期待を 21 行の表で固定する（設計（最終）§3.12）。v0.18.0 で入れる",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "bc4c023b6434df09e96c51f369bb66d65fadcabb",
+      "regressionTest": "tests/parse-node-test.test.ts の境目の表（設計 §3.12）の e01〜e21 と e12b（e12b は変異の後に e572cbb で足した: 終了コードが無いのを 0 とみなす形を区別する）",
       "guard": null,
       "destination": "v0.18.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消。実装と確かめは v0.18.0 の実装レビュー"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 の bc4c023 で直した（2 段の認識: 8 行の字面の形〈1 つの印・語の順・数字と点の値〉で組を数え、組が 1 つのときだけ値〈1〜15 桁・duration_ms の形・和・終了コード〉を確かめる）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）"
     },
     {
       "id": "B3-D-R1-003",

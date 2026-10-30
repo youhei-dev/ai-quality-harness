@@ -1,0 +1,85 @@
+{ESC}[32m✔ ok one {ESC}[90m(0.3565ms){ESC}[39m{ESC}[39m
+{ESC}[31m✖ fails assert {ESC}[90m(0.418583ms){ESC}[39m{ESC}[39m
+{ESC}[31m✖ throws {ESC}[90m(0.048084ms){ESC}[39m{ESC}[39m
+▶ group
+  {ESC}[31m✖ nested fail {ESC}[90m(2.447417ms){ESC}[39m{ESC}[39m
+  {ESC}[32m✔ nested pass {ESC}[90m(0.055125ms){ESC}[39m{ESC}[39m
+{ESC}[31m✖ group {ESC}[90m(2.625458ms){ESC}[39m{ESC}[39m
+{ESC}[31m✖ todo that fails {ESC}[90m(0.046042ms){ESC}[39m # TODO{ESC}[39m
+{ESC}[34mℹ tests 6{ESC}[39m
+{ESC}[34mℹ suites 1{ESC}[39m
+{ESC}[34mℹ pass 2{ESC}[39m
+{ESC}[34mℹ fail 3{ESC}[39m
+{ESC}[34mℹ cancelled 0{ESC}[39m
+{ESC}[34mℹ skipped 0{ESC}[39m
+{ESC}[34mℹ todo 1{ESC}[39m
+{ESC}[34mℹ duration_ms 49.723709{ESC}[39m
+
+{ESC}[31m✖ failing tests:{ESC}[39m
+
+test at b.test.mjs:5:1
+{ESC}[31m✖ fails assert {ESC}[90m(0.418583ms){ESC}[39m{ESC}[39m
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> {ESC}[90m(file:///work/fail/{ESC}[39mb.test.mjs:5:37{ESC}[90m){ESC}[39m
+  {ESC}[90m    at Test.runInAsyncScope (node:async_hooks:214:14){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1103:25){ESC}[39m
+  {ESC}[90m    at Test.processPendingSubtests (node:internal/test_runner/test:785:18){ESC}[39m
+  {ESC}[90m    at Test.postRun (node:internal/test_runner/test:1232:19){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1160:12){ESC}[39m
+  {ESC}[90m    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3){ESC}[39m {
+    generatedMessage: {ESC}[33mtrue{ESC}[39m,
+    code: {ESC}[32m'ERR_ASSERTION'{ESC}[39m,
+    actual: {ESC}[33m1{ESC}[39m,
+    expected: {ESC}[33m2{ESC}[39m,
+    operator: {ESC}[32m'strictEqual'{ESC}[39m,
+    diff: {ESC}[32m'simple'{ESC}[39m
+  }
+
+test at b.test.mjs:6:1
+{ESC}[31m✖ throws {ESC}[90m(0.048084ms){ESC}[39m{ESC}[39m
+  Error: boom inside test
+      at TestContext.<anonymous> {ESC}[90m(file:///work/fail/{ESC}[39mb.test.mjs:6:30{ESC}[90m){ESC}[39m
+  {ESC}[90m    at Test.runInAsyncScope (node:async_hooks:214:14){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1103:25){ESC}[39m
+  {ESC}[90m    at Test.processPendingSubtests (node:internal/test_runner/test:785:18){ESC}[39m
+  {ESC}[90m    at Test.postRun (node:internal/test_runner/test:1232:19){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1160:12){ESC}[39m
+  {ESC}[90m    at async Test.processPendingSubtests (node:internal/test_runner/test:785:7){ESC}[39m
+
+test at b.test.mjs:8:3
+{ESC}[31m✖ nested fail {ESC}[90m(2.447417ms){ESC}[39m{ESC}[39m
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(false)
+  
+      at TestContext.<anonymous> {ESC}[90m(file:///work/fail/{ESC}[39mb.test.mjs:8:36{ESC}[90m){ESC}[39m
+  {ESC}[90m    at Test.runInAsyncScope (node:async_hooks:214:14){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1103:25){ESC}[39m
+  {ESC}[90m    at Test.start (node:internal/test_runner/test:1000:17){ESC}[39m
+  {ESC}[90m    at node:internal/test_runner/test:1513:71{ESC}[39m
+  {ESC}[90m    at node:internal/per_context/primordials:466:82{ESC}[39m
+      at new Promise (<anonymous>)
+  {ESC}[90m    at new SafePromise (node:internal/per_context/primordials:435:3){ESC}[39m
+  {ESC}[90m    at node:internal/per_context/primordials:466:9{ESC}[39m
+      at Array.map (<anonymous>) {
+    generatedMessage: {ESC}[33mtrue{ESC}[39m,
+    code: {ESC}[32m'ERR_ASSERTION'{ESC}[39m,
+    actual: {ESC}[33mfalse{ESC}[39m,
+    expected: {ESC}[33mtrue{ESC}[39m,
+    operator: {ESC}[32m'=='{ESC}[39m,
+    diff: {ESC}[32m'simple'{ESC}[39m
+  }
+
+test at b.test.mjs:11:1
+{ESC}[31m✖ todo that fails {ESC}[90m(0.046042ms){ESC}[39m # TODO{ESC}[39m
+  Error: todo fails
+      at TestContext.<anonymous> {ESC}[90m(file:///work/fail/{ESC}[39mb.test.mjs:11:55{ESC}[90m){ESC}[39m
+  {ESC}[90m    at Test.runInAsyncScope (node:async_hooks:214:14){ESC}[39m
+  {ESC}[90m    at Test.run (node:internal/test_runner/test:1103:25){ESC}[39m
+  {ESC}[90m    at Test.processPendingSubtests (node:internal/test_runner/test:785:18){ESC}[39m
+  {ESC}[90m    at Suite.postRun (node:internal/test_runner/test:1232:19){ESC}[39m
+  {ESC}[90m    at Suite.run (node:internal/test_runner/test:1530:10){ESC}[39m
+  {ESC}[90m    at async Test.processPendingSubtests (node:internal/test_runner/test:785:7){ESC}[39m

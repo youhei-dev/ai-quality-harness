@@ -337,6 +337,7 @@ describe("ADR-0034 C: what is kept", () => {
       "npm-audit": "npm-audit-two.stdout.txt",
       "aiqh-security-scan": "security-self.stdout.txt",
       pytest: "pytest-q-failures.stdout.txt",
+      "node-test": "node-test-spec-fail.stdout.txt",
     };
     for (const tool of PARSER_TOOLS) {
       const p = parseOutputAs(tool, exec(readFileSync(path.join(FIX, files[tool] ?? ""), "utf8")));

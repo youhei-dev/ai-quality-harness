@@ -1,0 +1,23 @@
+✔ passes (0.334ms)
+✖ todo that fails (0.077625ms) # TODO
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 1
+ℹ duration_ms 45.470375
+
+✖ failing tests:
+
+test at t.test.mjs:3:1
+✖ todo that fails (0.077625ms) # TODO
+  Error: todo fails
+      at TestContext.<anonymous> (file:///work/todofail/t.test.mjs:3:55)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Test.postRun (node:internal/test_runner/test:1232:19)
+      at Test.run (node:internal/test_runner/test:1160:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)

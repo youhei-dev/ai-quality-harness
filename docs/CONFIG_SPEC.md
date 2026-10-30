@@ -1,6 +1,6 @@
 # CONFIG_SPEC — 設定ファイル仕様
 
-最終更新: 2026-10-29（v0.17.0。§3b の review-packet と `allow`: 見えない文字〈層 (c) の正しい絵文字の並びの外〉もパケットでは allow を当てない、§5.3b の出力の表記〈ROADMAP の項目 54。ADR-0039〉）。その前: 2026-10-25（v0.15.0。§5.3b の生の文字に層 (c) の 8 分類〈既定で FAIL。正しい絵文字の並びの内側だけ除く〉と移行の手順、§3b の `allow[].category` に 8 つの分類〈ROADMAP の項目 49。ADR-0037〉。§5.2b の node:test の検出で、値を取るオプションの値が空の `=` の形〈`--import=`〉も提案しない〈ADR-0011 の改訂〉）。その前: 2026-10-25（v0.14.1。§5.2b の node:test の検出で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001。ADR-0011 の改訂〉）。その前: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
+最終更新: 2026-10-30（v0.18.0。§5.3c の node:test のパーサが選ばれるコマンドの形と、件数が出なくなる条件〈ADR-0028 の決定 14〉）。その前: 2026-10-29（v0.17.0。§3b の review-packet と `allow`: 見えない文字〈層 (c) の正しい絵文字の並びの外〉もパケットでは allow を当てない、§5.3b の出力の表記〈ROADMAP の項目 54。ADR-0039〉）。その前: 2026-10-25（v0.15.0。§5.3b の生の文字に層 (c) の 8 分類〈既定で FAIL。正しい絵文字の並びの内側だけ除く〉と移行の手順、§3b の `allow[].category` に 8 つの分類〈ROADMAP の項目 49。ADR-0037〉。§5.2b の node:test の検出で、値を取るオプションの値が空の `=` の形〈`--import=`〉も提案しない〈ADR-0011 の改訂〉）。その前: 2026-10-25（v0.14.1。§5.2b の node:test の検出で、値を取るオプションの値が無い・`-` で始まる語のときは提案しない〈B1-I140-R1-001。ADR-0011 の改訂〉）。その前: 2026-10-23（v0.14.0。§5.2b の `aiqh init` の node:test の検出〈ROADMAP の項目 45。ADR-0011 の改訂〉、§5.3a の pytest のパーサが選ばれるコマンドの形と §6 の `checks[].parser` の行〈ROADMAP の項目 39。ADR-0028 の決定 12〉。その前: 2026-10-19〈v0.13.0〉の §3b の `security.allow` の生の文字の分類 `bidi-control`・`line-separator`〈分類を明示した規則だけが抑える〉、§5.2 の生成例の security の説明文、§5.3b の生の文字の走査〈ADR-0036〉。その前: 2026-10-18〈v0.11.0〉の §4c の `aiqh history` が読める範囲〈既知の限界〉と、§6 の `history` の行〈設定の欄は作らない〉。その前: 同じ日の v0.10.1 の §3 と §4 の `timeoutSec` の上限 2,147,483 秒、2026-10-17〈v0.10.0〉の §1 の設定のハッシュ〈ADR-0033〉）
 状態: **M0 で必要な範囲（§1〜§5）は確定**。§6 は M1 以降の案。
 
 ---
@@ -359,6 +359,20 @@ verify は check の出力を表示のためだけに読む（判定と終了コ
 確認できないため常に追加を提案し、`--write-gitignore` は同じ行が既にあれば追記しない（冪等）。
 
 ---
+
+### 5.3c node:test のパーサが選ばれるコマンドの形（v0.18.0、ADR-0028 の決定 14）
+
+verify は check の出力を表示のためだけに読む（判定と終了コードは変えない）。node:test（Node の組み込みのテストランナー）の出力の、実行の最後の要約のかたまり（spec〈既定〉の reporter は `U+2139` の印、TAP の reporter は `# ` の印で、`tests`・`suites`・`pass`・`fail`・`cancelled`・`skipped`・`todo`・`duration_ms` の 8 行）と、spec の `failing tests:` の節の失敗の名前（`<場所> <名前>`。TODO は入れない）を読むのは、`command`（`npm run <script>`・`npm test` なら作業ディレクトリの package.json の script）が、次の形の単純コマンド 1 つ（前に `cd <1 語>` を置いてよい）のときだけ。設定の欄は無い。
+
+- `aiqh init` の node:test の検出（§5.2b）と同じ規則が受け入れる `node --test …`: 実行位置の語が印の無い `node`、Node のオプションは値を取る 18 と既知のブールの旗 24 だけ、`NODE_OPTIONS` の前置き・名前に `watch` を含むオプション・別のファイルを読むオプションが無い（`名前=値` のほかの前置きは置いてよい）
+- `--test-reporter` が無いか 1 つで値が `spec` か `tap`、かつ `--test-reporter-destination` が無いか 1 つで値が `stdout`
+- 例: `node --test`・`node --test "tests/**/*.test.ts"`（`npm test` の script でもよい）・`cd web && node --test`・`node --test --test-reporter=tap`・`node --test --experimental-test-coverage`
+
+選ばれない形（件数が出ないだけ。`not-applicable`）: `node --test && echo done` のように前後にほかのコマンドがある形、reporter が dot・junit・lcov・自作、reporter が 2 つ以上、出力先がファイル、`npx node --test`・`/usr/bin/node --test`・`NODE_OPTIONS=… node --test`・`node --test --watch`。`node --test vitest` のようにほかの道具の語もあれば `several-tools`。
+
+**件数が出なくなる条件**（ADR-0028 の決定 14。B3-D-R2-001）: stdout が読む窓（末尾 1,048,576 UTF-16 単位。バイトではない）より長いとき、または runner が先頭を捨てたとき（10 MiB を超えた。窓が先に当たる）は、末尾に正しい要約が見えていても読まない（`parsed: node-test — not read (output-truncated)`。見えている要約が、テストが出したものか実行のものかを決められないため）。目安は、名前 46 文字ほどのテストで `console.log` 無しなら約 17,000 件、1 テスト 1 行で約 9,700 件、10 行で約 2,000 件（batch3 の設計の段の実測）。ほかに、要約の数が合わない（`tests = pass + fail + cancelled + skipped + todo` でない、終了コードが「fail + cancelled が 1 以上なら 1、そうでなければ 0」と違う）、テストが要約と同じ形の 8 行を出した、のときは `unexpected-summary`。
+
+v0.17.x までの `aiqh history` は、node-test の件数の入ったレポートを読めない（`bad-shape`。同じ history を版の違う aiqh で読むときだけ）。
 
 ### 5.4 出力の保持（設定項目ではない。M0 の固定値）
 

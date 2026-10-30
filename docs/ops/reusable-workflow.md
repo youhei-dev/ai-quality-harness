@@ -1,6 +1,6 @@
 # 再利用ワークフロー（verify.yml）の手順書
 
-最終更新: 2026-10-26（v0.15.1。§2 の `job-summary` と §3 の手順 7・8: Job Summary は、その run だけの一時のディレクトリのレポートを読む〈ROADMAP の項目 51〉）。その前: 2026-10-23（v0.14.0。§8 の pytest の件数〈ROADMAP の項目 39〉）。その前: 2026-10-19（v0.12.1。§6 と §7 に、運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉への参照）。その前: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
+最終更新: 2026-10-30（v0.18.0。§8 の node:test の件数〈ADR-0028 の決定 14〉）。その前: 2026-10-26（v0.15.1。§2 の `job-summary` と §3 の手順 7・8: Job Summary は、その run だけの一時のディレクトリのレポートを読む〈ROADMAP の項目 51〉）。その前: 2026-10-23（v0.14.0。§8 の pytest の件数〈ROADMAP の項目 39〉）。その前: 2026-10-19（v0.12.1。§6 と §7 に、運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉への参照）。その前: 2026-10-17（v0.9.1。Python の対象の例〈§1.1〉と、適用で分かった注意〈§8〉）。初版: 2026-10-16（v0.9.0）
 
 ほかのリポジトリの CI から `aiqh verify` を走らせるための再利用ワークフロー `.github/workflows/verify.yml` の使い方。決定の根拠は ADR-0031（CI での配布は案 D）。aiqh は、tarball や npm のパッケージとしては配らない。ワークフローが、自分と同じ commit の aiqh のソースを使う。
 
@@ -132,5 +132,6 @@ CHANGELOG の各版の見出しにも、`commit <SHA> / tag object <SHA>` の形
 - **CI には `.env` も手元の venv も無い**。テストや設定のコマンドが、それに頼らないようにする。たとえば、`.env` の値が無いと import のときに終わるモジュールを、テストが値を置かずに import すると、pytest は 1 件も走らずに止まる。適用の前に、追跡しているファイルだけの clone（`.env` なし）と新しい venv で、テストが通るかを手元で確かめる
 - **依存は版を固定しておく**。`>=` だけだと、CI はその日の最新を入れ、手元と違う版になる（実際に、新しい版の依存が、テストの import するパッケージを連れてこなくなり、集める途中で止まった）。少なくとも直接の依存は `==` で固定し、テストが直接 import するパッケージも requirements に書く
 - **pytest の件数はログに出なかった**（v0.13.x まで）。aiqh は PASS のチェックの出力を表示せず、pytest の出力の読み取りも無かった（ROADMAP の項目 39）。**v0.14.0 から**、呼び出す SHA を v0.14.0 以降にすると、pytest の要約が端末の `parsed: pytest — …` の行（PASS のチェックにも出る）と `latest.md` の Parsed Output に出て、`job-summary: true` なら Job Summary にも入る。読むのは、コマンドが pytest を実行する単純コマンド 1 つ（`.venv/bin/python -m pytest -q tests/` など。前に `cd <1 語>` を置いてよい）のときだけ（`docs/CONFIG_SPEC.md` の §5.3a）
+- **node:test の件数もログに出なかった**（v0.17.x まで。node:test のパーサが無かった）。**v0.18.0 から**、呼び出す SHA を v0.18.0 以降にすると、node:test の要約が端末の `parsed: node-test — tests <n> (pass <n>, fail <n>…); suites <n>` の行と `latest.md` の Parsed Output に出る（`job-summary: true` なら Job Summary にも）。読むのは、コマンドが `node --test` を実行する単純コマンド 1 つ（`npm test` の script でもよい。reporter は既定・spec・tap で出力先は stdout）のときだけ。stdout が読む窓（末尾 1,048,576 UTF-16 単位）より長いと `not read (output-truncated)` で件数は出ない（`docs/CONFIG_SPEC.md` の §5.3c）
 - **`actions/runs/<id>/timing` の `billable` は 0 を返した**（private の呼び出し側 2 つの run。`run_duration_ms` は 51,000）。0 の意味は確かめていない。呼び出す側の分数は、GitHub の請求の画面で確かめる（ROADMAP の項目 46）
 - 1 回の job の時間の目安（2026-10-17）: Node の対象（5 チェック）で 46〜47 秒、Python の対象（2 チェック。venv と pip を含む）で 41〜47 秒

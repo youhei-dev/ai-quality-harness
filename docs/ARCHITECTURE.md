@@ -1,6 +1,6 @@
 # ARCHITECTURE — ai-quality-harness（aiqh）
 
-最終更新: 2026-10-29（v0.17.0。§5 の `raw-chars.ts`・`output.ts`・`write.ts`、§6.1b と §8 の出口とパケットの見えない文字〈ROADMAP の項目 54。ADR-0039〉）。その前: 2026-10-26（v0.16.0。§7.1・§7.2 のレポートに `runId`〈ROADMAP の項目 52。ADR-0038〉）。その前: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
+最終更新: 2026-10-30（v0.18.0。§5 の `node-command.ts`・`parse/`〈node:test のパーサ。ADR-0028 の決定 14〉・`mask.ts`〈private-key の線形の走査。ROADMAP の項目 40〉、§7.1 の `parsed` の `tool`・`reason` の値）。その前: 2026-10-29（v0.17.0。§5 の `raw-chars.ts`・`output.ts`・`write.ts`、§6.1b と §8 の出口とパケットの見えない文字〈ROADMAP の項目 54。ADR-0039〉）。その前: 2026-10-26（v0.16.0。§7.1・§7.2 のレポートに `runId`〈ROADMAP の項目 52。ADR-0038〉）。その前: 2026-10-25（v0.15.0。§6.1b の生の文字に層 (c)〈ROADMAP の項目 49。ADR-0037〉。§5 の `raw-chars.ts`）。その前: 2026-10-23（v0.14.0。§5 のモジュール: `command-words.ts`、Node のアダプタ 8〈node:test。ADR-0011 の改訂〉、パーサ 5〈pytest。ADR-0028 の決定 12〉。§7 の `parsed.tool` の値）。その前: 2026-10-22（v0.13.2。§6 の走査対象の段落の、リリースの手順の参照先を追跡している文書に直した〈ROADMAP の項目 43〉）。その前: 2026-10-20（v0.13.1。§6.1b の `aiqh security-scan`: 一覧を順序を保って一意化し、未マージのパスを 1 回だけ扱う〈ADR-0036 の追記〉。その前: 2026-10-19〈v0.13.0〉の §6.1b の `aiqh security-scan`: 生の双方向の制御文字と行区切りを、中身とパス名で finding にする〈ADR-0036〉。その前: 同じ日の v0.12.1 の §8 の `docs/ops/` の行: M4 の運用テンプレート〈前の版に戻す・見張る項目・設定の変更〉。その前: 2026-10-18〈v0.12.0〉の §4 の `aiqh history` の行と §5 の `run-history/html.ts`: 静的 HTML のダッシュボード〈ADR-0035〉。その前: 2026-10-18〈v0.11.0〉の §4 の `aiqh history` の行、§5 のモジュール、§6.3: 履歴 DB を持たず、`history/*.json` を読み取りだけで集計する〈ADR-0034〉。その前: 2026-10-17〈v0.10.0〉の §7.1 のレポートの最上位に `configSha256`〈ADR-0033〉。その前: 2026-10-16〈v0.9.0〉の §3 の配布モデル: CI は案 D〈ADR-0031〉、呼び出す側は commit SHA で固定。その前: v0.8.4 の §3 の構成の CODEOWNERS の行〈公開の後〉と対象リポジトリの例〈適用先は個人のリポジトリ 2 つ〉、v0.8.3 のプロジェクトの `CLAUDE.md` の追跡外の注記。初版は 2026-09-15 の M0 設計時点）
 
 本書は ai-quality-harness の**最終形（M4 完了時点）**の構成を描く。
 実装済み範囲は各節の「M0 実装範囲」に明記し、それ以外は設計案である。
@@ -100,7 +100,8 @@ npm レジストリへの公開は行わない（`private: true`）。
 src/
   cli.ts                  … エントリ（bin: aiqh）。版の読込・シグナル処理・引数の解析と終了コード設定 [M0]
   cli-program.ts          … サブコマンドとオプションの定義（副作用なし。テストが Command オブジェクトを直接見る、M2-1-R3-005） [M2-2]
-  command-words.ts        … コマンドの単純コマンドと語（引用符・`\` の印、照らさない形）。init の node:test の検出と、パーサの pytest の選び方が使う [v0.14.0]
+  command-words.ts        … コマンドの単純コマンドと語（引用符・`\` の印、照らさない形）。node:test の規則と、パーサの pytest の選び方が使う [v0.14.0]
+  node-command.ts         … node:test の単純コマンドの規則 `runsNodeTest`（init の検出とパーサの選び方が共有。`src/adapters/node.ts` から移した）と reporter の値 `nodeTestReporters` [v0.18.0]
   node-options.ts         … 起動を拒否する Node のオプション（`--unhandled-rejections=warn`・`--abort-on-uncaught-exception`。`process.execArgv` と NODE_OPTIONS。ADR-0024 決定 6） [v0.5.44]
   output.ts               … 端末への出力の出口（禁止文字〈v0.17.0 から ADR-0039 の判断: 正しい絵文字の並びの外の層 (c) も〉を表記 → マスク。1 回の書き出し = 1 行。すべての標準出力・標準エラーが通る、ADR-0016・0017） [M2-2]
   commands/
@@ -124,13 +125,13 @@ src/
     markdown.ts           … レポート → Markdown                                            [M0]
     write.ts              … latest.json / latest.md / history/<ts>.json の書込。書く直前に禁止文字を形式別に変換（JSON `\uXXXX`・Markdown `\u{HEX}`）[M0 / v0.5.24]。JSON は `jsonForFile`（ADR-0039 の文字を、値を変えない JSON の escape で）で作る [v0.17.0]。履歴の名前は `wx` で排他的に確保してから中身を rename で置く（同じ秒に始まった 2 つの実行が同じ名前を取らない。取られていれば `-2`・`-3` … の規則で次へ。確保から rename までの間に強制終了されると、空のファイルがその名前に残る: 既知の限界。latest の整合は R-010〈M4〉）[v0.5.41]。`writeAtomic` の一時ファイルは、同じディレクトリのランダムな名前（`.<名前>.tmp-<16 桁の 16 進数>`）を `O_EXCL | O_NOFOLLOW` で排他的に作って閉じ、数値の flag `O_WRONLY | O_TRUNC | O_NOFOLLOW`（作成しない）で開き直して書き、rename する（リンクを追わない。Windows は O_NOFOLLOW が無い）[v0.6.1、ADR-0026 決定 16]
   parse/                  … check の出力を表示のためだけに読む（判定と終了コードは見ない。ADR-0028） [v0.8.0]
-    select.ts             … パーサの選び方: コマンドの語と、`npm run <script>` / `npm test` なら作業ディレクトリの package.json の script（設定の欄は無い）。pytest だけは語の位置で選ぶ（command-words.ts。v0.14.0）
+    select.ts             … パーサの選び方: コマンドの語と、`npm run <script>` / `npm test` なら作業ディレクトリの package.json の script（設定の欄は無い）。pytest と node-test は語の位置で選ぶ（command-words.ts。pytest は v0.14.0、node-test は v0.18.0〈init の規則・単純コマンド 1 つ・reporter の条件〉）
     text.ts               … 入力の準備と上限（各ストリームの末尾 1 MiB・1 行 4,096・名前 50 × 300・1,000 ms）、名前のマスク（行ごと、切る前）
-    read.ts               … 選んで読む。例外を投げない（parser-error・time-limit は unparsed）
-    vitest.ts / eslint.ts / npm-audit.ts / security-scan.ts / pytest.ts … 5 つのパーサ（tool.ts は共通の型。pytest は v0.14.0）
+    read.ts               … 選んで読む。例外を投げない（parser-error・time-limit は unparsed）。パーサに `stdoutTruncated`（runner の切れか窓の切れ）を渡す [v0.18.0]
+    vitest.ts / eslint.ts / npm-audit.ts / security-scan.ts / pytest.ts / node-test.ts … 6 つのパーサ（tool.ts は共通の型。pytest は v0.14.0、node-test は v0.18.0: 切れた stdout は読まない〈output-truncated〉・2 段の認識）
     describe.ts           … 端末と latest.md の要約の文
   security/
-    mask.ts               … 秘密情報らしき文字列のパターンマスク。url-credential は正規表現でなく「://」を手がかりにした線形の走査（同じ一致・同じ置換）[M0 / v0.5.41]
+    mask.ts               … 秘密情報らしき文字列のパターンマスク。url-credential は正規表現でなく「://」を手がかりにした線形の走査（同じ一致・同じ置換）[M0 / v0.5.41]。private-key も正規表現でなく、印の連なりと最初の END の印を探す線形の走査（同じ一致・同じ置換）[v0.18.0]
   git/
     info.ts               … commit / branch / dirty の取得（非 git でも動作。git が答えられなかったときも null、理由は標準出力の行。ADR-0022）  [M0]
   adapters/               … 検出器 + 推奨コマンド（実行経路は持たない。出力パーサは parse/）    [M1 実装済み]
@@ -401,9 +402,9 @@ artifacts/ai-review/findings-<id>.json（severity / file / kind / status）
       "stdoutTail": "…", "stderrTail": "…",   // マスク済み・末尾 N 行
       "outputTruncated": false,
       "parsed": {                             // v0.8.0（ADR-0028）。表示用で判定には使わない。古いレポートには無い。schemaVersion は 1 のまま
-        "tool": "vitest",                     // "vitest" | "eslint" | "npm-audit" | "aiqh-security-scan" | "pytest"（v0.14.0） | null
+        "tool": "vitest",                     // "vitest" | "eslint" | "npm-audit" | "aiqh-security-scan" | "pytest"（v0.14.0） | "node-test"（v0.18.0） | null
         "status": "parsed",                   // "parsed" | "unparsed" | "not-applicable"
-        "reason": null,                       // 決まった語（no-parser / several-tools / not-run / script-unreadable / no-summary / unexpected-summary / time-limit / parser-error）
+        "reason": null,                       // 決まった語（no-parser / several-tools / not-run / script-unreadable / no-summary / unexpected-summary / output-truncated〈v0.18.0〉 / time-limit / parser-error）
         "truncated": false,
         "counts": { "testFiles": 156, "testFilesPassed": 156, "tests": 2036, "testsPassed": 2036 },  // ツールごとの決まったキー（抜粋）
         "items": [],                          // { kind, name }（名前は行ごとにマスクしてから 300 で切る。最大 50）

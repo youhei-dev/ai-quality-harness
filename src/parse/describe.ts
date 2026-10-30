@@ -46,6 +46,11 @@ export function summaryText(p: ParsedOutput): string {
       const shown = words.filter(([key]) => n(c, key) > 0).map(([key, one, many]) => plural(n(c, key), one, many));
       return shown.length > 0 ? shown.join(", ") : "no tests ran";
     }
+    case "node-test": {
+      // v0.18.0 (ADR-0028 decision 14): cancelled, skipped and todo only when not 0
+      const extra = ["cancelled", "skipped", "todo"].filter((k) => n(c, k) > 0).map((k) => `, ${k} ${n(c, k)}`).join("");
+      return `tests ${n(c, "tests")} (pass ${n(c, "pass")}, fail ${n(c, "fail")}${extra}); suites ${n(c, "suites")}`;
+    }
     default:
       return "-";
   }
