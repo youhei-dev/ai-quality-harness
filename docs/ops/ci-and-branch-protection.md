@@ -11,8 +11,8 @@
 
 | ジョブ（名前） | runner | いつ走るか | 手順 | 失敗したとき |
 |---|---|---|---|---|
-| `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。**まだ必須チェックではない**（下の §2） |
-| `reusable (self)` | `ubuntu-24.04`（呼ばれた `verify.yml` の中） | `verify (ubuntu)` と同じ | `uses: ./.github/workflows/verify.yml`（`setup-command: npm ci`）。再利用ワークフローを、このリポジトリ自身を対象に呼ぶ（v0.9.0、ADR-0031。手順は `docs/ops/reusable-workflow.md`） | 実行が赤になる。必須チェックではない（ROADMAP の項目 44）。check の名前は `reusable (self) / aiqh verify` |
+| `verify (ubuntu)` | `ubuntu-24.04` | main への push、main への pull request、手動（`workflow_dispatch`） | checkout → setup-node（Node 24.13.1）→ `npm ci` → `npm run verify`（手元と同じ 8 チェック） | 実行が赤になる。必須チェック（v0.9.2 から。ruleset `main-protection`、ADR-0032。§2・§3） |
+| `reusable (self)` | `ubuntu-24.04`（呼ばれた `verify.yml` の中） | `verify (ubuntu)` と同じ | `uses: ./.github/workflows/verify.yml`（`setup-command: npm ci`）。再利用ワークフローを、このリポジトリ自身を対象に呼ぶ（v0.9.0、ADR-0031。手順は `docs/ops/reusable-workflow.md`） | 実行が赤になる。必須チェック（v0.9.2 から。ADR-0032）。check の名前は `reusable (self) / aiqh verify` |
 | `measure (windows)` | `windows-2025` | **手動（`workflow_dispatch`）のときだけ**（main への push と pull request では走らない。分数の節約: Windows の分数は多く数えられ [推定]、POSIX 前提のテストで 30 分の上限まで走りうる） | 同じ | `continue-on-error`: 実行は赤にならない。測定だけ（Windows は対象外。ADR-0005） |
 
 共通:

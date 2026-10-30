@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "label": "batch3-design",
+  "round": 2,
+  "idPrefix": "B3-D",
+  "source": {
+    "name": "independent-review-batch3-design-r2-for-claude.md",
+    "bytes": 11888,
+    "sha256": "06e92e42f785625328c063dd07841915ee884f718c917d0378631db20b4620e7"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "B3-D-R1-001",
+      "assessment": "解消。stdout の切断を runner と解析窓の両方から ParserInput に伝え、切れている場合は件数を読まず output-truncated とするため、元の偽の 8 行だけを parsed にする経路は防いだ。ただし正常な大容量出力でも件数を失う新しい実用上の問題は別途指摘。"
+    },
+    {
+      "id": "B3-D-R1-002",
+      "assessment": "解消。8 行の字面による組の数え上げと値の検査を分離し、16 桁の数・小数・空・混在・2 組を §3.12 の表で一意に分類した。"
+    },
+    {
+      "id": "B3-D-R1-003",
+      "assessment": "解消。0.5.35 を維持する根拠を調べ、npm ci・install・pack 等の試作を比較し、npm の版と揃える B 案へ改め、リリース手順と守りのテストまで定義した。"
+    }
+  ],
+  "importedAt": "2026-10-30T01:16:54.136Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.17.0"
+  },
+  "findings": [
+    {
+      "id": "B3-D-R2-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §3.3・§3.5・§3.11・§3.12、ADR-0028 追記案 R2 決定 14、B3-D-Q13",
+      "content": "stdout の先頭が 1 MiB の解析窓から落ちただけで、末尾に完全な正規の node:test 要約が残っていても、件数を常に output-truncated として捨てる。大量のテストや通常の console.log が多い正常な実行ほど表示機能を失う。誤表示を避ける安全側の設計としては正しいが、node:test パーサ導入の実用上の受け入れ条件が欠けている。",
+      "evidence": "batch3-design-r2.md §3.3 の PARSE_INPUT_MAX 1 MiB と §3.5 規則 0、§3.11 の stdoutTruncated 合成、§3.12 d1・d2 は、完全な正規要約だけが末尾にあっても一律 unparsed とする。base/src/parse/read.ts:67-75 は従来パーサに切断情報を渡さず、base/src/parse/text.ts の prepareStream が末尾を保つ。これは R1 の偽件数問題を防ぐ一方で、大規模実行の観測可能性を恒常的に下げる。頻度は適用先 A の実物を未収集なので未確定。",
+      "fix": "現行の fail closed な規則を暫定維持し、実装前に適用先 A と大規模の合成入力で stdout 総量・要約の検出率を測る受け入れ条件を足す。通常の spec で 1 MiB を越えるケースに備え、(a) 要約の真正性を独立に保証できる専用の reporter 出力を別チャネル・別ファイルへ記録し検証する案、(b) 先頭と末尾の両方を保持し、どちらにも候補がないと判定できる追加の監視状態を持つ案を比較する。単純に末尾窓を大きくする、最後の 8 行だけを無条件で信じる、末尾に正規らしい組があるだけで切断を無視する案は偽件数を再導入するので採用しない。安全な追加策がこの版に入らない場合でも、どのサイズ・条件で件数が出なくなるかを受け入れ基準・文書・回帰テストで固定し、改善の ROADMAP を明示する。",
+      "confidence": "確認済み",
+      "status": "open",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-10-30）。規則（stdout が切れたら読まない）は変えない。適用先 A の実物と合成の入力で件数が出なくなる条件を測り（読む窓の 1,048,576 UTF-16 単位。名前 46 文字ほどのテストで console.log 無しなら約 17,000 件）、境目を ADR-0028 の追記・v0.18.0 の回帰テスト・受け入れの基準で固定する。改善策（runner が流しながら要約の形の組を全体で数える）を ROADMAP の項目 56 に残す。専用の reporter を別ファイルに出させる案はコマンドを書き換えるので採らない。設計 R3 は出さない",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.18.0",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。設計（最終）§3.13・§5.3、ROADMAP の項目 56。実装と確かめは v0.18.0 の実装レビュー"
+    }
+  ]
+}
