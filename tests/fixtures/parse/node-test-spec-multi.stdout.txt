@@ -1,0 +1,23 @@
+✔ top pass (0.383ms)
+﹣ top skip (0.055916ms) # not now
+✔ top todo (0.051542ms) # later
+▶ with subtests
+  ✔ sub one (0.063125ms)
+  ✔ sub two (0.073792ms)
+✔ with subtests (1.25225ms)
+ℹ a diagnostic line
+▶ outer
+  ▶ inner
+    ✔ deep pass (0.089708ms)
+  ✔ inner (0.196ms)
+  ✔ outer pass (0.085125ms)
+✔ outer (0.45575ms)
+✔ second file pass (0.336125ms)
+ℹ tests 9
+ℹ suites 2
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 1
+ℹ duration_ms 44.2995

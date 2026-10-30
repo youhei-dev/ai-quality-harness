@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="ok one" time="0.000344" classname="test" file="/work/fail/b.test.mjs"/>
+	<testcase name="fails assert" time="0.000436" classname="test" file="/work/fail/b.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;1 !== 2&#10;">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;1 !== 2">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 2
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.&lt;anonymous> (file:///work/fail/b.test.mjs:5:37)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Test.postRun (node:internal/test_runner/test:1232:19)
+      at Test.run (node:internal/test_runner/test:1160:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="throws" time="0.000045" classname="test" file="/work/fail/b.test.mjs" failure="boom inside test">
+		<failure type="testCodeFailure" message="boom inside test">
+[Error [ERR_TEST_FAILURE]: boom inside test] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: Error: boom inside test
+      at TestContext.&lt;anonymous> (file:///work/fail/b.test.mjs:6:30)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Test.postRun (node:internal/test_runner/test:1232:19)
+      at Test.run (node:internal/test_runner/test:1160:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7)
+}
+		</failure>
+	</testcase>
+	<testsuite name="group" time="0.002534" disabled="0" errors="0" tests="2" failures="1" skipped="0" hostname="host">
+		<testcase name="nested fail" time="0.002359" classname="test" file="/work/fail/b.test.mjs" failure="The expression evaluated to a falsy value:&#10;&#10;  assert.ok(false)&#10;">
+			<failure type="testCodeFailure" message="The expression evaluated to a falsy value:&#10;&#10;  assert.ok(false)">
+Error [ERR_TEST_FAILURE]: The expression evaluated to a falsy value:
+
+  assert.ok(false)
+
+    at new Promise (&lt;anonymous>)
+    at Array.map (&lt;anonymous>) {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(false)
+  
+      at TestContext.&lt;anonymous> (file:///work/fail/b.test.mjs:8:36)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.start (node:internal/test_runner/test:1000:17)
+      at node:internal/test_runner/test:1513:71
+      at node:internal/per_context/primordials:466:82
+      at new Promise (&lt;anonymous>)
+      at new SafePromise (node:internal/per_context/primordials:435:3)
+      at node:internal/per_context/primordials:466:9
+      at Array.map (&lt;anonymous>) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+}
+			</failure>
+		</testcase>
+		<testcase name="nested pass" time="0.000053" classname="test" file="/work/fail/b.test.mjs"/>
+	</testsuite>
+	<testcase name="todo that fails" time="0.000045" classname="test" file="/work/fail/b.test.mjs" failure="todo fails">
+		<skipped type="todo" message="true"/>
+		<failure type="testCodeFailure" message="todo fails">
+[Error [ERR_TEST_FAILURE]: todo fails] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: Error: todo fails
+      at TestContext.&lt;anonymous> (file:///work/fail/b.test.mjs:11:55)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Suite.postRun (node:internal/test_runner/test:1232:19)
+      at Suite.run (node:internal/test_runner/test:1530:10)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7)
+}
+		</failure>
+	</testcase>
+	<!-- tests 6 -->
+	<!-- suites 1 -->
+	<!-- pass 2 -->
+	<!-- fail 3 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 1 -->
+	<!-- duration_ms 46.499167 -->
+</testsuites>

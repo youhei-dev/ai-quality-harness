@@ -236,3 +236,49 @@ describe("item 39 (v0.14.0): pytest through verify, for display only", () => {
     expect(r.lines.some((l) => l.includes("parsed:"))).toBe(false);
   });
 });
+
+describe("v0.18.0 (ADR-0028 decision 14): node:test through verify, for display only", () => {
+  /** A project whose unit check runs Node's own test runner on one made-up test file (unit/a.test.mjs). */
+  function nodeTestProject(command: string, testFile: string): string {
+    const t = makeTempDir("aiqh-parse-node-test-");
+    cleanups.push(t.cleanup);
+    mkdirSync(path.join(t.dir, "unit"));
+    writeFileSync(path.join(t.dir, "unit", "a.test.mjs"), testFile);
+    writeFileSync(path.join(t.dir, "aiqh.config.jsonc"), JSON.stringify({ version: 1, project: { name: "p" }, checks: [{ name: "unit", kind: "unit", command }] }));
+    return t.dir;
+  }
+  const PASSING = ['import { test } from "node:test";', 'test("adds", () => {});', 'test("subtracts", () => {});', 'test("later", { skip: true }, () => {});', ""].join("\n");
+  const FAILING = ['import { test } from "node:test";', 'test("adds", () => {});', 'test("fails", () => { throw new Error("x"); });', ""].join("\n");
+  it("a PASS check that runs node --test: parsed in latest.json, a parsed: line after its PASS line, a Parsed Output row; P1 holds", async () => {
+    const read = await verify(nodeTestProject("node --test", PASSING));
+    const unread = await verify(nodeTestProject("node --test && true", PASSING));
+    expect(read.code).toBe(0);
+    expect(unread.code).toBe(read.code);
+    for (const key of ["verdict", "exitCode", "summary", "categories"] as const) expect(read.report[key]).toEqual(unread.report[key]);
+    expect(read.report.checks[0]?.status).toBe("PASS");
+    expect(read.report.checks[0]?.parsed).toEqual({ tool: "node-test", status: "parsed", reason: null, truncated: false, counts: { tests: 3, suites: 0, pass: 2, fail: 0, cancelled: 0, skipped: 1, todo: 0 }, items: [], itemsOmitted: 0 });
+    expect(unread.report.checks[0]?.parsed?.reason).toBe("no-parser");
+    const status = read.lines.findIndex((l) => /^ {6}PASS {2}/.test(l));
+    expect(read.lines[status + 1]).toBe("      parsed: node-test — tests 3 (pass 2, fail 0, skipped 1); suites 0");
+    expect(read.md).toContain("## Parsed Output");
+    expect(read.md).toContain("| 1 | unit | node-test | parsed | tests 3 (pass 2, fail 0, skipped 1); suites 0 |");
+    expect(unread.lines.some((l) => l.includes("parsed:"))).toBe(false);
+  });
+  it("a FAIL check: the counts and the failing test's location and name; the exit code and the verdict as without the parser", async () => {
+    const read = await verify(nodeTestProject("node --test", FAILING));
+    const unread = await verify(nodeTestProject("node --test && true", FAILING));
+    expect(read.code).toBe(1);
+    expect(unread.code).toBe(1);
+    expect(read.report.verdict).toBe(unread.report.verdict);
+    expect(read.report.checks[0]?.status).toBe("FAIL");
+    expect(read.report.checks[0]?.parsed?.counts).toEqual({ tests: 2, suites: 0, pass: 1, fail: 1, cancelled: 0, skipped: 0, todo: 0 });
+    const status = read.lines.findIndex((l) => /^ {6}FAIL {2}/.test(l));
+    expect(read.lines.slice(status + 1, status + 3)).toEqual(["      parsed: node-test — tests 2 (pass 1, fail 1); suites 0", "        failed-test: unit/a.test.mjs:3:1 fails"]);
+  });
+  it("a command that only names node --test (echo node --test) is not read: not-applicable, no parsed: line, the check passes", async () => {
+    const r = await verify(nodeTestProject("echo node --test", PASSING));
+    expect(r.code).toBe(0);
+    expect(r.report.checks[0]?.parsed).toEqual({ tool: null, status: "not-applicable", reason: "no-parser", truncated: false, counts: {}, items: [], itemsOmitted: 0 });
+    expect(r.lines.some((l) => l.includes("parsed:"))).toBe(false);
+  });
+});

@@ -65,3 +65,23 @@ export function runsNodeTest(command: SimpleCommand): boolean {
   }
   return test;
 }
+
+/** The values of `--test-reporter` and `--test-reporter-destination` of a command that runsNodeTest accepts (in order). */
+export function nodeTestReporters(command: SimpleCommand): { reporters: string[]; destinations: string[] } {
+  const reporters: string[] = [];
+  const destinations: string[] = [];
+  const { rest } = withoutAssignments(command.words);
+  const after = rest.slice(1);
+  for (let i = 0; i < after.length; i += 1) {
+    const w = after[i];
+    if (w === undefined || w.text === "--" || !w.text.startsWith("-")) break;
+    const name = optionName(w.text);
+    if (NODE_BODY_OPTIONS.has(name)) break;
+    if (!NODE_VALUE_OPTIONS.has(name)) continue;
+    const value = name !== w.text ? w.text.slice(name.length + 1) : (after[i + 1]?.text ?? "");
+    if (name === w.text) i += 1;
+    if (name === "--test-reporter") reporters.push(value);
+    if (name === "--test-reporter-destination") destinations.push(value);
+  }
+  return { reporters, destinations };
+}

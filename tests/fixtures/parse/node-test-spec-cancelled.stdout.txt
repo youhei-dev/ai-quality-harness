@@ -1,0 +1,16 @@
+✖ slow (52.004084ms)
+✔ after (0.468417ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 1
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 550.485834
+
+✖ failing tests:
+
+test at h.test.mjs:2:1
+✖ slow (52.004084ms)
+  'test timed out after 50ms'

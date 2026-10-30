@@ -221,6 +221,10 @@ describe("P2: a parser that throws or runs out of time is unparsed, with the rea
 describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper bound)", () => {
   const KIB = 1024;
   const fill = (unit: string, size: number): string => unit.repeat(Math.ceil(size / unit.length)).slice(0, size);
+  // node:test (v0.18.0): the spec reporter's marks (U+2139, U+2716) and a block of 8 lines (all zero: exit 0 agrees, so the names are read)
+  const INFO = String.fromCodePoint(0x2139);
+  const CROSS = String.fromCodePoint(0x2716);
+  const nodeTestBlock = (n: number): string => ["tests", "suites", "pass", "fail", "cancelled", "skipped", "todo"].map((w) => `${INFO} ${w} ${n}\n`).join("") + `${INFO} duration_ms 1.5\n`;
   const shapes: Record<string, (size: number) => Out> = {
     "one line without a newline": (n) => ({ stdout: fill("Test Files  1 passed | ", n), stderr: fill(" FAIL  x", n) }),
     "only newlines": (n) => ({ stdout: "\n".repeat(n), stderr: "\r\n".repeat(n / 2) }),
@@ -240,8 +244,14 @@ describe("P3: the worst inputs take linear time (64 KiB to 1 MiB, with an upper 
     "pytest FAILED lines after the heading": (n) => ({ stdout: `=== short test summary info ===\n${fill("FAILED t.py::a - x\n", n)}1 failed in 0.10s\n` }),
     "pytest a summary of many words": (n) => ({ stdout: fill(`${"1 passed, ".repeat(400)}in 0.1s\n`, n) }),
     "pytest headings without a summary": (n) => ({ stdout: fill("=== short test summary info ===\n", n) }),
+    // node:test (v0.18.0, ADR-0028 decision 14)
+    "node-test summary blocks again and again": (n) => ({ stdout: fill(nodeTestBlock(1), n) }),
+    "node-test info lines": (n) => ({ stdout: fill(`${INFO} tests 1\n`, n) }),
+    "node-test TAP comment lines": (n) => ({ stdout: fill("# tests 1\n# suites 0\n# pass 1\n", n) }),
+    "node-test a failing list after the block": (n) => ({ stdout: `${nodeTestBlock(0)}\n${CROSS} failing tests:\n\n${fill(`test at a.test.mjs:1:1\n${CROSS} x (1ms)\n`, n)}` }),
+    "node-test values just under the line limit": (n) => ({ stdout: fill(`${INFO} tests ${"1".repeat(4000)}\n`, n) }),
   };
-  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest"];
+  const tools: ParserTool[] = ["vitest", "eslint", "npm-audit", "aiqh-security-scan", "pytest", "node-test" as ParserTool];
   const linesOf = (s: string): number => {
     let n = 1;
     for (let i = s.indexOf("\n"); i !== -1; i = s.indexOf("\n", i + 1)) n += 1;

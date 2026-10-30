@@ -11,10 +11,15 @@
  * with flags that take no value and then `-m pytest`, or one of the wrappers (uv, poetry, pipenv, pdm, hatch, rye) `run` before those —
  * and no other simple command stands before or after it, but a leading `cd <one word>`. Otherwise a line that looks like pytest's
  * summary (echo, a later command) could be shown as its counts.
+ * node-test (v0.18.0, ADR-0028 decision 14; batch3 design, final, §3.2, B3-D-Q1 A and B3-D-Q5 A) is chosen the same way: one simple
+ * command, after at most a `cd <one word>`, that the node:test rules of `aiqh init` accept (src/node-command.ts), with no
+ * --test-reporter or one of spec / tap and no --test-reporter-destination or one of stdout (the forms that print the summary block to
+ * stdout). The other tools keep their any-word rule.
  */
 import { lstatSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { lastPathSegment, simpleCommands, withoutAssignments, type CommandWord, type SimpleCommand } from "../command-words.ts";
+import { nodeTestReporters, runsNodeTest } from "../node-command.ts";
 import type { ParserTool } from "../types.ts";
 
 /** A package.json larger than this is not read (bytes). */
@@ -47,6 +52,7 @@ export function selectParser(command: string, cwdAbsolute: string, readScripts: 
   }
   const tools = toolsIn(segments);
   if (choosesPytest(text)) tools.add("pytest");
+  if (choosesNodeTest(text)) tools.add("node-test");
   const [only] = tools;
   if (only === undefined) return NO_PARSER;
   return tools.size === 1 ? { kind: "tool", tool: only } : SEVERAL;
@@ -150,6 +156,24 @@ function choosesPytest(text: string): boolean {
   if (second === undefined) return runsPytest(first);
   const cd = first.examinable && first.words.length === 2 && plain(first.words[0], "cd");
   return cd && runsPytest(second);
+}
+
+/** The reporter of a node:test command, when the parser can read it: the default (spec), spec or tap, written to stdout. */
+function readableReporter(command: SimpleCommand): boolean {
+  const { reporters, destinations } = nodeTestReporters(command);
+  if (reporters.length > 1 || destinations.length > 1) return false;
+  if (reporters.length === 1 && reporters[0] !== "spec" && reporters[0] !== "tap") return false;
+  return destinations.length === 0 || destinations[0] === "stdout";
+}
+
+/** Like B-1 of pytest: the command (or the npm script) is one simple command that runs `node --test` (the rules of `aiqh init`), after at most a `cd <one word>`, with a reporter the parser reads. */
+function choosesNodeTest(text: string): boolean {
+  const commands = simpleCommands(text);
+  if (commands === null) return false;
+  const [first, second, ...more] = commands;
+  if (first === undefined || more.length > 0) return false;
+  const run = second === undefined ? first : first.examinable && first.words.length === 2 && plain(first.words[0], "cd") ? second : null;
+  return run !== null && runsNodeTest(run) && readableReporter(run);
 }
 
 /** The scripts of `<dir>/package.json`. A symbolic link, a directory or a FIFO is not read (a FIFO would block), nor a file over PACKAGE_JSON_MAX. */
