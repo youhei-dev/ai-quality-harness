@@ -65,7 +65,7 @@ Claude Code などの実装 AI と、独立したレビュー AI の両方が「
 | review-packet と出口の見えない文字（禁止文字に、Security Scan と同じ判断で正しい絵文字の並びの外の層 (c) を加えた 1 つの判断。パケットは書かない〈`security.allow` は当てない〉、端末・`latest.md` は表記、ファイルの JSON は値を変えずに escape） | v0.17.0（**パケットが厳しくなる変更**。ROADMAP の項目 54。ADR-0039） |
 | `aiqh review-packet`（commit 範囲から独立レビュー用パケットを生成。全文・差分・検査内蔵・ZIP） | v0.17.1（M2-1 で実装〈完了ベースライン v0.4.3〉、M2-2 で独立レビューの指摘を反映。経緯は CHANGELOG の各版） |
 | `aiqh review-import`（レビュー指摘の構造化）と再修正ループ | v0.6.0 で取り込み（v1）を実装（ADR-0026）。v0.7.0 で状態の検査・前の回の評価の突き合わせ・ループ未完了の表示を `aiqh review-check`（v2、ADR-0027）、再修正ループの手順書（`docs/ops/review-loop.md`）。状態を変えるコマンドと `response-rN.md` の生成は v3（後）。M2-2 完了（v0.8.2） |
-| 出力パーサ（vitest・eslint・npm audit・pytest の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉。pytest は v0.14.0〈決定 12〉） |
+| 出力パーサ（vitest・eslint・npm audit・pytest・node:test の件数と失敗の名前、`aiqh security-scan` の oversized-candidate・`security.allow` の項目をレポートの `checks[].parsed` に。表示用） | v0.8.0（M2-2。判定と終了コードは変えない。ADR-0028。v0.8.1 で R1 の Medium 1 件を直した〈latest.md の名前の一覧をコードブロックに〉。pytest は v0.14.0〈決定 12〉、node:test は v0.18.0〈決定 14〉） |
 | 本体リポジトリの自己 CI（GitHub Actions。Ubuntu の verify、Windows の手動の測定） | v0.5.45（M3 の前半。v0.6.1 から、タグの前に `verify (ubuntu)` の success を確かめる〈人の手順〉。v0.9.2 から、`verify (ubuntu)` と `reusable (self) / aiqh verify` は main の pull request の必須チェック〈ADR-0032〉。ADR-0025） |
 | GitHub Actions 再利用ワークフロー（`.github/workflows/verify.yml`。他のリポジトリの CI から、40 桁の commit SHA で固定して呼ぶ） | v0.9.0（M3 の後半〈波 4〉。aiqh は自分と同じ commit のソースを使う〈配布物なし〉。ADR-0031。手順は `docs/ops/reusable-workflow.md`） |
 | 設定のハッシュ（レポートの最上位の `configSha256`。設定ファイルのバイト列の SHA-256。記録であって固定ではない） | v0.10.0（M4。ADR-0033） |
@@ -134,8 +134,9 @@ artifacts/verification/
 - 食い違ったら: (a) その出力のディレクトリに書く verify が走っていないことを確かめて、読み直す。(b) まだ食い違うなら、`latest.md` を使わず、run ごとの記録 `history/<stamp>.json` を使う（名前は `startedAt` の秒までで、同じ秒の別の run は `-2` などが付く。同じ `startedAt` の history が 2 つ以上あれば、`startedAt` だけでは、どれが `latest.json` の run かは決められない。v0.16.0 からは、`latest.json` の `runId` を持つ history がその run の記録）。(c) 組が要るなら、並行の無い状態で verify をやり直す（確実なのはこれだけ）
 - リポジトリの中の読み手は組で読まない（review-packet は `latest.json` だけ、再利用ワークフローの Job Summary は `latest.md` だけ、`aiqh history` は `history/` だけ）。この約束は外の読み手（人・別の道具）のためのもの。固定しているテスト: `tests/regression-item47-latest-pair-started-at.test.ts`・`tests/regression-item47-latest-pair-race.test.ts`・`tests/regression-item52-run-id.test.ts`
 
-v0.8.0 から、check の出力を aiqh が読めるときは、件数と失敗の名前が `latest.json` の `checks[].parsed`、`latest.md` の「Parsed Output」、端末の `parsed:` の行に出ます（vitest・eslint・npm audit・`aiqh security-scan`、v0.14.0 から pytest）。
+v0.8.0 から、check の出力を aiqh が読めるときは、件数と失敗の名前が `latest.json` の `checks[].parsed`、`latest.md` の「Parsed Output」、端末の `parsed:` の行に出ます（vitest・eslint・npm audit・`aiqh security-scan`、v0.14.0 から pytest、v0.18.0 から node:test）。
 pytest は、コマンドが pytest を実行する単純コマンド 1 つ（`pytest`・`python -m pytest`・`uv run pytest` など。前に `cd <1 語>` を置いてよい）のときだけ読みます（`echo … pytest` や前後にほかのコマンドがある形は読みません。形は `docs/CONFIG_SPEC.md` の §5.3a）。v0.13.x までの `aiqh history` は、pytest の件数の入ったレポートを読めません（`bad-shape`。同じ history を版の違う aiqh で読むときだけ）。
+node:test は、コマンドが `node --test` を実行する単純コマンド 1 つ（`aiqh init` の node:test の検出と同じ規則。`npm test` の script でもよい。前に `cd <1 語>` を置いてよい）で、reporter が既定・spec・tap、出力先が stdout のときだけ読みます（形は `docs/CONFIG_SPEC.md` の §5.3c）。stdout が読む窓（末尾 1,048,576 UTF-16 単位）より長いとき、または runner が先頭を捨てたときは、末尾に要約が見えていても件数を出しません（`not read (output-truncated)`。テストが出した偽の要約を読まないため。名前 46 文字ほどのテストで `console.log` 無しなら約 17,000 件が目安）。v0.17.x までの `aiqh history` は、node:test の件数の入ったレポートを読めません（`bad-shape`）。
 **表示のためだけで、判定と終了コードには使いません**（ADR-0028）。どのパーサを使うかは、コマンド（`npm run <script>` / `npm test` なら作業ディレクトリの package.json の script）から aiqh が決めます。設定の欄はなく、コマンドは書き換えません。
 合うパーサが無い check は `not-applicable` で、端末の出力も今までと同じです。
 latest.md の名前の一覧はコードブロックの中に、失敗の詳細の Summary は行内のコードとして書きます（v0.8.1。ツールの出力の文字列が、リンクや HTML などの Markdown の構文として読まれないように）。
