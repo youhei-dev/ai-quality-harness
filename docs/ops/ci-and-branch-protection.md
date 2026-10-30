@@ -190,6 +190,9 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 3. **条件**: 公開から 7 日を満たす版だけ（npm の `min-release-age=7` と同じ考え）。前の版と `action.yml` を比べる（`runs.using`・入力・出力・`post`）。リリースの記述を読む
 4. **承認**: アクションごとに、今と新しい SHA・版・公開日・`action.yml` の違いの一覧を出し、人間が承認する（依存の更新と同じ扱い）
 5. **直す所**: `.github/workflows/` のすべての同じアクションを、同じ SHA と `# vX.Y.Z` にする。テストは SHA を固定していない
+   - 版の名前を書いた文書も直す（例: `docs/ops/reusable-workflow.md` の §3 の後の箇条）。古い SHA（40 桁）と古い版の名前（`vX.Y.Z`）の両方で `git grep` し、当たった行を batch3 の設計（最終）§2.5 の規則で分ける（日付・版・注記の無い、今の状態を書く文は直す。CHANGELOG・ROADMAP の記録・ADR の本文と注記・`docs/reviews/` は残す）
+   - 更新対象（ワークフローの `uses:` の行と、直す文書の行）を一覧にし、commit の前に `git diff` で、一覧の行だけが変わったことを確かめる
+   - この 2 つは v0.17.1 の記録で足した（v0.17.1 で `docs/ops/reusable-workflow.md` の版の名前を直し漏れた。実装の独立レビュー batch3-v0171-impl R1 の提案）
 6. **確かめ**: pull request の run で必須の 2 つが success。再利用ワークフロー `verify.yml` の変更は、適用先が呼び出しの SHA を上げるまで適用先には届かない（人間の決定 H11 の回に含める）
 7. **記録**: CHANGELOG に、前と後の SHA と版
 
