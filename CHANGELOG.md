@@ -5,6 +5,23 @@ M0（verify の中核）の各タグと、対応した独立レビューのラ�
 表記規約（R6-002）: 各タグの主表記は**タグが指す commit の SHA**（`git rev-list -n1 <tag>`、peeled）。注釈付きタグのオブジェクト SHA（`git rev-parse <tag>`）は
 `/ tag object <SHA>` として併記する。
 
+## v0.18.0 — batch3 (2): the node:test output parser (node-test; a cut stdout is not read, two-step recognition; ADR-0028 decision 14); the masker's private-key step as a linear scan with the same matches (item 40, ADR-0013); batch3-design closed
+
+- **batch3 の 2 版目**（人間の決定 2026-10-30。設計の正本は batch3 の設計〈最終〉`docs/reviews/batch3-design/design-final.md` の §3・§4）。**判定と終了コードは変わらない**（表示に node:test の件数が増える）。branch `release/v0.18.0`、7 commit: `b27430f`（`runsNodeTest` の移動）・`4e1fa7a`（パーサへの入力の `stdoutTruncated`）・`bc4c023`（node:test のパーサと選び方）・`f2ae574`（項目 40）・`e572cbb`（変異で足したテスト）・`24dd5bf`（文書）・この release の commit
+- **node:test の出力パーサ**（`src/parse/node-test.ts`。ADR-0028 の決定 14。B3-D-Q1〜Q5・Q13・Q14 の A）: Node の spec〈既定〉・TAP の reporter が実行の最後に出す 8 行の要約のかたまり（tests・suites・pass・fail・cancelled・skipped・todo・duration_ms）を読む。端末の check の下に `parsed: node-test — tests <n> (pass <n>, fail <n>[, cancelled][, skipped][, todo]); suites <n>` と失敗の名前（`<場所> <名前>`。TODO は入れない）、`latest.md` の Parsed Output、`latest.json`・history の `parsed`（`tool: "node-test"`）
+  - **切れた stdout は読まない**（B3-D-R1-001）: パーサへの入力に `stdoutTruncated`（runner の切れか、読む窓の切れ）を足し、真なら `unparsed`・新しい理由 `output-truncated`。ほかの 5 つのパーサは読まない（振る舞いは変わらない）
+  - **2 段の認識**（B3-D-R1-002）: 字面の形で組を数え（組 0 は `no-summary`、2 以上は `unexpected-summary`）、組が 1 つのときだけ値（1〜15 桁・`duration_ms` の形・`tests = pass + fail + cancelled + skipped + todo`・終了コードが「fail + cancelled が 1 以上なら 1」と同じ）を確かめる
+  - **件数が出なくなる条件**（B3-D-R2-001）: stdout が読む窓（末尾 1,048,576 UTF-16 単位）より長いとき。名前 46 文字ほどのテストで `console.log` 無しなら約 17,000 件が目安。境目を回帰テストと ADR-0028・CONFIG_SPEC §5.3c・README で固定した。改善策は ROADMAP の項目 56（見張り。この版には入れない）
+  - **選び方**: `aiqh init` の node:test の検出と同じ規則（`runsNodeTest` を `src/node-command.ts` に移して共有。init の提案は変わらない）に、単純コマンド 1 つ（前に `cd <1 語>` だけ）と reporter の条件（既定・spec・tap、出力先は stdout）を足した形だけ。ほかの道具の選び方は変わらない
+  - **互換**: v0.17.x までの `aiqh history` は、node-test の件数の入ったレポートを読めない（`bad-shape`。B3-D-Q6。適用先 A の写しのレポートで確かめた）
+- **項目 40**（ADR-0013 の追記）: `maskSecrets` の private-key の段は正規表現を実行せず、同じ一致と同じ置換を線形の時間で求める（BEGIN の行だけの繰り返しで、256 KiB から 1 MiB の CPU 時間が約 15.7 倍から約 4 倍に）。出力は変わらない（正規表現を正解とした同値のテスト）。`pattern` と scanner は変えない
+- **テスト**: テストを先に書き、直す前の commit の SHA 固定の worktree で FAIL を記録した。変異 29 個のうち 26 個が落ち、落ちなかった 3 個に区別する入力を足して、すべて落ちるようにした。既存のテストの期待値の変更は `tests/history-read.test.ts` の道具ごとの fixture の表に node-test を足しただけ。テストは 187 ファイル・2,823 件から 189 ファイル・2,944 件
+- **適用先の写しでの確かめ**: 適用先 A（node:test）の unit で `parsed: node-test — tests 113 (pass 113, fail 0); suites 0`（`npm test` の要約と一致。v0.17.1 との違いはこの行だけ）。適用先 B（pytest）は v0.17.1 と同じ出力
+- **設計の独立レビュー batch3-design**: open の 3 件（B3-D-R1-001・B3-D-R1-002・B3-D-R2-001）を `resolved`（`fixedIn` は `bc4c023`）。`aiqh review-check --label batch3-design` は `REVIEW LOOP: complete`。確かめは v0.18.0 の実装レビュー（label `batch3-v0180-impl`、この版のリリースの後に依頼する）
+- 文書: ADR-0028 の追記（決定 14）・ADR-0013 の追記（項目 40）・ADR-0011 の注記・ADR の一覧、`docs/CONFIG_SPEC.md` の §5.3c、README、`docs/ARCHITECTURE.md`、`docs/ops/reusable-workflow.md` の §8、ROADMAP（項目 40 を閉じ、v0.18.0 の項）
+- `package.json` version 0.18.0（`npm version 0.18.0 --no-git-tag-version`。`package-lock.json` のルートの 2 つの `version` も 0.18.0）。実行時の依存・`package-lock.json` の依存の木・禁止文字の集合（`FORBIDDEN_RANGES`）・`tests/structure/`・security の check の判定・設定の仕様は v0.17.1 と同一
+- 記録（この版の後の記録の PR で記入）: PR、run、merge の commit、タグの SHA
+
 ## v0.17.1 — commit ac847820712680533c2dad9ec5da47f3c12cebb6 / tag object 9b8888a0459af723172a5574e1d08c391f0065f5 — batch3 (1): in-range devDependency updates; setup-node and setup-python v7.1.0 and the procedure for action SHAs (ADR-0025 decision 9); package-lock.json's root version follows package.json (ADR-0008 addendum); the batch3 design records, H11 rounds 2 and 3, ROADMAP item 56
 
 - **src を変えない版**（判定・終了コード・製品の出力は変わらない。依存・ワークフロー・テストの守り 1 つ・文書）。**batch3 の 1 版目**（人間の決定 2026-10-30。設計の正本は batch3 の設計〈最終〉`docs/reviews/batch3-design/design-final.md`）。branch `release/v0.17.1`、5 commit: `21862e3`（依存）・`149cad4`（Actions と手順）・`128930a`（lock の決まりと守り）・`e12ce2d`（記録と文書）・この release の commit
