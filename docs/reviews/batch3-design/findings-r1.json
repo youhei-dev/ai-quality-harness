@@ -36,7 +36,7 @@
       "regressionTest": "tests/parse-node-test.test.ts の境目の表（設計 §3.12）の a・b・c1・c2・d1・d2・e18・e21 と、§3.13 の境目（1,048,576 単位ちょうどで parsed、1 単位上・runner の切れ・合成の 20,000 件で output-truncated）。tests/parse-output.test.ts の v0.18.0 の describe（stdoutTruncated の受け渡しと、ほかの 5 つのパーサが変わらないこと）",
       "guard": null,
       "destination": "v0.18.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（正常な大きな出力で件数が出なくなる点は、R2 の新しい指摘 B3-D-R2-001）。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 で直した: 4e1fa7a（ParserInput の stdoutTruncated を runner の切れと窓の切れの論理和で渡し、理由 output-truncated を通す）と bc4c023（node:test のパーサの 0 の段: 切れた stdout は組を数えずに output-truncated）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消（正常な大きな出力で件数が出なくなる点は、R2 の新しい指摘 B3-D-R2-001）。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 で直した: 4e1fa7a（ParserInput の stdoutTruncated を runner の切れと窓の切れの論理和で渡し、理由 output-truncated を通す）と bc4c023（node:test のパーサの 0 の段: 切れた stdout は組を数えずに output-truncated）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）。v0.18.0 の実装レビュー batch3-v0180-impl R1 の問い 2 の評価: 解消（runner の切れと読む窓の切れを stdoutTruncated で渡し、真なら要約を走査する前に output-truncated。切れた出力から偽の要約だけを読む経路は塞がれた。切れていない通常の出力の要約の出所を証明できない点は既知の限界のまま）"
     },
     {
       "id": "B3-D-R1-002",
@@ -54,7 +54,7 @@
       "regressionTest": "tests/parse-node-test.test.ts の境目の表（設計 §3.12）の e01〜e21 と e12b（e12b は変異の後に e572cbb で足した: 終了コードが無いのを 0 とみなす形を区別する）",
       "guard": null,
       "destination": "v0.18.0",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 の bc4c023 で直した（2 段の認識: 8 行の字面の形〈1 つの印・語の順・数字と点の値〉で組を数え、組が 1 つのときだけ値〈1〜15 桁・duration_ms の形・和・終了コード〉を確かめる）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch3-design/design-final.md（この記録と同じ v0.17.1 の docs の commit で入れた）。R2 の評価: 解消。実装と確かめは v0.18.0 の実装レビュー。v0.18.0 の bc4c023 で直した（2 段の認識: 8 行の字面の形〈1 つの印・語の順・数字と点の値〉で組を数え、組が 1 つのときだけ値〈1〜15 桁・duration_ms の形・和・終了コード〉を確かめる）。確かめは v0.18.0 の実装レビュー（batch3-v0180-impl）。v0.18.0 の実装レビュー batch3-v0180-impl R1 の問い 3 の評価: 解消（字面だけで組の数を先に決め、組が 1 つのときだけ値を確かめる。e01〜e21 と e12b が境目を固定する）"
     },
     {
       "id": "B3-D-R1-003",

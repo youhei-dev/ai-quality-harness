@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "label": "batch3-v0180-impl",
+  "round": 1,
+  "idPrefix": "B3-I180",
+  "source": {
+    "name": "independent-review-batch3-v0180-impl-r1-for-claude.md",
+    "bytes": 10844,
+    "sha256": "628509018a429034f3a6f0a65baadad16442421a77f6a29a532cbe4899c65080"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-10-31T00:27:50.815Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.0"
+  },
+  "findings": []
+}
