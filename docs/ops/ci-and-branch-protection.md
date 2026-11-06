@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-11-07（batch3 の B3-Q7。§3 にタグの ruleset `tag-protection` と `sha_pinning_required: true` の「実施済み（2026-11-07）」。§3-3・§8・§8-2 に注記。§8 の手順 7 に、タグを付ける前の確かめ）。その前: 2026-10-30（v0.17.1 とその記録。§8-2 のアクションの SHA の更新。この行は、その版では直していなかった）、2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -84,6 +84,22 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
 - 確かめ（読み取りだけ）: `gh api repos/youhei-dev/ai-quality-harness/rules/branches/main --jq '[.[].type]'` → `["deletion","non_fast_forward","pull_request","required_status_checks"]`
 - **main への直接の push はできない**（admin も）。リリースは §8 の流れで入れる
 
+**実施済み（2026-11-07。batch3 の B3-Q7。手順と確かめ方の正本は batch3 の設計〈最終〉`docs/reviews/batch3-design/design-final.md` の §8）**: 人間の承認の後に、版とは別に、次の 2 つを API で設定した。上の v0.8.4 の箇条の「入れていないもの: … tag ruleset」は、書いた時点の記録として残す。
+
+- タグの ruleset `tag-protection`（id 26732066。2026-11-07 の 07:32 ごろ〈JST〉に作った）: target `tag`、enforcement `active`、対象 `refs/tags/v*`（`exclude` は空。既存のタグ v0.1.0〜v0.18.0 の 98 個は、すべて `v` で始まり、対象になる）
+  - 作り方: `gh api --method POST repos/youhei-dev/ai-quality-harness/rulesets --input <JSON のファイル>` を 1 回（JSON の欄は name・target・enforcement・bypass_actors・conditions・rules）
+  - 規則: `deletion`（対象のタグを消せない）と `update`（同じ名前のタグを別の object に付け替えられない）だけ。**`creation` の規則は付けていない**（新しいタグは作れる。§8 の手順 7 のタグの push のため）。`non_fast_forward` も付けていない（Bypass が無いので、`update` だけで、既存のタグの付け替えは force かどうかに関係なく誰もできない）
+  - 送った `update` の規則は `parameters` に `update_allows_fetch_and_merge: false` を持っていたが、GitHub は `{"type":"update"}`（`parameters` なし）として保存した（POST の応答と GET の読み直しの両方）。この欄は branch のための欄（fork が上流から同期できるか）で、target `tag` の ruleset では保存されないと判断し、人間が受け入れた
+  - Bypass list: **空**（`current_user_can_bypass: never`。`main-protection` と同じ）。止めるのは人間（3-3）
+- `sha_pinning_required: true`（2026-11-07 の 07:34 ごろ〈JST〉）: `gh api --method PUT repos/youhei-dev/ai-quality-harness/actions/permissions --input <JSON のファイル>` に `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`（HTTP 204。`enabled`・`allowed_actions` は前の値のまま送った）。ワークフローの `uses:` の 9 行のうち、外のアクションの 8 行はすべて完全な commit SHA、残りの 1 行は同じリポジトリの再利用ワークフロー（`./.github/workflows/verify.yml`。GitHub の文書は、この設定について「Reusable workflows can still be referenced by tag.」と書く）
+- 確かめ（読み取りだけ。設定の前と後の GET を比べた）: 変わったのは `GET …/rulesets` の件数（1 から 2。`main-protection` の行は前と同じ）と、`GET …/actions/permissions` の `sha_pinning_required`（false から true）だけ。`GET …/rulesets/25218296`・`…/rules/branches/main`・`…/actions/permissions/workflow`・`…/actions/permissions/artifact-and-log-retention`・`…/actions/permissions/fork-pr-contributor-approval`・リポジトリの merge の設定は、前とバイト単位で同じ
+  - `gh api repos/youhei-dev/ai-quality-harness/rulesets --jq '[.[].name]'` → `["main-protection","tag-protection"]`
+  - `gh api repos/youhei-dev/ai-quality-harness/rulesets/26732066 --jq '[.target, .enforcement, .conditions.ref_name.include, [.rules[].type], (.bypass_actors|length)]'` → `["tag","active",["refs/tags/v*"],["deletion","update"],0]`
+  - `gh api repos/youhei-dev/ai-quality-harness/actions/permissions` → `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`
+  - CI での確かめ: `sha_pinning_required: true` の後の最初の run は、この記録の pull request（branch `docs/github-settings`）の run と、その merge の後の main への push の run。必須の 2 つが success になることで、ローカルの再利用ワークフローが止まらないことを確かめる（run の番号は次の記録で書く）
+- 試していないこと: 消すこと・付け替えることが拒まれるかは、本物のタグで試していない（試すとタグが残るか消える。取り返しがつかない）。新しいタグを作れることは、次の版のタグの push（§8 の手順 7）で確かめる。断られたらタグはできないので、止まって人間に知らせる
+- 戻し方（するかは人間が決める）: ruleset は Enforcement を Disabled にする（`gh api --method PUT repos/youhei-dev/ai-quality-harness/rulesets/26732066` に `{"enforcement":"disabled"}`。消さない）。`sha_pinning_required` は `gh api --method PUT repos/youhei-dev/ai-quality-harness/actions/permissions` に `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`。画面では Settings → Rules → Rulesets → `tag-protection` と、Settings → Actions → General の「Require actions to be pinned to a full-length commit SHA」
+
 ### 3-1. 設定する内容（rulesets の場合。Settings → Rules → Rulesets → New branch ruleset）
 
 1. 対象: main（Default branch）。Enforcement status: Active
@@ -112,6 +128,7 @@ classic の Branch Protection を使う場合も、同じ 4 つ（削除の禁�
 - 承認の数を 1 以上にしない（1 人では満たせない）。Code Owners のレビューを必須にしない（同じ理由）
 - まず削除の禁止と force push の禁止だけで有効にし、必須チェックは後から足す
 - タグも守るなら、tag ruleset で `v*` の削除と更新を禁止する（プロジェクトの規則「タグを消さない・上書きしない」と同じ）
+  - 注記（2026-11-07）: ruleset `tag-protection` で入れた（§3 の「実施済み（2026-11-07）」）。Bypass は無いので、止めるときは `main-protection` と同じく、人間が Enforcement を Disabled にする
 
 ## 4. CODEOWNERS（`.github/CODEOWNERS`）
 
@@ -158,12 +175,13 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 4. pull request を作り（base は main）、必須の 2 つの checks（`verify (ubuntu)`・`reusable (self) / aiqh verify`）が緑になるのを待つ
 5. `gh pr merge <番号> --merge --match-head-commit <branch の先頭の SHA> --delete-branch` で merge する（`--admin` は使わない。`--match-head-commit` で、確かめた commit 以外を merge しない）
 6. main への push の run（merge の commit）の、必須の 2 つが success になるのを確かめる
-7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて push する
+7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて push する。**タグを付ける前に、指す commit が release の commit であることを確かめる**（付けた後、push の前に `git rev-list -n1 vX.Y.Z` でも確かめる）。ruleset `tag-protection`（2026-11-07 から。§3）により、付けて push したタグは消せず、付け替えられないので、間違えたら次の版を出す。ruleset を無効にするかは人間が決める
 8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる。あわせて `npm audit --audit-level=high` が通ること（自己 verify の dependency の check と同じ）を確かめ、通らなければ、実装の前に依存の更新を決める（v0.13.2 の教訓: 勧告は外で増えるので、前の版の CI が PASS でも、実装の後の検証で初めて分かると、全部の commit を作り直すことになる）
 
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する
-- タグの push は、ruleset の対象（branch）の外
+- タグの push は、ruleset `main-protection` の対象（branch）の外
+  - 注記（2026-11-07）: タグには、別の ruleset `tag-protection`（§3 の「実施済み（2026-11-07）」）が当たる。`refs/tags/v*` を消すことと付け替えることを止め、作るのは止めない
 - 版を上げる（release の commit。v0.17.1 から。ADR-0008 の追記）: `npm version <新しい版> --no-git-tag-version` で、`package.json` の `version` と `package-lock.json` のルートの 2 つの `version` を同時に上げる（commit とタグは作らない。手で `package.json` だけを書き換えない）。lock の全欄の比べで、ルートの 2 つのほかが変わっていないことを確かめる。`tests/regression-m2-1-r2-008-version-consistency.test.ts` が、3 つ（と CHANGELOG・README の版）の一致を確かめる
 - 依存を更新した commit では、npm が書いたルートの `version`（そのときの `package.json` の版）をそのまま commit する（v0.13.2・v0.14.1 のように 0.5.35 に手で戻さない。v0.17.1 から）
 
@@ -198,3 +216,4 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 
 - v0.17.1 の更新: setup-node v7.0.0（`820762786026740c76f36085b0efc47a31fe5020`）→ v7.1.0（`949feb2413d6458794dcd2491c4babbbce0c15c1`、2026-10-08 公開）、setup-python v7.0.0（`5fda3b95a4ea91299a34e894583c3862153e4b97`）→ v7.1.0（`6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`、2026-10-22 公開）。どちらも軽量タグ。`runs.using` は `node24` のまま、入力が増えただけ（aiqh は使わない）。checkout は v7.0.1 が最新で変えない
 - `sha_pinning_required`（完全な SHA を強制する GitHub の設定）は、版とは別に、人間の承認の後に入れる（batch3 の設計〈最終〉§8.2）
+  - 注記（2026-11-07）: 入れた（§3 の「実施済み（2026-11-07）」）。これからは、外のアクションの `uses:` を完全な commit SHA で書かないと、そのワークフローは走らない（上の手順の 2・5 は、もともと commit SHA を求めている）

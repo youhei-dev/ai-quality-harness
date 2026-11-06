@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-10-31
+最終更新: 2026-11-07
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -980,7 +980,8 @@ M2-1 の教訓（R3）:
   - [x] 切り替えの後の確かめ（`gh api repos/youhei-dev/ai-quality-harness` の `visibility` が `public`。ログインしていないブラウザで見えるか）— 人間が確かめた: `public`・`false`、ログインなしの表示は 200、main の保護の GET は HTTP 404（`Branch not protected`）
   - [x] Branch Protection か rulesets（ADR-0025 の決定 6 の前提〈非公開では使えない〉が変わる。手順書 `docs/ops/ci-and-branch-protection.md` の §3 のとおり、締め出されない設定から。pull request を必須にするか〈§3-2 の案 A・B〉は人間の判断。次の指示）— **v0.8.4: ruleset `main-protection`（id 25218296）**。規則は `deletion` と `non_fast_forward`、Bypass は Repository admin。必須チェック・承認の数・Code Owners のレビュー・pull request の必須は入れていない（3-2 の案 B の形）。必須チェックは項目 44
   - [x] description・topics（次の指示）— v0.8.4: description「AI 駆動開発のための fail-closed な品質ゲート CLI（TypeScript / Node.js）」、topics `ai-assisted-development`・`ci`・`cli`・`quality-gate`・`typescript`
-  - [ ] `sha_pinning_required`（任意。Actions の設定で、アクションを完全な commit SHA で固定することを強制する。いまの `ci.yml` は SHA で固定済み。2026-10-16 の値は false）
+  - [x] `sha_pinning_required`（任意。Actions の設定で、アクションを完全な commit SHA で固定することを強制する。いまの `ci.yml` は SHA で固定済み。2026-10-16 の値は false）— **2026-11-07 に true にした**（人間の承認の後に、版とは別に。batch3 の B3-Q7、設計〈最終〉§8.2）。`gh api --method PUT …/actions/permissions` に `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`（ほかの 2 欄は前の値のまま）。前と後の GET の比べで、Actions の設定で変わったのはこの 1 欄だけ。詳細と戻し方は手順書 `docs/ops/ci-and-branch-protection.md` の §3 の「実施済み（2026-11-07）」
+  - [x] タグの ruleset（batch3 の B3-Q7 で足した行）— **2026-11-07 に作った**: ruleset `tag-protection`（id 26732066）、target `tag`、対象 `refs/tags/v*`、規則 `deletion`（消せない）と `update`（付け替えられない）、作るのは止めない（`creation` の規則は無い）、Bypass なし、enforcement `active`。詳細は同じ §3 の「実施済み（2026-11-07）」
 
 ### 波 4（M3 の後半: 配布と再利用ワークフロー）
 - **SP1**（2026-10-16。読み取りだけの調査で、commit なし。報告 `claude提出_aiqh_wave4_sp1_20261016-1539.md`）:
@@ -1204,7 +1205,7 @@ M2-1 の教訓（R3）:
   - H11 の 4 回目の適用先 A（node:test）: PR・main の両方の run で、unit の check の下に `parsed: node-test U+2014 tests 113 (pass 113, fail 0); suites 0` が出た（U+2014 は区切りの記号〈EM DASH〉を U+ 表記で書いたもの。この行の ASCII の外の文字はこれだけ）。適用先の手元の `npm test` の要約（tests 113・pass 113・fail 0・suites 0。適用先の側の作業の記録）と一致し、`output-truncated` ではない → **設計（最終）§5.3 の受け入れの基準 3 を満たした**（v0.18.0 の受け入れの基準 1〜4 がすべて済んだ）。verify の check の行（状態・`parsed:`・判定）は、v0.17.0 の回（main の run 40968524524）から `parsed: node-test` の行が 1 つ増えただけで、ほかは時間だけが違う（準備の段の出力は比べる対象にしていない。アクションの版などが違う）
   - H11 の 4 回目の適用先 B（pytest）: 再利用ワークフローの setup-python v7.1.0（`6d4fd22`）が、この回で初めて走り、PR・main の両方の run で success（CPython 3.13.17。v0.17.0 の回と同じ版）。`parsed: pytest U+2014 444 passed, 1 warning` は、v0.17.0 の回（main の run 40968611980）とバイト単位で同じ行。verify の check の行も、時間のほかは同じ（準備の段の出力は同じではない。依存の導入で、2 つのパッケージのパッチ版が v0.17.0 の回と違う）
   - **batch3 は完了**（v0.18.0 の後の記録の PR で締めた。2026-10-31）: 版の並びは v0.17.1（依存・Actions の SHA と手順・lock のルートの `version` の決まり）→ v0.18.0（node:test の出力パーサ・項目 40）→ 適用先の呼び出しの SHA を上げる回（H11 の 4 回目）。レビューは、設計の独立レビュー batch3-design（R1・R2。open 0）と、2 つの版の実装の独立レビュー batch3-v0171-impl・batch3-v0180-impl（どちらも R1 で 0 件）まで、すべてのループを閉じた（`aiqh review-check` は 3 つの label とも `REVIEW LOOP: complete`・`REVIEW CHECK: passed`）
-  - batch3 で残したもの: 項目 56（stdout が読む窓を超えても件数を出す改善。見張り）、50-C・50-D（見張りのまま。B3-Q2）、GitHub の設定 2 つ（タグの ruleset と `sha_pinning_required`。設計〈最終〉§8。人間の承認の後に、版とは別に行う。**未実施**）
+  - batch3 で残したもの: 項目 56（stdout が読む窓を超えても件数を出す改善。見張り）、50-C・50-D（見張りのまま。B3-Q2）、GitHub の設定 2 つ（タグの ruleset と `sha_pinning_required`。設計〈最終〉§8。人間の承認の後に、版とは別に行う。**実施済み（2026-11-07）**: ruleset `tag-protection` と `sha_pinning_required: true`。記録の PR〈branch `docs/github-settings`〉、手順書 `docs/ops/ci-and-branch-protection.md` の §3）
 
 ---
 
