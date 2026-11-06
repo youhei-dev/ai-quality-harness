@@ -1,7 +1,7 @@
 # ADR-0032: 本体リポジトリの main は pull request を必須にする（必須チェック 2 つ・merge commit だけ・Bypass なし）
 
 - 状態: 採用（v0.9.2。ADR-0025 の決定 3・6・7 の後。ROADMAP の項目 44 と、M3 の完了条件の 1 つめ）
-- 日付: 2026-10-17（v0.9.2）
+- 日付: 2026-10-17（v0.9.2）。注記: 2026-11-07（タグの ruleset。「結果」の「タグ」の箇条）
 
 ## 文脈
 - ROADMAP の項目 44（必須チェック `verify (ubuntu)` を ruleset `main-protection` に足す）は、ADR-0025 の決定 7 の条件（`verify (ubuntu)` が main への push で続けて 5 回緑）に 2026-10-13 に届いていた。その後も、main への push の run は success が続いた
@@ -30,6 +30,7 @@
 - **困ったときの止め方**: 人間が Settings → Rules → Rulesets → `main-protection` で Enforcement を Disabled にする（Bypass が無いので、ruleset を止めない限り、admin も直接の push はできない）。止めたら、戻すまでの間に何をしたかを記録する
 - **merge commit の理由**: squash や rebase は branch の commit を作り直し、SHA が変わる。merge commit なら、branch の commit が、そのまま main の履歴に入る
 - **タグ**: release の commit（branch の commit。merge の後も main の履歴に残る）に付ける。タグの push は、ruleset の対象（branch）の外
+  - 注記（2026-11-07）: タグには、別の ruleset `tag-protection`（target `tag`、対象 `refs/tags/v*`、規則 `deletion`・`update`、Bypass なし）が当たる。消すことと付け替えることを止め、作るのは止めない（ci 手順書 §3 の「実施済み（2026-11-07）」）。この ADR の決定は変えない
 - タグの前の確かめ（ADR-0025 の決定 7 の後の手順「release commit の `verify (ubuntu)` が success」）は、PR の run の必須チェックで機械的に守られる形になった。merge の後の main への push の run の 2 つの success も確かめる
 - 1 人のリポジトリで承認は 0 なので、人のレビューの強制ではない。独立レビューは、これまでどおり `aiqh review-packet` と `aiqh review-import` の流れ（M2）
 - 公開リポジトリの標準の runner は無料。1 つの変更で、PR の run と main への push の run の 2 回が走る
