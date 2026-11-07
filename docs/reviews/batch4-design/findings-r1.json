@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "label": "batch4-design",
+  "round": 1,
+  "idPrefix": "B4-D",
+  "source": {
+    "name": "independent-review-batch4-design-r1-for-claude.md",
+    "bytes": 17074,
+    "sha256": "16e3ff52bf429511d219efb19db1542ff71eab3623777359902ffd54e6215a90"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 3,
+    "low": 1
+  },
+  "previous": [],
+  "importedAt": "2026-11-07T01:43:44.078Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.0"
+  },
+  "findings": [
+    {
+      "id": "B4-D-R1-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §2.4.2-§2.4.3、§5、ADR-0003 追記の決定 1・4",
+      "content": "golden の latest.md の比較対象が renderMarkdown(report) だけでは、実際に writeReports が保存する latest.md のバイト列と一致しない入力がある。制御文字を含む edge 入力を予定しているため、ファイルの golden という目的に穴がある。",
+      "evidence": "base/src/report/write.ts:20-25 は renderMarkdown の返り値を writeAtomic に渡し、同ファイル:108-113 は Markdown 書き込み時に escapeForDisplay(content, \"keep\") を適用する。一方 base/src/report/markdown.ts:135-154 は stderrTail・stdoutTail を fence 内に生のまま置く。base/tests/regression-backlog9-report-file-notation.test.ts は、実ファイルで U+001B や U+202E が表記化されることを確認する。設計 §2.4.3 は実行時に制御文字を組み立てる入力を含める。",
+      "fix": "latest.md の golden は使い捨てディレクトリで writeReports を呼び、実際に読み戻したファイルの Buffer と期待値を比較する。少なくとも escapeForDisplay(renderMarkdown(report), \"keep\") を比較側に含め、実ファイルとの一致を別テストで固定する。JSON も writeReports との一致を確かめる。生の文字を fixture に置かず期待値には表記だけを置く。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-07: B4-D-Q1〜Q15 は A）。golden は、テストの一時ディレクトリで writeReports が書いた latest.md・latest.json を読み戻し、期待値と Buffer で比べる。history と latest.json の一致も確かめる。期待値は表記だけ（生の文字を置かない）。設計（最終）§2.4.2〜§2.4.4、ADR-0003 の追記〈v0.18.1〉の決定 1・4",
+      "fixedIn": "27f9e5b795ec9ffdb36260a0037a60b877f4a34e",
+      "regressionTest": "tests/report-golden.test.ts の「report golden (C-02): the files writeReports writes are the committed bytes」の 2 件（plain・edge の latest.md・latest.json と history）。変異 M14（比べる側を renderMarkdown の返り値にして、書き込みの変換を抜く）で、この 2 件が FAIL した（生の文字を含む stderr の行で違う）",
+      "guard": null,
+      "destination": "v0.18.1",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch4-design/design-final.md と、fixedIn の commit の tests。R2 の評価: 解消"
+    },
+    {
+      "id": "B4-D-R1-002",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §2.2 手順 3、付録 B.1、B4-D-Q14",
+      "content": "未公開のローカルタグを検査する手順に git tag --no-contains origin/main を使うのは不適切。release commit を指す通常のタグを列挙できず、別のローカルタグの有無についても正しい差集合が得られない。取り消せないタグの事前確認として誤った安心につながる。",
+      "evidence": "設計 §2.2 手順 1 はタグの対象 SHA が origin/main の祖先であることを必須とし、手順 3 は git tag -l 'v*' --no-contains origin/main の結果でローカル専用タグを調べる。--no-contains は指定 commit を含まないタグへの絞り込みなので、origin/main の祖先を指す release タグは通常この一覧に出ない。base/docs/ops/ci-and-branch-protection.md §3・§8 にある tag-protection は削除・更新を禁止する。",
+      "fix": "ローカルの refs/tags/v* を列挙し、リモートの refs/tags/v* とタグ名の集合で比較する。注釈付きタグの剥がした行をタグ名と混同しない。さらに送る対象の完全 ref、タグ object SHA、剥がした commit SHA、リモートに同名タグが無いことを、push 前に個別に確かめる。送る操作は今の単一の完全 ref のままでよい。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（根拠の文の向きは逆で、結論は成り立つ。実測: git tag --no-contains origin/main は origin/main の祖先を指すタグ 98 個をすべて出し、origin/main 自身を指す ref を外す）。手元の refs/tags/v* と git ls-remote --tags --refs の名前の集合で比べ、送る前に送る対象の 5 点を確かめる。ci 手順書 §8 の手順 7 の 3",
+      "fixedIn": "4012dea19f783ab19dfcd62208a2b7aa31d9aadd",
+      "regressionTest": "新しい実行のテストは無い（リリースの手順の文書の直し）。v0.18.1 のタグの作成で手順 7 の 3 を実地に行い、その結果を v0.18.1 の後の記録の PR に書く",
+      "guard": null,
+      "destination": "v0.18.1",
+      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消（R2 のレビュアーも根拠の向きの訂正を正しいとした）"
+    },
+    {
+      "id": "B4-D-R1-003",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §2.2 手順 5-6、§2.6、付録 B.1",
+      "content": "タグ push がネットワーク誤り等で非ゼロになった場合、リモートでは作成済みという不確定状態がありうる。現在の文案は拒否された場合にタグが無いかのように読め、最初の作成の扱いと事後の確認が一致していない。",
+      "evidence": "設計 §2.2 手順 6 はネットワークの誤りも含めて『断られたら止まる』とするが、§2.6 では『断られたら: タグはできない』と記す。push の送信成功後に応答だけ失われた場合、終了状態だけでは remote ref の不存在を証明できない。base/docs/ops/ci-and-branch-protection.md §3 は更新と削除を不可としている。",
+      "fix": "push が失敗・タイムアウト・応答不明なら再送も変更もせず止める点は維持し、読み取り専用の git ls-remote で同名 ref の有無と tag object・peeled commit を確認する。『未作成』『正しく作成済み』『別の対象または確認不能』を区別して人間へ報告し、§2.6 の『タグはできない』という断定を削る。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ。push が失敗した・結果が分からないときは送り直さずに止まり、git ls-remote の読み取りで、未作成・正しく作成済み・別の対象または確認できない、に分けて人間に知らせる。ci 手順書 §8 の手順 7 の 5・6 と、§3 の「試していないこと」の書き直し",
+      "fixedIn": "4012dea19f783ab19dfcd62208a2b7aa31d9aadd",
+      "regressionTest": "新しい実行のテストは無い（リリースの手順の文書の直し）。v0.18.1 のタグの作成で手順 7 の 5（と、要れば 6）を実地に行い、その結果を v0.18.1 の後の記録の PR に書く",
+      "guard": null,
+      "destination": "v0.18.1",
+      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消"
+    },
+    {
+      "id": "B4-D-R1-004",
+      "severity": "Low",
+      "kind": "テスト",
+      "target": "設計 §2.4.6、§3.1.4、§5、ADR-0003 追記の決定 6",
+      "content": "golden の入力が意味を保つガードは、期待値ファイル自身に節や印があることを確認するだけでは、入力側を弱めた場合や plain の対象を減らした場合を十分に検出できない。正しい出力変更を拒む一方、fixture とガードを同時に変更すれば形だけ通る余地が残る。",
+      "evidence": "ADR-0003 追記の決定 6 は『期待値のファイル自身』にある要素を確かめる。設計 §3.1.4 は plain.* と edge.latest.json が差分にないことを根拠にするが、差分なしだけでは、plain に各表示箇所が維持されたことを保証しない。",
+      "fix": "入力について必須 check の個数・状態・parsed の道具・Command と cwd のケース数を独立して assert する。plain にも Checks の表と失敗詳細の Command、cwd を必ず含める。expected fixture の変更を正当な仕様変更で許す手順は維持し、人の差分確認を必須にする。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ。入力の側を期待値と独立に固定の数で確かめる（check の数・状態・parsed の道具・command と cwd の場合の数。plain にも Checks の表・失敗の詳細の Command・cwd を入れる）。期待値を作る・変える commit では、人が差分を読んだことを PR の本文に書く。設計（最終）§2.4.3・§2.4.5・§2.4.6、ADR-0003 の追記〈v0.18.1〉の決定 2・5・6",
+      "fixedIn": "27f9e5b795ec9ffdb36260a0037a60b877f4a34e",
+      "regressionTest": "tests/report-golden.test.ts の「report golden: the inputs keep their cases」の 2 件（plain・edge）と「the expected files hold what they are meant to」の 3 件。変異 M15（plain から FAIL の check を外し、期待値を作り直す）で、golden の比べの 2 件は通り、入力の確かめと中身の確かめの 3 件が FAIL した",
+      "guard": null,
+      "destination": "v0.18.1",
+      "note": "設計の指摘。直した先は設計（最終）と、fixedIn の commit の tests。R2 の評価: 解消"
+    }
+  ]
+}

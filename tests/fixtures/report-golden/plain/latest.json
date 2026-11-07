@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "ai-quality-harness",
+    "version": "0.0.0-golden"
+  },
+  "project": {
+    "name": "demo",
+    "root": "/proj"
+  },
+  "configPath": "/proj/aiqh.config.jsonc",
+  "configSha256": "7f3c2a9e5b1d4f8a6c0e2b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a",
+  "runId": "54545454-5454-4545-8545-545454545454",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "finishedAt": "2026-01-01T00:01:10.000Z",
+  "durationMs": 70000,
+  "git": {
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "branch": "main",
+    "dirty": false
+  },
+  "verdict": "FAILED",
+  "exitCode": 1,
+  "interruptedBy": null,
+  "summary": {
+    "total": 8,
+    "passed": 5,
+    "failed": 2,
+    "skipped": 1,
+    "requiredFailed": 3
+  },
+  "categories": {
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "unit": "FAIL",
+    "build": "FAIL",
+    "security": "SKIPPED",
+    "dependency": "NOT_APPLICABLE",
+    "e2e": "NOT_APPLICABLE"
+  },
+  "checks": [
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": "npm run lint",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": null,
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": "eslint",
+        "status": "parsed",
+        "reason": null,
+        "truncated": false,
+        "counts": {
+          "problems": 0,
+          "errors": 0,
+          "warnings": 0
+        },
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "typecheck",
+      "kind": "typecheck",
+      "command": "npm run typecheck",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": null,
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": null,
+        "status": "not-applicable",
+        "reason": "no-parser",
+        "truncated": false,
+        "counts": {},
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "unit",
+      "kind": "unit",
+      "command": "npm test | tee log",
+      "cwd": "pkg",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "FAIL",
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": "exit code 1: 2 tests failed",
+      "stdoutTail": "RUN tests\nkey [REDACTED:aws]\n2 failed",
+      "stderrTail": "boom \u001b[31mred\u001b[0m and \u202ex\n```\nnot a fence of the report",
+      "outputTruncated": true,
+      "parsed": {
+        "tool": "vitest",
+        "status": "parsed",
+        "reason": null,
+        "truncated": false,
+        "counts": {
+          "testFiles": 3,
+          "testFilesFailed": 1,
+          "testFilesPassed": 2,
+          "tests": 10,
+          "testsFailed": 2,
+          "testsPassed": 8
+        },
+        "items": [
+          {
+            "kind": "failed",
+            "name": "tests/a.test.ts > adds"
+          },
+          {
+            "kind": "failed",
+            "name": "tests/b.test.ts > subtracts"
+          }
+        ],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "unit-node",
+      "kind": "unit",
+      "command": "node --test",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": null,
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": "node-test",
+        "status": "parsed",
+        "reason": null,
+        "truncated": false,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "suites": 1
+        },
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "unit-py",
+      "kind": "unit",
+      "command": "python -m pytest -q tests/",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": null,
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": "pytest",
+        "status": "parsed",
+        "reason": null,
+        "truncated": false,
+        "counts": {
+          "passed": 4,
+          "warnings": 1
+        },
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "build",
+      "kind": "build",
+      "command": "npm run build",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 5,
+      "description": null,
+      "status": "FAIL",
+      "exitCode": null,
+      "signal": "SIGTERM",
+      "timedOut": true,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 5000,
+      "errorSummary": "timed out after 5s",
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": null,
+        "status": "not-applicable",
+        "reason": "no-parser",
+        "truncated": false,
+        "counts": {},
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "security",
+      "kind": "security",
+      "command": "aiqh security-scan",
+      "cwd": ".",
+      "required": true,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "SKIPPED",
+      "exitCode": null,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": null,
+      "durationMs": 0,
+      "errorSummary": "skipped: a required check failed before it",
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": null,
+        "status": "not-applicable",
+        "reason": "not-run",
+        "truncated": false,
+        "counts": {},
+        "items": [],
+        "itemsOmitted": 0
+      }
+    },
+    {
+      "name": "docs",
+      "kind": "custom",
+      "command": "npm run docs:check",
+      "cwd": ".",
+      "required": false,
+      "timeoutSec": 600,
+      "description": null,
+      "status": "PASS",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 1200,
+      "errorSummary": null,
+      "stdoutTail": "",
+      "stderrTail": "",
+      "outputTruncated": false,
+      "parsed": {
+        "tool": null,
+        "status": "not-applicable",
+        "reason": "no-parser",
+        "truncated": false,
+        "counts": {},
+        "items": [],
+        "itemsOmitted": 0
+      }
+    }
+  ]
+}
