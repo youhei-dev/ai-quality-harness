@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "label": "batch4-design",
+  "round": 2,
+  "idPrefix": "B4-D",
+  "source": {
+    "name": "independent-review-batch4-design-r2-for-claude.md",
+    "bytes": 10241,
+    "sha256": "836b0d380cdbeeed930f6d116baefbaf71a44b42bb0b47ad690ab9bf251f6ee6"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "B4-D-R1-001",
+      "assessment": "解消。writeReports が実際に保存した latest.md と latest.json を Buffer で期待値と比較し、history と latest.json の一致も調べる設計になった。書き込み前後の差は golden-probe-r2.md で具体的に確認され、禁止文字の生の値を期待値に残さない方針も明記された。"
+    },
+    {
+      "id": "B4-D-R1-002",
+      "assessment": "解消。前回の根拠説明にあった --no-contains の向きの誤りは R2 の実測に従って訂正する。対象のタグ名をローカルとリモートの ref 名の集合で比較し、注釈付きタグの object と剥がした commit、リモートでの同名 ref の不在を送信前に確認する形になった。"
+    },
+    {
+      "id": "B4-D-R1-003",
+      "assessment": "解消。push が失敗または結果不明なら再送せずに停止し、読み取り専用の ls-remote の結果から未作成、正しく作成済み、別の対象または確認不能を分ける。push の失敗だけで未作成と断定する文も削除された。"
+    },
+    {
+      "id": "B4-D-R1-004",
+      "assessment": "解消。golden の入力自体について check 数と状態、parsed の種類、command と cwd のケースを期待値と独立に固定し、plain と edge の必要条件を具体化した。fixture の変更時に人間が差分を読んだことを記録する条件と、手続きでは完全に防げない限界も明記された。"
+    }
+  ],
+  "importedAt": "2026-11-07T01:43:44.244Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.0"
+  },
+  "findings": []
+}
