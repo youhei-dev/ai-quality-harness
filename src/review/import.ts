@@ -102,7 +102,7 @@ export type FindingsFile = z.infer<typeof findingsFileSchema>;
 
 /** A reason not to import: the condition, and where (a line of the review, an ID of the expected shape). Never the reviewer's text. */
 export interface Problem {
-  kind: "block" | "json" | "schema" | "label-round" | "id" | "summary" | "conclusion" | "count-line" | "heading" | "id-mention" | "entity";
+  kind: "block" | "json" | "schema" | "label-round" | "id" | "summary" | "conclusion" | "count-line" | "heading" | "id-mention" | "entity" | "previous";
   message: string;
 }
 
@@ -361,6 +361,13 @@ export function readReview(textOfReview: string, target: ReviewTarget): ReadResu
   if (input !== null) {
     if (input.label !== target.label) problems.push({ kind: "label-round", message: "the JSON's label is not --label" });
     if (input.round !== target.round) problems.push({ kind: "label-round", message: `the JSON's round ${input.round} is not --round ${target.round}` });
+    // batch4 1a (v0.18.2, ADR-0026 addendum v0.18.2, ADR-0027): round 1 has no round 0. A non-empty previous was written and then refused
+    // by review-check, with no way out but deleting the reviewer's assessments: it is refused here, before anything is written (the count
+    // only; the IDs and assessments are the reviewer's text)
+    if (target.round === 1 && input.previous !== undefined && input.previous.length > 0) {
+      const n = input.previous.length;
+      problems.push({ kind: "previous", message: `round 1 has ${n} previous ${n === 1 ? "entry" : "entries"} in the JSON (there is no round 0); an assessment of another label's findings goes in the body, not in previous` });
+    }
     const numbers: number[] = [];
     input.findings.forEach((f, i) => {
       const m = idPattern.exec(f.id);

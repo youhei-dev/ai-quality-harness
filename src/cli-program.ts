@@ -164,7 +164,7 @@ export function buildProgram(deps: ProgramDeps): Command {
     .argument("<review>", "the review file (Markdown)")
     .requiredOption("--label <name>", "docs/reviews/<label>/: lower-case ASCII letters, digits, \".\" and \"-\"")
     .requiredOption("--round <n>", "the review round (1, 2, …)", positiveInt)
-    .requiredOption("--id-prefix <prefix>", "the prefix of the finding IDs: <prefix>-R<round>-<NNN> (for example B20 or M2-2-RI)")
+    .requiredOption("--id-prefix <prefix>", "the prefix of the finding IDs <prefix>-R<round>-<NNN>: the part of the ID before -R<round>, without -R<round> (for an ID B3-D-R1-001 it is B3-D; for example B20 or M2-2-RI)")
     .option("--allow-missing-previous", "round 2 or later without findings-r<round-1>.json (only when that file does not exist)", false)
     .option("--cwd <dir>", "repository directory with docs/reviews/ (default: current directory)")
     .action(async (review: string, opts: { label: string; round: number; idPrefix: string; allowMissingPrevious: boolean; cwd?: string }) => {

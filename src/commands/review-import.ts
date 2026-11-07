@@ -85,6 +85,9 @@ export async function runReviewImport(options: ReviewImportOptions): Promise<num
   const usage: string[] = [];
   if (!LABEL_PATTERN.test(label) || label.includes("..")) usage.push('--label must be lower-case ASCII letters, digits, "." and "-" (no "..", no path separator)');
   if (!ID_PREFIX_PATTERN.test(idPrefix)) usage.push('--id-prefix must be upper-case ASCII letters and digits in groups joined by "-" (for example B20 or M2-2-RI)');
+  // batch4 1c (v0.18.2, ADR-0026 addendum v0.18.2): the prefix is the part of the ID before -R<round>. One that ends with -R<digits> took
+  // the round in: a review without findings was imported with it (exit 0), and the mistake showed only at the next round
+  if (/-R\d+$/.test(idPrefix)) usage.push("--id-prefix is the part of the ID before -R<round> (for an ID B3-D-R1-001 it is B3-D); it must not end with -R<n>");
   if (!Number.isSafeInteger(round) || round < 1 || round > LIMITS.maxRound) usage.push(`--round must be an integer from 1 to ${LIMITS.maxRound}`);
   if (usage.length > 0) return stop("options", usage);
 
