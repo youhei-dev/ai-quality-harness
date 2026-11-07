@@ -1,7 +1,7 @@
 # ADR-0026: review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない
 
 - 状態: 採用（M2-2 の本体〈ROADMAP の項目 15、rest2 の計画の波 3〉の最初の部品。ARCHITECTURE の review-import の出力の置き場所〈`artifacts/ai-review/findings-<id>.json`〉を置き換える。ADR-0007〈artifacts は git 管理外〉は変えない。v0.6.1 で、独立レビュー R1 の 3 件を受けて、決定 13〜17〈名前付きの文字参照の拒否、数値の文字参照の戻し方、HTML の除去、`writeAtomic` の一時ファイル、同じ原文の再取り込みの検査〉を足した〈下の「追記（v0.6.1）」〉。R2〈指摘なし〉の後に、この検査の前提〈脅威モデル〉を決定 18 として足した〈下の「追記（R2 の後）」〉。v0.7.0 で、D11 の v2〈状態の検査・ループ未完了の表示・前の回の評価の突き合わせ〉を `aiqh review-check` として入れた〈ADR-0027。この ADR の決定は変えない〉）
-- 日付: 2026-10-13（v0.6.0）。追記: 2026-10-13（v0.6.1。独立レビュー R1 の M2-2-RI-R1-001〜003。決定 13〜17、使い方の `--cwd` の相対パスの一文、端末への出力の種類 `entity`、既知の限界の一時ファイルの名前）、2026-10-13（R2 の後。docs だけで、版は 0.6.1 のまま。決定 18〈この検査の前提〉、R2 の結果、v0.6.1 の既知の限界の位置づけの注記）、2026-10-13（v0.7.0。状態の行に、v2 が ADR-0027 の review-check であることの注記だけ）
+- 日付: 2026-10-13（v0.6.0）。追記: 2026-10-13（v0.6.1。独立レビュー R1 の M2-2-RI-R1-001〜003。決定 13〜17、使い方の `--cwd` の相対パスの一文、端末への出力の種類 `entity`、既知の限界の一時ファイルの名前）、2026-10-13（R2 の後。docs だけで、版は 0.6.1 のまま。決定 18〈この検査の前提〉、R2 の結果、v0.6.1 の既知の限界の位置づけの注記）、2026-10-13（v0.7.0。状態の行に、v2 が ADR-0027 の review-check であることの注記だけ）。追記: 2026-11-07（v0.18.2。`--id-prefix` の形と round 1 の `previous`。末尾の「追記（v0.18.2）」。互換性の変更）
 
 ## 文脈
 - `aiqh review-import` は、独立レビューの原文を読み込み、指摘を構造化したデータ（findings）にする。**一番の危険は読み落とし**で、指摘を 1 件でも取りこぼすと「レビューは終わった」と誤って判断する（fail open）
@@ -177,3 +177,38 @@
 
 ### 影響
 - 文書だけ（この ADR、`docs/reviews/m2-2-review-import/` の R2 の 3 ファイル）。`src/`・`tests/`・依存関係・`package-lock.json`・`tests/structure/`・禁止文字の集合は変えない
+
+## 追記（v0.18.2: 取り込みの前に止める 2 つ。batch4 の 1a・1c。設計〈最終〉`docs/reviews/batch4-design/design-final.md` の §3.2・§3.3、B4-D-Q8・B4-D-Q9 = A）
+
+### 文脈【実測。2026-11-07、使い捨ての `--cwd` で】
+
+- 指摘が 0 件の原文を `--id-prefix TRIAL-R1`（ID の `-R<回>` まで含めた誤り）で取り込むと、exit 0 で `findings-r1.json` が書かれ、`idPrefix` が誤ったまま残る。誤りは、次の回を正しい接頭辞で取り込むとき（前の回の接頭辞が違う、で exit 2）まで分からない
+- 指摘がある原文では、今も `[id] findings[0].id is not of the form B3-D-R2-R2-NNN` で止まる（何も書かない）
+- round 1 の原文の JSON に、別のラベルの ID（例 `B3-D-R2-001`）を `previous` に書くと、exit 0 で書かれ、`REVIEW LOOP: unknown`。続く `aiqh review-check` は exit 2（`[previous] findings-r1.json has 1 previous entry (there is no round 0)`）。書かれたファイルを通す道は、レビュアーの評価（`previous`）を消すことしか無い
+- 今ある記録（v0.18.2 の時点で 21 ラベル・30 の findings のファイル。設計の段の 19 ラベル・27 ファイルに、batch4-design と batch4-v0181-impl を足した）に、round 1 で `previous` を持つもの、`-R<数字>` で終わる接頭辞は無い
+
+### 決定
+
+1. **`--id-prefix` が `-R` と数字で終わるときは、使い方の誤り（exit 2。ADR-0021）**（正規表現 `/-R\d+$/`）。文: `--id-prefix is the part of the ID before -R<round> (for an ID B3-D-R1-001 it is B3-D); it must not end with -R<n>`（種類 `[options]`。ほかの使い方の誤りと一緒に並べて出す）。`--help` の `--id-prefix` の説明にも「`-R<round>` を含めない」を足した。形の規則（`ID_PREFIX_PATTERN`）そのものは変えない。`-R` の後が数字でないもの（`M2-2-RI`）、数字の後に続きがあるもの（`B3-D-R1X`）、先頭の `R1` は通る。review-check と、すでにあるファイルの読み方は変えない
+2. **round 1 の原文の JSON に、空でない `previous` があるときは取り込まない**（exit 2、何も書かない）
+   - 原文の検査（`readReview`）の問題の一覧に入れて、ほかの形の問題と一緒に出す。検査は JSON の形の検査（schema）を通った後で、`--round` が 1 かつ `previous` の長さが 0 より大きいときだけ。文: `round 1 has <n> previous entry|entries in the JSON (there is no round 0); an assessment of another label's findings goes in the body, not in previous`（数だけ。レビュアーの文は出さない）
+   - `Problem` の種類の型に `previous` を足した。CLI は、ほかの問題と同じ経路で `[previous]` として出す（`[previous]` は、前の回の findings のファイルの誤り〈「端末への出力」の種類の一覧〉と同じ名前。どちらも前の回に関わる誤りで、一覧は変えない）
+   - `previous` が無い・空の配列は、今までどおり通す。round 2 以上の検査は変えない
+   - 同じ原文の再取り込み（SHA が同じなら、原文の検査の前に exit 0 で何も書かない）は変えない。この検査は、過去に取り込んだファイルには当たらない
+   - ADR-0027 の「回 1 の `previous` は空」を、取り込みの前にも当てる
+3. 別のラベル（設計のレビューなど）の指摘への評価は、本文の問いの答えに書いてもらう（JSON の `previous` には入れない）。依頼文のひな形と手順書に書く（v0.18.1 の docs）
+
+### 互換性の変更
+
+- 今まで exit 0 で書かれていた原文・指定のうち、次の 2 つが exit 2 で何も書かれなくなる（fail closed の向き）: (a) 指摘が 0 件で、`--id-prefix` が `-R<数字>` で終わる指定（指摘があるときは、今までも `[id]` で止まっていた。これからは、原文を読む前に `[options]` で止まる）、(b) round 1 の JSON に空でない `previous` がある原文
+- README の review-import の節、`--help`（1c）、CHANGELOG に書いた
+- ほかの原文の取り込みと、review-check の結果は変わらない（今ある 21 ラベルの `aiqh review-check` の出力は、v0.18.1 と v0.18.2 で同じ）
+
+### 既知の限界
+
+- `-R` と数字で終わる接頭辞（例 `M2-R1`）は、これから使えない
+- round 1 で別のラベルの評価を機械で読める形に残す道は、まだ無い（label をまたぐ `previous` は review-import v3 の候補。ADR-0027 の「v3 へ」）
+
+### 影響
+
+- `src/commands/review-import.ts`（使い方の検査）、`src/review/import.ts`（`readReview` の問題と `Problem` の種類）、`src/cli-program.ts`（`--help` の文）、テスト（`tests/regression-batch4-review-import-prefix-previous.test.ts`）、この ADR・ADR-0027 の注記・README・手順書・ひな形。依存関係・`package-lock.json`（版を除く）・`tests/structure/`・禁止文字の集合は変えない
