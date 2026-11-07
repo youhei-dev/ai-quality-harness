@@ -1,6 +1,6 @@
 # 独立レビューの再修正ループの手順書
 
-最終更新: 2026-11-07（v0.18.1。「1 回の流れ」の表の後に、取り込みの注意〈`--cwd` の `docs/reviews/`・`--id-prefix`・round 1 の `previous`・実装者の確かめの要約。batch4 の設計〈最終〉§2.3〉を足した。この行は v0.18.1 では直していなかった〈B4-I181-R1-001〉）。その前: 2026-10-22（v0.13.2。手順 10 の参照先を、追跡している `docs/ops/ci-and-branch-protection.md` の §8 に直した〈ROADMAP の項目 43〉）。その前: 2026-10-16（v0.8.3。下の注記）。その前: 2026-10-13（v0.7.0。いま実際に回している流れを手順にした。ROADMAP の M2-2「再修正 → 再 verify → 再パケットのループ手順を docs に明文化」）
+最終更新: 2026-11-07（v0.18.1 の後の記録。手順 1〜3 に、パケットの md 本体も ZIP と同じ場所に置いて両方を添付すること、レビュアーのダウンロードが失敗したときの保存の仕方〈batch4-v0181-impl R1 で、レビュアーが ZIP を開けず、ダウンロードも失敗した〉）。その前: 2026-11-07（v0.18.1。「1 回の流れ」の表の後に、取り込みの注意〈`--cwd` の `docs/reviews/`・`--id-prefix`・round 1 の `previous`・実装者の確かめの要約。batch4 の設計〈最終〉§2.3〉を足した。この行は v0.18.1 では直していなかった〈B4-I181-R1-001〉）。その前: 2026-10-22（v0.13.2。手順 10 の参照先を、追跡している `docs/ops/ci-and-branch-protection.md` の §8 に直した〈ROADMAP の項目 43〉）。その前: 2026-10-16（v0.8.3。下の注記）。その前: 2026-10-13（v0.7.0。いま実際に回している流れを手順にした。ROADMAP の M2-2「再修正 → 再 verify → 再パケットのループ手順を docs に明文化」）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。手順 10 のタグの前の確かめは、`docs/ops/ci-and-branch-protection.md` の 2-1 にも同じ文がある。v0.13.2 で、手順 10 の参照先を、追跡している `docs/ops/ci-and-branch-protection.md` の §8 に直した。
 
@@ -13,9 +13,9 @@
 
 | # | すること | コマンド・置き場所 | 止まる・確かめること |
 |---|---|---|---|
-| 1 | **依頼文とパケットを作る** | 依頼文はひな形で `~/Downloads/aiqh_<label>_r<N>_request.md`。パケットは `aiqh review-packet --range <from>..<to> --label <label> --request <依頼文> --zip-output ~/Downloads/review-packet-<label>[-r<N>].zip`（問いに要る変えていないファイルは `--doc`） | packet-scan（秘密・個人情報・生の制御文字が 0）。依頼文がパケットの中にバイト単位で同一で入っていること。依頼文が「入っている」と書いたファイルが、実際にパケットにあること |
-| 2 | **人間がレビュアーに渡す** | ZIP（パケットだけ）を人間が送る。自己評価を含む報告書は入れない | 実装者は送らない（外部への送信は人間） |
-| 3 | **結果の md を受け取る** | レビュアーは `independent-review-<label>-r<N>-for-claude.md` を出す。人間が `~/Downloads/` に置く | 同じ名前が 1 つだけか（`(1)` などの別名は SHA-256 を比べる）。バイト数・行数・SHA-256 を記録する |
+| 1 | **依頼文とパケットを作る** | 依頼文はひな形で `~/Downloads/aiqh_<label>_r<N>_request.md`。パケットは `aiqh review-packet --range <from>..<to> --label <label> --request <依頼文> --zip-output ~/Downloads/review-packet-<label>[-r<N>].zip`（問いに要る変えていないファイルは `--doc`）。**パケットの md 本体も、ZIP と同じ場所に `review-packet-<label>[-r<N>].md` として置く**（ZIP の中の md と同じバイト列。v0.18.1 の後の記録から） | packet-scan（秘密・個人情報・生の制御文字が 0）。依頼文がパケットの中にバイト単位で同一で入っていること。依頼文が「入っている」と書いたファイルが、実際にパケットにあること。置いた md 本体と、ZIP を展開した md が同じ SHA-256 であること |
+| 2 | **人間がレビュアーに渡す** | ZIP（パケットだけ）と、パケットの md 本体の**両方を添付して**人間が送る（レビュアーが ZIP を開けないことがある。batch4-v0181-impl R1 では ZIP を開けず、公開リポジトリの固定の commit から読んだ）。依頼文に「ZIP が開けないときは md 本体を読む」と書く。自己評価を含む報告書は入れない | 実装者は送らない（外部への送信は人間） |
+| 3 | **結果の md を受け取る** | レビュアーは `independent-review-<label>-r<N>-for-claude.md` を出す。人間が `~/Downloads/` に置く。**ダウンロードが失敗したとき**は、依頼文で頼んでおいた本文の最後のコードブロック（同じ全文）を人間がコピーし、`pbpaste > ~/Downloads/independent-review-<label>-r<N>-for-claude.md` で保存する（末尾の改行が無くなることがある） | 同じ名前が 1 つだけか（`(1)` などの別名は SHA-256 を比べる）。バイト数・行数・SHA-256 を記録する。コードブロックから保存したときは、そのことと、レビュアーが読めた範囲・読めなかった範囲を、収録の注記（手順 5）に書く |
 | 4 | **取り込む** | `aiqh review-import ~/Downloads/independent-review-<label>-r<N>-for-claude.md --label <label> --round <N> --id-prefix <prefix>`（回が 2 以上で前の回を取り込んでいないときだけ `--allow-missing-previous`） | exit 0 で `docs/reviews/<label>/findings-r<N>.json`（すべて `open`）。最後の 2 行は `REVIEW LOOP: …` と `REVIEW IMPORT: written`。**exit 2 なら止める**（下の「止まったとき」） |
 | 5 | **原文と対応記録を収録する** | `docs/reviews/<label>/review-r<N>.md`（先頭に収録の注記、その後ろは原文とバイト単位で同一。Security Scan に当たる例示行があれば分割表記にし、行番号と原文の SHA-256 を注記に）と `response-r<N>.md`（判定表、人間の決定、問いへの答えの要約、未確認範囲） | 記録の commit（docs だけ）。単体検証 → push の前の走査 → push |
 | 6 | **findings の実装者の欄を書く** | `findings-r<N>.json` の各件に `verdict`（VALID / PARTIAL / INVALID）、`action`、`destination`（直す版）。人間の判定のとおり。`status` は `open` のまま | JSON が状態の正本（D5）。8 項目と `source` は直さない |
