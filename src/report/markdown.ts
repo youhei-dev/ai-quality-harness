@@ -58,9 +58,11 @@ export function renderMarkdown(report: VerificationReport): string {
   lines.push("");
   lines.push("| # | Name | Kind | Required | Status | Duration | Exit | Command |");
   lines.push("|---|---|---|---|---|---|---|---|");
+  // C-44 (v0.18.2, ADR-0028 addendum v0.18.2): the command is one code span made like the Summary line's, after cell() (in a GFM table
+  // cell `\|` is read as `|` first, inside a code span too), so a backtick in the command cannot close the span early
   report.checks.forEach((c, i) => {
     lines.push(
-      `| ${i + 1} | ${cell(c.name)} | ${c.kind} | ${c.required ? "yes" : "no"} | ${c.status} | ${formatDuration(c.durationMs)} | ${c.exitCode ?? "-"} | \`${cell(c.command)}\` |`,
+      `| ${i + 1} | ${cell(c.name)} | ${c.kind} | ${c.required ? "yes" : "no"} | ${c.status} | ${formatDuration(c.durationMs)} | ${c.exitCode ?? "-"} | ${codeSpan(cell(c.command))} |`,
     );
   });
   lines.push("");
@@ -123,7 +125,9 @@ function renderFailure(c: CheckResult): string[] {
   const lines: string[] = [];
   lines.push(`### ${oneLine(c.name)} — ${c.status}`);
   lines.push("");
-  lines.push(`- Command: \`${cell(c.command)}\` (cwd: \`${oneLine(c.cwd)}\`)`);
+  // C-44 (v0.18.2): the command and the working directory are one code span each, as in the table. Outside the table the backslash of
+  // cell()'s `\|` shows (a known limit, B4-D-Q6: dropping it would change the bytes of a command with `|` and without a backtick)
+  lines.push(`- Command: ${codeSpan(cell(c.command))} (cwd: ${codeSpan(oneLine(c.cwd))})`);
   // M2-2-PS-R1-001 (S2): the summary is a line of the tool's output (or aiqh's reason): one code span, read as text
   const summary = c.errorSummary ?? null;
   lines.push(`- Summary: ${summary === null ? "-" : codeSpan(oneLine(summary))}`);
