@@ -36,7 +36,7 @@
       "regressionTest": "tests/report-golden.test.ts の「report golden (C-02): the files writeReports writes are the committed bytes」の 2 件（plain・edge の latest.md・latest.json と history）。変異 M14（比べる側を renderMarkdown の返り値にして、書き込みの変換を抜く）で、この 2 件が FAIL した（生の文字を含む stderr の行で違う）",
       "guard": null,
       "destination": "v0.18.1",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch4-design/design-final.md と、fixedIn の commit の tests。R2 の評価: 解消"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch4-design/design-final.md と、fixedIn の commit の tests。R2 の評価: 解消。v0.18.1 の実装レビュー batch4-v0181-impl R1 の問い 2 の評価: 解消（renderMarkdown の返り値ではなく、writeReports が書いた latest.md・latest.json・history のファイルそのものを読む。書き込みの段の禁止文字の表記が golden に入り、M14 で落ちるという記録も設計と矛盾しない）"
     },
     {
       "id": "B4-D-R1-002",
@@ -54,7 +54,7 @@
       "regressionTest": "新しい実行のテストは無い（リリースの手順の文書の直し）。v0.18.1 のタグの作成で手順 7 の 3 を実地に行い、その結果を v0.18.1 の後の記録の PR に書く",
       "guard": null,
       "destination": "v0.18.1",
-      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消（R2 のレビュアーも根拠の向きの訂正を正しいとした）"
+      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消（R2 のレビュアーも根拠の向きの訂正を正しいとした）。v0.18.1 の実装レビュー batch4-v0181-impl R1 の問い 6 の評価: 解消（手元の ref の名前とリモートの --refs を集合で比べ、同じ名前が無いこと・注釈付き・tag object と commit を確かめてから、1 つの ref だけを送る）"
     },
     {
       "id": "B4-D-R1-003",
@@ -72,7 +72,7 @@
       "regressionTest": "新しい実行のテストは無い（リリースの手順の文書の直し）。v0.18.1 のタグの作成で手順 7 の 5（と、要れば 6）を実地に行い、その結果を v0.18.1 の後の記録の PR に書く",
       "guard": null,
       "destination": "v0.18.1",
-      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消"
+      "note": "設計の指摘。直した先は設計（最終）と ci 手順書（fixedIn の commit）。R2 の評価: 解消。v0.18.1 の実装レビュー batch4-v0181-impl R1 の問い 6 の評価: 解消（結果が分からないときは送り直さず、読み取りの ls-remote で、未作成・正しく作成済み・違うか確認できない、に分ける）"
     },
     {
       "id": "B4-D-R1-004",
@@ -90,7 +90,7 @@
       "regressionTest": "tests/report-golden.test.ts の「report golden: the inputs keep their cases」の 2 件（plain・edge）と「the expected files hold what they are meant to」の 3 件。変異 M15（plain から FAIL の check を外し、期待値を作り直す）で、golden の比べの 2 件は通り、入力の確かめと中身の確かめの 3 件が FAIL した",
       "guard": null,
       "destination": "v0.18.1",
-      "note": "設計の指摘。直した先は設計（最終）と、fixedIn の commit の tests。R2 の評価: 解消"
+      "note": "設計の指摘。直した先は設計（最終）と、fixedIn の commit の tests。R2 の評価: 解消。v0.18.1 の実装レビュー batch4-v0181-impl R1 の問い 3 の評価: 解消（plain の入力に FAIL・既定でない cwd・| を含むコマンドがあり、Checks の表と失敗の詳細が残ることを、テストが独立に固定する。v0.18.2 の差分が予測の 10 行だけになることは、その段で別に確かめるべき、とした）"
     }
   ]
 }

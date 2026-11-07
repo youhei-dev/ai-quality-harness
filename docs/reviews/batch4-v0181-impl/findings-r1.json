@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch4-v0181-impl",
+  "round": 1,
+  "idPrefix": "B4-I181",
+  "source": {
+    "name": "independent-review-batch4-v0181-impl-r1-for-claude.md",
+    "bytes": 15655,
+    "sha256": "2118e1dcbb961b40ee4cc0c76ea473ce915234800ddd15718830a98cca9a2871"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "previous": [],
+  "importedAt": "2026-11-07T04:54:57.574Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.1"
+  },
+  "findings": [
+    {
+      "id": "B4-I181-R1-001",
+      "severity": "Low",
+      "kind": "文書",
+      "target": "docs/ops/monitoring.md:2 と docs/ops/review-loop.md:2",
+      "content": "v0.18.1 で本文を更新しているが、冒頭の「最終更新」が旧版のまま。文書を読む人に最新版の変更内容が無いように見える。",
+      "evidence": "release commit 7f4bd8f の monitoring.md:2 は「最終更新: 2026-10-19（v0.12.1。初版）」だが同:49-52 に v0.18.1 の 2.6 節がある。review-loop.md:2 は「最終更新: 2026-10-22（v0.13.2）」だが同:21-26 には v0.18.1 の取り込みの注意が追加されている。本文の追加は確認できるため機能上の不具合ではない。",
+      "fix": "両ファイルの最終更新欄を v0.18.1 の追記を反映した日付と説明へ更新し、過去の履歴は「その前」として残す。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-07。v0.18.1 の後の記録の PR で直す）。docs/ops/monitoring.md・docs/ops/review-loop.md の「最終更新」を v0.18.1 の追記に合わせ、前の履歴は「その前」に残した。同じ形の docs/ops/review-request-template.md（v0.18.1 で使い方の 5・6 を足したのに v0.7.0 のまま）も直した。v0.18.1 で本文を足したほかの文書（ROADMAP・ADR-0003・ADR-0008・ADR-0028・ci 手順書）の日付の行は、v0.18.1 の追記を書いていた",
+      "fixedIn": "a9a9ac0fb4e9026d35abab4a04416694e76d497d",
+      "regressionTest": "新しい実行のテストは無い（文書の日付の行の直し）。v0.18.1 で変わった docs の各ファイル（docs/reviews を除く）の日付の行を、v0.18.1 の追記を書いているかで読み直した（記録の PR の作業の確かめ）",
+      "guard": null,
+      "destination": "v0.18.1 の後の記録の PR（版なし。docs だけ）",
+      "note": "実装の独立レビュー batch4-v0181-impl R1 の Low。機能・判定・レポートには影響しない（レビュアーの評価のとおり）"
+    }
+  ]
+}
