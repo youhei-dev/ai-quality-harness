@@ -12,6 +12,12 @@
    `aiqh review-import <受領したファイル> --label <label> --round <N> --id-prefix <prefix>`
    （回が 2 以上で、前の回を取り込んでいないときだけ `--allow-missing-previous`）。出力は `docs/reviews/<label>/findings-r<N>.json`（すべて `open`）。止まったら、端末の `[種類]` と行番号を見て、レビュアーに出力の形の書き直しを頼む（D3: 逃げ道は無い）
 4. 状態（`resolved`・`deferred`・`accepted`・`invalid`）は、実装者が人間の承認の下で findings の JSON を直す。直した後は `aiqh review-check --label <label>` で、状態ごとに要る欄とループ未完了を確かめる（v0.7.0、ADR-0027。手順の全体は `docs/ops/review-loop.md`）
+5. 取り込みの注意（v0.18.1。手順の全体は `docs/ops/review-loop.md`）:
+   - `--cwd` には `docs/reviews/` が要る（無いと `[repository]` で exit 2。サブディレクトリで走らせて別の場所に書くのを防ぐ。ADR-0026）。原文を相対パスで書くと `--cwd` を基準に解くので、受け取ったファイルは絶対パスで渡す
+   - `--id-prefix` は ID の `-R<回>` より前の部分（ID が `B3-D-R1-001` なら `B3-D`）。v0.18.1 までは、指摘が 0 件の回は誤った接頭辞でも取り込まれる（v0.18.2 から止まる）
+   - round 1 の依頼では、JSON に `previous` を書かないよう頼む。別のラベル（設計のレビュー）の指摘の評価は、問いの答え（本文）に書いてもらう
+6. 実装者の確かめの要約（v0.18.1。batch4 の C-08）:
+   - レビュアーはコードもテストも走らせない。実装者の確かめ（各 commit の検証の結果、直す前の FAIL、変異の結果）は、数・名前・終了コードを依頼文に書く（生のログはパケットに入らない。色の ESC などの生の制御文字は書かない）
 
 ## ひな形
 

@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-11-07（batch3 の B3-Q7。§3 にタグの ruleset `tag-protection` と `sha_pinning_required: true` の「実施済み（2026-11-07）」。§3-3・§8・§8-2 に注記。§8 の手順 7 に、タグを付ける前の確かめ）。その前: 2026-10-30（v0.17.1 とその記録。§8-2 のアクションの SHA の更新。この行は、その版では直していなかった）、2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-11-07（v0.18.1。§3 に PR #28 の CI の run と rule insights。§8 の手順 7 を、タグを作る一続きの手順に〈batch4 の設計〈最終〉§2.2〉。§8-2 に batch4 の着手前の見直し）。その前: 2026-11-07（batch3 の B3-Q7。§3 にタグの ruleset `tag-protection` と `sha_pinning_required: true` の「実施済み（2026-11-07）」。§3-3・§8・§8-2 に注記。§8 の手順 7 に、タグを付ける前の確かめ）。その前: 2026-10-30（v0.17.1 とその記録。§8-2 のアクションの SHA の更新。この行は、その版では直していなかった）、2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -96,8 +96,9 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
   - `gh api repos/youhei-dev/ai-quality-harness/rulesets --jq '[.[].name]'` → `["main-protection","tag-protection"]`
   - `gh api repos/youhei-dev/ai-quality-harness/rulesets/26732066 --jq '[.target, .enforcement, .conditions.ref_name.include, [.rules[].type], (.bypass_actors|length)]'` → `["tag","active",["refs/tags/v*"],["deletion","update"],0]`
   - `gh api repos/youhei-dev/ai-quality-harness/actions/permissions` → `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`
-  - CI での確かめ: `sha_pinning_required: true` の後の最初の run は、この記録の pull request（branch `docs/github-settings`）の run と、その merge の後の main への push の run。必須の 2 つが success になることで、ローカルの再利用ワークフローが止まらないことを確かめる（run の番号は次の記録で書く）
-- 試していないこと: 消すこと・付け替えることが拒まれるかは、本物のタグで試していない（試すとタグが残るか消える。取り返しがつかない）。新しいタグを作れることは、次の版のタグの push（§8 の手順 7）で確かめる。断られたらタグはできないので、止まって人間に知らせる
+  - rule insights（`gh api repos/youhei-dev/ai-quality-harness/rulesets/rule-suites`）は、public のリポジトリで読める（2026-11-07 に HTTP 200。PR #28 の merge の push の `pass` が 1 件。batch3 の設計〈最終〉§8.1 の [要確認] の答え）。適用先の run に、どちらのリポジトリの `sha_pinning_required` が当たるか（同 §8.2 の (2)）は未確認
+  - CI での確かめ: `sha_pinning_required: true` の後の最初の run は、この記録の pull request（branch `docs/github-settings`）の run と、その merge の後の main への push の run。必須の 2 つが success になることで、ローカルの再利用ワークフローが止まらないことを確かめる。結果（v0.18.1 で記入）: PR #28 の run 42309130764（head `5a7a7a9`）と、merge の commit `3a6295a3ae2ce15d3a1329f50cb825529d9c72c5` の main への push の run 42309849263 で、必須の 2 つが success（アクションは SHA で取得され、SHA の固定による注釈は 0）
+- 試していないこと: 消すこと・付け替えることが拒まれるかは、本物のタグで試していない（試すとタグが残るか消える。取り返しがつかない）。新しいタグを作れることは、次の版のタグの push（§8 の手順 7）で確かめる。送るのが失敗した・結果が分からないときは、§8 の手順 7 の 6 のとおり、送り直さずに止まり、`git ls-remote` の読み取りで 3 つの状態のどれかを人間に知らせる（v0.18.1 で書き直した。「断られたらタグはできない」とは決めない: batch4 の設計〈最終〉§2.6）
 - 戻し方（するかは人間が決める）: ruleset は Enforcement を Disabled にする（`gh api --method PUT repos/youhei-dev/ai-quality-harness/rulesets/26732066` に `{"enforcement":"disabled"}`。消さない）。`sha_pinning_required` は `gh api --method PUT repos/youhei-dev/ai-quality-harness/actions/permissions` に `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`。画面では Settings → Rules → Rulesets → `tag-protection` と、Settings → Actions → General の「Require actions to be pinned to a full-length commit SHA」
 
 ### 3-1. 設定する内容（rulesets の場合。Settings → Rules → Rulesets → New branch ruleset）
@@ -175,7 +176,17 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 4. pull request を作り（base は main）、必須の 2 つの checks（`verify (ubuntu)`・`reusable (self) / aiqh verify`）が緑になるのを待つ
 5. `gh pr merge <番号> --merge --match-head-commit <branch の先頭の SHA> --delete-branch` で merge する（`--admin` は使わない。`--match-head-commit` で、確かめた commit 以外を merge しない）
 6. main への push の run（merge の commit）の、必須の 2 つが success になるのを確かめる
-7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて push する。**タグを付ける前に、指す commit が release の commit であることを確かめる**（付けた後、push の前に `git rev-list -n1 vX.Y.Z` でも確かめる）。ruleset `tag-protection`（2026-11-07 から。§3）により、付けて push したタグは消せず、付け替えられないので、間違えたら次の版を出す。ruleset を無効にするかは人間が決める
+7. 手元の main を fast-forward し（`git switch main && git merge --ff-only origin/main`）、版を出すときは、release の commit（branch の commit。merge の後も main の履歴に残る）に注釈付きタグを付けて送る。タグは ruleset `tag-protection`（§3）により、送った後は消せず、付け替えられない。次の順で一続きに行う（batch4 の設計〈最終〉§2.2。v0.18.1）
+   1. 指す commit を確かめる: release の commit の 40 桁の SHA（merge で `--match-head-commit` に渡した SHA）を `<SHA>` とする。`git log -1 --format=%s <SHA>` が release の commit のメッセージ、`git merge-base --is-ancestor <SHA> origin/main` が 0
+   2. 付ける: `git tag -a vX.Y.Z <SHA> -m "vX.Y.Z: <要約>"`（SHA を明示する。HEAD は merge の commit なので HEAD に付けない）
+   3. 送る前に確かめる:
+      - 手元だけのタグ: `git for-each-ref --format='%(refname)' 'refs/tags/v*'` と `git ls-remote --tags --refs origin 'refs/tags/v*'` の ref の名前を集合として比べ、手元にだけあるのが `refs/tags/vX.Y.Z` の 1 つだけ（`--refs` は剥がした行〈`^{}`〉を出さない。`git tag --no-contains origin/main` では見分けられないので使わない）
+      - 送る対象: 完全な ref の名前が `refs/tags/vX.Y.Z`、`git cat-file -t refs/tags/vX.Y.Z` が `tag`、タグの object の SHA（`git rev-parse refs/tags/vX.Y.Z`）を書き留める、`git rev-parse 'refs/tags/vX.Y.Z^{commit}'` が `<SHA>`、`git ls-remote --tags origin refs/tags/vX.Y.Z` が空（リモートに同じ名前が無い）
+   4. 送る: `git push origin refs/tags/vX.Y.Z`（このタグ 1 つだけを完全な名前で）。`git push --tags`・`--follow-tags`・`--mirror` は使わない（手元の別の `v*` のタグも送られ、作ることは止められないので、消せないまま残る）
+   5. 送った後に確かめる: `git ls-remote --tags origin refs/tags/vX.Y.Z 'refs/tags/vX.Y.Z^{}'` の 2 行が、3 で書き留めたタグの object の SHA と `<SHA>`
+   6. 送るのが失敗した・時間切れになった・結果が分からないときは、送り直さず、手元もリモートも変えずに止まる（言い換えて送り直さない）。読み取りだけの `git ls-remote --tags origin refs/tags/vX.Y.Z 'refs/tags/vX.Y.Z^{}'` で、**未作成**（同じ名前が無い）・**正しく作成済み**（2 行が 3 で書き留めた値と同じ）・**別の対象、または確認できない**（値が違う、`ls-remote` が失敗した）のどれかを確かめて、人間に知らせる。終了コードだけで「タグは無い」と決めない。ruleset を無効にするか・どうするかは人間が決める
+   - 送る前に誤りに気づいたら: 手元のタグを付け直すには `git tag -d vX.Y.Z` が要る。削除の操作なので、人間の確認を取ってから
+   - 送った後に誤りに気づいたら: 直せない。次の版を出す
 8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる。あわせて `npm audit --audit-level=high` が通ること（自己 verify の dependency の check と同じ）を確かめ、通らなければ、実装の前に依存の更新を決める（v0.13.2 の教訓: 勧告は外で増えるので、前の版の CI が PASS でも、実装の後の検証で初めて分かると、全部の commit を作り直すことになる）
 
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
@@ -217,3 +228,4 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
 - v0.17.1 の更新: setup-node v7.0.0（`820762786026740c76f36085b0efc47a31fe5020`）→ v7.1.0（`949feb2413d6458794dcd2491c4babbbce0c15c1`、2026-10-08 公開）、setup-python v7.0.0（`5fda3b95a4ea91299a34e894583c3862153e4b97`）→ v7.1.0（`6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`、2026-10-22 公開）。どちらも軽量タグ。`runs.using` は `node24` のまま、入力が増えただけ（aiqh は使わない）。checkout は v7.0.1 が最新で変えない
 - `sha_pinning_required`（完全な SHA を強制する GitHub の設定）は、版とは別に、人間の承認の後に入れる（batch3 の設計〈最終〉§8.2）
   - 注記（2026-11-07）: 入れた（§3 の「実施済み（2026-11-07）」）。これからは、外のアクションの `uses:` を完全な commit SHA で書かないと、そのワークフローは走らない（上の手順の 2・5 は、もともと commit SHA を求めている）
+- batch4 の着手前の見直し（2026-11-07。v0.18.1。B3-D-Q12）: checkout v7.0.1・setup-node v7.1.0・setup-python v7.1.0 は、どれも最新の release と同じ commit で、勧告 0 件。更新なし

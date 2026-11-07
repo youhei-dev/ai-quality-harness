@@ -59,6 +59,11 @@ aiqh を品質ゲートに使っているリポジトリ（aiqh 本体と適用�
 - 一覧のファイルを確かめ、要らない・壊れたものは、手で別の場所へ移す（消すなら先にコピーを取る）。aiqh は直さない
 - `HISTORY ERROR (too-many-files)`・`(too-many-bytes)` は、上限（合わせて 10,000 ファイル・256 MiB）を超えた。古い履歴を別の場所へ移すか、`--from` を分ける
 
+### 2.6 node:test の件数が出ない（`output-truncated`）
+
+- node:test の check（`parsed` の `tool` が `node-test`）で、端末と `latest.md` に件数が出ず、理由が `output-truncated` のとき: stdout が読む窓（末尾 1,048,576 UTF-16 単位）より長かったか、runner が先頭を捨てた（ADR-0028 の決定 14）。判定・終了コードには影響しない
+- 見張りの条件（ROADMAP の項目 56。v0.18.1 で、ROADMAP から写した）: `output-truncated` が出たら、項目 56（runner が stdout を流しながら要約の組を数える案）を選び直す。テストの出力（`console.log` など）を減らすのは、適用先の判断
+
 ## 3. 何を見たら、何をするか
 
 | 見たもの | すること |
@@ -73,6 +78,7 @@ aiqh を品質ゲートに使っているリポジトリ（aiqh 本体と適用�
 | `HISTORY INCOMPLETE`（終了コード 2） | 一覧のファイルを確かめる。数は読めた分だけと読む |
 | `HISTORY ERROR (too-many-files)`・`(too-many-bytes)` | 古い履歴を別の場所へ移すか、`--from` を分ける |
 | sources の行（`#<n>: … leftover temporary <数>`）の数が 1 以上 | 中断された verify の一時ファイルが残っている。verify が走っていないときに、手で片付ける |
+| node:test の check の `parsed` が `output-truncated` | 判定には影響しない。ROADMAP の項目 56 を選び直す（記録して計画に入れる） |
 
 ## 4. 確かめていないこと
 

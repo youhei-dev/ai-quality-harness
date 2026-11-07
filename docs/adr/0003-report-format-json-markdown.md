@@ -1,7 +1,7 @@
 # ADR-0003: レポートを JSON（機械）+ Markdown（人間）の 2 形式にする
 
 - 状態: 採用
-- 日付: 2026-09-15。注記: 2026-10-22（v0.13.2。下の「影響」に、`latest.json` と `latest.md` の組の既知の限界と読み手の約束〈ROADMAP の項目 47〉）、2026-10-26（v0.16.0。`runId`〈ADR-0038〉と、読み手の約束の書き換え）
+- 日付: 2026-09-15。注記: 2026-10-22（v0.13.2。下の「影響」に、`latest.json` と `latest.md` の組の既知の限界と読み手の約束〈ROADMAP の項目 47〉）、2026-10-26（v0.16.0。`runId`〈ADR-0038〉と、読み手の約束の書き換え）。追記: 2026-11-07（v0.18.1。通常のレポートの golden fixture。末尾の「追記（v0.18.1）」）
 
 ## 文脈
 verify の結果は CI・履歴 DB・レビューパケット生成（機械）と、人間・レビューAI（可読）の両方が使う。
@@ -32,3 +32,35 @@ verify の結果は CI・履歴 DB・レビューパケット生成（機械）�
 - レポートの構造変更は `schemaVersion` を上げ、旧版の読込互換を M4 の履歴取り込みで考慮する
 - 注記（v0.13.2。ROADMAP の項目 47〈R-010〉、受け入れ・未解決）: `latest.json` と `latest.md` は 1 つずつ入れ替える（rename）ので、各ファイルは原子的だが、組は原子的でない。同じ出力のディレクトリに並行して書く verify があると、組が別の run のものになりうる。直さず、既知の限界として受け入れる。読み手の約束は README（`latest.json` と `latest.md` を組で読むとき）: 1 回の verify は 3 つのファイルに同じ `startedAt` を書く。値が違えば確実に別の run、同じでも同じ run の保証はない（ミリ秒までの時刻で、run の一意の名前は無い）。食い違ったら、並行の無いことを確かめて読み直し、`history/` を使い、確実なのは並行の無い状態でのやり直し。テスト: `tests/regression-item47-latest-pair-started-at.test.ts`（1 回の verify の組）、`tests/regression-item47-latest-pair-race.test.ts`（差し込みで組が別の run になること。`startedAt` が違う組と、同じミリ秒の組）。確実に見分ける仕組み（runId・history の一意の鍵）は ROADMAP の別の項目
 - 注記（v0.16.0。ROADMAP の項目 52。ADR-0038）: レポート（`latest.json`・`history/<ts>.json`）の最上位の `startedAt` の直前に `runId`（verify の 1 回の run ごとに 1 つ、`crypto.randomUUID()`）を足し、`latest.md` の表の `| Started |` の直前に `| Run ID |` の行を足した。足すだけの変更で、`schemaVersion` は 1 のまま（ADR-0033 の前例）。読み手の約束を書き換えた: 2 つのファイルの両方に `runId` があれば、同じ値なら同じ run、違えば別の run。どちらかに無ければ（v0.15.x までの版が書いたファイル）、上の `startedAt` の約束。組が別の run になりうること（項目 47）は直っていない（見分けられるようになっただけ）
+
+## 追記（v0.18.1: 通常のレポートの出力を golden fixture で固める。batch4 の C-02、人間の決定 B4-Q9。設計〈最終〉`docs/reviews/batch4-design/design-final.md` の §2.4）
+
+### 文脈
+
+- 各版の CHANGELOG は「レポートの出力は変わらない」と書いてきたが、機械の裏づけは、書いたファイルが同じ関数の出力と等しいことを確かめるテストだけだった（`tests/regression-backlog9-report-file-notation.test.ts:166-174`）。関数そのものが変われば、そのテストは一緒に変わって通る
+- batch4 の v0.18.2 で `latest.md` のコマンドの書き方を変える（C-44。ADR-0028 の追記〈v0.18.2〉）。変わる行が、バッククォートを含む値（と、空白で始まり空白で終わる値）の行だけであることを示す道が要る
+- レポートのファイルは `writeReports` が `writeAtomic` を通して書き、Markdown は書く前に禁止文字を表記にする（`escapeForDisplay(content, "keep")`。ADR-0020）。描画の関数（`renderMarkdown`）の返り値と、書かれたファイルは、生の文字を含む値で違う（設計の段の実測）
+
+### 決定
+
+1. `tests/report-golden.test.ts` は、固定の入力（`tests/report-golden-input.ts`）から作ったレポートを、テストの一時ディレクトリで **`writeReports` に書かせ、書かれた `latest.md` と `latest.json` を読み戻した Buffer** を、`tests/fixtures/report-golden/` の期待値のファイルと**バイト単位で**比べる。同じ時に書かれる history のファイルが `latest.json` と同じバイト列であることも確かめる
+2. 入力は 2 組。どちらの組にも、PASS と FAIL の check（Checks の表の行と、失敗の詳細の `- Command:`・`cwd:` の行が必ず出る）、`cwd` が `.` でない FAIL の check、生の文字を含む stderr を入れる
+   - `plain`: どの値にもバッククォートが無く、空白で始まり空白で終わる値も無い。`|` を含むコマンド、4 つの道具の `parsed`、時間切れ・SKIPPED・任意の check、秘密の形、フェンスを長くする出力を持つ
+   - `edge`: バッククォート 1 つ・連なり・先頭や末尾のバッククォート・`|` との組み合わせ・作業ディレクトリのバッククォート・両端が空白の値を、コマンドと作業ディレクトリに持つ（8 つの check。設計 §2.4.3 の表）
+3. 入力はすべて固定にする: 時刻（`startedAt`・`finishedAt`・check ごとの `startedAt`）、時間、`runId`（例 `54545454-5454-4545-8545-545454545454`）、git（commit・branch・dirty）、`configSha256`、パス（`/proj` のような架空のもの）、tool の版（`package.json` の版ではなく固定の文字列。版を上げるたびに期待値が変わらないように）
+4. 入力と期待値に入れないもの
+   - 手元や runner の実在のパス、ホスト名、会社の名前・人名・適用先の実名
+   - 生の制御文字・層 (c) の文字のリテラル（入力に要るときはテストの中で実行時に組み立てる）。**期待値のファイルには生の文字を置かず、書き込みの変換の後の表記だけが入る**（`latest.md` は表記、`latest.json` は JSON の escape）
+   - 秘密の形のリテラル（`tests/helpers.ts` の `fake()` で実行時に組み立てる。期待値にはマスクの後の `[REDACTED:<category>]` だけが入る）
+5. 期待値を変えてよいのは、**出力を変える src の変更と同じ commit の中だけ**。その commit のメッセージと CHANGELOG に、変わる行と理由を書く。期待値だけを変える commit は作らない（最初に作る commit を除く）。期待値を書き出す道具はリポジトリに入れない（snapshot の更新のような「落ちたら書き直して通す」を作らない。B4-D-Q3）。**期待値を作る・変える commit の PR の本文に、人が差分を読んだことを書く**
+6. 「形だけ」にしない守り
+   - **入力の側を、期待値と独立に確かめる**: テストは入力について、組ごとの check の数、状態ごとの数、`parsed` の道具の集合、コマンドと作業ディレクトリの場合の数（`plain` の `|` を含むコマンド・`.` でない `cwd` の FAIL・生の文字を含む stderr、`edge` の 8 つの形と、C-44 の変わる条件に当たる行の数）を、固定の数として確かめる
+   - 期待値のファイル自身が、決めた節と形（Summary・Categories・Checks の表、Parsed Output、Failure Details、stderr と stdout の `<details>`、4 つ以上のバッククォートのフェンス、マスクの印、表記の印、`edge` ではバッククォートを含む値）を含むことも確かめる
+
+### 既知の限界
+
+- 入力と、入力の確かめ（固定の数）と、期待値を同じ commit で一緒に変えれば、テストは通る。決定 5 は手続きで、技術で止める仕組みではない（差分は PR とレビューのパケットで見える）
+- runner からレポートへの写し（出力の末尾の保持・`parsed` の組み立て・時間の測り方）は固めない（それぞれのテストが受け持つ）
+- 描画（GitHub・エディタ）は確かめない
+- 期待値の正しさは、最初に作ったときに人が読んだことに依る。最初の期待値に誤りがあれば、それが固まる
+- 固めるのは今の版（v0.18.x）の出力。過去の版の出力とは比べない（v0.5.23 からは `runId`・`configSha256`・`parsed` などが増えた）
