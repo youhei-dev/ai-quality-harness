@@ -5,7 +5,9 @@
  * history file it wrote with latest.json. The inputs (tests/report-golden-input.ts) are checked with fixed numbers apart from the expected
  * files, and the expected files are checked for the sections and marks they are meant to hold.
  * Change an expected file only in the commit that changes the output on purpose, with the changed lines and the reason in the commit
- * message and CHANGELOG, and a record in the pull request that a person read the diff. There is no tool that writes them.
+ * message and CHANGELOG, and a record that a person, or an independent review whose result a person checked, read the diff (ADR-0003
+ * addendum, decision 5 and its note). There is no tool that writes them. v0.18.2's C-44 changed 10 lines of edge/latest.md (6 rows of the
+ * Checks table and 4 "- Command:" lines: one code span each); plain/ and edge/latest.json did not change.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -122,9 +124,11 @@ describe("report golden: the expected files hold what they are meant to (and no 
     expect(md).not.toContain("AKIA");
   });
 
-  it("edge/latest.md: the commands with backticks and the working directory with one, as written before C-44", () => {
+  it("edge/latest.md: the commands with backticks and the working directory with one, as C-44 writes them (one code span each)", () => {
     const md = read("edge/latest.md");
-    for (const s of ["| `echo `date`` |", "| ``npm` test` |", "| ` npm test ` |", "(cwd: `dir`x`)"]) expect(md).toContain(s);
+    for (const s of ["| `` echo `date` `` |", "| ``` echo ``x`` ``` |", "| `` `npm` test `` |", "| `  npm test  ` |", "(cwd: ``dir`x``)"]) expect(md).toContain(s);
+    // the forms of v0.18.1 (one backtick around the value) are gone
+    for (const s of ["| `echo `date`` |", "| ``npm` test` |", "| ` npm test ` |", "(cwd: `dir`x`)"]) expect(md).not.toContain(s);
   });
 
   it("the JSON files hold the raw characters as JSON escapes; no expected file holds a forbidden character raw", () => {

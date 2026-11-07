@@ -35,13 +35,13 @@ Total 8 · PASS 4 · FAIL 4 · SKIPPED 0 · required failed 4
 
 | # | Name | Kind | Required | Status | Duration | Exit | Command |
 |---|---|---|---|---|---|---|---|
-| 1 | e1 | custom | yes | PASS | 1.2s | 0 | `echo `date`` |
-| 2 | e2 | custom | yes | PASS | 1.2s | 0 | `echo ``x``` |
-| 3 | e3 | custom | yes | FAIL | 1.2s | 1 | ``npm` test` |
-| 4 | e4 | custom | yes | FAIL | 1.2s | 1 | `npm test \| grep `x`` |
+| 1 | e1 | custom | yes | PASS | 1.2s | 0 | `` echo `date` `` |
+| 2 | e2 | custom | yes | PASS | 1.2s | 0 | ``` echo ``x`` ``` |
+| 3 | e3 | custom | yes | FAIL | 1.2s | 1 | `` `npm` test `` |
+| 4 | e4 | custom | yes | FAIL | 1.2s | 1 | `` npm test \| grep `x` `` |
 | 5 | e5 | custom | yes | FAIL | 1.2s | 1 | `npm test` |
-| 6 | e6 | custom | yes | PASS | 1.2s | 0 | ` npm test ` |
-| 7 | e7 | custom | yes | FAIL | 1.2s | 1 | ` npm run lint ` |
+| 6 | e6 | custom | yes | PASS | 1.2s | 0 | `  npm test  ` |
+| 7 | e7 | custom | yes | FAIL | 1.2s | 1 | `  npm run lint  ` |
 | 8 | e8 | custom | yes | PASS | 1.2s | 0 | `npm test` |
 
 ## Parsed Output
@@ -63,7 +63,7 @@ Read from each check's output for display only: the verdict and the exit code do
 
 ### e3 — FAIL
 
-- Command: ``npm` test` (cwd: `.`)
+- Command: `` `npm` test `` (cwd: `.`)
 - Summary: `exit code 1`
 
 <details><summary>stderr (tail)</summary>
@@ -76,7 +76,7 @@ boom \u{1B}[31mred\u{1B}[0m and \u{202E}x
 
 ### e4 — FAIL
 
-- Command: `npm test \| grep `x`` (cwd: `.`)
+- Command: `` npm test \| grep `x` `` (cwd: `.`)
 - Summary: `exit code 1`
 
 <details><summary>stderr (tail)</summary>
@@ -89,7 +89,7 @@ boom \u{1B}[31mred\u{1B}[0m and \u{202E}x
 
 ### e5 — FAIL
 
-- Command: `npm test` (cwd: `dir`x`)
+- Command: `npm test` (cwd: ``dir`x``)
 - Summary: `exit code 1`
 
 <details><summary>stderr (tail)</summary>
@@ -102,7 +102,7 @@ boom \u{1B}[31mred\u{1B}[0m and \u{202E}x
 
 ### e7 — FAIL
 
-- Command: ` npm run lint ` (cwd: `.`)
+- Command: `  npm run lint  ` (cwd: `.`)
 - Summary: `exit code 1`
 
 <details><summary>stderr (tail)</summary>
