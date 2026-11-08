@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "label": "batch5-design",
+  "round": 3,
+  "idPrefix": "B5-D",
+  "source": {
+    "name": "independent-review-batch5-design-r3-for-claude.md",
+    "bytes": 10010,
+    "sha256": "4d1518e5e8d051986da532e862c51a0cd0c7a49b12188c5bf225a9b2bf51346d"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "B5-D-R2-001",
+      "assessment": "解消。設計 R3 と設計最終の実装用参照は、実在する最終文案 4 ファイルに統一された。ADR-0008 の最終案に D13 と停止条件、ADR-0001 の最終案に適用先名の置き換え、CI 手順書の最終案に telemetry の事前確認順序がある。旧版名の残りは履歴や添付の説明であり、実装用文案を誤誘導しない。"
+    }
+  ],
+  "importedAt": "2026-11-08T04:37:27.393Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.2"
+  },
+  "findings": []
+}
