@@ -1,6 +1,6 @@
 # CI と Branch Protection の手順書
 
-最終更新: 2026-11-08（v0.18.2 の後の記録。§3 の「確かめたこと」に、2 回目のタグの作成〈v0.18.2 のタグ〉と rule insights。消すこと・付け替えることは試していないまま）。その前: 2026-11-07（v0.18.1 の後の記録。§3 の「試していないこと」から、新しいタグを作れたこと〈v0.18.1 のタグ〉を「確かめたこと」に移した。消すこと・付け替えることは試していないまま）。その前: 2026-11-07（v0.18.1。§3 に PR #28 の CI の run と rule insights。§8 の手順 7 を、タグを作る一続きの手順に〈batch4 の設計〈最終〉§2.2〉。§8-2 に batch4 の着手前の見直し）。その前: 2026-11-07（batch3 の B3-Q7。§3 にタグの ruleset `tag-protection` と `sha_pinning_required: true` の「実施済み（2026-11-07）」。§3-3・§8・§8-2 に注記。§8 の手順 7 に、タグを付ける前の確かめ）。その前: 2026-10-30（v0.17.1 とその記録。§8-2 のアクションの SHA の更新。この行は、その版では直していなかった）、2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
+最終更新: 2026-11-08（batch5 の記録の PR〈版なし〉。§3 に、tag-protection と、適用先の run の `sha_pinning_required` を、確かめた範囲と確かめていない範囲を書いて閉じた注記。§5 に gh の版と telemetry の確かめの順〈環境変数 `GH_TELEMETRY` → 設定 → 版〉。§8 の手順 8 に同じ確かめ）。その前: 2026-11-08（v0.18.2 の後の記録。§3 の「確かめたこと」に、2 回目のタグの作成〈v0.18.2 のタグ〉と rule insights。消すこと・付け替えることは試していないまま）。その前: 2026-11-07（v0.18.1 の後の記録。§3 の「試していないこと」から、新しいタグを作れたこと〈v0.18.1 のタグ〉を「確かめたこと」に移した。消すこと・付け替えることは試していないまま）。その前: 2026-11-07（v0.18.1。§3 に PR #28 の CI の run と rule insights。§8 の手順 7 を、タグを作る一続きの手順に〈batch4 の設計〈最終〉§2.2〉。§8-2 に batch4 の着手前の見直し）。その前: 2026-11-07（batch3 の B3-Q7。§3 にタグの ruleset `tag-protection` と `sha_pinning_required: true` の「実施済み（2026-11-07）」。§3-3・§8・§8-2 に注記。§8 の手順 7 に、タグを付ける前の確かめ）。その前: 2026-10-30（v0.17.1 とその記録。§8-2 のアクションの SHA の更新。この行は、その版では直していなかった）、2026-10-26（v0.15.1。§8-1 に、時間を確かめるテストの測り方〈ROADMAP の項目 53〉）。その前: 2026-10-22（v0.13.2。§8-1 にテストの時間の予算 T1〜T4〈ROADMAP の項目 41〉。§1 のリリースの手順の参照先を、この文書の §8 に直した〈項目 43〉。§8 の手順 8 に、着手前の `npm audit --audit-level=high`〈依存の勧告の教訓〉）。その前: 2026-10-19（v0.12.1。§4 と §5 に、運用テンプレート〈設定の変更・見張る項目〉への参照）。その前: 2026-10-17（v0.9.2。§3 を pull request の必須・必須チェック 2 つ・Bypass なしに。§8 にリリースの手順。ADR-0032）、2026-10-16（v0.9.0。§1 に `reusable (self)`）、2026-10-16（v0.8.4。Public にした後、§3 の ruleset を設定した。§3 の「実施済み」）、2026-10-16（v0.8.3。下の注記）、2026-10-13（v0.6.1 の後。必須にする条件に届き、プロジェクトの `CLAUDE.md` のリリースの手順に入れた。ADR-0025 の追記）
 
 注記（v0.8.3）: この文書が指すプロジェクトの `CLAUDE.md` は、v0.8.3 から git の追跡外（作業者のローカルの決まり）。リリースの手順に足した一文は 2-1 に同じ文で写してある。
 
@@ -97,12 +97,25 @@ CI が置き換えないもの: リリースの判定の根拠は、これまで
   - `gh api repos/youhei-dev/ai-quality-harness/rulesets/26732066 --jq '[.target, .enforcement, .conditions.ref_name.include, [.rules[].type], (.bypass_actors|length)]'` → `["tag","active",["refs/tags/v*"],["deletion","update"],0]`
   - `gh api repos/youhei-dev/ai-quality-harness/actions/permissions` → `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`
   - rule insights（`gh api repos/youhei-dev/ai-quality-harness/rulesets/rule-suites`）は、public のリポジトリで読める（2026-11-07 に HTTP 200。PR #28 の merge の push の `pass` が 1 件。batch3 の設計〈最終〉§8.1 の [要確認] の答え）。適用先の run に、どちらのリポジトリの `sha_pinning_required` が当たるか（同 §8.2 の (2)）は未確認
+    - 注記（batch5 の記録の PR〈版なし。2026-11-08〉。batch5 の B5-Q11 = A。記録して閉じた）: 適用先の run に、どちらのリポジトリの `sha_pinning_required` が当たるか
+      - 設定の読み（2026-11-08。`GET repos/<owner>/<repo>/actions/permissions`、持ち主のトークンで読んだ。書いていない）: aiqh は `sha_pinning_required: true`、**適用先 A・B は `false`**（`enabled`・`allowed_actions` は 3 つとも同じ `true`・`all`）
+      - GitHub の文書（2026-11-08 に読んだ要約。原文の一字一句は照らしていない）: SHA の固定は Actions の「allowed actions」の方針の中の設定で、有効なら、完全な commit SHA で固定していないアクションを使うワークフローは失敗する。再利用ワークフローはタグでも参照できる。再利用ワークフローを使うには、呼ぶ側のリポジトリの Actions の許可の設定が、そのアクションと再利用ワークフローの使用を許す必要がある。**呼ぶ側・呼ばれる側のどちらの `sha_pinning_required` が当たるかは書かれていない**
+      - 推定: 方針は呼ぶ側の設定で評価される（呼ぶ側 = 適用先 A・B の `false` が当たる）。確かめていない（確かめるには、aiqh と適用先の両方に、使い捨ての branch とワークフローを書く必要がある。人間の決定で行わない）
+      - **どちらが当たっても、今の結果は同じ**: `verify.yml` が使う外のアクションは 4 行（checkout 2・setup-node 1・setup-python 1）で、どれも 40 桁の commit SHA。`tests/reusable-workflow.test.ts:105-112`（「pins every action to a 40-character commit SHA with the version in a trailing comment」）が固定している。適用先 A・B の `quality.yml` の `uses:` は、この再利用ワークフローの 1 行だけで、40 桁の SHA で書いている（ADR-0025 の決定 9）。違いが出るのは、`verify.yml` にタグで参照するアクションを入れたときだけで、それはテストと ADR-0025 が止める
   - CI での確かめ: `sha_pinning_required: true` の後の最初の run は、この記録の pull request（branch `docs/github-settings`）の run と、その merge の後の main への push の run。必須の 2 つが success になることで、ローカルの再利用ワークフローが止まらないことを確かめる。結果（v0.18.1 で記入）: PR #28 の run 42309130764（head `5a7a7a9`）と、merge の commit `3a6295a3ae2ce15d3a1329f50cb825529d9c72c5` の main への push の run 42309849263 で、必須の 2 つが success（アクションは SHA で取得され、SHA の固定による注釈は 0）
 - 確かめたこと（v0.18.1。2026-11-07）: **新しいタグを作れる**。`v0.18.1`（commit `7f4bd8fa15ec17bfd741dbf9c7d568fb83b8efd8` / tag object `e7a7936577a45f28033dd7ed28579e06356c4c4e`）を §8 の手順 7 で作り、2026-11-07 12:25:30（JST）に `git push origin refs/tags/v0.18.1` を 1 回だけ送った: exit 0（`* [new tag]`）。送る前の 3 の確かめ（手元 99・リモート 98 の名前の集合で、手元にだけあるのが `refs/tags/v0.18.1` の 1 つ。送る対象の 5 点）と、送った後の 5 の `git ls-remote` の 2 行（tag object と commit）が合った。§8 の手順 7 の 6（失敗・結果が分からない）は使わなかった
   - rule insights（`gh api repos/youhei-dev/ai-quality-harness/rulesets/rule-suites`。HTTP 200）に、タグの push の記録が載った: `refs/tags/v0.18.1`、2026-11-07T12:25:32+09:00、before が 40 桁の 0、after が tag object `e7a7936`、result `pass`。詳細（`…/rulesets/rule-suites/4964913454`）では、`tag-protection`（id 26732066）の `update` と `deletion` が評価されて、どちらも `pass`（新しい名前の作成なので、どちらの規則にも当たらない）。secret scanning も `pass`。batch4 の設計〈最終〉§2.6 の「rule insights にタグの push が載るかは未確認」は、載ると分かった
 - 確かめたこと（v0.18.2。2026-11-07）: **2 回目の作成**。`v0.18.2`（commit `0c25b023e976fab31f8d8753490425dc0070e99c` / tag object `c72794bd551e60a002f0d931f553d80642a0e6e1`）を §8 の手順 7 で作り、2026-11-07 16:53:59〜16:54:02（JST）に `git push origin refs/tags/v0.18.2` を 1 回だけ送った: exit 0（`* [new tag]`）。送る前の 3 の確かめ（手元 100・リモート 99 の名前の集合で、手元にだけあるのが `refs/tags/v0.18.2` の 1 つ。送る対象の 5 点）と、送った後の 5 の `git ls-remote` の 2 行（tag object と commit）が合った（送った後の集合は手元 100・リモート 100）。§8 の手順 7 の 6 は使わなかった
   - rule insights（HTTP 200）: `refs/tags/v0.18.2`、2026-11-07T16:54:01+09:00、before が 40 桁の 0、after が tag object `c72794b`、result `pass`。詳細（`…/rulesets/rule-suites/4966974421`）では、`tag-protection` の `update` と `deletion` が評価されて、どちらも `pass`。secret scanning も `pass`
 - 試していないこと: 消すこと・付け替えることが拒まれるかは、本物のタグで試していない（試すとタグが残るか消える。取り返しがつかない）。v0.18.1・v0.18.2 で確かめたのは作ることだけ。送るのが失敗した・結果が分からないときは、§8 の手順 7 の 6 のとおり、送り直さずに止まり、`git ls-remote` の読み取りで 3 つの状態のどれかを人間に知らせる（v0.18.1 で書き直した。「断られたらタグはできない」とは決めない: batch4 の設計〈最終〉§2.6）
+  - 注記（batch5 の記録の PR〈版なし。2026-11-08〉。batch5 の B5-Q5 = A。設定と文書の読みで記録して閉じた。実地では試さない）
+    - **確かめた範囲**（2026-11-08。どれも GET だけ）:
+      - ruleset（`GET …/rulesets/26732066`）: name `tag-protection`、target `tag`、source_type `Repository`、enforcement `active`、conditions の include `["refs/tags/v*"]`・exclude `[]`、rules `deletion` と `update`（どちらも `parameters` なし）、`bypass_actors: []`、`current_user_can_bypass: "never"`。作成と更新の時刻は同じ 2026-11-07T07:32:03+09:00（設定した後に変わっていない）。ruleset は `main-protection`（25218296）と合わせて 2 つ
+      - rule insights（`GET …/rulesets/rule-suites?time_period=month`）: 37 件がすべて `pass`（`fail` 0）。タグは 2 件（`refs/tags/v0.18.1`・`refs/tags/v0.18.2`。どちらも before が 40 桁の 0 = 作成）で、`tag-protection` の `update` と `deletion` が評価されて `pass`（上の 2 つの「確かめたこと」）。`time_period` を付けない読みは直近の短い期間の件数だけ（2026-11-08 は 6 件）で、`:99` の「1 件」も、その読みの値と見られる（推定）
+      - GitHub の文書（Available rules for rulesets。2026-11-08 に読んだ要約。原文の一字一句は照らしていない）: 「Restrict deletions」は、bypass の権限を持つ人だけが、対象の名前の branch・タグを消せる。「Restrict updates」は、bypass の権限を持つ人だけが、対象の名前の branch・タグに push できる。違反した push の結果（エラーの文）は書かれていない
+      - → 設定は、文書の条件（bypass を持つ人だけが消せる・付け替えられる）に合い、bypass を持つ人はいない（自分も `never`）。タグの push のたびに、この ruleset が実際に評価されている
+    - **確かめていない範囲**: 消すこと・付け替えることが実際に拒まれること、拒まれたときのエラーの文、経路ごとの違い（`git push` の削除・force push、REST API の `DELETE …/git/refs/tags/…`、Web の画面のタグ・release の削除）、後の GitHub の変更
+    - **閉じる理由**: この文書の §8 の手順 7 は、タグを消す・付け替える操作をそもそも使わない（送った後に誤りに気づいたら、次の版を出す）。拒まれるかどうかを頼りにする場面が無い。実地で試すと、拒まれても拒まれなくても、公開のリポジトリに取り返しのつかない跡が残る（本物のタグ・使い捨てのタグ）か、別の公開リポジトリと ruleset の作成が要る。人間の決定で、ここまでで閉じる
 - 戻し方（するかは人間が決める）: ruleset は Enforcement を Disabled にする（`gh api --method PUT repos/youhei-dev/ai-quality-harness/rulesets/26732066` に `{"enforcement":"disabled"}`。消さない）。`sha_pinning_required` は `gh api --method PUT repos/youhei-dev/ai-quality-harness/actions/permissions` に `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`。画面では Settings → Rules → Rulesets → `tag-protection` と、Settings → Actions → General の「Require actions to be pinned to a full-length commit SHA」
 
 ### 3-1. 設定する内容（rulesets の場合。Settings → Rules → Rulesets → New branch ruleset）
@@ -146,6 +159,21 @@ classic の Branch Protection を使う場合も、同じ 4 つ（削除の禁�
 ## 5. CI の結果の読み方（読み取りだけ）
 
 人間の決定（2026-10-12）: Claude Code は `gh` で CI の結果を読んでよい（読み取りだけ）。
+
+手元の gh（batch5 の記録の PR。2026-11-08）:
+
+- **telemetry を止めている**: gh は 2.91.0 から、既定で使い方の情報（仮名の端末の ID・OS・版・コマンドの名前など）を送る。止め方は 2 つで、両方にしている: シェルの起動の設定の環境変数 `GH_TELEMETRY=false` と、`gh config set telemetry disabled`。**環境変数が設定より優先する**（GitHub CLI の telemetry の文書。2026-11-08 に読んだ要約）。そのため、設定が `disabled` でも、環境変数が無効の値でなければ止まっていない
+- **gh を使う前の確かめ（この順。gh のどのコマンドよりも先に 1 を読む）**:
+  1. `printenv GH_TELEMETRY` が `false`・`0`・`disabled` のどれか。未設定・空・`enabled`・`log`・`1`・`true`・そのほかの値なら、**gh を一度も走らせずに止まる**（承認していない外への送信、または `log` の値による標準エラーへの出力になる）。文書の要約では空の値と `DO_NOT_TRACK=true` でも無効になるが、この手順では空を止める側に置き、`DO_NOT_TRACK` には頼らない
+  2. 同じシェルから起こす子のシェル（`zsh -c 'printenv GH_TELEMETRY'`、テストと verify に使う `caffeinate -i zsh -c 'printenv GH_TELEMETRY'`）でも同じ値。worktree の中のコマンドも同じシェルから起こす（環境変数は作業の場所によらず、起こしたプロセスから継承される）。サブエージェントに gh を使わせるときは、その依頼文に同じ確かめを書く
+  3. `gh config get telemetry` が `disabled`
+  4. `gh --version` が 2.99.0 以上（確かめた版は 2.103.3。2026-10-26 の release。Homebrew。人が 2026-11-08 に 2.89.0 から上げた）
+- 環境変数は対話のシェルの設定で入る（2026-11-08 の確かめ: 変数を外して非対話のシェルを起こすと空、対話のシェルでは `false`）。対話のシェルを通らない起動経路（GUI のアプリなど）は、この手順の外。そこでは設定の `disabled` だけが残る
+- 2.89.0 からの直しのうち、この文書の手順で使うコマンドに関わるもの（release notes の読み。試していない）:
+  - v2.92.0: `gh run view --log`・`--log-failed` が、ワークフローの log の中の端末のエスケープの並びを、無害にせずに出していた（GHSA-crc3-h8v6-qh57）
+  - v2.97.0: `gh api`・`gh pr diff` などが、外から来た中身の端末のエスケープの並びを無害にせずに出していた（GHSA-3m3g-3wcr-px46）。URL のパスの部品のエスケープ漏れで、別の資源に向くことがあった（GHSA-4fjg-2h4q-fwg3）。`gh auth status` がトークンの一部を出す形があった（GHSA-cg6r-mpgc-h9mm）
+  - v2.99.0: `gh pr merge --delete-branch` を、linked worktree のあるリポジトリで安全に扱う（§8 の手順 5 は `--delete-branch` を使い、検証は worktree で行う）
+  - `--match-head-commit`・`gh run list`・`gh pr list`・`gh pr create`・`gh pr view` の振る舞いの変更の記載は見つからなかった
 
 ```bash
 gh run list --workflow ci.yml --limit 5            # 最近の実行の一覧（状態・結論・commit）
@@ -192,6 +220,7 @@ main への直接の push は、ruleset で拒まれる（admin も）。版を�
    - 送る前に誤りに気づいたら: 手元のタグを付け直すには `git tag -d vX.Y.Z` が要る。削除の操作なので、人間の確認を取ってから
    - 送った後に誤りに気づいたら: 直せない。次の版を出す
 8. 次の版の着手前の確認では、HEAD = origin/main = リモートの main、開いている pull request が 0、作業の branch が残っていないことを確かめる。あわせて `npm audit --audit-level=high` が通ること（自己 verify の dependency の check と同じ）を確かめ、通らなければ、実装の前に依存の更新を決める（v0.13.2 の教訓: 勧告は外で増えるので、前の版の CI が PASS でも、実装の後の検証で初めて分かると、全部の commit を作り直すことになる）
+   - あわせて、gh を使う前に §5 の確かめを、その順で行う（`printenv GH_TELEMETRY` が無効の値〈`false`・`0`・`disabled`〉で子のシェルでも同じ、`gh config get telemetry` が `disabled`、`gh --version` が 2.99.0 以上。1 つでも違えば、gh を使わずに止まる。batch5 の記録の PR）
 
 - merge は merge commit だけ（squash・rebase は ruleset で許していない）。branch の commit の SHA が、そのまま main の履歴に入るので、検証と記録に書いた SHA を使える
 - strict なので、main が先に進んだときは、branch を最新にしてから merge する

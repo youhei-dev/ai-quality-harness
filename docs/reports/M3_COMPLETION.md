@@ -22,7 +22,7 @@
 | 入力（Node / Python の版、作業ディレクトリ、設定のパス）・出力（artifact、Job Summary） | 満たした（形を変えて） | 入力は最小の 6 つ。artifact には上げない（ADR-0031）。Job Summary は `job-summary: true` のときだけ |
 | 本体リポジトリ自身の CI（PR ごとの自己 verify） | 満たした | v0.5.45 の `ci.yml`（`verify (ubuntu)`）、v0.9.0 の `reusable (self)`。v0.9.2 から 2 つとも main の必須チェック |
 | Branch Protection の手順書（必須ステータスチェック・レビュー必須・force push 禁止） | 満たした | `docs/ops/ci-and-branch-protection.md`（v0.5.45〜v0.9.2）。classic の Branch Protection ではなく ruleset（v0.8.4 で作り、v0.9.2 で pull request 必須に）。レビュー（承認）は 1 人のリポジトリでは満たせないので 0（ADR-0032 の決定 5） |
-| 適用先（個人のリポジトリ 2 つ） | 満たした | 2026-10-17。`youhei-dev/trim-manager`（PR #2）・`youhei-dev/ai-tutor-browser`（PR #1）。どちらも PR と main への push の run が success（ROADMAP の M3 の「波 4」） |
+| 適用先（個人のリポジトリ 2 つ） | 満たした | 2026-10-17。適用先 A（node:test）のリポジトリ（PR #2）・適用先 B（pytest）のリポジトリ（PR #1）。どちらも PR と main への push の run が success（ROADMAP の M3 の「波 4」） |
 | Windows での挙動確認 | 測定だけ（対象にはしていない） | `measure (windows)`（手動の実行だけ。ADR-0025 の決定 4）。v0.5.45 の前の手動の 1 回で、8 チェックのうち 3 つが FAIL。Windows を対象にするかは後で決める |
 | R-011（後半: Linux での検証） | 満たした | `verify (ubuntu)` が兼ねる（v0.5.45 から） |
 | R-006（対策候補 1: `aiqh.config.jsonc` の変更を CODEOWNERS と必須レビューで守る手順） | 手順は書いた（強制はしない） | `.github/CODEOWNERS` と手順書の §4。1 人のリポジトリなので、Code Owners のレビューは必須にしない（ADR-0032 の決定 5）。設定の変更は、pull request と必須チェックを通る |
