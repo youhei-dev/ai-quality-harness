@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "label": "batch5-design",
+  "round": 2,
+  "idPrefix": "B5-D",
+  "source": {
+    "name": "independent-review-batch5-design-r2-for-claude.md",
+    "bytes": 12931,
+    "sha256": "13247473c6537610ff90559b7a7e6215791cee6e036594f320c234e860fad01c"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "previous": [
+    {
+      "id": "B5-D-R1-001",
+      "assessment": "解消。設計 R2 §2.1.3 は着手前の registry 確認と、lock・npm ls・package.json の厳密な 6 値を比較する D13 を追加した。試し・release branch・SHA 固定 worktree の 3 か所で確認し、不一致を停止条件にした。CI の版は lock と npm ci による間接確認と明記した。"
+    },
+    {
+      "id": "B5-D-R1-002",
+      "assessment": "解消。gh の起動前に GH_TELEMETRY を読み、false・0・disabled 以外では停止する。子シェルと caffeinate の継承、設定 disabled、最低版を順に確認する。環境変数の優先順位と別起動環境の限界も明記した。"
+    }
+  ],
+  "importedAt": "2026-11-08T04:37:27.194Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.2"
+  },
+  "findings": [
+    {
+      "id": "B5-D-R2-001",
+      "severity": "Medium",
+      "kind": "文書",
+      "target": "batch5-design-r2.md §2.2 の記録一覧の項目 5・6、§3.4 の文案参照",
+      "content": "R2 の変更を反映した文案を添付しているのに、実装先の一覧では R1 のファイル名を参照している。特に ADR-0008 は R1 に D13 がなく、ADR-0001 は R1 に適用先 A の名前の置き換えがない。実装者が一覧の参照どおりに転記すると、今回採用した修正が記録に入らない。",
+      "evidence": "batch5-design-r2.md §2.2 の項目 5 は adr-0001-note-draft-r1.md、項目 6 は adr-0008-addendum-draft-r1.md を示す。一方、添付の adr-0001-note-draft-r2.md (2) には名前の置き換えが追加され、adr-0008-addendum-draft-r2.md の決定 3・4 には D13 と停止条件が追加されている。同じ §2.2 の項目 12 は r2 の ADR-0001 を参照しており、表の中で文案の版が混在する。§3.4 も ADR-0028 の r1 を指すが、こちらは内容の変更が無いので主たる危険は項目 5・6 にある。",
+      "fix": "§2.2 の文案欄を R2 の添付名に統一する。項目 5 は adr-0001-note-draft-r2.md、項目 6 は adr-0008-addendum-draft-r2.md とし、項目 1・2・3・4 および §3.4 の該当する r1 参照も r2 に統一する。実装用の design-final.md に移す際は、すべての文案参照が存在する最終ファイルを指すことと、ADR-0008 に D13、ADR-0001 に名前の置き換えがあることを差分で確認する。",
+      "confidence": "確認済み",
+      "status": "deferred",
+      "verdict": "VALID",
+      "action": "受け入れ（設計 R3 で直した）。設計 R3・設計（最終）の文案の参照を、すべて最終の形の文案（adr-0001-note-draft-final.md・adr-0008-addendum-draft-final.md・adr-0028-note-draft-final.md・ci-doc-section3-draft-final.md）に統一し、参照の機械の照らし（実在しない参照 0 件、理由の分からない R1・R2 の名前 0 件）と中身の照らしを ref-check-r3.md に残した",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.18.3",
+      "note": "設計の指摘（文書の参照）。直した先は設計（最終）と最終の文案（この記録と同じ commit で収録した）。R3 の評価: 解消。最終の文案のうち ADR-0001 の (2) と ci 手順書の (1)〜(3) は、この記録の PR の 1 つ目の commit（f901670d761e8e8e018b5249a8ee5ac8114a6447）で入れた。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記（D13 と停止の条件）は v0.18.3 に入るので、v0.18.3 の commit で resolved にし、fixedIn を書く"
+    }
+  ]
+}

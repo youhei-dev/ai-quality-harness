@@ -4,7 +4,7 @@
 - 日付: 2026-10-16（v0.9.0）。注記: 2026-10-17（v0.9.1。適用で確かめたこと。下の「注記（v0.9.1: 適用で確かめたこと）」）。注記: 2026-10-26（v0.15.1。決定 6 の Job Summary の読む場所。末尾の「注記（v0.15.1: Job Summary の場所）」）
 
 ## 文脈
-- 波 4（M3 の後半）では、aiqh の配布の方式・他のリポジトリから呼ぶ再利用ワークフロー・個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`）への適用を決める。適用先は 2 つとも private で、ワークフローは無い（SP1、2026-10-16）
+- 波 4（M3 の後半）では、aiqh の配布の方式・他のリポジトリから呼ぶ再利用ワークフロー・個人のリポジトリ 2 つ（適用先 A〈node:test〉のリポジトリ・適用先 B〈pytest〉のリポジトリ）への適用を決める。適用先は 2 つとも private で、ワークフローは無い（SP1、2026-10-16）
 - ADR-0009（M1 の配布は `npm link`）は「M3 で再評価」だった。論点は次の 4 つ
   - 対象ごとに版を固定できない
   - CI では `npm link` が使えない
@@ -76,13 +76,13 @@
 - private の呼び出し側では、実行は非公開の runner（2 CPU）で、分数は呼び出す側の無料枠から引かれる（runner と料金は呼び出す側で決まる）
 
 ## 注記（v0.9.1: 適用で確かめたこと）
-2026-10-17 に、個人のリポジトリ 2 つ（`youhei-dev/trim-manager`・`youhei-dev/ai-tutor-browser`。どちらも private）へ適用した（ROADMAP の M3 の「波 4」）。上の「結果と未確認の点」のうち、次を確かめた。決定は変えない。
+2026-10-17 に、個人のリポジトリ 2 つ（適用先 A〈node:test〉のリポジトリ・適用先 B〈pytest〉のリポジトリ。どちらも private）へ適用した（ROADMAP の M3 の「波 4」）。上の「結果と未確認の点」のうち、次を確かめた。決定は変えない。
 - ほかのリポジトリ（private）から、公開の aiqh の `verify.yml` を 40 桁の commit SHA で呼べる（`uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@7f2146da61702e859f0fddf0834a4f6414b0b6fb # v0.9.0`）
 - `job.workflow_repository` と `job.workflow_sha` は、呼ばれた側（`youhei-dev/ai-quality-harness`・`7f2146d…`）を指す。aiqh の checkout はその commit で、`git rev-parse HEAD` との照合が通った
 - private の呼び出し側の既定のトークンで、公開の aiqh を checkout できる（トークンは渡していない）
 - `python-version` の経路（setup-python。CPython 3.13 系）が動く。設定のコマンドが `.venv/bin/python` を使う形でも、`setup-command` で `.venv` を作れば動く
 - `working-directory` が既定の `.` の経路が動く
-- run: trim-manager の PR #2 の `38985874746`・main の `38986865678`、ai-tutor-browser の PR #1 の `38989579565`・main の `38990545338`。どれも success
+- run: 適用先 A（node:test） の PR #2 の `38985874746`・main の `38986865678`、適用先 B（pytest） の PR #1 の `38989579565`・main の `38990545338`。どれも success
 
 残る未確認の点:
 - `workflow_dispatch`（手動の実行）と、呼び出す側の `concurrency` の取り消しの動き

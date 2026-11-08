@@ -4,7 +4,7 @@
 
 | 番号 | タイトル | 状態 | 日付 |
 |---|---|---|---|
-| [0001](0001-language-typescript-node.md) | 本体の言語を TypeScript（Node）にする | 採用 | 2026-09-15 |
+| [0001](0001-language-typescript-node.md) | 本体の言語を TypeScript（Node）にする | 採用（注記〈batch5 の記録の PR〉: TypeScript 7 は typescript-eslint 8.72.1 の peer の範囲の外〈2026-11-08 の registry の読み〉。5.9 系の決定は変えない） | 2026-09-15 |
 | [0002](0002-config-format-jsonc.md) | 設定ファイル形式を JSONC にする | 採用 | 2026-09-15 |
 | [0003](0003-report-format-json-markdown.md) | レポートを JSON（機械）+ Markdown（人間）の 2 形式にする | 採用（追記〈v0.18.1〉: 通常のレポートの golden fixture。期待値は、出力を変える src の commit の中だけで変える） | 2026-09-15 |
 | [0004](0004-fail-closed-verdict.md) | 最終判定は fail closed とし、必須チェック 0 件を許さない | 採用 | 2026-09-15 |
@@ -31,7 +31,7 @@
 | [0025](0025-self-ci-ubuntu-verify-not-required-yet.md) | 自己 CI は Ubuntu の verify から始め、最初は必須にしない（Windows は測定だけ、アクションは commit SHA で固定、権限は読み取りだけ） | 採用（M3 の前半。ADR-0005 の Windows の扱いは変えない。非公開のままでは Branch Protection は使えない。注記〈v0.8.4〉: Public にした後、main の ruleset〈削除と force push の禁止。必須チェックは未設定〉。注記〈v0.9.0〉: 再利用ワークフロー `verify.yml` と自己適用の job〈ADR-0031〉。注記〈v0.9.2〉: main は pull request 必須、必須チェック 2 つ〈ADR-0032〉。追記〈v0.17.1〉: アクションの SHA を更新する手順〈決定 9〉。注記〈2026-11-07〉: `sha_pinning_required` を入れた） | 2026-10-12 |
 | [0026](0026-review-import-json-block-fail-closed.md) | review-import は、レビューの中の決まった JSON のブロックを正本にし、本文と食い違えば何も書かない | 採用（ARCHITECTURE の findings の置き場所〈`artifacts/ai-review/`〉を `docs/reviews/<label>/findings-r<N>.json` に置き換える。終了コードは 0 / 2 のまま。追記〈v0.18.2〉: `-R<数字>` で終わる `--id-prefix` と、round 1 の空でない `previous` を取り込みの前に止める〈互換性の変更〉） | 2026-10-13 |
 | [0027](0027-review-check-state-and-loop.md) | review-check は findings の状態を読み取りだけで検査し、ループ未完了を表示する（終了コードは検査の誤りだけ） | 採用（ADR-0026 の D11 の v2。D1〜D18 は変えない。注記〈v0.18.2〉: round 1 の空でない `previous` は review-import も止める） | 2026-10-13 |
-| [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま。v0.14.0 で pytest のパーサ〈決定 12。選び方は語の位置で見る。ROADMAP の項目 39〉。v0.18.0 で node:test のパーサ〈決定 14。切れた stdout は読まない・2 段の認識。読む窓を超えると件数が出ない〉。v0.18.1 で決定 14 の注記〈適用先 A の CI の実物〉。v0.18.2 で `latest.md` のコマンドと作業ディレクトリを `codeSpan()` で包む注記〈C-44〉） | 2026-10-14 |
+| [0028](0028-output-parsers-display-only.md) | verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない | 採用（ADR-0011 の出力パーサの型の項を置換。`schemaVersion` は 1 のまま。v0.14.0 で pytest のパーサ〈決定 12。選び方は語の位置で見る。ROADMAP の項目 39〉。v0.18.0 で node:test のパーサ〈決定 14。切れた stdout は読まない・2 段の認識。読む窓を超えると件数が出ない〉。v0.18.1 で決定 14 の注記〈適用先 A の CI の実物〉。v0.18.2 で `latest.md` のコマンドと作業ディレクトリを `codeSpan()` で包む注記〈C-44〉。注記〈batch5 の記録の PR〉: GitHub の描画で、表の外の `- Command:` の行のバックスラッシュが字のまま見えることを確かめた〈v0.18.4 で直す予定〉） | 2026-10-14 |
 | [0029](0029-key-value-false-positive-record.md) | key-value の誤検出を、何と呼び、どこに・どの形で記録し続けるか（定義だけ。実装しない） | 採用（ADR-0010・0012 の走査の方針は変えない。注記〈v0.11.0〉: M4 はルールごとの回数を数えず、security-scan の数の推移だけ） | 2026-10-14 |
 | [0030](0030-public-as-is-mit-claude-md-untracked.md) | このリポジトリを、履歴を書き換えずにそのまま Public にする（MIT。プロジェクトの `CLAUDE.md` は追跡外） | 採用（v0.8.3 は準備まで。切り替えは人間。切り替えの後、ADR-0025 の決定 6 の前提が変わる。2026-10-16 に切り替えた〈v0.8.4 の注記〉） | 2026-10-16 |
 | [0031](0031-ci-distribution-reusable-workflow-own-source.md) | CI での aiqh の配布は、再利用ワークフローが自分と同じ commit のソースを使う形にする（案 D。呼び出す側は 40 桁の commit SHA で固定） | 採用（v0.9.0。ADR-0009 の CI の部分。手元の `npm link` は変えない） | 2026-10-16 |

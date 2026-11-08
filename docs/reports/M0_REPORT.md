@@ -13,7 +13,7 @@
 | Node | v24.13.1 |
 | npm | 11.18.0 |
 | git | 2.50.1 (Apple Git-155) |
-| `git config user.email` | `youhei-dev@users.noreply.github.com`（グローバル値。ユーザー指示によりローカル設定なし） |
+| `git config user.email` | GitHub の noreply の形のアドレス（グローバル値。ユーザー指示によりローカル設定なし） |
 | `git config user.name` | youhei-dev |
 | gh | github.com に youhei-dev でログイン済み（https、scope: gist / read:org / repo） |
 | OS | macOS（Apple Silicon、Darwin 25.2.0） |
@@ -142,7 +142,7 @@ cat artifacts/verification/latest.md
 | 秘密情報パターン | コミット候補 45 ファイルを `sk-ant-` `sk-` `AKIA/ASIA` `ghp_/github_pat_` `xox?-` `AIza` `glpat-` `PRIVATE KEY` で検索 | マスカー本体・そのテスト・ADR-0006 以外に該当なし。テスト値はすべて合成のダミー |
 | `.env` / 鍵ファイル | `find` | 該当なし（検査中に自分で作った空の `tmp/.env.probe` は削除済み。tmp/ は管理外） |
 | 端末・個人識別子 | ユーザー名、`/Users/`、メール、IP を検索 | 該当なし（一致は npm パッケージ名のみ） |
-| 会社固有情報 | 社名・製品名・取引先・社内パス・人名 | 該当なし。他プロジェクト名（trim-manager / ai-tutor-browser）は依頼で指定された個人プロジェクトで、docs のみで参照 |
+| 会社固有情報 | 社名・製品名・取引先・社内パス・人名 | 該当なし。他プロジェクト名（適用先 A〈node:test〉 / 適用先 B〈pytest〉）は依頼で指定された個人プロジェクトで、docs のみで参照 |
 | .gitignore の効き | `git check-ignore` | `artifacts/` `dist/` `tmp/` `node_modules/` `.env.local` が除外されることを確認 |
 | レポート内の絶対パス | `latest.json` の `configPath` / `project.root` | 実行環境の絶対パスを含む（管理外ファイルのため許容。M3 の CI アップロード時に相対化を検討） |
 
@@ -176,8 +176,8 @@ cat artifacts/verification/latest.md
 4. 生成した設定で `aiqh verify` をドライラン（`--fail-fast` なし）し、結果を表示
 
 ### 適用で予想される問題
-- **trim-manager**: lint / test スクリプトなし、ESLint / Vitest 未導入 → typecheck（`tsc -b --noEmit`）、build、dependency のみ登録し lint / unit は NOT_APPLICABLE。導入は別依頼。`@types/node ^25` と本体の Node 24 想定の差異は問題にならない見込み（対象側の Node で実行）
-- **ai-tutor-browser**: ruff / mypy なし、`requirements.txt` のみ → unit（`.venv/bin/python -m pytest -q`）と dependency（pip-audit、未導入なら任意）のみ。`.venv` の相対パス指定と、pytest が `.env` / DB を必要とする場合の扱い（秘密情報を設定に書かない）を確認
+- **適用先 A（node:test）**: lint / test スクリプトなし、ESLint / Vitest 未導入 → typecheck（`tsc -b --noEmit`）、build、dependency のみ登録し lint / unit は NOT_APPLICABLE。導入は別依頼。`@types/node ^25` と本体の Node 24 想定の差異は問題にならない見込み（対象側の Node で実行）
+- **適用先 B（pytest）**: ruff / mypy なし、`requirements.txt` のみ → unit（`.venv/bin/python -m pytest -q`）と dependency（pip-audit、未導入なら任意）のみ。`.venv` の相対パス指定と、pytest が `.env` / DB を必要とする場合の扱い（秘密情報を設定に書かない）を確認
 - 両リポジトリとも CI なし。M3 まではローカル実行のみ
 
 ## 9. commit 案と push 手順

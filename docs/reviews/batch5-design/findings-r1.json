@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "label": "batch5-design",
+  "round": 1,
+  "idPrefix": "B5-D",
+  "source": {
+    "name": "independent-review-batch5-design-r1-for-claude.md",
+    "bytes": 18063,
+    "sha256": "b7992dffbadfad5536af5b5f1da50e869718be936a8c3100c2c2e209f8c0cec9"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 2,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-11-08T04:37:27.025Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.2"
+  },
+  "findings": [
+    {
+      "id": "B5-D-R1-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §2.1.3 の手順 3・完了条件 D1〜D12、§2.4、B5-D-Q7、ADR-0008 の追記の案の「決定」3",
+      "content": "v0.18.3 の依存更新の完了条件に、実際にインストールされた vitest と vite の版が、それぞれ承認した 5.1.0 と 8.3.6 であることの明示的な検査が無い。コマンドの成功・全テストの成功・変更箇所が開発用だけであることでは、vite の更新が空振りした場合や、選ばれた版が承認した版からずれた場合を確実には止められない。",
+      "evidence": "batch5-design-r1.md §1 の B5-Q2 と §2.1.1 は vitest 5.1.0・vite 8.3.6 を指定する。§2.1.3 の手順 3 は npm ls --depth=0 の保存を求めるが、D1 は npm の終了コード、D2 は package.json の差、D3 は lock の変更の種類であり、D1〜D12 に lock と実際の node_modules の最終版を指定値と比較する合否条件は無い。特に vite は package.json の範囲を変えず npm update vite で上げる設計なので、D2 だけでは版の到達を判定できない。adr-0008-addendum-draft-r1.md の決定 1・3 も更新対象は書くが、結果の版の一致を独立のゲートにしていない。",
+      "fix": "D1〜D12 に版の一致を追加し、package-lock.json の node_modules/vitest・node_modules/vite と、npm ls vitest vite --depth=0 --json の実際の版が、それぞれ厳密に 5.1.0・8.3.6 であることを確認する。実行する前にも、着手時の registry の公開時刻・7 日の経過・選定した版を固定する。想定外の版または未更新なら、B5-D-Q7 の A に従い止めて人間が決める。依存の commit の SHA 固定 worktree と CI でも版の確認を記録する。",
+      "confidence": "確認済み",
+      "status": "deferred",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-08: B5-D-Q7 = A。R1 の条件: 版の不一致と着手時の新しい版も停止の条件に含める）。設計（最終）§2.1.3 の 2（着手時に registry を読み、vitest 5.1.0・vite 8.3.6 に固定。新しい版が出ていたら止めて人が選ぶ）・5 の D13（lock・npm ls・package.json の範囲の 6 つの値）・6・7（D13 を 3 か所で）、ADR-0008 の追記の案（最終）の決定 3・4",
+      "fixedIn": null,
+      "regressionTest": null,
+      "guard": null,
+      "destination": "v0.18.3",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch5-design/design-final.md と adr-0008-addendum-draft-final.md（この記録と同じ commit で収録した）。R2 の評価: 解消。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記と、D13 の実地の確かめは v0.18.3 に入るので、v0.18.3 の commit で resolved にし、fixedIn と確かめの記録を書く"
+    },
+    {
+      "id": "B5-D-R1-002",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "設計 §2.1.3 手順 1、§2.2 の 4、ci-doc-section3-draft-r1.md の (3)、B5-D-Q2",
+      "content": "gh CLI の telemetry を無効にすることを作業の必須条件にする一方、後続の手順の合否確認は gh config get telemetry の disabled だけで、設定より優先する GH_TELEMETRY の実効値を確認しない。環境変数が別のシェルや起動経路で enabled・log 等に変わっていれば、設定は disabled のままでも、承認していない送信または標準エラーへの出力が起こりうる。",
+      "evidence": "batch5-design-r1.md §0 では、設計段の実測として設定が disabled、GH_TELEMETRY が false と両方記す。しかし §2.1.3 手順 1 と ci-doc-section3-draft-r1.md (3) の §8 への追加文は gh --version と gh config get telemetry だけを必須確認とする。同じ文案の §5 は「環境変数が設定より優先」「止めていない gh は実行しない」と明記する。GitHub CLI の公式 telemetry 文書も GH_TELEMETRY が設定より優先すると説明している。",
+      "fix": "すべての gh 操作より前に、作業環境の実効的な無効化条件を検査する。例えば実行するシェルで GH_TELEMETRY=false を明示的に設定したうえで gh --version 等を起動し、gh config get telemetry が disabled であることも確認する。または環境変数が未設定または無効化を意味する値であることを先に検査し、enabled・log 等なら停止する。§8 の手順と D1 の着手前確認に、この優先順位と停止条件を明記する。子プロセスや別のシェルでの継承条件も実装時の確認対象とする。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-08: B5-D-Q2 = A。R1 の条件: telemetry は設定と環境変数 GH_TELEMETRY の実効値の両方で確かめる）。gh のどのコマンドよりも先に printenv GH_TELEMETRY を読み、false・0・disabled でなければ gh を走らせずに止まる。次に子のシェルと caffeinate -i の下で同じ値、次に gh config get telemetry が disabled、次に gh --version が 2.99.0 以上。設計（最終）§2.1.3 の 1、ci 手順書 §5・§8 の手順 8",
+      "fixedIn": "f901670d761e8e8e018b5249a8ee5ac8114a6447",
+      "regressionTest": "新しい実行のテストは無い（手順の文書の直し）。fixedIn の commit で ci 手順書 §5 に確かめの順〈GH_TELEMETRY → 設定 → 版〉と、環境変数が設定より優先することを、§8 の手順 8 に同じ確かめを入れた。設計の段の R2・R3 と、この記録の PR の着手前の確かめで、この順のとおりに行った（gh より先に printenv GH_TELEMETRY、子のシェル、caffeinate -i の下、設定、版。どれも false・disabled・2.103.3）",
+      "guard": null,
+      "destination": "batch5 の記録の PR（版なし）",
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch5-design/design-final.md の §2.1.3 の 1 と ci-doc-section3-draft-final.md の (3)（この記録と同じ commit で収録した）、手順書そのものは fixedIn の commit。R2 の評価: 解消。R3 の本文の評価: 解消のまま"
+    }
+  ]
+}

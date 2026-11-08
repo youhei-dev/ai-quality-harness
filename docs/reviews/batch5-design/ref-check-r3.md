@@ -1,0 +1,175 @@
+# 参照と中身の照らし（設計 R3 の添付。§3-1 の 3・4）
+
+- 対象: `design-r3.md`・`design-final.md`。基準の commit `d4f1697`。作業の場所の一回きりのスクリプトで抜き出した（commit しない）
+- 抜き出した形: バッククォートで囲んだファイル名（拡張子 md・json・diff・ts・yml・jsonc。`:行` の付いた形も）、`-r<数>`・`-final` で終わる名前、`diff-r<数>-r<数>/`
+
+## design-r3.md: ファイル名の参照 67 種類
+
+- `*-final.md`（1 か所、行 11）: 型（1 つのファイルではない書き方）
+- `.github/workflows/verify.yml`（1 か所、行 136）: 基準の commit にある
+- `CHANGELOG.md`（8 か所、行 31, 152, 164, 177, 178, 179…）: 基準の commit にある
+- `M0_REPORT.md`（1 か所、行 219）: リポジトリのファイルの短い書き方（1 個: docs/reports/M0_REPORT.md）
+- `README.md`（7 か所、行 31, 152, 164, 180, 225, 239…）: 基準の commit にある
+- `adr-0001-note-draft-final.md`（5 か所、行 3, 146, 153, 216, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `adr-0008-addendum-draft-final.md`（3 か所、行 3, 147, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `adr-0028-note-draft-final.md`（4 か所、行 3, 142, 229, 316）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `aiqh.config.jsonc`（1 か所、行 314）: 基準の commit にある
+- `batch5-design-r1.md`（1 か所、行 230）: 前の回のパケット（packet/batch5-design-r1.md。公開の外に置く本文）。R1・R2 の名前: 公開の外に置く各回の本文の名前（§2.3）
+- `batch5-design-r2.md`（1 か所、行 230）: 前の回のパケット（packet-r2/batch5-design-r2.md。公開の外に置く本文）。R1・R2 の名前: 公開の外に置く各回の本文の名前（§2.3）
+- `batch5-scope-summary-r1.md`（3 か所、行 3, 37, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 最新の添付（r2 以後の版は無い）
+- `c44-probe-r1.md`（7 か所、行 3, 229, 258, 281, 291, 320…）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 最新の添付（r2 以後の版は無い）
+- `ci-doc-section3-draft-final.md`（6 か所、行 3, 99, 143, 144, 145, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `ci.yml`（1 か所、行 131）: リポジトリのファイルの短い書き方（1 個: .github/workflows/ci.yml）
+- `design-final.md`（3 か所、行 229, 230, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `design-r3.md`（2 か所、行 230, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `diff-r1-r2/`（1 か所、行 3）: 作業の場所にある。R1・R2 の名前: 差分の名前
+- `diff-r2-r3/`（1 か所、行 3）: 作業の場所にある
+- `docs/ARCHITECTURE.md`（3 か所、行 169, 181, 239）: 基準の commit にある
+- `docs/ROADMAP.md`（20 か所、行 30, 63, 148, 149, 150, 151…）: 基準の commit にある
+- `docs/adr/0001-language-typescript-node.md`（7 か所、行 30, 63, 146, 153, 167, 207…）: 基準の commit にある
+- `docs/adr/0008-dependency-policy.md`（1 か所、行 147）: 基準の commit にある
+- `docs/adr/0028-output-parsers-display-only.md`（1 か所、行 142）: 基準の commit にある
+- `docs/adr/0030-public-as-is-mit-claude-md-untracked.md`（1 か所、行 169）: 基準の commit にある
+- `docs/adr/0031-ci-distribution-reusable-workflow-own-source.md`（3 か所、行 191, 192, 193）: 基準の commit にある
+- `docs/adr/0036-security-scan-raw-bidi-controls-and-line-separators.md`（1 か所、行 194）: 基準の commit にある
+- `docs/ops/ci-and-branch-protection.md`（2 か所、行 143, 239）: 基準の commit にある
+- `docs/ops/review-request-template.md`（1 か所、行 351）: 基準の commit にある
+- `docs/reports/M0_REPORT.md`（11 か所、行 15, 154, 154, 169, 170, 195…）: 基準の commit にある
+- `docs/reports/M3_COMPLETION.md`（2 か所、行 198, 239）: 基準の commit にある
+- `docs/reviews/*/findings-r*.json`（1 か所、行 222）: 型（1 つのファイルではない書き方）
+- `docs/reviews/*/review-r*.md`（2 か所、行 14, 207）: 型（1 つのファイルではない書き方）
+- `docs/reviews/item48-design/design-r2.md`（4 か所、行 199, 200, 224, 239）: 基準の commit にある。R1・R2 の名前: リポジトリの中の別のファイル（適用先の名前の行の位置）
+- `edge/latest.json`（1 か所、行 281）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/edge/latest.json）
+- `edge/latest.md`（3 か所、行 281, 283, 337）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/edge/latest.md）
+- `findings-r<N>.json`（1 か所、行 229）: 型（1 つのファイルではない書き方）
+- `latest.json`（5 か所、行 281, 285, 312, 315, 430）: リポジトリのファイルの短い書き方（2 個: tests/fixtures/report-golden/edge/latest.json, tests/fixtures/report-golden/plain/latest.json）
+- `latest.md`（8 か所、行 258, 285, 314, 315, 315, 317…）: リポジトリのファイルの短い書き方（2 個: tests/fixtures/report-golden/edge/latest.md, tests/fixtures/report-golden/plain/latest.md）
+- `markdown.test.ts`（1 か所、行 414）: リポジトリのファイルの短い書き方（1 個: tests/markdown.test.ts）
+- `markdown.ts`（2 か所、行 328, 368）: リポジトリのファイルの短い書き方（1 個: src/report/markdown.ts）
+- `package-lock.json`（4 か所、行 128, 238, 241, 415）: 基準の commit にある
+- `package.json`（15 か所、行 25, 79, 95, 111, 111, 111…）: 基準の commit にある
+- `packages/vite/CHANGELOG.md`（1 か所、行 110）: 外のリポジトリ（vite）のファイル（着手時に読む）
+- `plain/latest.json`（1 か所、行 281）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/plain/latest.json）
+- `plain/latest.md`（3 か所、行 281, 282, 293）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/plain/latest.md）
+- `questions-final.md`（7 か所、行 3, 3, 29, 61, 154, 229…）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `questions-r2.md`（1 か所、行 3）: 作業の場所（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 履歴（R2 で足した問いの元の文。決定は questions-final.md）
+- `ref-check-r3.md`（3 か所、行 11, 11, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `response-r1.md`（4 か所、行 3, 21, 33, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答） / 履歴（各回からの変更の表・その説明）
+- `response-r2.md`（5 か所、行 3, 7, 229, 231, 408）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答） / 履歴（各回からの変更の表・その説明）
+- `review-r*.md`（1 か所、行 202）: 型（1 つのファイルではない書き方）
+- `review-r1.md`（1 か所、行 232）: R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答）
+- `review-r<N>.md`（1 か所、行 229）: 型（1 つのファイルではない書き方）
+- `src/config/schema.ts`（1 か所、行 269）: 基準の commit にある
+- `src/report/markdown.ts`（3 か所、行 56, 252, 337）: 基準の commit にある
+- `src/report/write.ts`（1 か所、行 315）: 基準の commit にある
+- `src/security/raw-chars.ts`（1 か所、行 254）: 基準の commit にある
+- `tests/fixtures/report-golden/plain/latest.md`（1 か所、行 337）: 基準の commit にある
+- `tests/markdown.test.ts`（2 か所、行 298, 326）: 基準の commit にある
+- `tests/regression-c44-command-code-span.test.ts`（5 か所、行 294, 295, 307, 337, 380）: 基準の commit にある
+- `tests/regression-m2-1-r2-008-version-consistency.test.ts`（1 か所、行 152）: 基準の commit にある
+- `tests/report-golden-input.ts`（3 か所、行 281, 285, 347）: 基準の commit にある
+- `tests/report-golden.test.ts`（6 か所、行 123, 287, 293, 307, 337, 380）: 基準の commit にある
+- `tests/support/near-limit-reporter.ts`（1 か所、行 110）: 基準の commit にある
+- `verify.yml`（1 か所、行 59）: リポジトリのファイルの短い書き方（1 個: .github/workflows/verify.yml）
+- `vitest.config.ts`（1 か所、行 110）: 基準の commit にある
+
+- 実在しない参照: 0 件 []
+- R1・R2 の名前の参照で、理由が「要確認」のもの: 0 件
+
+## design-final.md: ファイル名の参照 67 種類
+
+- `*-final.md`（1 か所、行 11）: 型（1 つのファイルではない書き方）
+- `.github/workflows/verify.yml`（1 か所、行 136）: 基準の commit にある
+- `CHANGELOG.md`（8 か所、行 31, 152, 164, 177, 178, 179…）: 基準の commit にある
+- `M0_REPORT.md`（1 か所、行 219）: リポジトリのファイルの短い書き方（1 個: docs/reports/M0_REPORT.md）
+- `README.md`（7 か所、行 31, 152, 164, 180, 225, 239…）: 基準の commit にある
+- `adr-0001-note-draft-final.md`（5 か所、行 3, 146, 153, 216, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `adr-0008-addendum-draft-final.md`（3 か所、行 3, 147, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `adr-0028-note-draft-final.md`（4 か所、行 3, 142, 229, 316）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `aiqh.config.jsonc`（1 か所、行 314）: 基準の commit にある
+- `batch5-design-r1.md`（1 か所、行 230）: 前の回のパケット（packet/batch5-design-r1.md。公開の外に置く本文）。R1・R2 の名前: 公開の外に置く各回の本文の名前（§2.3）
+- `batch5-design-r2.md`（1 か所、行 230）: 前の回のパケット（packet-r2/batch5-design-r2.md。公開の外に置く本文）。R1・R2 の名前: 公開の外に置く各回の本文の名前（§2.3）
+- `batch5-scope-summary-r1.md`（3 か所、行 3, 37, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 最新の添付（r2 以後の版は無い）
+- `c44-probe-r1.md`（7 か所、行 3, 229, 258, 281, 291, 320…）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 最新の添付（r2 以後の版は無い）
+- `ci-doc-section3-draft-final.md`（6 か所、行 3, 99, 143, 144, 145, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `ci.yml`（1 か所、行 131）: リポジトリのファイルの短い書き方（1 個: .github/workflows/ci.yml）
+- `design-final.md`（3 か所、行 229, 230, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `design-r3.md`（3 か所、行 3, 230, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `diff-r1-r2/`（1 か所、行 3）: 作業の場所にある。R1・R2 の名前: 差分の名前
+- `diff-r2-r3/`（1 か所、行 3）: 作業の場所にある
+- `docs/ARCHITECTURE.md`（3 か所、行 169, 181, 239）: 基準の commit にある
+- `docs/ROADMAP.md`（20 か所、行 30, 63, 148, 149, 150, 151…）: 基準の commit にある
+- `docs/adr/0001-language-typescript-node.md`（7 か所、行 30, 63, 146, 153, 167, 207…）: 基準の commit にある
+- `docs/adr/0008-dependency-policy.md`（1 か所、行 147）: 基準の commit にある
+- `docs/adr/0028-output-parsers-display-only.md`（1 か所、行 142）: 基準の commit にある
+- `docs/adr/0030-public-as-is-mit-claude-md-untracked.md`（1 か所、行 169）: 基準の commit にある
+- `docs/adr/0031-ci-distribution-reusable-workflow-own-source.md`（3 か所、行 191, 192, 193）: 基準の commit にある
+- `docs/adr/0036-security-scan-raw-bidi-controls-and-line-separators.md`（1 か所、行 194）: 基準の commit にある
+- `docs/ops/ci-and-branch-protection.md`（2 か所、行 143, 239）: 基準の commit にある
+- `docs/ops/review-request-template.md`（1 か所、行 351）: 基準の commit にある
+- `docs/reports/M0_REPORT.md`（11 か所、行 15, 154, 154, 169, 170, 195…）: 基準の commit にある
+- `docs/reports/M3_COMPLETION.md`（2 か所、行 198, 239）: 基準の commit にある
+- `docs/reviews/*/findings-r*.json`（1 か所、行 222）: 型（1 つのファイルではない書き方）
+- `docs/reviews/*/review-r*.md`（2 か所、行 14, 207）: 型（1 つのファイルではない書き方）
+- `docs/reviews/item48-design/design-r2.md`（4 か所、行 199, 200, 224, 239）: 基準の commit にある。R1・R2 の名前: リポジトリの中の別のファイル（適用先の名前の行の位置）
+- `edge/latest.json`（1 か所、行 281）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/edge/latest.json）
+- `edge/latest.md`（3 か所、行 281, 283, 337）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/edge/latest.md）
+- `findings-r<N>.json`（1 か所、行 229）: 型（1 つのファイルではない書き方）
+- `latest.json`（5 か所、行 281, 285, 312, 315, 430）: リポジトリのファイルの短い書き方（2 個: tests/fixtures/report-golden/edge/latest.json, tests/fixtures/report-golden/plain/latest.json）
+- `latest.md`（8 か所、行 258, 285, 314, 315, 315, 317…）: リポジトリのファイルの短い書き方（2 個: tests/fixtures/report-golden/edge/latest.md, tests/fixtures/report-golden/plain/latest.md）
+- `markdown.test.ts`（1 か所、行 414）: リポジトリのファイルの短い書き方（1 個: tests/markdown.test.ts）
+- `markdown.ts`（2 か所、行 328, 368）: リポジトリのファイルの短い書き方（1 個: src/report/markdown.ts）
+- `package-lock.json`（4 か所、行 128, 238, 241, 415）: 基準の commit にある
+- `package.json`（15 か所、行 25, 79, 95, 111, 111, 111…）: 基準の commit にある
+- `packages/vite/CHANGELOG.md`（1 か所、行 110）: 外のリポジトリ（vite）のファイル（着手時に読む）
+- `plain/latest.json`（1 か所、行 281）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/plain/latest.json）
+- `plain/latest.md`（3 か所、行 281, 282, 293）: リポジトリのファイルの短い書き方（1 個: tests/fixtures/report-golden/plain/latest.md）
+- `questions-final.md`（7 か所、行 3, 3, 29, 61, 154, 229…）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `questions-r2.md`（1 か所、行 3）: 作業の場所（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 履歴（R2 で足した問いの元の文。決定は questions-final.md）
+- `ref-check-r3.md`（3 か所、行 11, 11, 416）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）
+- `response-r1.md`（4 か所、行 3, 21, 33, 229）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答） / 履歴（各回からの変更の表・その説明）
+- `response-r2.md`（5 か所、行 3, 7, 229, 231, 408）: 作業の場所・R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答） / 履歴（各回からの変更の表・その説明）
+- `review-r*.md`（1 か所、行 202）: 型（1 つのファイルではない書き方）
+- `review-r1.md`（1 か所、行 232）: R3 のパケット（batch5 の設計の記録。実装の段で docs/reviews/batch5-design/ に入れる名前）。R1・R2 の名前: 回の記録の名前（その回の結果・応答）
+- `review-r<N>.md`（1 か所、行 229）: 型（1 つのファイルではない書き方）
+- `src/config/schema.ts`（1 か所、行 269）: 基準の commit にある
+- `src/report/markdown.ts`（3 か所、行 56, 252, 337）: 基準の commit にある
+- `src/report/write.ts`（1 か所、行 315）: 基準の commit にある
+- `src/security/raw-chars.ts`（1 か所、行 254）: 基準の commit にある
+- `tests/fixtures/report-golden/plain/latest.md`（1 か所、行 337）: 基準の commit にある
+- `tests/markdown.test.ts`（2 か所、行 298, 326）: 基準の commit にある
+- `tests/regression-c44-command-code-span.test.ts`（5 か所、行 294, 295, 307, 337, 380）: 基準の commit にある
+- `tests/regression-m2-1-r2-008-version-consistency.test.ts`（1 か所、行 152）: 基準の commit にある
+- `tests/report-golden-input.ts`（3 か所、行 281, 285, 347）: 基準の commit にある
+- `tests/report-golden.test.ts`（6 か所、行 123, 287, 293, 307, 337, 380）: 基準の commit にある
+- `tests/support/near-limit-reporter.ts`（1 か所、行 110）: 基準の commit にある
+- `verify.yml`（1 か所、行 59）: リポジトリのファイルの短い書き方（1 個: .github/workflows/verify.yml）
+- `vitest.config.ts`（1 か所、行 110）: 基準の commit にある
+
+- 実在しない参照: 0 件 []
+- R1・R2 の名前の参照で、理由が「要確認」のもの: 0 件
+
+## 中身の照らし（最終の文案）
+
+- `adr-0008-addendum-draft-final.md` に「D1〜D13」: ある
+- `adr-0008-addendum-draft-final.md` に「**着手時に版を固定する**」: ある
+- `adr-0008-addendum-draft-final.md` に「**版の到達を合否の条件にする**」: ある
+- `adr-0008-addendum-draft-final.md` に「版の不一致〈更新されていない・別の版・範囲の書き方の違い〉」: ある
+- `adr-0008-addendum-draft-final.md` に「着手時の新しい版」: ある
+- `adr-0008-addendum-draft-r1.md` に「D1〜D13」: 無い
+- `adr-0008-addendum-draft-r1.md` に「**版の到達を合否の条件にする**」: 無い
+- `adr-0001-note-draft-final.md` に「## (2) `:15` の適用先の名前の置き換え」: ある
+- `adr-0001-note-draft-final.md` に「対象リポジトリ（適用先 A〈node:test〉）も 5.9 系のため」: ある
+- `adr-0001-note-draft-final.md` に「設計〈最終〉§2.2.2」: ある
+- `adr-0001-note-draft-r1.md` に「## (2) `:15` の適用先の名前の置き換え」: 無い
+- `ci-doc-section3-draft-final.md` に「**環境変数が設定より優先する**」: ある
+- `ci-doc-section3-draft-final.md` に「**gh を一度も走らせずに止まる**」: ある
+- `ci-doc-section3-draft-final.md` の (3) の確かめの順: `printenv GH_TELEMETRY`（553）→ `gh config get telemetry`（1019）→ `gh --version`（1065）: この順（数は (3) の中の文字の位置）
+- 同 (3) の §8 の手順 8 の追加文: `printenv GH_TELEMETRY` が先（55）、`gh config get telemetry`（119）、`gh --version`（158）: この順
+
+## R2 の案から最終の案への差（`diff -u` の、変わった行の数）
+
+- `adr-0001-note-draft`: 消した行 3・足した行 4（`diff-r2-r3/adr-0001-note-draft.diff`）
+- `adr-0008-addendum-draft`: 消した行 2・足した行 2（`diff-r2-r3/adr-0008-addendum-draft.diff`）
+- `adr-0028-note-draft`: 消した行 3・足した行 3（`diff-r2-r3/adr-0028-note-draft.diff`）
+- `ci-doc-section3-draft`: 消した行 2・足した行 2（`diff-r2-r3/ci-doc-section3-draft.diff`）

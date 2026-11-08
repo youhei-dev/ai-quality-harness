@@ -59,7 +59,7 @@ youhei-dev/ai-quality-harness（本体・本リポジトリ。Public）
   ├─ .github/CODEOWNERS            … 検証のしかたを決めるファイルの持ち主（強制されない: main の ruleset は Code Owners のレビューを必須にしていない。ADR-0025）
   └─ tags: v0.1.0, v0.2.0, …        … 注釈付きタグ（semver の `v0.x.y`）。対象リポジトリは、タグが指す commit の 40 桁の SHA で固定する（タグそのものでは固定しない。v0.9.0 で改めた）
 
-対象リポジトリ（個人のリポジトリ 2 つ: trim-manager, ai-tutor-browser）
+対象リポジトリ（個人のリポジトリ 2 つ: 適用先 A〈node:test〉, 適用先 B〈pytest〉）
   ├─ aiqh.config.jsonc              … 設定 1 枚（秘密情報なし）
   ├─ .github/workflows/quality.yml  … `uses: youhei-dev/ai-quality-harness/.github/workflows/verify.yml@<40 桁の commit SHA> # vX.Y.Z`（v0.9.0 から。手順は `docs/ops/reusable-workflow.md`）
   └─ artifacts/verification/        … verify の出力（git 管理外）
