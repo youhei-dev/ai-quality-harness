@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "label": "batch4-v0182-impl",
+  "round": 1,
+  "idPrefix": "B4-I182",
+  "source": {
+    "name": "independent-review-batch4-v0182-impl-r1-for-claude.md",
+    "bytes": 13615,
+    "sha256": "145c45776ef6761ad606bc3dba60016b7750eb4429590879fef4abf626761da1"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "previous": [],
+  "importedAt": "2026-11-08T00:24:08.970Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.2"
+  },
+  "findings": []
+}
