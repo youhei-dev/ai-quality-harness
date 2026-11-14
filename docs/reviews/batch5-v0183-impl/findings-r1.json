@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "label": "batch5-v0183-impl",
+  "round": 1,
+  "idPrefix": "B5-I183",
+  "source": {
+    "name": "independent-review-batch5-v0183-impl-r1-for-claude.md",
+    "bytes": 23938,
+    "sha256": "15210b8ec09cd2a3138c4b1f9aae68ba0aa26a87457ee09dbac6b2d4cc42835a"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 1,
+    "low": 2
+  },
+  "previous": [],
+  "importedAt": "2026-11-14T06:34:59.754Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.3"
+  },
+  "findings": [
+    {
+      "id": "B5-I183-R1-001",
+      "severity": "Medium",
+      "kind": "設計",
+      "target": "docs/reviews/batch5-design/design-final.md §2.1.3 D3・停止条件、package-lock.json（node_modules/vite、node_modules/vitest、node_modules/@vitest/mocker）",
+      "content": "D3 が許す lock の変更は開発用項目の版と、それに伴う resolved・integrity だけである。一方、実際には開発用3項目の dependencies・peerDependencies の範囲も変わっている。実行時依存や製品動作の変更は認められないが、D3 を文字どおり満たさない状態を明示的な例外承認なしに完了扱いにすると、fail-closed な完了条件の運用が曖昧になる。",
+      "evidence": "固定コミット前後の lock を比較すると、vite は postcss の範囲が ^8.5.30 から ^8.5.32、rolldown が ~1.2.14 から ~1.2.16 に変わる。vitest と @vitest/mocker にも版に応じた内部依存・peer の範囲変更がある。依頼書の D3 実測にも「3 つは依存の範囲の欄も変わる」とある。2026-11-14 の人間の決め直しは版選定と audit 基準についてであり、D3 自体の受入条件の変更は示されていない。",
+      "fix": "v0.18.3 の履歴は書き換えず、後続の記録 PR に、差分の全欄レビュー結果とこの3項目の例外を人間が承認したか・するかを明記する。将来の D3 は「版が変わった開発用項目に限る、版が宣言する依存範囲の変更は差分を列挙して承認する」などと条件を明文化し、未承認の変更なら停止する規則を保つ。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-14）。D3 の例外を承認し、今後の D3 を明文化した（ADR-0008 の追記〈v0.18.3〉の注記の 1。lock で変わってよいのは、(1) 版の変わった開発用の項目の version・resolved・integrity と、(2) その同じ項目が宣言する依存の範囲の欄。(2) の変更は全部を列挙して記録し、PR の本文に書く。それ以外は停止して人が決める）。v0.18.3 の (2) の全列挙（9 個）と、(1) だけが変わった 2 項目、lock の根の 2 つの事実を同じ注記に入れた。v0.18.3 の履歴（release の commit と設計〈最終〉の本文）は書き換えていない",
+      "fixedIn": "8f5993e7804f008e2987ae56d4e16c1a275f8c41",
+      "regressionTest": "新しい実行のテストは無い（決まりの文書の直し）。2 つの commit（ab524e6 と 40317d9）の package-lock.json を JSON として読み、packages を項目ごと・欄ごとに機械的に比べた全列挙（版の変更 5 項目、範囲の欄の値の変更 9 個、キーの追加・削除 0、印・engines・license の変化 0）と、注記の 1 の表を照らした（記録の PR の作業の確かめ）",
+      "guard": null,
+      "destination": "v0.18.3 の後の記録の PR（版なし。docs だけ）",
+      "note": "実装の独立レビュー batch5-v0183-impl R1 の Medium。製品の動作・実行時の依存には影響しない（レビュアーの評価のとおり）。設計〈最終〉の D3 の本文は変えず、読み替えは docs/reviews/batch5-design/decisions-20261114.md に書いた。R1 は Medium 1 なので、終える基準（High 0・Medium 0）には届いていない。人間の決定（2026-11-14）で、この記録の PR の merge の後に R2 を頼む"
+    },
+    {
+      "id": "B5-I183-R1-002",
+      "severity": "Low",
+      "kind": "設計",
+      "target": "docs/adr/0008-dependency-policy.md:118-121（決定5）、同:127-133（既知の限界）",
+      "content": "7日経過した範囲内の最新版を自動で選ぶ規則は合理的だが、「registry の値から最新版を決められないときだけ着手前に停止する」では、選定できる版に非推奨の指定が付いている場合の人間の判断が抜ける。公開時刻と版番号だけでは、その版を今選んでよいことまで保証できない。",
+      "evidence": "決定5は版と公開日時の確認を定め、停止条件を選定不能に限定している。非推奨指定や公開の撤回について、着手前の確認・停止条件は書かれていない。現在選ばれた vitest 5.1.0・vite 8.3.6 が実際に非推奨または撤回済みだという証拠はなく、予防的な条件の指摘である。",
+      "fix": "選ぶ版の deprecated の有無、tarball の取得可能性、利用可能な勧告を選定時に確認する。非推奨・撤回・重大な安全上の警告があれば、7日条件を迂回せず、試しの前に停止して人間が版を選び直す。取得不能が npm の終了コードで止まる場合と、取得可能だが非推奨の場合を分けて記録する。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-14）。決定 5 に足す確かめを ADR-0008 の追記〈v0.18.3〉の注記の 2 に書いた（選ぶ版の非推奨の印・tarball が取れること・その版に当たる勧告を着手時に確かめ、非推奨・撤回・重大な安全上の警告があれば、7 日の条件を迂回せず、試しの前に止めて人が選び直す。取れない場合と、取れるが非推奨の場合を分けて記録する）。v0.18.3 で選んだ vitest 5.1.0・vite 8.3.6 の非推奨の読み（どちらも印なし）を同じ注記に記録した。既知の限界に、確かめが着手時と後の 2 点だけであることを足した",
+      "fixedIn": "8f5993e7804f008e2987ae56d4e16c1a275f8c41",
+      "regressionTest": "新しい実行のテストは無い（決まりの文書の直し）。v0.18.3 で選んだ 2 つの版を、npm view <名前>@<版> deprecated（出力が空、終了コード 0）と npm view <名前>@<版> version（5.1.0・8.3.6）で読むだけで確かめ（2026-11-14）、注記の 2 に書いた値と照らした。tarball の取得は改めては試していない（根拠は依存の commit の SHA 固定の worktree での npm ci。注記の 2 の (b)）",
+      "guard": null,
+      "destination": "v0.18.3 の後の記録の PR（版なし。docs だけ）",
+      "note": "実装の独立レビュー batch5-v0183-impl R1 の Low（予防的な条件の指摘。選んだ 2 つの版が非推奨・撤回済みだという証拠は無い、とレビュアーが書いた）。R1 の問い 8 の改善の提案（npm audit --json の勧告の集合の比べ）は、同じ commit の注記の 3 で足した（findings の外の提案。response-r1.md）"
+    },
+    {
+      "id": "B5-I183-R1-003",
+      "severity": "Low",
+      "kind": "文書",
+      "target": "docs/ROADMAP.md:83、README.md:50、docs/ROADMAP.md:883、docs/adr/0031-ci-distribution-reusable-workflow-own-source.md:85",
+      "content": "匿名化の対象外を変えないという規則は守られているが、置換後に括弧が連続したり、同じ山括弧が入れ子になったり、助詞の前に空白が残ったりして、長文の一部が読みづらくなっている。意味を誤るほどではないが、公開文書としての可読性を改善できる。",
+      "evidence": "置換27行の番号6は「適用先 A（node:test）（React + TypeScript + Vite）」という括弧の連続、番号4は「個人のリポジトリ 2 つ〈適用先 A〈node:test〉のリポジトリ・適用先 B〈pytest〉のリポジトリ〉」という入れ子、番号9と19は「リポジトリ では」「（node:test） の」の空白が残る。固定版の変更後の文書でも確認した。",
+      "fix": "27行の置換結果を無断で変更せず、別の文書改善 PR で人間の承認を得て整える。例えば番号6は「適用先 A（React + TypeScript + Vite、テスト: node:test）」、番号4は「適用先 A（node:test）と適用先 B（pytest）の2つの個人リポジトリ」とし、番号9・19の不要な空白を詰める。識別子は再掲載しない。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-14）。指摘の 4 行を直した（README.md:50 の山括弧の入れ子、docs/ROADMAP.md:83 の括弧の連続、docs/ROADMAP.md:883 と docs/adr/0031-ci-distribution-reusable-workflow-own-source.md:85 の助詞の前の空白）。レビュアーの修正案の例に沿い、識別子は再掲していない。置き換えの 27 行のうち、ほかの行は変えていない。前と後は response-r1.md",
+      "fixedIn": "92b30491d6e1262e7931dac19cc7dcfd3c5b93ef",
+      "regressionTest": "新しい実行のテストは無い（文書の言い回しの直し）。fixedIn の commit の git diff -U0 は 3 ファイル・4 つの hunk で、どれも 1 行を 1 行に替えたもの。4 行の前と後を、レビュアーの修正案の例と照らし、変わったのが括弧・空白・語の並びだけで、適用先 A・B の区別（node:test・pytest）が残ることを読んで確かめた（記録の PR の作業の確かめ）",
+      "guard": null,
+      "destination": "v0.18.3 の後の記録の PR（版なし。docs だけ）",
+      "note": "実装の独立レビュー batch5-v0183-impl R1 の Low。意味は変わらない（レビュアーの評価のとおり）。レビュアーは「別の文書改善 PR で人間の承認を得て整える」と書いた。人間の決定（2026-11-14）で、docs だけの、この記録の PR の別の commit で直した"
+    }
+  ]
+}

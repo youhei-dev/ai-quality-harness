@@ -110,16 +110,16 @@ Quality Gate のツール自身が多数の依存を持つと、Dependency Scan 
    - **着手時に版を固定する**: npm の registry を読み（`npm view vitest time dist-tags --json`・`npm view vite time dist-tags --json`。取得の時刻を記録）、下の決定 5 の決め方で、選ぶ版を決めて固定する（v0.18.3 では vitest 5.1.0・vite 8.3.6。取得 2026-11-14T01:59Z）。選ばなかった新しい版は、版・公開の時刻・7 日を満たす時刻を記録する
    - **版の到達を合否の条件にする**（R2）: `package-lock.json` の `node_modules/vitest` が 5.1.0、`node_modules/vite` が 8.3.6（どちらも、着手時に選んだ版）、`npm ls vitest vite --depth=0 --json` の版が同じ、`package.json` の範囲が vitest `~5.1.0`・vite `~8.3.5` のまま。試しの worktree、release の branch の作業ツリー、依存の commit の SHA 固定の worktree の 3 か所で確かめる（CI の log には版が出ないので、CI の版は lock と `npm ci` の決まりに依る）
    - `npm install`・`npm update` が `min-release-age=7`・`ignore-scripts=true` の下で通る
-   - `package.json` の差は vitest の範囲の 1 行だけ。lock の全欄の比べで、変わるのは開発用の項目の版だけ（追加・削除・`dev` の印の変化・実行時の依存 3 つの項目の変化が 0、ルートの `version` は npm が書いたまま〈v0.17.1 の追記〉）
+   - `package.json` の差は vitest の範囲の 1 行だけ。lock の全欄の比べで、変わるのは開発用の項目の版だけ（追加・削除・`dev` の印の変化・実行時の依存 3 つの項目の変化が 0、ルートの `version` は npm が書いたまま〈v0.17.1 の追記〉）（下の注記の 1 で足した）
    - `npm audit --audit-level=high` が 0（high・critical が 0）、moderate の件数が、着手時の main の値（v0.18.3 では 9）から増えない（下の決定 6）
    - typecheck・lint（新しい指摘 0）・全テスト 3 回・`npm run verify`・`npm run verify:dist`
    - **golden fixture の 4 つの期待値（`tests/fixtures/report-golden/`）が 1 バイトも変わらない**（依存の更新で出力が動かない）。aiqh 自身の verify の端末の `parsed: vitest` の行の形が変わらない（vitest の出力パーサが 5.1.0 の要約を読める）。全テストの終わりの、上限に近いテストの reporter（`tests/support/near-limit-reporter.ts`）の行が出る
 4. 1 つでも外れたら（版の不一致〈更新されていない・着手時に選んだ版と別の版・範囲の書き方の違い〉、着手時に選ぶ版が registry の値から決まらない、lint の新しい指摘、golden の差、`parsed: vitest` の形の変化、テストの失敗、moderate の件数の増加）、規則やテストを緩めて通さず、依存の commit を外して止め、人間が決める（B5-D-Q7 = A。版の不一致を停止の条件に含めるのは R1 の条件）
-5. **版の選び方を改める**（人間の決定 2026-11-14）: 着手の時点で、`package.json` の範囲（vitest は変更後の `~5.1.0`、vite は `~8.3.5`）の中で、公開から 7 日を満たしている版のうち、最も新しいものを選ぶ。7 日を満たさない新しい版と、範囲の外の新しい版は、選ばずに記録だけする（版・公開の時刻・7 日を満たす時刻）。範囲の中で 7 日を満たす最新の版が、読んだ registry の値から決まらないとき（読めない、矛盾するなど）だけ、試しの前に止める
+5. **版の選び方を改める**（人間の決定 2026-11-14）: 着手の時点で、`package.json` の範囲（vitest は変更後の `~5.1.0`、vite は `~8.3.5`）の中で、公開から 7 日を満たしている版のうち、最も新しいものを選ぶ。7 日を満たさない新しい版と、範囲の外の新しい版は、選ばずに記録だけする（版・公開の時刻・7 日を満たす時刻）。範囲の中で 7 日を満たす最新の版が、読んだ registry の値から決まらないとき（読めない、矛盾するなど）だけ、試しの前に止める（下の注記の 2 で足した）
    - 今までの決まり（設計〈最終〉§2.1.3 の 2、B5-Q2、B5-D-Q7）: 選ぶ版より新しい版が 1 つでも出ていたら、試しの前に止めて人間が選ぶ
    - 理由: 「最新でなければ止まる」決め方では、待つ間にまた新しい版が出て、着手できない。npm の `min-release-age=7` の目的（公開から 7 日たった版だけを使う）に合わせる。7 日の待ちの中の版は、次の batch で同じ決め方で上げる
    - 変わらないもの: 選んだ版に実際に届いたことの確かめ（上の 3 の版の到達。3 か所）と、届かなければ止めること（上の 4）。`min-release-age=7` の設定は迂回しない
-6. **`npm audit` の基準を改める**（人間の決定 2026-11-14）: high・critical が 0 で、moderate は着手時の main の値から増えない。着手時の main の値を着手前の確かめで記録し、それを基準にする（v0.18.3 では 9）。CI の `parsed: npm-audit` の行も、同じ基準（着手時の値と同じか少ない、high・critical 0）で読む。減ったときは、理由（勧告のデータの側か、依存の変化か）を分かる範囲で記録する
+6. **`npm audit` の基準を改める**（人間の決定 2026-11-14）: high・critical が 0 で、moderate は着手時の main の値から増えない。着手時の main の値を着手前の確かめで記録し、それを基準にする（v0.18.3 では 9）。CI の `parsed: npm-audit` の行も、同じ基準（着手時の値と同じか少ない、high・critical 0）で読む。減ったときは、理由（勧告のデータの側か、依存の変化か）を分かる範囲で記録する（下の注記の 3 で足した）
    - 今までの決まり（設計〈最終〉§2.1.3 の D4）: moderate が 10 のまま
    - 理由: moderate の件数は、lock が同じでも、勧告のデータと依存元の新しい版で動く。決まった数を条件にすると、依存と関係のない変化で止まる
    - v0.18.3 の着手時（2026-11-14）の 9 件: lock は同じまま（minimatch 10.2.6）、数えられるパッケージから `@eslint/js` が外れた。`npm audit --json` の eslint の影響の範囲が `>=10.0.0-alpha.0` から `10.0.0-alpha.0 - 10.14.0` に変わっていて、eslint 10.15.0（2026-11-13T21:33Z 公開。minimatch `^11.0.5`）が出たことによる見込み（registry の読み。`npm audit` の数え方そのものは確かめていない）。eslint 10.15.0 は範囲 `~10.14.0` の外で、公開から 7 日に届かない。この版では上げない
@@ -130,8 +130,41 @@ Quality Gate のツール自身が多数の依存を持つと、Dependency Scan 
 - commander 15.1.0 を見張りにする理由は「上げる理由が確かめられていない」ことで、15.1.0 に問題があると分かったからではない
 - moderate の勧告は、v0.18.1 の追記の決定 5 の理由で受け入れたまま
 - 決定 5 の決め方では、着手の時点の `latest` より古い版を入れることがある（v0.18.3 の vite は 8.3.6 で、`latest` は 8.3.8）。7 日の待ちの中の版の直しは、次の batch まで入らない。入れた版に high 以上の勧告が出れば、自己 verify の dependency の check（`npm audit --audit-level=high`）で落ちる
-- 決定 6 の基準では、moderate の件数が同じでも中身（勧告・パッケージ）が入れ替わる場合を、件数だけでは見分けない。各版の記録に、件数と勧告の ID を書く
+- 決定 6 の基準では、moderate の件数が同じでも中身（勧告・パッケージ）が入れ替わる場合を、件数だけでは見分けなかった。v0.18.3 の記録の PR の注記の 3 で、勧告の集合（ID・パッケージ・重さ）の比べを足した。各版の記録に、件数と勧告の ID を書く
+- 注記の 2・3 の確かめは、着手時と後の 2 点だけで、その間と、版を出した後に出た非推奨の印・勧告は見ない（版を出した後に high 以上の勧告が出れば、上の決定 5 の限界のとおり、自己 verify の dependency の check で落ちる）。注記の 2 の (c) の勧告の読みは、`npm audit` の届く範囲（npm の勧告のデータ）に限る
 
 ### 適用先への影響
 
 - 無い見込み: vitest・vite は開発用の依存で、再利用ワークフローは aiqh の依存を `npm ci --omit=dev` で入れる（`.github/workflows/verify.yml:107`）。v0.18.3 は H11 を行わない（適用先 A・B の呼び出しは v0.18.2 のまま）
+
+### 注記（v0.18.3 の記録の PR〈版なし〉。人間の決定 2026-11-14。実装の独立レビュー R1 の B5-I183-R1-001・002）
+
+1. **D3 の例外の承認と、今後の D3**（B5-I183-R1-001）
+   - 例外の承認: v0.18.3 の lock で、版の変わった開発用の 5 項目のうち 3 項目（vite・vitest・`@vitest/mocker`）について、その版が宣言する依存の範囲の欄（`dependencies`・`peerDependencies` など）が変わったことを、D3（設計〈最終〉§2.1.3 の完了条件。`docs/reviews/batch5-design/design-final.md:118`。「変わるのは開発用の項目の版〈と、版に付く `resolved`・`integrity`〉だけ」）の例外として承認する
+   - 理由: 範囲の欄は新しい版そのものが宣言する値で、入っている項目の版の変更は 5 つだけ、追加・削除 0、実行時の依存 3 つは同じ、印・engines・license の変化 0
+   - 今後の D3: lock で変わってよいのは、(1) 版の変わった開発用の項目の `version`・`resolved`・`integrity`、(2) その同じ項目が宣言する依存の範囲の欄。(2) の変更は全部を列挙して記録し、PR の本文に書く。それ以外（版の変わっていない項目の変更、項目の追加・削除、実行時の依存の変更、印・engines・license の変更）は停止して人が決める
+   - v0.18.3 の (2) の全列挙（比べた commit は `ab524e6bac26f6604162f48ffa8c54b63e1b024c` と `40317d9f563ac2dab1d97351aeb61cdd299af8b4`。`packages` を項目ごと・欄ごとに比べた。キーの追加・削除は 0 で、すべて値の変更。合計 9 個）:
+
+     | 項目 | 欄 | キー | 前の値 | 後の値 |
+     |---|---|---|---|---|
+     | `node_modules/vitest` | `dependencies` | `@vitest/mocker` | `5.0.5` | `5.1.0` |
+     | `node_modules/vitest` | `peerDependencies` | `@vitest/browser-playwright` | `5.0.5` | `5.1.0` |
+     | `node_modules/vitest` | `peerDependencies` | `@vitest/browser-preview` | `5.0.5` | `5.1.0` |
+     | `node_modules/vitest` | `peerDependencies` | `@vitest/coverage-istanbul` | `5.0.5` | `5.1.0` |
+     | `node_modules/vitest` | `peerDependencies` | `@vitest/coverage-v8` | `5.0.5` | `5.1.0` |
+     | `node_modules/vitest` | `peerDependencies` | `@vitest/ui` | `5.0.5` | `5.1.0` |
+     | `node_modules/@vitest/mocker` | `dependencies` | `@vitest/spy` | `5.0.5` | `5.1.0` |
+     | `node_modules/vite` | `dependencies` | `postcss` | `^8.5.30` | `^8.5.32` |
+     | `node_modules/vite` | `dependencies` | `rolldown` | `~1.2.14` | `~1.2.16` |
+
+   - (1) だけが変わった 2 項目: `node_modules/@vitest/spy`（5.0.5 → 5.1.0）と `node_modules/magic-string`（1.4.3 → 1.4.5）は、`version`・`resolved`・`integrity` の 3 欄だけが変わった
+   - lock の根（`packages[""]`）の事実。この明文化は、次の 2 つの既にある決まりを変えない:
+     - (a) 根の `devDependencies` の vitest が `~5.0.3` → `~5.1.0` に変わったのは、`package.json` の範囲の変更（この追記の決定 1 で上げると決めたもの）の写しである
+     - (b) 根の `version`（lock の最上位と `packages[""]` の 2 欄）は、release の commit で npm が書く（v0.17.1 の追記と、設計〈最終〉の D3 の「ルートの `version` は npm が書いたまま」）。v0.18.3 では `d5e5ff6` で 0.18.2 → 0.18.3
+2. **決定 5（版の選び方）に足す確かめ**（B5-I183-R1-002）
+   - 選ぶ版について、着手時に (a) 非推奨の印（`npm view <名前>@<版> deprecated`）、(b) tarball が取れること、(c) その版に当たる勧告、を確かめる。非推奨・撤回・重大な安全上の警告があれば、7 日の条件を迂回せず、試しの前に停止して人が版を選び直す。取れない場合（npm の終了コードで止まる）と、取れるが非推奨の場合を分けて記録する
+   - v0.18.3 で選んだ 2 つの今の読み（2026-11-14、読むだけ）: vitest 5.1.0 と vite 8.3.6 は、どちらも `npm view … deprecated` の出力が空（非推奨の印なし）、終了コード 0、`npm view … version` で版が取れる（5.1.0・8.3.6）
+   - (b) の根拠: v0.18.3 の依存の commit（`40317d9`）の SHA 固定の worktree で、`npm ci` の後に版の到達を確かめた（CHANGELOG の v0.18.3 の「確かめ」）。`npm ci` は lock の `integrity` と照らして入れるので、その時点で 2 つの版の tarball が入ったことの根拠になる。npm の cache から入ったか registry から取ったかは分けて記録していない。今回（2026-11-14）は tarball の取得を改めては試していない（読んだのは (a) と版）
+3. **決定 6（`npm audit` の基準）に足す確かめ**（R1 の問い 8 の改善の提案）
+   - 件数に加えて、`npm audit --json` の勧告の ID・パッケージ・重さの集合を、着手時と後で比べる。件数が同じでも、新しい勧告が現れたら人の判断の対象にする（high・critical は従来どおり 0）
+   - 今の main（`96b87ebf5894d3a7f5b4d7c26cad80e425e0f6ce`）の勧告の集合（2026-11-14）: `GHSA-g3hv-75wg-m249`・minimatch・moderate の 1 つ。件数は moderate 9・high 0・critical 0

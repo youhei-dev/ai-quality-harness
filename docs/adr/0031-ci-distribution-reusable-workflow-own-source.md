@@ -82,7 +82,7 @@
 - private の呼び出し側の既定のトークンで、公開の aiqh を checkout できる（トークンは渡していない）
 - `python-version` の経路（setup-python。CPython 3.13 系）が動く。設定のコマンドが `.venv/bin/python` を使う形でも、`setup-command` で `.venv` を作れば動く
 - `working-directory` が既定の `.` の経路が動く
-- run: 適用先 A（node:test） の PR #2 の `38985874746`・main の `38986865678`、適用先 B（pytest） の PR #1 の `38989579565`・main の `38990545338`。どれも success
+- run: 適用先 A（node:test）の PR #2 の `38985874746`・main の `38986865678`、適用先 B（pytest）の PR #1 の `38989579565`・main の `38990545338`。どれも success
 
 残る未確認の点:
 - `workflow_dispatch`（手動の実行）と、呼び出す側の `concurrency` の取り消しの動き
