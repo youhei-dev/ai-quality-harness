@@ -1264,6 +1264,12 @@ M2-1 の教訓（R3）:
   - 実装の独立レビュー batch5-v0183-impl R1（範囲 `ab524e6..96b87eb`、3 commit と merge の commit・7 ファイル。範囲の外の PR #33 の 2 commit も対象。`docs/reviews/batch5-v0183-impl/`）: **High 0 / Medium 1 / Low 2**。3 件とも VALID で、記録の PR で直して `resolved`（人間の決定 2026-11-14）: B5-I183-R1-001（D3 の例外を承認し、今後の D3 を明文化した。ADR-0008 の追記の注記の 1）、B5-I183-R1-002（決定 5 に、選ぶ版の非推奨の印・tarball・勧告の確かめを足した。注記の 2）、B5-I183-R1-003（PR #33 の置き換えの後の 4 行の読みやすさ）。問い 8 の改善の提案（`npm audit --json` の勧告の集合の比べ）も足した（注記の 3）。Medium があるので、依頼文に先に書いた終える基準（High・Medium が 0）に届かない → **実装 R2 を頼む**（人間の決定 2026-11-14）。`aiqh review-check --label batch5-v0183-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`（すべての回に `open` が無いという表示で、終える基準とは別）
   - batch5-design の B5-D-R1-001・B5-D-R2-001 を、記録の PR で `resolved` にした（`fixedIn` は、どちらも指摘の中心の直しが入った PR #33 の `c80374d`。ほかの commit の直しは各 `note`）。2026-11-14 の人間の決定が設計〈最終〉§2.1.3 をどう読み替えるかの注記 `docs/reviews/batch5-design/decisions-20261114.md` を足した（正本は ADR-0008 の追記とその注記）。`aiqh review-check --label batch5-design` は `REVIEW LOOP: complete`・警告 0
   - 次（記録の PR の後）: この記録の PR の merge の後に、実装 R2（label `batch5-v0183-impl`、round 2）の依頼を用意する。v0.18.4（C-44 の残り）は上の「次」のとおり
+- v0.18.4（2026-11-14）: batch5 の 2 版目（src を小さく変える。**verify の判定と終了コードは変わらない**。`latest.md` の 1 行の、表示だけの互換性の変更）。branch `release/v0.18.4`、3 commit（C-44 の残り `ee657a3`・文書 `6a6db85`・release）。H11 は行わない（B5-Q3）
+  - C-44 の残り（`src/report/markdown.ts:130`。ADR-0028 の注記〈v0.18.4〉。B5-Q8 = A）: 失敗の詳細の `- Command:` の行を `codeSpan(oneLine(c.command))` にした（v0.18.2・v0.18.3 は `cell()` で、表の外の `\|` のバックスラッシュが字のまま見えた）。Checks の表のセルは `cell()` のまま。B4-Q9 の「バッククォートの無い値の出力は同じ」を、`|` を含むコマンドの `- Command:` の 1 行に限って決め直した
+  - golden の期待値の差分: `plain/latest.md` の 73 行目と `edge/latest.md` の 79 行目の 2 行だけ（`\|` → `|`）。2 つの `latest.json` は差 0 → 設計（最終）§3.2 の見込みどおり。人の確認は、実装の独立レビュー batch5-v0184-impl R1 の、差分を入力と実ファイルの双方から独立に照らした節を人が読んで確かめる（ADR-0003 の追記の決定 5 の注記。設計〈最終〉§4.1 の 3）
+  - テストを先に書き、直す前の src と期待値（`12e63f9` の作業ツリー。src・tests・依存は `d5e5ff6` と同じ）で FAIL を記録した（56 件中 12 件 FAIL）。変異 V1〜V5（`ee657a3` の SHA 固定の worktree）は、どれも狙ったテストで落ちた（13・2・9・5・17 件。見込みと同じ）。既存のテストの期待値の変更は 3 か所・6 件。テストは 192 ファイル・3,015 件から 192 ファイル・3,022 件
+  - 着手前の見直し: `npm audit --audit-level=high` は exit 0（high 0・critical 0・moderate 9。勧告は minimatch の GHSA-g3hv-75wg-m249 の 1 つで、v0.18.3 と同じ）。Actions 3 つ（checkout v7.0.1・setup-node v7.1.0・setup-python v7.1.0）は固定が最新と同じ。依存の更新はこの版に入れない（次の batch。上の v0.18.3 の項の依存の見張り）
+  - 次: 実装の独立レビュー batch5-v0184-impl R1（接頭辞 `B5-I184`）。SHA・CI・タグ・R1 の記録と golden の人の確認は、この版の後の記録の PR で行い、batch5 を締める（設計〈最終〉§4.1 の 3）
 
 ---
 
