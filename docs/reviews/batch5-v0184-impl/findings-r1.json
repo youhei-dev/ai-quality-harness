@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "label": "batch5-v0184-impl",
+  "round": 1,
+  "idPrefix": "B5-I184",
+  "source": {
+    "name": "independent-review-batch5-v0184-impl-r1-for-claude.md",
+    "bytes": 19835,
+    "sha256": "bb49137fa6b27975510fe9c40f408b1ac78e696b41f99a6ffb86e356846c9e65"
+  },
+  "summary": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "previous": [],
+  "importedAt": "2026-11-14T12:42:53.776Z",
+  "tool": {
+    "name": "aiqh",
+    "version": "0.18.4"
+  },
+  "findings": [
+    {
+      "id": "B5-I184-R1-001",
+      "severity": "Low",
+      "kind": "文書",
+      "target": "docs/adr/0028-output-parsers-display-only.md:180（v0.18.4の注記）",
+      "content": "v0.18.4の注記は、コマンドにもともとバックスラッシュがあり、その直後に縦棒がある場合の旧動作を『v0.18.2までは』としている。しかしv0.18.3もcell(c.command)を使い続け、同じ旧動作だった。読者がv0.18.3で既に修正されたと誤解しかねない。コードの不具合ではなく適用版の記述の不正確さである。",
+      "evidence": "docs/adr/0028-output-parsers-display-only.md:180は旧動作の期限をv0.18.2とする。src/report/markdown.ts:130の12e63f9側はcodeSpan(cell(c.command))、fea52ac側はcodeSpan(oneLine(c.command))。CHANGELOG.md:11-12のv0.18.4の項とREADME.md:50も旧動作がv0.18.3まで続いたと記録する。",
+      "fix": "v0.18.4の注記の当該箇所を『v0.18.3までは』に直す。旧動作がv0.18.2で始まりv0.18.3まで続いたと補足してもよい。v0.18.2の歴史的な引用や既存のbatch5の記録のPRの注記は書き換えない。",
+      "confidence": "確認済み",
+      "status": "resolved",
+      "verdict": "VALID",
+      "action": "受け入れ（人間の決定 2026-11-14）。docs/adr/0028-output-parsers-display-only.md の v0.18.4 の注記（:180）の「v0.18.2 までは」を「v0.18.3 までは」に直した（1 字）。「v0.18.2 で始まり」の補いは入れていない（表の外の行の書き方が v0.18.2 より前からあるため）。v0.18.2 の時点の文（:175 の「plain の組で固めている」を含む）と、batch5 の記録の PR の注記は書き換えていない。同じ commit で、ADR-0028 に v0.18.4 の出力の GitHub の描画の事後の実測（R1 の問い 5 の提案）と、ADR-0003 の追記の決定 5 の注記に golden の人の確認を足した",
+      "fixedIn": "d3b13b484e92a9ee2c190d31757f33d84e741fa1",
+      "regressionTest": "新しい実行のテストは無い（文書の版の範囲の直し）。fixedIn の commit を作る前に、作業ツリーの :180 を HEAD の行と Python で比べ、長さが同じで、差が 1 字（2 → 3）だけであること、:175〜:179・:181〜:183 が変わっていないことを確かめた（記録の PR の作業の確かめ）",
+      "guard": null,
+      "destination": "v0.18.4 の後の記録の PR（版なし。docs だけ。batch5 の締め）",
+      "note": "実装の独立レビュー batch5-v0184-impl R1 の Low。コードの不具合ではなく、旧動作の続いた版の書き方の直し（レビュアーの評価のとおり）。製品の動作には影響しない。R1 は High 0・Medium 0 で、終える基準に達したので R2 は頼まない。R1 の問い 4 の注意（:175 は v0.18.2 の時点の文で削除は不要）は、そのままにした（人間の決定 2026-11-14。response-r1.md）"
+    }
+  ]
+}
