@@ -6,9 +6,10 @@
  * empty). Up to v0.18.1 they were wrapped in one backtick, so a backtick inside closed the span there (ADR-0028's known limit).
  *
  * What each span shows is read back with the CommonMark 0.31.2 §6.1 rule. In a table cell, GFM reads `\|` as `|` before the inline
- * parse, so the cell shows the command itself; outside the table the backslash of `\|` stays (the known limit, B4-D-Q6). A value without a
- * backtick that does not start and end with a space keeps the bytes of v0.18.1 (only the empty working directory changes: it was two
- * backticks with nothing between, which shows the two backticks; it is empty now).
+ * parse, so the cell shows the command itself. Outside the table a `|` is written as it is since v0.18.4 (batch5's C-44 rest, B5-Q8 = A;
+ * up to v0.18.3 the backslash of `\|` stayed there: the known limit of B4-D-Q6), so `- Command:` shows the command itself too. A value
+ * without a backtick that does not start and end with a space keeps the bytes of v0.18.1 (only the empty working directory changes: it
+ * was two backticks with nothing between, which shows the two backticks; it is empty now), but for a `|` outside the table (v0.18.4).
  */
 import { describe, expect, it } from "vitest";
 import { buildReport } from "../src/report/build-report.ts";
@@ -118,8 +119,8 @@ describe("C-44: the Checks table's Command cell is one code span that shows the 
 });
 
 describe("C-44: Failure Details' `- Command:` and `cwd:` are one code span each", () => {
-  it.each(COMMANDS)("command: %s (the `\\|` stays outside the table: the known limit)", (_title, command) => {
-    expect(listShows(md({ command }))).toEqual({ command: cellOf(command), cwd: "." });
+  it.each(COMMANDS)("command: %s (outside the table a | is written as it is: v0.18.4)", (_title, command) => {
+    expect(listShows(md({ command }))).toEqual({ command: escapeRawChars(command), cwd: "." });
   });
   it.each([
     ["a backtick inside", `dir${t(1)}x`],
@@ -137,7 +138,7 @@ describe("C-44: Failure Details' `- Command:` and `cwd:` are one code span each"
   });
 });
 
-describe("C-44: a value without a backtick that does not start and end with a space keeps the bytes of v0.18.1", () => {
+describe("C-44: a value without a backtick that does not start and end with a space keeps the bytes of v0.18.1 (but for a | outside the table: v0.18.4)", () => {
   it.each([
     ["plain", "npm test", "."],
     ["a | and a working directory", "npm test | tee log", "pkg"],
@@ -148,6 +149,43 @@ describe("C-44: a value without a backtick that does not start and end with a sp
   ])("%s", (_title, command, cwd) => {
     const text = md({ command, cwd });
     expect(row(text).endsWith(` | ${t(1)}${cellOf(command)}${t(1)} |`)).toBe(true);
-    expect(commandLine(text)).toBe(`- Command: ${t(1)}${cellOf(command)}${t(1)} (cwd: ${t(1)}${escapeRawChars(cwd)}${t(1)})`);
+    expect(commandLine(text)).toBe(`- Command: ${t(1)}${escapeRawChars(command)}${t(1)} (cwd: ${t(1)}${escapeRawChars(cwd)}${t(1)})`);
+  });
+});
+
+const BS = String.fromCharCode(92);
+
+describe("C-44 (v0.18.4): Failure Details' `- Command:` writes a | as it is; the table cell keeps \\|", () => {
+  it("a | outside the table: the line shows the command itself, with no backslash", () => {
+    const text = md({ command: "npm test | tee log", cwd: "pkg" });
+    expect(commandLine(text)).toBe(`- Command: ${t(1)}npm test | tee log${t(1)} (cwd: ${t(1)}pkg${t(1)})`);
+    expect(listShows(text)).toEqual({ command: "npm test | tee log", cwd: "pkg" });
+  });
+  it("a | and backticks: one code span one longer than the run inside, the | as it is", () => {
+    const command = `npm test | grep ${t(1)}x${t(1)}`;
+    const text = md({ command });
+    expect(commandLine(text)).toBe(`- Command: ${t(2)} ${command} ${t(2)} (cwd: ${t(1)}.${t(1)})`);
+    expect(listShows(text)).toEqual({ command, cwd: "." });
+  });
+  it.each([
+    ["LF", "a |\nb"],
+    ["CR", "a |\rb"],
+    ["TAB", "a |\tb"],
+  ])("a | and a %s: one line, the control as notation, the | as it is", (_title, command) => {
+    const text = md({ command });
+    const all = lines(text);
+    expect(all.filter((l) => l.startsWith("- Command: "))).toHaveLength(1);
+    expect(all[all.indexOf(commandLine(text)) + 1]?.startsWith("- Summary: ")).toBe(true);
+    expect(listShows(text)).toEqual({ command: escapeRawChars(command), cwd: "." });
+  });
+  it("a backslash before a | in the command is shown as written (one backslash, not two)", () => {
+    const command = `a ${BS}| b`;
+    expect(listShows(md({ command }))).toEqual({ command, cwd: "." });
+  });
+  it("the table cell keeps \\| (GFM reads it as |), so the row still has 8 cells and shows the command", () => {
+    const text = md({ command: "npm test | tee log" });
+    expect(row(text).endsWith(` | ${t(1)}npm test ${BS}| tee log${t(1)} |`)).toBe(true);
+    expect(cells(row(text))).toHaveLength(8);
+    expect(tableShows(text)).toBe("npm test | tee log");
   });
 });

@@ -76,7 +76,7 @@ boom \u{1B}[31mred\u{1B}[0m and \u{202E}x
 
 ### e4 — FAIL
 
-- Command: `` npm test \| grep `x` `` (cwd: `.`)
+- Command: `` npm test | grep `x` `` (cwd: `.`)
 - Summary: `exit code 1`
 
 <details><summary>stderr (tail)</summary>

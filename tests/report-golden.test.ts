@@ -7,7 +7,9 @@
  * Change an expected file only in the commit that changes the output on purpose, with the changed lines and the reason in the commit
  * message and CHANGELOG, and a record that a person, or an independent review whose result a person checked, read the diff (ADR-0003
  * addendum, decision 5 and its note). There is no tool that writes them. v0.18.2's C-44 changed 10 lines of edge/latest.md (6 rows of the
- * Checks table and 4 "- Command:" lines: one code span each); plain/ and edge/latest.json did not change.
+ * Checks table and 4 "- Command:" lines: one code span each); plain/ and edge/latest.json did not change. v0.18.4 (batch5's C-44 rest)
+ * changed 2 lines, plain/latest.md:73 and edge/latest.md:79 (the "- Command:" line writes a | without the backslash); the two latest.json
+ * did not change.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -113,14 +115,15 @@ describe("report golden: the inputs keep their cases (fixed numbers, apart from 
 describe("report golden: the expected files hold what they are meant to (and no raw character)", () => {
   const read = (file: string): string => readFileSync(path.join(FIXTURES, file), "utf8");
 
-  it("plain/latest.md: the sections, a 4-backtick fence, the mask, the notation of ESC and U+202E, \\| in a cell and outside", () => {
+  it("plain/latest.md: the sections, a 4-backtick fence, the mask, the notation of ESC and U+202E, \\| in a cell and | outside (v0.18.4)", () => {
     const md = read("plain/latest.md");
     for (const s of ["## Summary", "## Categories", "## Checks", "## Parsed Output", "## Failure Details", "<details><summary>stderr (tail)</summary>", "<details><summary>stdout (tail)</summary>", "[REDACTED:"]) expect(md).toContain(s);
     expect(md.split("\n")).toContain(`${"`".repeat(4)}text`);
     expect(md).toContain(`${BS}u{1B}`);
     expect(md).toContain(`${BS}u{202E}`);
     expect(md).toContain(`| \`npm test ${BS}| tee log\` |`);
-    expect(md).toContain(`- Command: \`npm test ${BS}| tee log\` (cwd: \`pkg\`)`);
+    expect(md).toContain(`- Command: \`npm test | tee log\` (cwd: \`pkg\`)`);
+    expect(md).not.toContain(`- Command: \`npm test ${BS}| tee log\``);
     expect(md).not.toContain("AKIA");
   });
 
