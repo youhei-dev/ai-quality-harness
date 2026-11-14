@@ -38,14 +38,14 @@
       "evidence": "batch5-design-r2.md §2.2 の項目 5 は adr-0001-note-draft-r1.md、項目 6 は adr-0008-addendum-draft-r1.md を示す。一方、添付の adr-0001-note-draft-r2.md (2) には名前の置き換えが追加され、adr-0008-addendum-draft-r2.md の決定 3・4 には D13 と停止条件が追加されている。同じ §2.2 の項目 12 は r2 の ADR-0001 を参照しており、表の中で文案の版が混在する。§3.4 も ADR-0028 の r1 を指すが、こちらは内容の変更が無いので主たる危険は項目 5・6 にある。",
       "fix": "§2.2 の文案欄を R2 の添付名に統一する。項目 5 は adr-0001-note-draft-r2.md、項目 6 は adr-0008-addendum-draft-r2.md とし、項目 1・2・3・4 および §3.4 の該当する r1 参照も r2 に統一する。実装用の design-final.md に移す際は、すべての文案参照が存在する最終ファイルを指すことと、ADR-0008 に D13、ADR-0001 に名前の置き換えがあることを差分で確認する。",
       "confidence": "確認済み",
-      "status": "deferred",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（設計 R3 で直した）。設計 R3・設計（最終）の文案の参照を、すべて最終の形の文案（adr-0001-note-draft-final.md・adr-0008-addendum-draft-final.md・adr-0028-note-draft-final.md・ci-doc-section3-draft-final.md）に統一し、参照の機械の照らし（実在しない参照 0 件、理由の分からない R1・R2 の名前 0 件）と中身の照らしを ref-check-r3.md に残した",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "c80374d17450d14870cd1b7275baaaa046fed9ef",
+      "regressionTest": "新しい実行のテストは無い（文書の参照の直し）。fixedIn の commit の ref-check-r3.md に、設計（最終）の文案の参照の機械の照らし（実在しない参照 0 件、理由の分からない R1・R2 の名前 0 件）と中身の照らしを残した。転記の結果を、実装の独立レビュー batch5-v0183-impl R1 の問い 2（ADR-0008 の追記と最終の文案の突き合わせ）・問い 4（記録の PR と最終の文案）でレビュアーが照らし、どちらも指摘なし",
       "guard": null,
       "destination": "v0.18.3",
-      "note": "設計の指摘（文書の参照）。直した先は設計（最終）と最終の文案（この記録と同じ commit で収録した）。R3 の評価: 解消。最終の文案のうち ADR-0001 の (2) と ci 手順書の (1)〜(3) は、この記録の PR の 1 つ目の commit（f901670d761e8e8e018b5249a8ee5ac8114a6447）で入れた。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記（D13 と停止の条件）は v0.18.3 に入るので、v0.18.3 の commit で resolved にし、fixedIn を書く"
+      "note": "設計の指摘（文書の参照）。直した先は設計（最終）と最終の文案（この記録と同じ commit で収録した）。R3 の評価: 解消。最終の文案のうち ADR-0001 の (2) と ci 手順書の (1)〜(3) は、この記録の PR の 1 つ目の commit（f901670d761e8e8e018b5249a8ee5ac8114a6447）で入れた。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記（D13 と停止の条件）は v0.18.3 に入った（e836444）。v0.18.3 の後の記録の PR（版なし。2026-11-14）で resolved にし、fixedIn を書いた。fixedIn は、指摘の中心の直し（設計〈最終〉の文案の参照を、すべて最終の文案に統一し、最終の文案そのもの〈ADR-0008 の決定 3・4 の D13、ADR-0001 の (2) の名前の置き換え〉と参照の照らし ref-check-r3.md を入れた）が入った commit c80374d（batch5 の記録の PR #33 の 2 つ目）。ほかの commit にある、参照どおりの転記: ADR-0001 の (2) と ci 手順書の (1)〜(3) は f901670、ADR-0008 の追記の決定 3・4 は e836444。実装の独立レビュー batch5-v0183-impl R1 の問い 6 の勧め（fixedIn を ADR の commit へ機械的に割り当てない）に合わせた"
     }
   ]
 }

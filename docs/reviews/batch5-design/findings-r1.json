@@ -29,14 +29,14 @@
       "evidence": "batch5-design-r1.md §1 の B5-Q2 と §2.1.1 は vitest 5.1.0・vite 8.3.6 を指定する。§2.1.3 の手順 3 は npm ls --depth=0 の保存を求めるが、D1 は npm の終了コード、D2 は package.json の差、D3 は lock の変更の種類であり、D1〜D12 に lock と実際の node_modules の最終版を指定値と比較する合否条件は無い。特に vite は package.json の範囲を変えず npm update vite で上げる設計なので、D2 だけでは版の到達を判定できない。adr-0008-addendum-draft-r1.md の決定 1・3 も更新対象は書くが、結果の版の一致を独立のゲートにしていない。",
       "fix": "D1〜D12 に版の一致を追加し、package-lock.json の node_modules/vitest・node_modules/vite と、npm ls vitest vite --depth=0 --json の実際の版が、それぞれ厳密に 5.1.0・8.3.6 であることを確認する。実行する前にも、着手時の registry の公開時刻・7 日の経過・選定した版を固定する。想定外の版または未更新なら、B5-D-Q7 の A に従い止めて人間が決める。依存の commit の SHA 固定 worktree と CI でも版の確認を記録する。",
       "confidence": "確認済み",
-      "status": "deferred",
+      "status": "resolved",
       "verdict": "VALID",
       "action": "受け入れ（人間の決定 2026-11-08: B5-D-Q7 = A。R1 の条件: 版の不一致と着手時の新しい版も停止の条件に含める）。設計（最終）§2.1.3 の 2（着手時に registry を読み、vitest 5.1.0・vite 8.3.6 に固定。新しい版が出ていたら止めて人が選ぶ）・5 の D13（lock・npm ls・package.json の範囲の 6 つの値）・6・7（D13 を 3 か所で）、ADR-0008 の追記の案（最終）の決定 3・4",
-      "fixedIn": null,
-      "regressionTest": null,
+      "fixedIn": "c80374d17450d14870cd1b7275baaaa046fed9ef",
+      "regressionTest": "新しい実行のテストは無い（設計の完了条件の直し）。D13 は v0.18.3 で実地に行った: 試しの worktree・release の branch の作業ツリー・依存の commit 40317d9 の SHA 固定の worktree（npm ci の後）の 3 か所で、lock・npm ls・package.json の範囲の 6 つの値が期待値（vitest 5.1.0・vite 8.3.6・~5.1.0・~8.3.5）と合った（CHANGELOG・ROADMAP の v0.18.3 の項）。実装の独立レビュー batch5-v0183-impl R1 の問い 1 で、レビュアーは公開の固定版の lock と package.json の 4 つの値を読んで一致を確かめた（npm ls の 3 か所は実装者の記録への依拠、とレビュアーが書いた）",
       "guard": null,
       "destination": "v0.18.3",
-      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch5-design/design-final.md と adr-0008-addendum-draft-final.md（この記録と同じ commit で収録した）。R2 の評価: 解消。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記と、D13 の実地の確かめは v0.18.3 に入るので、v0.18.3 の commit で resolved にし、fixedIn と確かめの記録を書く"
+      "note": "設計の指摘。直した先は設計（最終）docs/reviews/batch5-design/design-final.md と adr-0008-addendum-draft-final.md（この記録と同じ commit で収録した）。R2 の評価: 解消。人間の決定（2026-11-08）で、v0.18.3 の 4 commit を分け直し、依存と関係のない記録と設計の記録を、版なしの batch5 の記録の PR に先に入れた（split-note.md）。ADR-0008 の追記と、D13 の実地の確かめは v0.18.3 に入った。v0.18.3 の後の記録の PR（版なし。2026-11-14）で resolved にし、fixedIn と確かめの記録を書いた（設計の記録の commit c80374d は、その commit の中では fixedIn に書けなかった）。fixedIn は、指摘の中心の直し（完了条件に版の到達のゲート D13 を足し、着手時に版を固定し、不一致を停止の条件にした設計〈最終〉§2.1.3 の 2・5 の D13・6・7）が入った commit c80374d（batch5 の記録の PR #33 の 2 つ目。設計〈最終〉と最終の文案 adr-0008-addendum-draft-final.md の決定 3・4）。ほかの commit にある直し: ADR-0008 の追記〈v0.18.3〉の決定 3・4（D13 と停止の条件を決まりに写した）は e836444、D13 の実地（3 か所。依存の commit とその SHA 固定の worktree）は 40317d9、その記録（CHANGELOG・ROADMAP の v0.18.3 の項）は release の d5e5ff6。実装の独立レビュー batch5-v0183-impl R1 の問い 6 の勧め（fixedIn を ADR の commit へ機械的に割り当てない）に合わせた"
     },
     {
       "id": "B5-D-R1-002",

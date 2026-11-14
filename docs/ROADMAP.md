@@ -1,6 +1,6 @@
 # ROADMAP — ai-quality-harness
 
-最終更新: 2026-11-08
+最終更新: 2026-11-14
 
 各マイルストーンは「自分自身の verify が PASS している」ことを共通の終了条件とする。
 M1 以降の内容は現時点の案であり、着手時に依頼範囲を再確認する。
@@ -1257,6 +1257,13 @@ M2-1 の教訓（R3）:
   - 着手時の見直し: audit は high 0・moderate 9（v0.18.2 までの 10 から、lock は同じまま 1 つ減った。eslint 10.15.0〈2026-11-13 公開〉が minimatch 11 系を許し、`@eslint/js` が数えられなくなった見込み）。依存の更新の後も同じ。Actions は最新のまま
   - 次の batch で見るもの（依存の見張り）: vite 8.3.7・8.3.8（7 日を満たした後）、eslint 10.15.0（範囲 `~10.14.0` の外。2026-11-20T21:33Z から 7 日を満たす。上げると minimatch の moderate の勧告が消える見込み。確かめていない）、commander 15.1.0（実行時の依存。見張り）
   - 次: 実装の独立レビュー batch5-v0183-impl R1（v0.18.3 の 3 commit と、batch5 の記録の PR #33 の 2 commit）。SHA・CI・タグ・merge の commit の作者のメールの形の記録と、B5-D-R1-001・B5-D-R2-001 を `resolved` にすることは、この版の後の記録の PR で行う。その後に v0.18.4（C-44 の残り）
+  - CI（pull request の run）: PR #34 の run 43562231724（event pull_request、head `d5e5ff6`）で、必須の 2 つが success（`measure (windows)` は skipped）。`verify (ubuntu)` はジョブ 4 分 46 秒（verify の duration 4m05s、VERIFY PASSED）。`reusable (self) / aiqh verify` はジョブ 6 分 57 秒（VERIFY PASSED、5m57s。`aiqh --version` は 0.18.3）。どちらの job も、`npm ci` が moderate 9、verify の dependency の check の `parsed: npm-audit` が 9 vulnerabilities (9 moderate)（ADR-0008 の追記の決定 6 の基準〈着手時の 9 から増えない〉のとおり）。`unit`・`unit-minpath` の秒と割合は、この版では記録していない
+  - CI（merge の後の main の run）: merge の commit `96b87eb` の push の run 43562842628 で、必須の 2 つが success。`verify (ubuntu)` はジョブ 5 分 20 秒（verify の duration 4m31s、VERIFY PASSED）。`reusable (self) / aiqh verify` はジョブ 5 分 24 秒（VERIFY PASSED、4m34s。aiqh のソースは `96b87eb`、0.18.3）。moderate 9 は同じ。タグは、この run の success の後に付けた
+  - PR #34: merge の commit `96b87ebf5894d3a7f5b4d7c26cad80e425e0f6ce`（親は `ab524e6` と `d5e5ff6`。2026-11-14T05:42:41Z）。merge の commit の作者のメールは GitHub の noreply の形だった（値は書かない）。リモートの branch `release/v0.18.3` は残っていない
+  - タグ v0.18.3 = commit d5e5ff6139a85b65a22e57629833458e16587dda / tag object 2b0bc84db791c551ec29cc8afe06d922e20d48d1。ruleset `tag-protection` の下で 3 回目の作成（ci 手順書 §8 の手順 7。2026-11-14 に 1 回だけ送った。送った後の `git ls-remote` の 2 行は tag object と commit。記録の PR の作業で読んだ手元・リモートの `v*` の名前は 101 と 101）。rule insights に `refs/tags/v0.18.3` の `pass`（2026-11-14T14:49:07+09:00。`tag-protection` の `update`・`deletion` が評価されて `pass`）。消すこと・付け替えることが拒まれるかは試していない（ci 手順書 §3）。CHANGELOG の v0.18.3 の見出しの SHA と、この項の CI・タグの記録は、v0.18.3 の後の記録の PR（branch `docs/v0.18.3-record`）で記入した
+  - 実装の独立レビュー batch5-v0183-impl R1（範囲 `ab524e6..96b87eb`、3 commit と merge の commit・7 ファイル。範囲の外の PR #33 の 2 commit も対象。`docs/reviews/batch5-v0183-impl/`）: **High 0 / Medium 1 / Low 2**。3 件とも VALID で、記録の PR で直して `resolved`（人間の決定 2026-11-14）: B5-I183-R1-001（D3 の例外を承認し、今後の D3 を明文化した。ADR-0008 の追記の注記の 1）、B5-I183-R1-002（決定 5 に、選ぶ版の非推奨の印・tarball・勧告の確かめを足した。注記の 2）、B5-I183-R1-003（PR #33 の置き換えの後の 4 行の読みやすさ）。問い 8 の改善の提案（`npm audit --json` の勧告の集合の比べ）も足した（注記の 3）。Medium があるので、依頼文に先に書いた終える基準（High・Medium が 0）に届かない → **実装 R2 を頼む**（人間の決定 2026-11-14）。`aiqh review-check --label batch5-v0183-impl` は `REVIEW LOOP: complete`・`REVIEW CHECK: passed`（すべての回に `open` が無いという表示で、終える基準とは別）
+  - batch5-design の B5-D-R1-001・B5-D-R2-001 を、記録の PR で `resolved` にした（`fixedIn` は、どちらも指摘の中心の直しが入った PR #33 の `c80374d`。ほかの commit の直しは各 `note`）。2026-11-14 の人間の決定が設計〈最終〉§2.1.3 をどう読み替えるかの注記 `docs/reviews/batch5-design/decisions-20261114.md` を足した（正本は ADR-0008 の追記とその注記）。`aiqh review-check --label batch5-design` は `REVIEW LOOP: complete`・警告 0
+  - 次（記録の PR の後）: この記録の PR の merge の後に、実装 R2（label `batch5-v0183-impl`、round 2）の依頼を用意する。v0.18.4（C-44 の残り）は上の「次」のとおり
 
 ---
 
