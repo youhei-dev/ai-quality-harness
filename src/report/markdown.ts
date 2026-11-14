@@ -125,9 +125,9 @@ function renderFailure(c: CheckResult): string[] {
   const lines: string[] = [];
   lines.push(`### ${oneLine(c.name)} — ${c.status}`);
   lines.push("");
-  // C-44 (v0.18.2): the command and the working directory are one code span each, as in the table. Outside the table the backslash of
-  // cell()'s `\|` shows (a known limit, B4-D-Q6: dropping it would change the bytes of a command with `|` and without a backtick)
-  lines.push(`- Command: ${codeSpan(cell(c.command))} (cwd: ${codeSpan(oneLine(c.cwd))})`);
+  // C-44 (v0.18.2; v0.18.4, ADR-0028 note): the command and the working directory are one code span each, as in the table. Outside the
+  // table a `|` is written as it is (oneLine(), not cell(): there a backslash does not escape inside a code span, so `\|` showed its backslash)
+  lines.push(`- Command: ${codeSpan(oneLine(c.command))} (cwd: ${codeSpan(oneLine(c.cwd))})`);
   // M2-2-PS-R1-001 (S2): the summary is a line of the tool's output (or aiqh's reason): one code span, read as text
   const summary = c.errorSummary ?? null;
   lines.push(`- Summary: ${summary === null ? "-" : codeSpan(oneLine(summary))}`);

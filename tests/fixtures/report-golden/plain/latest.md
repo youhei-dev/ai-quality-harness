@@ -70,7 +70,7 @@ Read from each check's output for display only: the verdict and the exit code do
 
 ### unit — FAIL
 
-- Command: `npm test \| tee log` (cwd: `pkg`)
+- Command: `npm test | tee log` (cwd: `pkg`)
 - Summary: `exit code 1: 2 tests failed`
 - Output was truncated (tail only)
 
