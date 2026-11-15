@@ -333,13 +333,13 @@
       - 逆の向き（fail も cancelled も 0 なら exit 0）: 成り立たない正しい実行がある
         - coverage の閾値に届かないとき（閾値は文書に明記〈v22・v24〉）と、coverage の設定・集計の失敗（コードから読める。v24.x の `harness.js` の 182〜207 行、`test.js` の 1588 行）
         - rerun failures のファイルが不正なとき（v24.x の `harness.js` の 222〜223 行）
-        - suite 自体の失敗は、v24.x の branch の先頭（`utils.js` の 455〜457 行）だけが success を false にする。v22.x の先頭のコード（`utils.js` の 354〜358 行。suites を足して return するだけ）と、手元の v24.13.1 の実測（合成の小さな例。入れ子の suite の本体の throw、suite の after の throw）では、suite が失敗しても success は変わらず、`fail 0`・exit 0（v24.x の先頭のこの処理は 24.13.1 より新しい）
+        - suite 自体の失敗は、v24.x の branch の先頭（`utils.js` の 455〜457 行）だけが success を false にする。v22.x の先頭のコード（`utils.js` の 354〜357 行。suites を足して return するだけ）と、手元の v24.13.1 の実測（合成の小さな例。入れ子の suite の本体の throw、suite の after の throw）では、suite が失敗しても success は変わらず、`fail 0`・exit 0（v24.x の先頭のこの処理は 24.13.1 より新しい）
         - テストが終わった後の非同期のエラー（v24.x の `harness.js` の 158〜160 行）と、v20 の root の after hook の失敗（v20.x の `test.js` の 1061 行。数えずに `test:fail` を出す）は、同じプロセスで走るとき（`--test-isolation=none` など。aiqh が選ぶ形の外）の例。既定のプロセスの分離では、親が子の `test:fail` を数え（v20.x の `runner.js` の 225 行、v22.x の 219〜231 行）、子の exit code が 0 でなく失敗した子のテストも無いと、親はそのファイルを失敗として数える（v24.x の `runner.js` の 295〜297 行・371〜377 行、`test.js` の 1691 行）。手元の v24.13.1 の実測: 非同期のエラーは `tests 2`・`pass 1`・`fail 1`・exit 1（照合と合う）、root の after の失敗は `fail 1`・exit 1、`--test-isolation=none` を付けたときだけ、非同期のエラーが `fail 0`・exit 1。v20 は実測していない
         - aiqh が node-test の形として選ぶコマンド（`src/node-command.ts` の `runsNodeTest`）: `--test` が要る。値を取るオプションの一覧（9 行）と旗の一覧（10〜15 行）に `--test-isolation` は無く、一覧の外のオプションは選ばない（61 行）。旗の一覧に `--experimental-test-coverage` はある（11 行）。coverage の閾値のオプション（`--test-coverage-lines` など）は、どちらの一覧にも無い
       - この項の、文書の記載・coverage と rerun failures の行番号・suite・プロセスの分離・v20 の行番号の直しは、独立した確かめ（2026-11-15。出どころの読み直しと手元の v24.13.1 の実測。文書の取得は 2026-11-15T03:07Z〜03:14Z〈UTC〉）による
     - aiqh への影響: 決定 14 の「2 段の認識」の 2（値の確かめ）と `src/parse/node-test.ts` の 84 行は、終了コードを両方の向きで照らす。上の逆の向きの実行（exit 1、fail 0、cancelled 0）では `unexpected-summary` になり、件数が出ない。判定・終了コードは変わらない（P1）。上の行の「成り立たない正しい出力があれば、件数が出ないだけ」と同じ結果
     - 扱い（人間の決定 2026-11-15〈停止 B = A〉）: 注記だけにした。決定 14 の文・`src/`・テスト・fixture は変えない。終了コードの照合を片向きにするかは、ROADMAP の候補に 1 行で置いた
-    - 読んでいない: v22 の `test.js`・`harness.js`、v20 の `harness.js`、`runner.js` の全文
+    - 読んでいない: v22 の `test.js`・`harness.js`、v20 の `harness.js`、`runner.js` の全文（調べものの段。独立した確かめ〈2026-11-15〉では、v22.x の先頭の `harness.js`・`test.js`・`runner.js` に、suite の失敗で success を書き換える所が無いことと、タグ v24.13.1 の `utils.js` の 385〜388 行が suite のとき suites を足して return するだけであることを確かめた）
 - テストが要約のかたまりと同じ形の 8 行を出すと、`unexpected-summary`（件数が出ない）。テストが出す 1 行だけの偽の要約は、組にならないので読まない
 - 失敗の名前は、入れ子の葉の名前と場所だけ（suite の名前の連なりは出ない）。cancelled と fail を名前の上では区別しない
 - `--test-reporter` を 2 つ以上 stdout に向けた出力は読まない（行が混ざる）
