@@ -1,14 +1,14 @@
 # ADR-0037: security の check は、見えない文字の層 (c) も、既定で FAIL にする（正しい絵文字の並びに完全に一致する区間の内側だけを機械的に除く。分類を明示した allow でだけ外せる）
 
 - 状態: 採用（v0.15.0。ROADMAP の項目 49。batch1 の設計〈最終〉`docs/reviews/batch1-design/design-final.md` の §4 と、この ADR の案〈最終〉`docs/reviews/batch1-design/adr-0037-draft-final.md` を採用した。設計の独立レビュー R1〜R3 は `docs/reviews/batch1-design/`。決めること B1-Q12〜B1-Q17 は `questions-final.md`）。決定 7 と既知の限界のパケット・出口の 2 項は、v0.17.0 で ADR-0039 が置換
-- 日付: 2026-10-25（v0.15.0）。案: 2026-10-21（R1・R2）、2026-10-22（R3・最終）。注記: 2026-10-29（v0.17.0。決定 7・対象範囲・既知の限界に ADR-0039 の注記）、2026-10-30（v0.17.1。影響の「適用先 B」の行に、実際の上げ方の注記）
+- 日付: 2026-10-25（v0.15.0）。案: 2026-10-21（R1・R2）、2026-10-22（R3・最終）。注記: 2026-10-29（v0.17.0。決定 7・対象範囲・既知の限界に ADR-0039 の注記）、2026-10-30（v0.17.1。影響の「適用先 B」の行に、実際の上げ方の注記）、2026-11-15（C-51 の調べもの〈版なし。B6-Q5 の、batch6 とは別の依頼〉。文脈・決定 1・決定 3 の I2・資料の要確認の点に、調べた結果の注記。末尾の「注記（2026-11-15。C-51 の調べもの）」）
 - 案からの違いは、下の「案（最終）からの違い」。決定の中身は案のまま
 
 ## 文脈
 
 - ADR-0036（v0.13.0）で、security の check は層 (a)・(b) の 11 の符号位置（双方向の制御文字 U+202A–U+202E・U+2066–U+2069、行区切り U+2028・U+2029）を、中身とパス名で finding にした（既定で FAIL、分類を明示した allow だけが外す）
 - ADR-0036 の既知の限界: 方向の印、ゼロ幅の文字、途中の U+FEFF、異体字セレクタ、タグ文字、11 の外の制御文字、同形異字は見ない（ROADMAP の項目 49）。見なかった理由は、正当な使い方があること（右から左の文書、絵文字の並びの U+200D、一部の文字の U+200C）と、Trojan Source の論文・Rust・clang-tidy が方向の印を対象にしていないこと
-- 層 (c) の文字は、画面に見えないまま、識別子・文字列・文書の中身を変えられる。見えない文字の並びにデータや指示を隠す手口の報告もある [要確認]
+- 層 (c) の文字は、画面に見えないまま、識別子・文字列・文書の中身を変えられる。見えない文字の並びにデータや指示を隠す手口の報告もある [要確認: trojansource.codes には記載なし。末尾の「注記（2026-11-15。C-51 の調べもの）」の 1]
 - 実測（2026-10-21。追跡しているファイル。件数だけ）
   - aiqh 本体: 層 (c) の候補はすべて 0 件
   - 適用先 A: 異体字セレクタ U+FE0F が 3 件（3 ファイル）。すべて正しい絵文字の並びの中
@@ -31,13 +31,13 @@
    - **Unicode の属性との差分を固定する**（R2）: 次の差分をテストで固定する（ここでの「集合」は、8 分類と層 (a)・(b) の 11 を合わせた 4,258 の符号位置）。Node の Unicode の版が変わって差分が変われば、テストが FAIL して人が見直す
      - DICP − 集合: 無し
      - 集合 − DICP（意図して入れる。84）: `control` の 63、U+2028・U+2029（層 (b)）、U+FFF9–U+FFFB（行間の注釈の制御）、U+13430–U+1343F（聖刻文字の書式の制御）
-     - 書式の文字（Cf）− 集合（意図して入れない。13）: U+0600–U+0605、U+06DD、U+070F、U+0890–U+0891、U+08E2、U+110BD、U+110CD（後ろの数字にかかる、表示のある印 [要確認]）
+     - 書式の文字（Cf）− 集合（意図して入れない。13）: U+0600–U+0605、U+06DD、U+070F、U+0890–U+0891、U+08E2、U+110BD、U+110CD（後ろの数字にかかる、表示のある印。2026-11-15 の注記: 13 個がどれも Cf で、DICP に入らず見えるべき書式の文字であることは、UCD 18.0.0 のデータに明記〈末尾の注記の 2〉。「後ろの数字にかかる」は [要確認: 読んだ PropList.txt・DerivedCoreProperties.txt には記載なし]）
      - 制御文字（Cc）− 集合（意図して入れない）: U+0009（TAB）、U+000A（LF）
    - 層 (a)・(b) の 11 の符号位置と分類は変えない。`FORBIDDEN_RANGES`（75 の符号位置）も変えない（ADR-0020 の決定 3）
 2. **出現ごとに finding**: ADR-0036 の決定 2 と同じ（同じファイル・行・符号位置は 1 件。パス名は同じパス・符号位置で 1 件）。決定 3 の除外は出現の位置ごとに判断し、この finding の鍵とは分ける（決定 3 の I9。R3）
 3. **正しい絵文字の並びに完全に一致する区間の内側だけを除く**（R2 で不変条件にし、R3 で I5・I6 を書き直して I9 を足した）。次の I1〜I9 を不変条件とする
    - **I1 候補**: 除外を考えるのは U+200D・U+FE0F・U+E0020–U+E007F だけ。U+FE0E・U+E0001・U+E0100–U+E01EF・U+180B–U+180F は RGI の並びに現れない（下の集合 E の外）ので、常に finding
-   - **I2 run**: 候補を含む、集合 E（`\p{Emoji}` と `\p{Emoji_Component}` の和）の文字が続く最も長い範囲を run とする。E の外の文字は、どの RGI の並びにも現れない（RGI の並びの文字はすべて E に入る [要確認: UTS #51 の定義]）
+   - **I2 run**: 候補を含む、集合 E（`\p{Emoji}` と `\p{Emoji_Component}` の和）の文字が続く最も長い範囲を run とする。E の外の文字は、どの RGI の並びにも現れない（RGI の並びの文字はすべて E に入る。2026-11-15 の注記: UTS #51 の定義と Unicode 18.0 のデータから読め、例外は見つからなかった。UTS #51 は明文では書いていない。機械的な全数の照合はしていない〈末尾の注記の 3〉）
    - **I3 区切り**: run の先頭から、`\p{RGI_Emoji}` の最も長い一致を左から順に取る。run の外の文字はどの一致にも入らないので、この区切りは行の頭から区切ったものと同じ（run の途中から区切り始めない）
    - **I4 除外**: 候補が、ある一致の区間の内側にあるときだけ除く。一致と一致の間、run の端の候補は finding
    - **I5 窓の中での決め方**（R3）: 「窓の先頭」は行の始まりから届いていない窓の先頭、「保証された末尾」は行の終わりまで届いていない窓の最後の `lineOverlapBytes`（既定 4 KiB、最小 256。UTF-16 の単位）で、次の窓の先頭に必ず入る（`LineAssembler.push`。次の窓は、保つ部分の始まり `from` から。`from` は保証された末尾の始まり以下）。各窓で、候補を含む run ごとに次の順で当てる
@@ -101,11 +101,11 @@
 
 ## 資料
 
-- Unicode Standard Annex #31（識別子。U+200C・U+200D の扱い）[要確認]
-- Unicode Technical Standard #39（セキュリティの仕組み）[要確認]
-- Unicode Technical Standard #51（絵文字。RGI_Emoji の並び、Emoji・Emoji_Component の属性）[要確認]
-- Unicode Technical Standard #55（ソースコードの扱い）[要確認]
-- Unicode の DerivedCoreProperties.txt の Default_Ignorable_Code_Point、PropList.txt の Variation_Selector [要確認]
+- Unicode Standard Annex #31（識別子。U+200C・U+200D の扱い。U+200C・U+200D を文脈で許す規則は、今は UTS #39 の §3.1.1 にある）: `https://www.unicode.org/reports/tr31/`、Unicode 18.0.0、Revision 45、2026-09-01。§2.3「Layout and Format Control Characters」と §7。2026-11-15 に取得（下の注記の 4）
+- Unicode Technical Standard #39（セキュリティの仕組み）: `https://www.unicode.org/reports/tr39/`、18.0.0、Revision 34、2026-08-27。§3.1（表 1 と注）・§3.1.1・§4・§5.1・§5.2。2026-11-15 に取得（下の注記の 5）
+- Unicode Technical Standard #51（絵文字。RGI_Emoji の並び、Emoji・Emoji_Component の属性）: `https://www.unicode.org/reports/tr51/`、Version 18.0、Revision 31、2026-08-28。§1.4.1（ED-3・ED-5）・§1.4.5（ED-14〜ED-17）・§1.4.6（ED-27）・§1.4.9。2026-11-15 に取得（下の注記の 3・6）
+- Unicode Technical Standard #55（ソースコードの扱い。表示と警告の勧めで、一律に禁じる規則は無い。既定で FAIL にするのは aiqh の判断）: `https://www.unicode.org/reports/tr55/`、Version 2、Revision 5、2024-01-29。§4.2・§4.2.1・§4.2.2・§5.1.3。2026-11-15 に取得（下の注記の 7）
+- Unicode の DerivedCoreProperties.txt の Default_Ignorable_Code_Point、PropList.txt の Variation_Selector: `https://www.unicode.org/Public/UCD/latest/ucd/` の 18.0.0（どちらも 2026-08-07）。2026-11-15 に取得（下の注記の 2・8）
 - Trojan Source（CVE-2021-42574）、同形異字（CVE-2021-42694）
 - ADR-0004・ADR-0012・ADR-0020・ADR-0036
 
@@ -134,3 +134,26 @@
 - 確かめる文字の行は、`bom` に U+FEFF を、`control` に U+000D を並べる（先頭の BOM と、LF の前・ファイルの最後の CR は、決定 1 のとおり見ない）
 - 既知の限界に、端末とレポートの出口の表記が `FORBIDDEN_RANGES` だけに効くことを足した（下）
 - 既存のテストの期待値の変更に、確かめる文字の行の文を固定していた T9 が入った（案の「影響」の、文を固定しているテストを実装の段で洗う、に当たる）。security-scan の出力の fixture（`tests/fixtures/parse/security-self.stdout.txt`、v0.13.0 で取った）と、それを読む T14 は変えていない（古い版の出力も読めることの守り）
+
+## 注記（2026-11-15。C-51 の調べもの〈版なし。B6-Q5〉）
+
+上の要確認の点を、外の文書とデータで調べた。取得はすべて 2026-11-15T02:31Z〜02:34Z（UTC）。確かさは「文書に明記」「データに明記」「文書（定義）とデータから読める」「実際の出力で確かめた」「記載なし」「未確認のまま」で書く。決定・`src/`・テストは変えない。
+
+- 前提: UCD の latest は 18.0.0（PropList.txt・DerivedCoreProperties.txt の日付 2026-08-07）。手元の Node v24.13.1 の `process.versions.unicode` は 17.0 で、この ADR が数えた版と同じ。下の 2・8 のとおり、検出する集合（DICP の 4,174、Variation_Selector の 260）と、Cf のうち入れない 13 個は、18.0.0 のデータでも変わらない。Emoji の属性は Unicode 17 の 1,438 から、`emoji-data.txt` 18.0 の 1,447 に 9 増える（Emoji_Component は 146 で同じ）。18.0 の新しい絵文字を含む並びの中の候補（U+200D・U+FE0F・タグ文字。決定 3 の I1）は、Unicode 17 の Node では finding になる（FAIL の向き。決定 3 の I8 のとおり）。U+200D・U+FE0F・タグ文字を含まない 1 文字の新しい絵文字は、候補にならない（この直しは、独立した確かめ〈2026-11-15〉による）
+
+1. 文脈の「データや指示を隠す手口の報告」（記載なし。要確認のまま）: `https://trojansource.codes/` が述べるのは、双方向の制御の文字で見た目の順を変える手口（CVE-2021-42574）と、見分けにくい文字の変種（CVE-2021-42694）の 2 つ。ゼロ幅の文字やタグ文字にデータや指示を隠す手口は述べていない。文脈の行には、要確認の印を「trojansource.codes には記載なし」の言い方で残した。実装との食い違いは無い
+2. 決定 1 の Cf のうち入れない 13 個（データに明記。一部は記載なし）: `PropList.txt`（18.0.0）の Prepended_Concatenation_Mark は U+0600〜U+0605、U+06DD、U+070F、U+0890〜U+0891、U+08E2、U+110BD、U+110CD の 13 で、この ADR と同じ。どの行の注釈も Cf。`DerivedCoreProperties.txt`（18.0.0）の Default_Ignorable_Code_Point の作り方の注釈は Prepended_Concatenation_Mark を引いており、見えるべき例外の書式の文字と説明する。DICP のデータ行にも 13 個は無い。「後ろの数字にかかる」は、読んでよい資料（この 2 つのファイル）に記載なし（Unicode の本体の章・UAX #44 は範囲の外で読んでいない）ので、その部分だけ要確認を残した。食い違いは無い（`tests/regression-item49-raw-chars-layer-c.test.ts` の 185 行の期待値と同じ）
+3. 決定 3 の I2「RGI の並びの文字はすべて E に入る」（文書〈定義〉とデータから読める。全数の照合はしていない）
+   - `emoji-data.txt`（18.0.0）の Emoji_Component は 146（U+0023、U+002A、U+0030〜U+0039、U+200D、U+20E3、U+FE0F、U+1F1E6〜U+1F1FF、U+1F3FB〜U+1F3FF、U+1F9B0〜U+1F9B3、U+E0020〜U+E007F）
+   - `emoji-sequences.txt`（18.0）の並びの数は、Basic 1,409・Keycap 12・Flag 259・Tag 3・Modifier 675
+   - `emoji-zwj-sequences.txt`（18.0）で U+1F000〜U+1FAFF の外に現れる文字は、U+200D・U+FE0F を除いて U+2194、U+2195、U+2620、U+2640、U+2642、U+2695、U+2696、U+2708、U+26A7、U+26D3、U+26F9、U+2744、U+2764、U+27A1、U+2B1B の 15 個で、どれも Node（Unicode 17）の `\p{Emoji}` で真（実際の出力で確かめた）
+   - UTS #51 は §1.4.9 の EBNF と正規表現で、並びを Emoji・Emoji_Modifier と決まった部品（U+200D・U+FE0F・U+20E3・タグ文字）から組み立てる。ただし「RGI の並びの文字はすべて E」とは明文では書いていない
+   - 例外は見つからなかった。ただし、機械的な全数の照合はしていない。データファイルの取得が断られたので、WebFetch の要約と、Node の正規表現での個別の確かめで代えた。`emoji-test.txt` は読んでいない
+   - 出どころ: `https://www.unicode.org/Public/UCD/latest/ucd/emoji/emoji-data.txt`、`https://www.unicode.org/Public/emoji/latest/emoji-sequences.txt`、`https://www.unicode.org/Public/emoji/latest/emoji-zwj-sequences.txt`。食い違いは無い
+4. UAX #31（Unicode 18.0.0、Revision 45、2026-09-01。文書に明記）: §2.3「Layout and Format Control Characters」が結合の制御の文字を扱う（XID_Continue に入っていること、正当な用途があること、一般の識別子では外すのがよいこと）。§2.3 の本文は U+200C・U+200D を番号では書いていない。§7 に DICP をすべて除く標準の profile がある。U+200C・U+200D を文脈で許す規則（A1・A2・B）は、今は UTS #39 の §3.1.1 にある。食い違いは無い
+5. UTS #39（18.0.0、Revision 34、2026-08-27。文書に明記）: 識別子の profile（§3.1。Identifier_Status・Identifier_Type）、似た文字の判定（§4）、混ざった文字体系の判定（§5.1）、制限の段階（§5.2）。DICP の文字は Identifier_Type が Default_Ignorable で、Restricted（表 1）。§3.1 の注に、Unicode 15.0 から U+200D・U+200C も Default_Ignorable・Restricted になったとある。食い違いは無い
+6. UTS #51（Version 18.0、Revision 31、2026-08-28。文書に明記）: Emoji は ED-3、Emoji_Component は ED-5（どちらも §1.4.1。ED-5 は、部品の一部〈タグ文字・U+200D など〉は Emoji ではないと述べる）。並びの定義は ED-14〜ED-17（§1.4.5）、RGI の集合は ED-27（§1.4.6）、正規表現は §1.4.9。食い違いは無い
+7. UTS #55（Version 2、Revision 5、2024-01-29。文書に明記）: ソースコードの扱いの文書。§4.2 は、エディタが既定で無視される文字を見えるようにする選択肢を持つよう勧める。§4.2.1 は U+200D・U+200C と異体字セレクタの表示、§4.2.2 は双方向の制御の文字の印、§5.1.3 は General Security Profile に基づく警告を扱う。どれも表示と警告の勧めで、一律に禁じる・FAIL にする規則は無い。この ADR の「既定で FAIL」は aiqh の判断。取得した本文は §5.2 の途中より後が切れている。食い違いは無い
+8. DICP と Variation_Selector（`https://www.unicode.org/Public/UCD/latest/ucd/` の 18.0.0、2026-08-07。データに明記）: `DerivedCoreProperties.txt` の DICP の合計は 4,174 で、この ADR と同じ。データ行は、この ADR の 8 分類と層 (a)・(b) にすべて入る。`PropList.txt` の Variation_Selector は U+180B〜U+180D、U+180F、U+FE00〜U+FE0F、U+E0100〜U+E01EF の 260 で、この ADR と同じ。食い違いは無い。`UnicodeData.txt` での Cf の全数の照合はしていない
+
+- 読んでいない・読めなかった: `UnicodeData.txt`、`emoji-test.txt`、UAX #31・UTS #39・UTS #51・UTS #55 の末尾（WebFetch の 1 回の取得で、約 1 万〜3 万字が切れた）
