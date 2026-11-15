@@ -1,7 +1,7 @@
 # ADR-0028: verify は check の出力を表示のためだけに読む（出力パーサ）。security-scan の項目も同じ欄に入れる。判定と終了コードは変えない
 
 - 状態: 採用（M2-2 の残り: ROADMAP の M2-2 の「内容」の「出力パーサの実装」と、項目 15 の「verify レポートへの oversized-candidate / `security.allow` 警告の構造化」。ADR-0011 の「出力パーサは `OutputParser` の型だけ定義（M1）」を置き換える〈型は `src/parse/tool.ts` の `ToolParser`。M1 の下書きは消した〉。ADR-0003・0004・0005 は変えない）。v0.8.1 で、決定 8 の Markdown の形を追記（決定 10・11）で変えた
-- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）。追記: 2026-10-26（v0.15.1。末尾の「追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方）」）。注記: 2026-10-30（v0.17.1。決定 12 の既知の限界に、pytest の実物の形の注記）。追記: 2026-10-30（v0.18.0。末尾の「追記（v0.18.0: 決定 14 node:test のパーサ）」）。注記: 2026-11-07（v0.18.1。決定 14 の既知の限界に、適用先 A の CI の実物の注記）。注記: 2026-11-07（v0.18.2。v0.8.1 の追記の既知の限界に、`latest.md` のコマンドと作業ディレクトリの code span〈C-44〉）。注記: 2026-11-14（v0.18.4。v0.8.1 の追記の既知の限界の、表の外の `- Command:` の行の `\|` を解消〈C-44 の残り〉）。注記: 2026-11-14（v0.18.4 の後の記録。v0.18.4 の注記の旧動作の版の範囲の言い直し〈v0.18.2 まで → v0.18.3 まで。B5-I184-R1-001〉と、v0.18.4 の出力の GitHub の描画の実測）。注記: 2026-11-15（batch6 の記録の PR。v0.18.4 の後の記録の注記の「見出しとデータの 8 行」の言い直し〈「8 行」はデータの行の数。もとの Markdown は見出し 1 行・区切り 1 行・データ 8 行、HTML は見出しの行 1 つ・データの行 8 つ〉）
+- 日付: 2026-10-14（v0.8.0）。追記: 2026-10-15（v0.8.1）。注記: 2026-10-19（v0.13.0。末尾の「注記（v0.13.0）」）。追記: 2026-10-23（v0.14.0。末尾の「追記（v0.14.0: 決定 12 pytest のパーサ）」）。追記: 2026-10-26（v0.15.1。末尾の「追記（v0.15.1: 決定 13 ほかの 4 つの道具の選び方）」）。注記: 2026-10-30（v0.17.1。決定 12 の既知の限界に、pytest の実物の形の注記）。追記: 2026-10-30（v0.18.0。末尾の「追記（v0.18.0: 決定 14 node:test のパーサ）」）。注記: 2026-11-07（v0.18.1。決定 14 の既知の限界に、適用先 A の CI の実物の注記）。注記: 2026-11-07（v0.18.2。v0.8.1 の追記の既知の限界に、`latest.md` のコマンドと作業ディレクトリの code span〈C-44〉）。注記: 2026-11-14（v0.18.4。v0.8.1 の追記の既知の限界の、表の外の `- Command:` の行の `\|` を解消〈C-44 の残り〉）。注記: 2026-11-14（v0.18.4 の後の記録。v0.18.4 の注記の旧動作の版の範囲の言い直し〈v0.18.2 まで → v0.18.3 まで。B5-I184-R1-001〉と、v0.18.4 の出力の GitHub の描画の実測）。注記: 2026-11-15（batch6 の記録の PR。v0.18.4 の後の記録の注記の「見出しとデータの 8 行」の言い直し〈「8 行」はデータの行の数。もとの Markdown は見出し 1 行・区切り 1 行・データ 8 行、HTML は見出しの行 1 つ・データの行 8 つ〉）。注記: 2026-11-15（C-07 の残りの調べもの〈版なし。B6-Q5 の、batch6 とは別の依頼〉。決定 12 の既知の限界の pytest の実際の出力と、決定 14 の既知の限界の Node の版・記号・和と終了コードの関係の要確認の点に、調べた結果の注記〈各行の下の「注記（2026-11-15。C-07 の残りの調べもの）」〉）
 
 ## 文脈
 - M1 は出力パーサを型（`src/adapters/types.ts` の `OutputParser`）だけ定義し、実装を M2 のレポートの構造化に回した。verify のレポートには、各 check の状態・終了コード・出力の末尾（`stdoutTail`・`stderrTail`）しか無く、「何件のテストが落ちたか」「どのテストか」は末尾の文字列を人が読むしかない
@@ -238,8 +238,21 @@
 
 ### 既知の限界（足すもの）
 - 選ばれない形（`no-parser`。件数が出ないだけ）: wrapper の一覧に無い形（`coverage run -m pytest`・`tox`・`nox`・`make test`・`env pytest`）、`python -X …`・`-W …`・`-c …` など値を取る旗、`-mpytest` の 1 語、引用ありの `pytest`・`-m`・`run`、前後にほかの単純コマンドがある形、Windows の `python.exe`
-- 実物で確かめた要約の形は `-q` の、passed と skipped だけの 1 回（batch1 の設計 §3.4）。既定の形（前後の `=`）・失敗とエラーと警告のある出力・`(h:mm:ss)`・古い ` seconds`・`no tests ran`・`short test summary info` の節は、合成の fixture（`tests/fixtures/parse/pytest-*.stdout.txt`。名前は架空）だけで確かめた [要確認]。pytest の将来の版やプラグインで形が変わると、件数が出なくなる（`no-summary`・`unexpected-summary`。判定は変わらない）
+- 実物で確かめた要約の形は `-q` の、passed と skipped だけの 1 回（batch1 の設計 §3.4）。既定の形（前後の `=`）・失敗とエラーと警告のある出力・`(h:mm:ss)`・古い ` seconds`・`no tests ran`・`short test summary info` の節は、合成の fixture（`tests/fixtures/parse/pytest-*.stdout.txt`。名前は架空）だけで確かめた（2026-11-15 の注記: `(h:mm:ss)`・古い ` seconds` のほかは実際の出力で確かめた。この 2 つは [要確認: 走らせていない。pytest の公式の文書〈output・reference〉には要約の行の形の決まりの記載なし]。下の「注記（2026-11-15。C-07 の残りの調べもの）」）。pytest の将来の版やプラグインで形が変わると、件数が出なくなる（`no-summary`・`unexpected-summary`。判定は変わらない）
   - 注記（v0.17.1）: 適用先 B の CI（v0.17.0 の再利用ワークフロー。2026-10-29 の pull request と main の run）で、`-q` の passed と warning の形（`parsed: pytest — <n> passed, 1 warning`）が実物で出た。失敗・エラーのある形は、今も合成の fixture だけで確かめている。決定・テスト・fixture は変えない
+  - 注記（2026-11-15。C-07 の残りの調べもの〈版なし。B6-Q5〉）: 上の行の要確認の点を確かめた
+    - 実際の出力で確かめた: pytest 9.0.3・Python 3.13.2・macOS（2026-11-15T02:31Z 頃〈UTC〉。適用先 B（pytest）の仮想環境の python を読むだけで使い、aiqh の `tmp/` の中の合成のテスト 4 件〈成功・失敗・fixture のエラー・警告つきの成功〉を `-p no:cacheprovider` で走らせた）。出力を、今のパーサ（`parseOutputAs("pytest", …)` を直接呼ぶ小さなスクリプト。既にある読み取りのコマンドは無かった）にかけた
+      - 既定（exit 1）: 要約は `=============== 1 failed, 2 passed, 1 warning, 1 error in 0.02s ================` で、passed 2・failed 1・errors 1・warnings 1、items は failed-test と error の 2 件（`short test summary info` の節の `FAILED`・`ERROR` の行）
+      - `-q`（exit 1）: 要約は `1 failed, 2 passed, 1 warning, 1 error in 0.01s`（前後の `=` 無し）で、同じ counts と items
+      - `-rA`（exit 1）: 最後の行は既定と同じ。`short test summary info` の節に `PASSED` の 2 行と、`ERROR`・`FAILED` の各 1 行（この順）、その上に `PASSES` の見出し。`PASSED` の行は読まれず、items は error、failed-test の順
+      - `-k <合わない名前>`（exit 5）: `============================ 4 deselected in 0.01s =============================` で deselected 4（`-q` の `4 deselected in 0.00s` も同じ）
+      - テストの無いフォルダ（exit 5）: `============================ no tests ran in 0.01s =============================` で、件数はすべて 0、表示は `no tests ran`
+      - 語の並びと単数の `warning`・`error` は fixture と同じ形。fixture に無かった形（`-rA` の `PASSED` の行と `PASSES` の見出し、`deselected` だけの要約）も読めた。fixture・パーサとの食い違いは無い
+    - 公式の文書（取得 2026-11-15T02:31Z〜02:34Z〈UTC〉）: 要約の行の形（語の一覧・順序・時刻の形）を決まりとしては書いていない（記載なし）
+      - `https://docs.pytest.org/en/stable/how-to/output.html`: 要約の行は例があるだけ。`-r` の文字（既定は `fE`）と `short test summary info` の節は書かれている（文書に明記）
+      - `https://docs.pytest.org/en/stable/reference/reference.html`（例に 9.0.2、本文に 9.1 の変更の記載があり、版の表記ははっきりしない）: `TerminalReporter.build_summary_stats_line` と `RunResult.parseoutcomes` に例があるだけ。`(h:mm:ss)`・` seconds`・`no tests ran` は読んだ範囲（先頭から 20 万字と、30 万〜40 万字）に無い
+    - 残り: `(h:mm:ss)` と古い ` seconds` は走らせていない（[要確認: 未確認のまま。上の 2 つの文書の読んだ範囲には記載なし]）
+    - 決定・テスト・fixture は変えない
 - 要約を stdout に出さない設定（`-p no:terminal` など）・`--junitxml` だけの形は読まない
 
 ### 影響（v0.14.0）
@@ -303,9 +316,24 @@
 - **要約の出所は検証できない**: パーサは、組がテストの出力か実行の出力かを区別できない。切れていない出力で、実行が自分の要約を出す前に終わり（テストがプロセスを終わらせた、など）、テストが組を 1 つだけ出し、その値が 2 段めの確かめ（和・終了コード）を通ると、その数を読む。判定・終了コードは変わらない（P1）
 - 切れた stdout では、正しい要約が見えていても件数を出さない（`output-truncated`）。読む窓を超える実行（テストが多い、`console.log` が多い、stack の多い失敗が続く）では件数が出ない（条件と目安は上の決定 14。改善策は ROADMAP の項目 56）
 - 選ばれない形（`no-parser`。件数が出ないだけ）: init の規則が受け入れない形（パス付きの `node`、`npx`・`env`・`cross-env` 経由、一覧に無いオプション、`NODE_OPTIONS`、watch 系、別のファイルを読むオプション）、前後にほかの単純コマンドがある形、reporter が dot・junit・lcov・自作、reporter が 2 つ以上、destination がファイル
-- 実物で確かめた形は、手元の合成の例（Node v24.13.1、macOS、`.mjs`）だけ。Node のほかの版（非 TTY の既定が TAP の版がある [要確認]）、Windows の記号、適用先の実物の出力 （適用先 A の実物は設計の段に写しで 1 回確かめた。実装の段でもう一度取る: B3-D-Q7）
+- 実物で確かめた形は、手元の合成の例（Node v24.13.1、macOS、`.mjs`）だけ。Node のほかの版（非 TTY の既定が TAP の版がある。2026-11-15 の注記: Node 20・22 がそう。下の「注記（2026-11-15。C-07 の残りの調べもの）」）、Windows の記号（[要確認: Node の文書・コードには、Windows で実際に出るバイトの記載なし。同じ注記]）、適用先の実物の出力 （適用先 A の実物は設計の段に写しで 1 回確かめた。実装の段でもう一度取る: B3-D-Q7）
   - 注記（v0.18.1）: 適用先 A の CI（v0.18.0 の再利用ワークフロー。2026-10-31 の pull request の run と main の run 41149756296）で、unit の check の下に `parsed: node-test — tests 113 (pass 113, fail 0); suites 0` が実物で出て、適用先の `npm test` の要約と一致した（H11 の 4 回目。ROADMAP の v0.18.0 の項）。上の「実装の段でもう一度取る」は、v0.18.0 の写しの確かめ（下の「適用先 A の実物」）と、この CI で済んだ。Node のほかの版・Windows の記号・`--test-shard` などは未確認のまま。stdout の長さは実行ごとに数単位ゆれる（テストごとの時間の値の桁が変わる。5,914 単位〈設計の段〉と 5,913 単位〈実装の段〉は、どちらも実測）。決定・テスト・fixture は変えない
-- 和の関係と終了コードの関係は、取った形ではすべて成り立ったが、Node の決まりとしては確かめていない [要確認]。成り立たない正しい出力があれば、件数が出ないだけ
+  - 注記（2026-11-15。C-07 の残りの調べもの〈版なし。B6-Q5〉）: 上の行の Node の版と記号を調べた（取得 2026-11-15T02:31Z〜02:34Z〈UTC〉）
+    - 非 TTY の既定の reporter（文書に明記。コードとも一致）: Node 20・22 は、stdout が TTY なら spec、そうでなければ TAP。Node 24 は TTY かどうかにかかわらず spec で、v24 の文書の変更履歴には、v23.0.0 で非 TTY の既定が tap から spec に変わったとある。出どころは `https://nodejs.org/docs/latest-v20.x/api/test.html`・`https://nodejs.org/docs/latest-v22.x/api/test.html`・`https://nodejs.org/docs/latest-v24.x/api/test.html` の「Test reporters」の節（v24 は History の表の v23.0.0 の行と、spec の項。v20・v22 の節に「Otherwise, the `tap` reporter is used by default.」）。コードは nodejs/node の `lib/internal/test_runner/utils.js` の `kDefaultReporter`: v20.x の branch の先頭 `d1ef63f84ccbcc8f2237e545ba6c91258c27bed0`（125 行）と v22.x の `0368873b92711ef0945bb030cfcea650017f3ade`（127 行）は TTY なら spec・そうでなければ tap、v24.x の `221ffa5df3013056d72bada8a68f878576ec6019`（142 行）は spec だけ
+    - 記号（コードから読める）: `lib/internal/test_runner/reporter/utils.js` の `reporterUnicodeSymbolMap` は 3 つの branch で同じ（合格 U+2714、不合格 U+2716、要約・診断 U+2139、skip U+FE63）。`reporter/utils.js` にも `reporter/spec.js`（v24.x）にも、platform・win32 による分岐は無い。コードから読めるのは「OS で記号の表は変わらない」まで。Windows で実際に出るバイト（コンソールやパイプのエンコーディング）は、文書に書かれておらず、実物でも確かめていない（[要確認: 未確認のまま]）
+    - v24.x の branch の先頭では、TODO の付いた不合格のテストは U+2716 でなく U+26A0 で出る（`reporter/utils.js` の 91〜93 行）。どの版からかは確かめていない
+    - aiqh への影響: 判定・終了コードとは食い違わない。Node 20・22 で `--test-reporter` を付けずに非 TTY で走らせると、TAP の要約の組になる。aiqh はこれを読むので counts は出るが、items（失敗の名前）は出ない（決定 14 は TAP の `not ok` の行を読まない）。U+26A0 の行は、` # TODO` のあるものを入れない決まりと結果が同じ（どちらにしても items に入らない）
+    - 読んでいない: v20・v22 の文書の先頭 10 万字より後ろ、`lib/internal/util/colors.js`、版のタグ（v24.13.1 など）の ref
+    - 決定・テスト・fixture は変えない
+- 和の関係と終了コードの関係は、取った形ではすべて成り立ったが、Node の決まりとしては確かめていない（2026-11-15 の注記: 和はコードから読め、調べた 3 つの版では外れない。終了コードは「fail + cancelled が 1 以上なら 1」の向きだけがコードから読め、逆の向きは成り立たない正しい実行がある。下の「注記（2026-11-15。C-07 の残りの調べもの）」）。成り立たない正しい出力があれば、件数が出ないだけ
+  - 注記（2026-11-15。C-07 の残りの調べもの〈版なし。B6-Q5〉。人間の決定 2026-11-15〈停止 B = A〉）: 上の行の要確認の点を、nodejs/node の v20.x・v22.x・v24.x の branch の先頭（上の注記と同じ SHA）と、同じ 3 つの文書で調べた
+    - 和（`tests = pass + fail + cancelled + skipped + todo`）: 文書には記載なし（v24 の文書の `test:summary` の counts の説明は、tests が suites を除いたテストの総数というだけ）。コードから読める: `countCompletedTest` が、suite でないテスト 1 件ごとに、5 つの数のうち 1 つだけを増やし、あわせて tests も増やす（`lib/internal/test_runner/utils.js` の v24.x 449〜476 行、v22.x 350〜374 行、v20.x 266〜288 行。v20 は名前が `counters.all` で、`test.js` の 919 行がそれを tests として出す）。counters を書く場所がほかに無いことは v24.x でだけ確かめた。この 3 つの版では、和の照合は外れない
+    - 終了コード（文書に明記されているのは、3 つの版の冒頭の「1 件でも失敗すれば exit code は 1」だけ。cancelled のことも、逆の向きも書かれていない）
+      - 順の向き（fail + cancelled が 1 以上なら exit 1）: コードから読める。v22・v24 は `lib/internal/main/test_runner.js` が、`test:summary` の success が false のとき exitCode を kGenericUserError（値は 1。v24.x の `src/node_exit_code.h` の 11 行）にする。fail か cancelled が 1 件でもあれば success は false。v20 は、TODO でない `test:fail` が出るたびに exit 1 にし（`main/test_runner.js` の 73〜77 行）、cancel も `fail()` を通る（`test.js` の 615〜627 行）
+      - 逆の向き（fail も cancelled も 0 なら exit 0）: 成り立たない正しい実行がコードにある。suite 自体の失敗（v22・v24。success を false にするが、数は suites にしか入らない）、テストが終わった後の非同期のエラー（v24.x の `harness.js` の 158〜160 行）、coverage の設定・集計・閾値の失敗（v24.x の `harness.js` の 182〜223 行、`test.js` の 1588 行）、v20 の root の after hook の失敗（v20.x の `test.js` の 1061 行。数えずに `test:fail` を出す）。テストのコードが自分で exitCode を変える場合も考えられる（コードでは確かめていない）
+    - aiqh への影響: 決定 14 の「2 段の認識」の 2（値の確かめ）と `src/parse/node-test.ts` の 84 行は、終了コードを両方の向きで照らす。上の逆の向きの実行（exit 1、fail 0、cancelled 0）では `unexpected-summary` になり、件数が出ない。判定・終了コードは変わらない（P1）。上の行の「成り立たない正しい出力があれば、件数が出ないだけ」と同じ結果
+    - 扱い（人間の決定 2026-11-15〈停止 B = A〉）: 注記だけにした。決定 14 の文・`src/`・テスト・fixture は変えない。終了コードの照合を片向きにするかは、ROADMAP の候補に 1 行で置いた
+    - 読んでいない: v22 の `test.js`・`harness.js`、v20 の `harness.js`、`runner.js` の全文
 - テストが要約のかたまりと同じ形の 8 行を出すと、`unexpected-summary`（件数が出ない）。テストが出す 1 行だけの偽の要約は、組にならないので読まない
 - 失敗の名前は、入れ子の葉の名前と場所だけ（suite の名前の連なりは出ない）。cancelled と fail を名前の上では区別しない
 - `--test-reporter` を 2 つ以上 stdout に向けた出力は読まない（行が混ざる）
